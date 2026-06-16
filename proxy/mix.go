@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -24,7 +25,7 @@ func NewMixAdapter(logger *slog.Logger) *MixAdapter {
 func (a *MixAdapter) Handle(w http.ResponseWriter, r *http.Request, m config.Model, body []byte) error {
 	parsedURL, err := url.Parse(m.BaseURL)
 	if err != nil {
-		return err
+		return fmt.Errorf("mix adapter: parse base_url: %w", err)
 	}
 	if strings.HasSuffix(parsedURL.Path, "/v1/messages") {
 		return a.anthropic.Handle(w, r, m, body)
