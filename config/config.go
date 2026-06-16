@@ -3,7 +3,6 @@ package config
 import (
 	"errors"
 	"fmt"
-	"net/url"
 	"os"
 	"sort"
 	"strings"
@@ -16,10 +15,8 @@ type Config struct {
 }
 
 type Model struct {
-	Provider  string `yaml:"provider"`
-	Model     string `yaml:"model"`
-	BaseURL   string `yaml:"base_url,omitempty"`
-	APIKeyEnv string `yaml:"api_key_env,omitempty"`
+	Provider string `yaml:"provider"`
+	Model    string `yaml:"model"`
 }
 
 var KnownProviders = map[string]struct{}{
@@ -64,54 +61,9 @@ func Load(path string) (*Config, error) {
 		if strings.ContainsAny(m.Model, "\r\n:") {
 			return nil, fmt.Errorf("config: config file at %s: model %q has unsafe \"model\" value (must not contain CR, LF, or colon)", path, name)
 		}
-		if err := validateBaseURL(path, name, m); err != nil {
-			return nil, err
-		}
-		if err := validateAPIKeyEnv(path, name, m.APIKeyEnv); err != nil {
-			return nil, err
-		}
 	}
 
 	return &cfg, nil
-}
-
-func validateBaseURL(path, name string, m Model) error {
-	if m.BaseURL == "" {
-		if m.Provider == "custom" {
-			return fmt.Errorf("config: config file at %s: model %q has provider=custom but no base_url", path, name)
-		}
-		return nil
-	}
-	parsed, err := url.Parse(m.BaseURL)
-	if err != nil {
-		return fmt.Errorf("config: config file at %s: model %q has invalid base_url %q: %v", path, name, m.BaseURL, err)
-	}
-	if parsed.Scheme != "http" && parsed.Scheme != "https" {
-		return fmt.Errorf("config: config file at %s: model %q has base_url with invalid scheme %q (allowed: http, https)", path, name, parsed.Scheme)
-	}
-	return nil
-}
-
-func validateAPIKeyEnv(path, name, envName string) error {
-	if envName == "" {
-		return nil
-	}
-	if strings.ContainsAny(envName, "\r\n=") {
-		return fmt.Errorf("config: config file at %s: model %q has unsafe api_key_env %q (must not contain CR, LF, or =)", path, name, envName)
-	}
-	return nil
-}
-
-func (c *Config) UsesProvider(name string) bool {
-	if c == nil {
-		return false
-	}
-	for _, m := range c.Models {
-		if m.Provider == name {
-			return true
-		}
-	}
-	return false
 }
 
 func sortedKnownProviders() []string {

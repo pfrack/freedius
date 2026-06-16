@@ -15,22 +15,18 @@ import (
 const MaxBodyBytes = 10 * 1024 * 1024
 
 type Dispatcher struct {
-	Cfg      *config.Config
-	Logger   *slog.Logger
-	Registry *Registry
+	Cfg    *config.Config
+	Logger *slog.Logger
 }
 
-func NewDispatcher(cfg *config.Config, registry *Registry, logger *slog.Logger) *Dispatcher {
+func NewDispatcher(cfg *config.Config, logger *slog.Logger) *Dispatcher {
 	if cfg == nil {
 		panic("proxy: nil config")
-	}
-	if registry == nil {
-		panic("proxy: nil registry")
 	}
 	if logger == nil {
 		panic("proxy: nil logger")
 	}
-	return &Dispatcher{Cfg: cfg, Logger: logger.With("component", "proxy"), Registry: registry}
+	return &Dispatcher{Cfg: cfg, Logger: logger.With("component", "proxy")}
 }
 
 func (d *Dispatcher) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -87,16 +83,11 @@ func (d *Dispatcher) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	d.Logger.Debug("dispatch", "model", req.Model, "provider", m.Provider, "target_model", m.Model)
 	w.Header().Set("X-Freedius-Matched-Provider", m.Provider)
 	w.Header().Set("X-Freedius-Matched-Model", m.Model)
-	adapter, ok := d.Registry.Lookup(m.Provider)
-	if !ok {
-		d.Logger.Error("provider not registered", "provider", m.Provider, "model", req.Model)
-		d.writeError(w, http.StatusInternalServerError, "provider not registered: "+m.Provider)
-		return
-	}
-	if err := adapter.Handle(w, r, m, body); err != nil {
-		d.Logger.Error("adapter failed", "provider", m.Provider, "model", req.Model, "err", err)
-		d.writeError(w, http.StatusBadGateway, "upstream error")
-	}
+	d.writeJSON(w, http.StatusNotImplemented, map[string]string{
+		"matched_provider": m.Provider,
+		"matched_model":    m.Model,
+		"status":           "not_implemented",
+	})
 }
 
 func (d *Dispatcher) writeJSON(w http.ResponseWriter, status int, body map[string]string) {

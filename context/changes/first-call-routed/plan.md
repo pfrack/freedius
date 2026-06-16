@@ -594,57 +594,57 @@ Each phase has a per-phase Manual Verification section that lists the specific `
 
 #### Automated
 
-- [x] 1.1 Add `BaseURL` and `APIKeyEnv` fields to `config.Model` and extend the per-model validation loop (`config/config.go`) — ef5d083
-- [x] 1.2 Add `config.example.yaml` update with one `nim` mapping (env-var only) and one `custom` mapping (URL + env-var) — ef5d083
-- [x] 1.3 Add `proxy/provider.go` with `Provider` interface, `Registry` type, `NewRegistry`, `Lookup` — ef5d083
-- [x] 1.4 Update `Dispatcher` struct + `NewDispatcher` to take a `*Registry`; replace 501 stub with registry lookup (proxy/proxy.go) — ef5d083
-- [x] 1.5 Update `main.go` to pass a `nil` registry for now (Phase 2 replaces it) — ef5d083
-- [x] 1.6 Add config test cases: `provider=custom` without `base_url` (error), invalid `base_url` scheme (error), invalid `api_key_env` (error), valid nim+api_key_env (passes), valid custom+both fields (passes) — ef5d083
-- [x] 1.7 Update `newTestDispatcher` to construct a registry; add "provider not registered" 500 test case — ef5d083
-- [x] 1.8 Run `make ci` — all green, coverage ≥ 90% config / ≥ 85% proxy — ef5d083
+- [ ] 1.1 Add `BaseURL` and `APIKeyEnv` fields to `config.Model` and extend the per-model validation loop (`config/config.go`) — commit sha
+- [ ] 1.2 Add `config.example.yaml` update with one `nim` mapping (env-var only) and one `custom` mapping (URL + env-var) — commit sha
+- [ ] 1.3 Add `proxy/provider.go` with `Provider` interface, `Registry` type, `NewRegistry`, `Lookup` — commit sha
+- [ ] 1.4 Update `Dispatcher` struct + `NewDispatcher` to take a `*Registry`; replace 501 stub with registry lookup (proxy/proxy.go) — commit sha
+- [ ] 1.5 Update `main.go` to pass a `nil` registry for now (Phase 2 replaces it) — commit sha
+- [ ] 1.6 Add config test cases: `provider=custom` without `base_url` (error), invalid `base_url` scheme (error), invalid `api_key_env` (error), valid nim+api_key_env (passes), valid custom+both fields (passes) — commit sha
+- [ ] 1.7 Update `newTestDispatcher` to construct a registry; add "provider not registered" 500 test case — commit sha
+- [ ] 1.8 Run `make ci` — all green, coverage ≥ 90% config / ≥ 85% proxy — commit sha
 
 #### Manual
 
-- [x] 1.9 Verify the registry dispatches and unknown-provider 500 via `curl` per Phase 1 Manual Verification — ef5d083
+- [ ] 1.9 Verify the registry dispatches and unknown-provider 500 via `curl` per Phase 1 Manual Verification — commit sha
 
 ### Phase 2: Custom passthrough adapter
 
 #### Automated
 
-- [x] 2.1 Add `proxy/errors.go` with `forwardUpstreamError` and `freediusErrorHandler` (used by both adapters) — f5e98f9
-- [x] 2.2 Add `proxy/custom.go` with `CustomAdapter`, `NewCustomAdapter`, `Handle` — f5e98f9
-- [x] 2.3 Add `proxy/custom_test.go` with the 7 cases from Phase 2 Change #4 — f5e98f9
-- [x] 2.4 Update `main.go` to register the custom adapter in the registry — f5e98f9
-- [x] 2.5 Add dispatcher-level integration test exercising custom adapter end-to-end (proxy/proxy_test.go) — f5e98f9
-- [x] 2.6 Run `make ci` — all green, coverage ≥ 85% proxy — f5e98f9
+- [ ] 2.1 Add `proxy/errors.go` with `forwardUpstreamError` and `freediusErrorHandler` (used by both adapters) — commit sha
+- [ ] 2.2 Add `proxy/custom.go` with `CustomAdapter`, `NewCustomAdapter`, `Handle` — commit sha
+- [ ] 2.3 Add `proxy/custom_test.go` with the 7 cases from Phase 2 Change #4 — commit sha
+- [ ] 2.4 Update `main.go` to register the custom adapter in the registry — commit sha
+- [ ] 2.5 Add dispatcher-level integration test exercising custom adapter end-to-end (proxy/proxy_test.go) — commit sha
+- [ ] 2.6 Run `make ci` — all green, coverage ≥ 85% proxy — commit sha
 
 #### Manual
 
-- [x] 2.7 Verify custom passthrough end-to-end with a real Anthropic-compatible shim per Phase 2 Manual Verification — f5e98f9
-- [x] 2.8 Verify error forwarding (upstream 401/500 reaches Claude Code verbatim) — f5e98f9
-- [x] 2.9 Verify client-disconnect handling (no 502 written, debug log emitted) — f5e98f9
+- [ ] 2.7 Verify custom passthrough end-to-end with a real Anthropic-compatible shim per Phase 2 Manual Verification — commit sha
+- [ ] 2.8 Verify error forwarding (upstream 401/500 reaches Claude Code verbatim) — commit sha
+- [ ] 2.9 Verify client-disconnect handling (no 502 written, debug log emitted) — commit sha
 
 ### Phase 3: NIM adapter + translation module
 
 #### Automated
 
-- [x] 3.1 Add `proxy/translate/types.go` with OpenAI + Anthropic request/response structs and json tags — c7e1f74
-- [x] 3.2 Add `proxy/translate/anthropic_openai.go` with `TranslateRequest` (Anthropic→OpenAI body) — c7e1f74
-- [x] 3.3 Add `proxy/translate/anthropic_openai.go` with `TranslateStream` + `anthropicEmitter` (OpenAI SSE→Anthropic SSE) — c7e1f74
-- [x] 3.4 Add `proxy/translate/anthropic_openai_test.go` with golden-file tests for `TranslateRequest` — c7e1f74
-- [x] 3.5 Add `proxy/translate/anthropic_openai_test.go` with golden-file tests for `TranslateStream` (8+ cases) — c7e1f74
+- [ ] 3.1 Add `proxy/translate/types.go` with OpenAI + Anthropic request/response structs and json tags — commit sha
+- [ ] 3.2 Add `proxy/translate/anthropic_openai.go` with `TranslateRequest` (Anthropic→OpenAI body) — commit sha
+- [ ] 3.3 Add `proxy/translate/anthropic_openai.go` with `TranslateStream` + `anthropicEmitter` (OpenAI SSE→Anthropic SSE) — commit sha
+- [ ] 3.4 Add `proxy/translate/anthropic_openai_test.go` with golden-file tests for `TranslateRequest` — commit sha
+- [ ] 3.5 Add `proxy/translate/anthropic_openai_test.go` with golden-file tests for `TranslateStream` (8+ cases) — commit sha
 - [ ] 3.6 Add `proxy/translate/testdata/` with recorded SSE fixtures (text-only, single tool, parallel tools, error mid-stream, etc.) — commit sha
-- [x] 3.7 Add `proxy/nim.go` with `NIMAdapter`, `NewNIMAdapter`, `Handle` — c7e1f74
-- [x] 3.8 Add `proxy/nim_test.go` with the 8+ cases from Phase 3 Change #5 — c7e1f74
-- [x] 3.9 Update `main.go` with the `NIM_API_KEY` eager check + NIM adapter registration — c7e1f74
-- [x] 3.10 Add dispatcher-level integration test exercising NIM adapter end-to-end (proxy/proxy_test.go) — c7e1f74
-- [x] 3.11 Run `make ci` — all green, coverage ≥ 90% translate / ≥ 85% proxy — c7e1f74
-- [x] 3.12 Run `govulncheck ./...` — no new vulnerabilities — c7e1f74
+- [ ] 3.7 Add `proxy/nim.go` with `NIMAdapter`, `NewNIMAdapter`, `Handle` — commit sha
+- [ ] 3.8 Add `proxy/nim_test.go` with the 8+ cases from Phase 3 Change #5 — commit sha
+- [ ] 3.9 Update `main.go` with the `NIM_API_KEY` eager check + NIM adapter registration — commit sha
+- [ ] 3.10 Add dispatcher-level integration test exercising NIM adapter end-to-end (proxy/proxy_test.go) — commit sha
+- [ ] 3.11 Run `make ci` — all green, coverage ≥ 90% translate / ≥ 85% proxy — commit sha
+- [ ] 3.12 Run `govulncheck ./...` — no new vulnerabilities — commit sha
 
 #### Manual
 
-- [x] 3.13 Verify NIM translation end-to-end with a real NIM API key per Phase 3 Manual Verification — c7e1f74
-- [x] 3.14 Verify a real `claude-code` session through freedius to NIM completes a tool-using task — c7e1f74
-- [x] 3.15 Verify multi-turn conversation reports `input_tokens` and `output_tokens` correctly — c7e1f74
-- [x] 3.16 Verify invalid NIM_API_KEY returns 401 with NIM's body verbatim — c7e1f74
-- [x] 3.17 Create `context/foundation/lessons.md` with the json.Encoder newline / bufio.Scanner 64KB SSE footguns — c7e1f74
+- [ ] 3.13 Verify NIM translation end-to-end with a real NIM API key per Phase 3 Manual Verification — commit sha
+- [ ] 3.14 Verify a real `claude-code` session through freedius to NIM completes a tool-using task — commit sha
+- [ ] 3.15 Verify multi-turn conversation reports `input_tokens` and `output_tokens` correctly — commit sha
+- [ ] 3.16 Verify invalid NIM_API_KEY returns 401 with NIM's body verbatim — commit sha
+- [ ] 3.17 Create `context/foundation/lessons.md` with the json.Encoder newline / bufio.Scanner 64KB SSE footguns — commit sha

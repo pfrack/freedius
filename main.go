@@ -21,7 +21,7 @@ import (
 
 const (
 	defaultHost       = "127.0.0.1"
-	defaultPort       = 8082
+	defaultPort       = 8080
 	shutdownTimeout   = 5 * time.Second
 	readHeaderTimeout = 5 * time.Second
 	readTimeout       = 30 * time.Second
@@ -76,19 +76,10 @@ func run() int {
 		return failf("freedius: %s", err)
 	}
 
-	nimKey := os.Getenv("NIM_API_KEY")
-	if cfg.UsesProvider("nim") && nimKey == "" {
-		return failf("freedius: NIM_API_KEY env var required (config references provider=nim)")
-	}
-
 	serverLogger := logger.With("component", "server")
 	serverLogger.Info(fmt.Sprintf("freedius listening on http://%s", net.JoinHostPort(host, strconv.Itoa(port))), "host", host, "port", port)
 
-	registry := proxy.NewRegistry(map[string]proxy.Provider{
-		"custom": proxy.NewCustomAdapter(logger),
-		"nim":    proxy.NewNIMAdapter(proxy.NIMAdapterConfig{BaseURL: os.Getenv("NIM_BASE_URL"), APIKey: nimKey}, logger),
-	})
-	dispatcher := proxy.NewDispatcher(cfg, registry, logger)
+	dispatcher := proxy.NewDispatcher(cfg, logger)
 	mux := http.NewServeMux()
 	mux.Handle("/", dispatcher)
 
