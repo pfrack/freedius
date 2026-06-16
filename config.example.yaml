@@ -1,7 +1,22 @@
 models:
+  # Direct model mapping (S-01 power-user path)
   claude-opus-4:
     provider: nim
     model: meta/llama-3.1-70b-instruct
-  claude-sonnet-4:
+    # api_key_env defaults to NIM_API_KEY via in-binary defaults
+
+  # Custom Anthropic-compatible provider
+  my-sonnet-shim:
     provider: custom
-    model: my-sonnet-shim
+    model: sonnet-shim-v1
+    base_url: https://my-shim.example.com/v1/messages
+    api_key_env: CUSTOM_API_KEY
+
+mappings:
+  # Family-based routing (Phase 3 makes these work; Phase 2 supports literal key lookup)
+  opus:
+    provider: nim
+    model: meta/llama-3.1-70b-instruct
+  default:
+    provider: nim
+    model: meta/llama-3.1-70b-instruct

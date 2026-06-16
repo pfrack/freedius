@@ -76,10 +76,20 @@ func run() int {
 		return failf("freedius: %s", err)
 	}
 
+	if err := checkRequiredEnvVars(cfg); err != nil {
+		return failf("freedius: %s", err)
+	}
+
 	serverLogger := logger.With("component", "server")
 	serverLogger.Info(fmt.Sprintf("freedius listening on http://%s", net.JoinHostPort(host, strconv.Itoa(port))), "host", host, "port", port)
 
-	dispatcher := proxy.NewDispatcher(cfg, logger)
+	registry := proxy.NewRegistry(map[string]proxy.Provider{
+		"nim":      proxy.NewNIMAdapter(logger),
+		"custom":   proxy.NewCustomAdapter(logger),
+		"openai":   proxy.NewOpenAICompatibleAdapter(logger),
+		"anthropic": proxy.NewAnthropicCompatibleAdapter(logger),
+	})
+	dispatcher := proxy.NewDispatcher(cfg, registry, logger)
 	mux := http.NewServeMux()
 	mux.Handle("/", dispatcher)
 
@@ -120,6 +130,29 @@ func run() int {
 func failf(format string, args ...any) int {
 	fmt.Fprintf(os.Stderr, format+"\n", args...)
 	return 1
+}
+
+func checkRequiredEnvVars(cfg *config.Config) error {
+	for _, name := range []string{"nim", "zen", "go"} {
+		envVar := config.ProviderEnvVar(name)
+		if envVar == "" {
+			continue
+		}
+		if cfg.UsesProvider(name) && os.Getenv(envVar) == "" {
+			return fmt.Errorf("%s env var required (config references provider=%s)", envVar, name)
+		}
+	}
+	for name, m := range cfg.Models {
+		if m.APIKeyEnv != "" && os.Getenv(m.APIKeyEnv) == "" {
+			return fmt.Errorf("%s env var required (config model %q references it)", m.APIKeyEnv, name)
+		}
+	}
+	for name, m := range cfg.Mappings {
+		if m.APIKeyEnv != "" && os.Getenv(m.APIKeyEnv) == "" {
+			return fmt.Errorf("%s env var required (config mapping %q references it)", m.APIKeyEnv, name)
+		}
+	}
+	return nil
 }
 
 func resolveInt(flagVal int, flagSet bool, envKey string, def int) int {

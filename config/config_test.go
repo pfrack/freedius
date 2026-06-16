@@ -37,6 +37,12 @@ func TestLoad(t *testing.T) {
 				if m.Model != "meta/llama-3.1-70b-instruct" {
 					t.Errorf("model: got %q, want meta/llama-3.1-70b-instruct", m.Model)
 				}
+				if m.BaseURL == "" {
+					t.Error("expected nim default base_url to be filled in")
+				}
+				if m.APIKeyEnv != "NIM_API_KEY" {
+					t.Errorf("api_key_env: got %q, want NIM_API_KEY", m.APIKeyEnv)
+				}
 			},
 		},
 		{
@@ -48,6 +54,8 @@ func TestLoad(t *testing.T) {
   claude-sonnet-4:
     provider: custom
     model: my-sonnet-shim
+    base_url: https://example.com/v1/messages
+    api_key_env: CUSTOM_API_KEY
 `,
 			check: func(t *testing.T, cfg *Config) {
 				if len(cfg.Models) != 2 {
@@ -56,8 +64,12 @@ func TestLoad(t *testing.T) {
 				if _, ok := cfg.Models["claude-opus-4"]; !ok {
 					t.Error("missing claude-opus-4")
 				}
-				if _, ok := cfg.Models["claude-sonnet-4"]; !ok {
-					t.Error("missing claude-sonnet-4")
+				sonnet, ok := cfg.Models["claude-sonnet-4"]
+				if !ok {
+					t.Fatal("missing claude-sonnet-4")
+				}
+				if sonnet.Provider != "anthropic" {
+					t.Errorf("custom should rewrite to anthropic, got %q", sonnet.Provider)
 				}
 			},
 		},
@@ -91,7 +103,7 @@ func TestLoad(t *testing.T) {
     model: bar
 `,
 			wantErr:   true,
-			errSubstr: `model "claude-opus-4" uses unknown provider "foo" (known: custom, go, nim, zen)`,
+			errSubstr: `model "claude-opus-4" uses unknown provider "foo" (known: anthropic, custom, go, nim, openai, zen)`,
 		},
 		{
 			name: "unknown field typo",
@@ -135,6 +147,100 @@ func TestLoad(t *testing.T) {
 			yaml: "models:\n  claude-opus-4:\n    provider: nim\n    model: \"foo\\r\\nX-Injected: bar\"\n",
 			wantErr:   true,
 			errSubstr: "unsafe \"model\" value",
+		},
+		{
+			name: "openai without base_url",
+			yaml: `models:
+  claude-sonnet-4:
+    provider: openai
+    model: gpt-4
+    api_key_env: OPENAI_API_KEY
+`,
+			wantErr:   true,
+			errSubstr: `provider=openai but no base_url`,
+		},
+		{
+			name: "anthropic without base_url",
+			yaml: `models:
+  claude-sonnet-4:
+    provider: anthropic
+    model: claude-sonnet
+    api_key_env: ANTHROPIC_API_KEY
+`,
+			wantErr:   true,
+			errSubstr: `provider=anthropic but no base_url`,
+		},
+		{
+			name: "base_url with invalid scheme",
+			yaml: `models:
+  claude-sonnet-4:
+    provider: openai
+    model: gpt-4
+    base_url: ftp://example.com/v1/chat/completions
+    api_key_env: OPENAI_API_KEY
+`,
+			wantErr:   true,
+			errSubstr: `invalid scheme`,
+		},
+		{
+			name: "api_key_env with newline",
+			yaml: "models:\n  claude-opus-4:\n    provider: openai\n    model: gpt-4\n    base_url: https://example.com\n    api_key_env: \"OPENAI\\nKEY\"\n",
+			wantErr:   true,
+			errSubstr: "api_key_env with invalid characters",
+		},
+		{
+			name: "valid openai with all fields",
+			yaml: `models:
+  gpt-4:
+    provider: openai
+    model: gpt-4
+    base_url: https://api.openai.com/v1/chat/completions
+    api_key_env: OPENAI_API_KEY
+`,
+			check: func(t *testing.T, cfg *Config) {
+				m, ok := cfg.Models["gpt-4"]
+				if !ok {
+					t.Fatal("missing gpt-4")
+				}
+				if m.BaseURL != "https://api.openai.com/v1/chat/completions" {
+					t.Errorf("base_url: got %q", m.BaseURL)
+				}
+			},
+		},
+		{
+			name: "valid custom alias rewrite",
+			yaml: `models:
+  my-shim:
+    provider: custom
+    model: shim-v1
+    base_url: https://example.com/v1/messages
+    api_key_env: CUSTOM_KEY
+`,
+			check: func(t *testing.T, cfg *Config) {
+				m, ok := cfg.Models["my-shim"]
+				if !ok {
+					t.Fatal("missing my-shim")
+				}
+				if m.Provider != "anthropic" {
+					t.Errorf("custom should rewrite to anthropic, got %q", m.Provider)
+				}
+			},
+		},
+		{
+			name: "valid mappings block",
+			yaml: `mappings:
+  opus:
+    provider: nim
+    model: meta/llama-3.1-70b-instruct
+`,
+			check: func(t *testing.T, cfg *Config) {
+				if len(cfg.Mappings) != 1 {
+					t.Fatalf("expected 1 mapping, got %d", len(cfg.Mappings))
+				}
+				if _, ok := cfg.Mappings["opus"]; !ok {
+					t.Fatal("missing opus mapping")
+				}
+			},
 		},
 	}
 
@@ -181,7 +287,7 @@ func TestLoadMissingFile(t *testing.T) {
 }
 
 func TestKnownProviders(t *testing.T) {
-	expected := []string{"nim", "zen", "go", "custom"}
+	expected := []string{"nim", "zen", "go", "custom", "openai", "anthropic"}
 	if len(KnownProviders) != len(expected) {
 		t.Errorf("KnownProviders has %d entries, want %d", len(KnownProviders), len(expected))
 	}
@@ -189,5 +295,60 @@ func TestKnownProviders(t *testing.T) {
 		if _, ok := KnownProviders[e]; !ok {
 			t.Errorf("KnownProviders missing %q", e)
 		}
+	}
+}
+
+func TestProviderEnvVar(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"nim", "nim", "NIM_API_KEY"},
+		{"zen", "zen", "OPENCODE_API_KEY"},
+		{"go", "go", "OPENCODE_API_KEY"},
+		{"openai has no default", "openai", ""},
+		{"anthropic has no default", "anthropic", ""},
+		{"custom has no default", "custom", ""},
+		{"unknown", "unknown", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := ProviderEnvVar(tt.in)
+			if got != tt.want {
+				t.Errorf("ProviderEnvVar(%q) = %q, want %q", tt.in, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestUsesProvider(t *testing.T) {
+	cfg := &Config{
+		Models: map[string]Model{
+			"a": {Provider: "nim"},
+			"b": {Provider: "openai"},
+		},
+		Mappings: map[string]Model{
+			"opus": {Provider: "anthropic"},
+		},
+	}
+	tests := []struct {
+		name string
+		in   string
+		want bool
+	}{
+		{"nim in models", "nim", true},
+		{"openai in models", "openai", true},
+		{"anthropic in mappings", "anthropic", true},
+		{"zen not used", "zen", false},
+		{"go not used", "go", false},
+		{"custom not used (post-rewrite)", "custom", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := cfg.UsesProvider(tt.in); got != tt.want {
+				t.Errorf("UsesProvider(%q) = %v, want %v", tt.in, got, tt.want)
+			}
+		})
 	}
 }

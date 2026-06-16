@@ -20,7 +20,15 @@ func newTestDispatcher(t *testing.T) *Dispatcher {
 		},
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	return NewDispatcher(cfg, logger)
+	registry := NewRegistry(map[string]Provider{})
+	return NewDispatcher(cfg, registry, logger)
+}
+
+func newTestDispatcherWithAdapter(t *testing.T, cfg *config.Config, providers map[string]Provider) *Dispatcher {
+	t.Helper()
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	registry := NewRegistry(providers)
+	return NewDispatcher(cfg, registry, logger)
 }
 
 func TestServeHTTP(t *testing.T) {
@@ -36,11 +44,11 @@ func TestServeHTTP(t *testing.T) {
 		wantHeaderMiss []string
 	}{
 		{
-			name:        "POST known model",
+			name:        "POST known model no registered adapter",
 			method:      http.MethodPost,
 			body:        `{"model":"claude-opus-4"}`,
-			wantStatus:  http.StatusNotImplemented,
-			wantBodyHas: []string{`"matched_provider":"nim"`, `"matched_model":"meta/llama-3.1-70b-instruct"`, `"status":"not_implemented"`},
+			wantStatus:  http.StatusInternalServerError,
+			wantBodyHas: []string{`"error":"provider not registered: nim"`},
 			wantHeader: map[string]string{
 				"X-Freedius-Matched-Provider": "nim",
 				"X-Freedius-Matched-Model":    "meta/llama-3.1-70b-instruct",
