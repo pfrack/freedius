@@ -1,7 +1,6 @@
-models:
-  claude-opus-4:
-    provider: nim
-    model: meta/llama-3.1-70b-instruct
-  claude-sonnet-4:
-    provider: custom
-    model: my-sonnet-shim
+mappings:
+  opus:    { provider: go,  model: deepseek-v4-pro }
+  sonnet:  { provider: go,  model: deepseek-v4-flash }
+  haiku:   { provider: nim, model: step-3.5 }
+  auto:    { provider: nim, model: step-3.5 }
+  default: { provider: nim, model: step-3.5 }

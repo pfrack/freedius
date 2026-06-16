@@ -27,10 +27,11 @@ A developer using Claude Code wants to route LLM calls to cheaper or free provid
 
 | ID   | Change ID          | Outcome (user can …)                                           | Prerequisites | PRD refs                                        | Status   |
 | ---- | ------------------ | -------------------------------------------------------------- | ------------- | ----------------------------------------------- | -------- |
-| F-01 | proxy-skeleton     | (foundation) HTTP server listens, config loaded, dispatch stub | —             | FR-001, FR-003, FR-004, FR-005, NFR-Multi-agent, NFR-Resource-footprint | ready    |
-| S-01 | first-call-routed  | route a Claude Code call through freedius to NIM or a custom Anthropic-compatible provider — streaming and tool use work identically | F-01          | US-01, FR-001, FR-002, FR-006, FR-009, NFR-Latency, NFR-Error-handling, NFR-Privacy | proposed |
-| S-02 | zen-go-adapters    | configure Opencode Zen and Opencode Go model mappings and route calls to either provider | S-01          | FR-007, FR-008, NFR-Error-handling               | proposed |
-| S-03 | error-hardening    | get clear error messages on config mistakes and provider failures; freedius auto-injects Claude Code env vars; `freedius init` generates a starter config template | S-01          | FR-004, Success-Criteria-Secondary, NFR-Error-handling | proposed |
+| F-01 | proxy-skeleton     | (foundation) HTTP server listens, config loaded, dispatch stub | —             | FR-001, FR-003, FR-004, FR-005, NFR-Multi-agent, NFR-Resource-footprint | done     |
+| S-01 | first-call-routed  | route a Claude Code call through freedius to NIM or a custom Anthropic-compatible provider — streaming and tool use work identically | F-01          | US-01, FR-001, FR-002, FR-006, FR-009, NFR-Latency, NFR-Error-handling, NFR-Privacy | done     |
+| S-02 | provider-and-mapping | route by semantic family name (`opus`/`sonnet`/`haiku`/`auto`/`default`); use agnostic compat providers (`openai`/`anthropic`) for any compatible endpoint; known providers ship with in-binary defaults | S-01          | FR-001, FR-003, FR-004, FR-009, NFR-Error-handling | proposed |
+| S-03 | zen-go-adapters    | route calls to Opencode Zen or Opencode Go via multi-format adapters (Anthropic-format and OpenAI-format per model) | S-01, S-02    | FR-007, FR-008, NFR-Error-handling               | proposed |
+| S-04 | error-hardening    | get clear error messages on config mistakes and provider failures; freedius auto-injects Claude Code env vars; `freedius init` generates a starter config template | S-01          | FR-004, Success-Criteria-Secondary, NFR-Error-handling | proposed |
 
 ## Baseline
 
@@ -75,27 +76,39 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Risk:** The north star. The dual-provider scope increases the exposure — if NIM's API surprises us (rate limits, format quirks), the custom passthrough serves as a fallback validation path. The slice still ships if one provider path works.
 - **Status:** proposed
 
-### S-02: Zen + Go adapters
+### S-02: Provider-and-mapping — family mapping + compat providers + in-binary defaults
 
-- **Outcome:** user can configure Opencode Zen and Opencode Go model mappings and route Claude Code calls to either provider.
-- **Change ID:** zen-go-adapters
-- **PRD refs:** FR-007, FR-008, NFR-Error-handling
+- **Outcome:** user can route by semantic model family (`opus`/`sonnet`/`haiku`/`auto`/`default`) instead of enumerating every Claude Code model name; user can point at any OpenAI- or Anthropic-compatible endpoint using agnostic `provider: openai` / `provider: anthropic` strings; known providers (`nim`/`zen`/`go`) ship with sensible default values in the binary so config stays short; `provider: custom` is an alias for `provider: anthropic`.
+- **Change ID:** provider-and-mapping
+- **PRD refs:** FR-001, FR-003, FR-004, FR-009, NFR-Error-handling
 - **Prerequisites:** S-01
-- **Parallel with:** S-03
+- **Parallel with:** S-03, S-04
 - **Blockers:** —
-- **Unknowns:**
-  - Zen API format — Anthropic-compatible, OpenAI-compatible, or custom? Owner: user. Block: no (PRD says translation layer handles per-provider format).
-  - Go API format — same question. Owner: user. Block: no.
-- **Risk:** Both providers follow the adapter pattern established in S-01, so this is incremental — one new adapter per provider. The unknown API formats mean the first 30 minutes of implementation are discovery, not coding.
+- **Unknowns:** —
+- **Risk:** This is an architectural refactor (schema + dispatch + config-load). Three independent concerns bundled into one slice because they all touch the same code surface (config + dispatch + adapters). The S-02 planner may further decompose into S-02a/b/c if implementation reveals they should ship separately. S-03 (zen-go-adapters) depends on S-02's compat adapter code as the underlying implementation.
 - **Status:** proposed
 
-### S-03: Error hardening + env injection + config template
+### S-03: Zen + Go adapters
+
+- **Outcome:** user can configure Opencode Zen and Opencode Go model mappings and route Claude Code calls to either provider through multi-format adapters (Anthropic-format and OpenAI-format endpoints are auto-detected from `base_url`).
+- **Change ID:** zen-go-adapters
+- **PRD refs:** FR-007, FR-008, NFR-Error-handling
+- **Prerequisites:** S-01, S-02 (the compat adapter code from S-02 is the underlying implementation; S-03's `ZenAdapter` and `GoAdapter` are thin multi-format routers on top)
+- **Parallel with:** S-04
+- **Blockers:** —
+- **Unknowns:**
+  - Does Zen's `/v1/messages` endpoint require the `anthropic-version` header? (Verify with `curl`.) Block: no.
+  - Does Zen's `/v1/chat/completions` honor `stream_options: {include_usage: true}`? Block: no (output_tokens falls back to 0 if not).
+- **Risk:** The two providers are multi-format gateways (Zen: 4 wire formats; Go: 2 wire formats). S-03 only supports the two most common (Anthropic + OpenAI Chat Completions); OpenAI Responses (GPT) and Google (Gemini) are deferred.
+- **Status:** proposed
+
+### S-04: Error hardening + env injection + config template
 
 - **Outcome:** user gets clear error messages on config mistakes (missing keys, invalid YAML) and provider failures — no silent crashes; freedius auto-injects Claude Code environment variables so manual env setup is unnecessary; `freedius init` generates a starter config template.
 - **Change ID:** error-hardening
 - **PRD refs:** FR-004, Success-Criteria-Secondary, NFR-Error-handling
 - **Prerequisites:** S-01
-- **Parallel with:** S-02
+- **Parallel with:** S-02, S-03
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** The auto-inject-env-vars feature (secondary Success Criterion) is low risk (write to a shell config or emit instructions). The config template is a simple file write. The real work is hardening — ensuring every failure path in the proxy produces a user-readable message rather than a crash or a silent timeout.
@@ -105,10 +118,11 @@ Foundations below assume these are present and do NOT re-scaffold them.
 
 | Roadmap ID | Change ID          | Suggested issue title                      | Ready for `/10x-plan` | Notes |
 | ---------- | ------------------ | ------------------------------------------ | --------------------- | ----- |
-| F-01       | proxy-skeleton     | Proxy skeleton — HTTP server + config loading + dispatch stub | yes                   | No prerequisites. Start here. |
-| S-01       | first-call-routed  | First call routed — NIM adapter + custom passthrough | no                    | Needs F-01. North star. |
-| S-02       | zen-go-adapters    | Opencode Zen + Go adapters                | no                    | Needs S-01. Runs parallel with S-03. |
-| S-03       | error-hardening    | Error hardening + env auto-injection + config template | no                    | Needs S-01. Runs parallel with S-02. |
+| F-01       | proxy-skeleton     | Proxy skeleton — HTTP server + config loading + dispatch stub | yes                   | No prerequisites. Done. |
+| S-01       | first-call-routed  | First call routed — NIM adapter + custom passthrough | no                    | Needs F-01. North star. Done. |
+| S-02       | provider-and-mapping | Family-aware mapping + compat providers + in-binary defaults | no                    | Needs S-01. Architectural refactor; bundles three concerns. S-03 depends on S-02's compat adapter code. |
+| S-03       | zen-go-adapters    | Opencode Zen + Go multi-format adapters   | no                    | Needs S-01 and S-02. Runs parallel with S-04. The `ZenAdapter`/`GoAdapter` are thin routers on S-02's compat adapters. |
+| S-04       | error-hardening    | Error hardening + env auto-injection + config template | no                    | Needs S-01. Runs parallel with S-02 and S-03. |
 
 ## Open Roadmap Questions
 
@@ -126,4 +140,5 @@ Foundations below assume these are present and do NOT re-scaffold them.
 
 ## Done
 
-(Empty on first generation. `/10x-archive` appends an entry here — and flips that item's `Status` to `done` — when a change whose `Change ID` matches the item is archived. Do NOT pre-populate.)
+- F-01: proxy-skeleton — merged via PR #1
+- S-01: first-call-routed — merged via PR #2
