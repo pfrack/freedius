@@ -227,19 +227,19 @@ None — the `MixAdapter` adds one `url.Parse` + one `strings.HasSuffix` call pe
 
 #### Automated
 
-- [x] 1.1 Tests pass: `make test`
-- [x] 1.2 Vet passes: `make vet`
-- [x] 1.3 `TestKnownProviders` asserts 7 entries
-- [x] 1.4 `TestLoad` new cases pass (zen/go rewrite + base_url requirement)
+- [x] 1.1 Tests pass: `make test` — ab35abd
+- [x] 1.2 Vet passes: `make vet` — ab35abd
+- [x] 1.3 `TestKnownProviders` asserts 7 entries — ab35abd
+- [x] 1.4 `TestLoad` new cases pass (zen/go rewrite + base_url requirement) — ab35abd
 
 ### Phase 2: MixAdapter + registry wiring
 
 #### Automated
 
-- [ ] 2.1 Full CI passes: `make ci`
-- [ ] 2.2 `proxy/mix_test.go` covers both code paths
-- [ ] 2.3 Existing tests unchanged and passing
+- [x] 2.1 Full CI passes: `make ci`
+- [x] 2.2 `proxy/mix_test.go` covers both code paths
+- [x] 2.3 Existing tests unchanged and passing
 
 #### Manual
 
-- [ ] 2.4 Review that `config.example.yaml` is clear and demonstrates both URL patterns
+- [x] 2.4 Review that `config.example.yaml` is clear and demonstrates both URL patterns
