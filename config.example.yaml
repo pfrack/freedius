@@ -1,0 +1,7 @@
+models:
+  claude-opus-4:
+    provider: nim
+    model: meta/llama-3.1-70b-instruct
+  claude-sonnet-4:
+    provider: custom
+    model: my-sonnet-shim
