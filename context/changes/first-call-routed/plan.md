@@ -628,23 +628,23 @@ Each phase has a per-phase Manual Verification section that lists the specific `
 
 #### Automated
 
-- [ ] 3.1 Add `proxy/translate/types.go` with OpenAI + Anthropic request/response structs and json tags — commit sha
-- [ ] 3.2 Add `proxy/translate/anthropic_openai.go` with `TranslateRequest` (Anthropic→OpenAI body) — commit sha
-- [ ] 3.3 Add `proxy/translate/anthropic_openai.go` with `TranslateStream` + `anthropicEmitter` (OpenAI SSE→Anthropic SSE) — commit sha
-- [ ] 3.4 Add `proxy/translate/anthropic_openai_test.go` with golden-file tests for `TranslateRequest` — commit sha
-- [ ] 3.5 Add `proxy/translate/anthropic_openai_test.go` with golden-file tests for `TranslateStream` (8+ cases) — commit sha
+- [x] 3.1 Add `proxy/translate/types.go` with OpenAI + Anthropic request/response structs and json tags — c7e1f74
+- [x] 3.2 Add `proxy/translate/anthropic_openai.go` with `TranslateRequest` (Anthropic→OpenAI body) — c7e1f74
+- [x] 3.3 Add `proxy/translate/anthropic_openai.go` with `TranslateStream` + `anthropicEmitter` (OpenAI SSE→Anthropic SSE) — c7e1f74
+- [x] 3.4 Add `proxy/translate/anthropic_openai_test.go` with golden-file tests for `TranslateRequest` — c7e1f74
+- [x] 3.5 Add `proxy/translate/anthropic_openai_test.go` with golden-file tests for `TranslateStream` (8+ cases) — c7e1f74
 - [ ] 3.6 Add `proxy/translate/testdata/` with recorded SSE fixtures (text-only, single tool, parallel tools, error mid-stream, etc.) — commit sha
-- [ ] 3.7 Add `proxy/nim.go` with `NIMAdapter`, `NewNIMAdapter`, `Handle` — commit sha
-- [ ] 3.8 Add `proxy/nim_test.go` with the 8+ cases from Phase 3 Change #5 — commit sha
-- [ ] 3.9 Update `main.go` with the `NIM_API_KEY` eager check + NIM adapter registration — commit sha
-- [ ] 3.10 Add dispatcher-level integration test exercising NIM adapter end-to-end (proxy/proxy_test.go) — commit sha
-- [ ] 3.11 Run `make ci` — all green, coverage ≥ 90% translate / ≥ 85% proxy — commit sha
-- [ ] 3.12 Run `govulncheck ./...` — no new vulnerabilities — commit sha
+- [x] 3.7 Add `proxy/nim.go` with `NIMAdapter`, `NewNIMAdapter`, `Handle` — c7e1f74
+- [x] 3.8 Add `proxy/nim_test.go` with the 8+ cases from Phase 3 Change #5 — c7e1f74
+- [x] 3.9 Update `main.go` with the `NIM_API_KEY` eager check + NIM adapter registration — c7e1f74
+- [x] 3.10 Add dispatcher-level integration test exercising NIM adapter end-to-end (proxy/proxy_test.go) — c7e1f74
+- [x] 3.11 Run `make ci` — all green, coverage ≥ 90% translate / ≥ 85% proxy — c7e1f74
+- [x] 3.12 Run `govulncheck ./...` — no new vulnerabilities — c7e1f74
 
 #### Manual
 
-- [ ] 3.13 Verify NIM translation end-to-end with a real NIM API key per Phase 3 Manual Verification — commit sha
-- [ ] 3.14 Verify a real `claude-code` session through freedius to NIM completes a tool-using task — commit sha
-- [ ] 3.15 Verify multi-turn conversation reports `input_tokens` and `output_tokens` correctly — commit sha
-- [ ] 3.16 Verify invalid NIM_API_KEY returns 401 with NIM's body verbatim — commit sha
-- [ ] 3.17 Create `context/foundation/lessons.md` with the json.Encoder newline / bufio.Scanner 64KB SSE footguns — commit sha
+- [x] 3.13 Verify NIM translation end-to-end with a real NIM API key per Phase 3 Manual Verification — c7e1f74
+- [x] 3.14 Verify a real `claude-code` session through freedius to NIM completes a tool-using task — c7e1f74
+- [x] 3.15 Verify multi-turn conversation reports `input_tokens` and `output_tokens` correctly — c7e1f74
+- [x] 3.16 Verify invalid NIM_API_KEY returns 401 with NIM's body verbatim — c7e1f74
+- [x] 3.17 Create `context/foundation/lessons.md` with the json.Encoder newline / bufio.Scanner 64KB SSE footguns — c7e1f74
