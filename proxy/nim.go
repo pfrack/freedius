@@ -2,6 +2,8 @@ package proxy
 
 import (
 	"bytes"
+	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -64,5 +66,8 @@ func (a *NIMAdapter) Handle(w http.ResponseWriter, r *http.Request, m config.Mod
 	w.Header().Set("Connection", "keep-alive")
 	w.WriteHeader(http.StatusOK)
 	rc := http.NewResponseController(w)
-	return translate.TranslateStream(resp.Body, w, rc.Flush)
+	if err := translate.TranslateStream(resp.Body, w, rc.Flush); err != nil && !errors.Is(err, context.Canceled) {
+		a.logger.Debug("nim stream ended with error", "err", err)
+	}
+	return nil
 }

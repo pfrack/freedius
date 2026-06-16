@@ -16,6 +16,7 @@ export HOME="$TMPHOME"
 export XDG_CONFIG_HOME="$TMPHOME/.config"
 export GOMODCACHE="$ORIG_GOMODCACHE"
 export GOCACHE="$ORIG_GOCACHE"
+export NIM_API_KEY="${NIM_API_KEY:-sk-test-nim}"
 
 cleanup() {
 	rm -f "$CFG" "$LOG"
@@ -266,6 +267,23 @@ fi
 
 OUTPUT=$("$BIN" 2>&1 || true)
 if [[ "$OUTPUT" == *"config file not found"* ]]; then pass "F01 no config"; else fail "F01 no config (got: $OUTPUT)"; fi
+
+SAVED_NIM_KEY="$NIM_API_KEY"
+unset NIM_API_KEY
+cat > "$CFG" <<'YAML'
+models:
+  claude-opus-4:
+    provider: nim
+    model: meta/llama-3.1-70b-instruct
+    api_key_env: NIM_API_KEY
+YAML
+OUTPUT=$("$BIN" 2>&1 || true)
+if [[ "$OUTPUT" == *"NIM_API_KEY env var required"* ]]; then
+	pass "F01 eager NIM_API_KEY check (config has nim, env unset)"
+else
+	fail "F01 eager NIM_API_KEY check (got: $OUTPUT)"
+fi
+export NIM_API_KEY="$SAVED_NIM_KEY"
 
 if start_server; then
 	OUTPUT=$("$BIN" 2>&1 || true)

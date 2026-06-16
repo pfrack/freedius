@@ -76,12 +76,17 @@ func run() int {
 		return failf("freedius: %s", err)
 	}
 
+	nimKey := os.Getenv("NIM_API_KEY")
+	if cfg.UsesProvider("nim") && nimKey == "" {
+		return failf("freedius: NIM_API_KEY env var required (config references provider=nim)")
+	}
+
 	serverLogger := logger.With("component", "server")
 	serverLogger.Info(fmt.Sprintf("freedius listening on http://%s", net.JoinHostPort(host, strconv.Itoa(port))), "host", host, "port", port)
 
 	registry := proxy.NewRegistry(map[string]proxy.Provider{
 		"custom": proxy.NewCustomAdapter(logger),
-		"nim":    proxy.NewNIMAdapter(proxy.NIMAdapterConfig{BaseURL: os.Getenv("NIM_BASE_URL"), APIKey: os.Getenv("NIM_API_KEY")}, logger),
+		"nim":    proxy.NewNIMAdapter(proxy.NIMAdapterConfig{BaseURL: os.Getenv("NIM_BASE_URL"), APIKey: nimKey}, logger),
 	})
 	dispatcher := proxy.NewDispatcher(cfg, registry, logger)
 	mux := http.NewServeMux()

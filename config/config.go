@@ -102,6 +102,18 @@ func validateAPIKeyEnv(path, name, envName string) error {
 	return nil
 }
 
+func (c *Config) UsesProvider(name string) bool {
+	if c == nil {
+		return false
+	}
+	for _, m := range c.Models {
+		if m.Provider == name {
+			return true
+		}
+	}
+	return false
+}
+
 func sortedKnownProviders() []string {
 	keys := make([]string, 0, len(KnownProviders))
 	for k := range KnownProviders {

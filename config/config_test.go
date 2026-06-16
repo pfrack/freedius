@@ -269,3 +269,57 @@ func TestKnownProviders(t *testing.T) {
 		}
 	}
 }
+
+func TestUsesProvider(t *testing.T) {
+	tests := []struct {
+		name string
+		cfg  *Config
+		prov string
+		want bool
+	}{
+		{
+			name: "nil config",
+			cfg:  nil,
+			prov: "nim",
+			want: false,
+		},
+		{
+			name: "empty models",
+			cfg:  &Config{},
+			prov: "nim",
+			want: false,
+		},
+		{
+			name: "single matching model",
+			cfg: &Config{Models: map[string]Model{
+				"a": {Provider: "nim", Model: "x"},
+			}},
+			prov: "nim",
+			want: true,
+		},
+		{
+			name: "single non-matching model",
+			cfg: &Config{Models: map[string]Model{
+				"a": {Provider: "custom", Model: "x"},
+			}},
+			prov: "nim",
+			want: false,
+		},
+		{
+			name: "mixed providers",
+			cfg: &Config{Models: map[string]Model{
+				"a": {Provider: "custom", Model: "x"},
+				"b": {Provider: "nim", Model: "y"},
+			}},
+			prov: "nim",
+			want: true,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := tc.cfg.UsesProvider(tc.prov); got != tc.want {
+				t.Errorf("UsesProvider(%q): got %v, want %v", tc.prov, got, tc.want)
+			}
+		})
+	}
+}

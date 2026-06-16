@@ -268,6 +268,35 @@ func TestNIMClientDisconnectMidStream(t *testing.T) {
 	}
 }
 
+func TestNIMStreamErrorAfterWriteHeaderReturnsNil(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		flusher, _ := w.(http.Flusher)
+		_, _ = w.Write([]byte("data: {\"id\":\"x\",\"object\":\"chat.completion.chunk\",\"created\":1,\"model\":\"m\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"hi\"},\"finish_reason\":null}]}\n\n"))
+		flusher.Flush()
+		_, _ = w.Write([]byte("data: {this is not valid json\n\n"))
+	}))
+	defer upstream.Close()
+
+	adapter := newTestNIMAdapter(t, upstream.URL, "sk-test")
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(`{"model":"m","max_tokens":10,"messages":[{"role":"user","content":"hi"}]}`))
+	w := httptest.NewRecorder()
+	m := config.Model{Provider: "nim", Model: "m"}
+
+	err := adapter.Handle(w, req, m, []byte(`{"model":"m","max_tokens":10,"messages":[{"role":"user","content":"hi"}]}`))
+	if err != nil {
+		t.Fatalf("expected nil after WriteHeader (Provider contract), got %v", err)
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, "event: message_start") {
+		t.Errorf("expected streamed event: message_start in body, got %q", body)
+	}
+	if strings.Contains(body, `"error"`) {
+		t.Errorf("response body was corrupted by dispatcher writing a 502 JSON envelope after the stream started; body: %q", body)
+	}
+}
+
 func TestNIMTranslateRequestError(t *testing.T) {
 	adapter := newTestNIMAdapter(t, "http://localhost:1", "sk-test")
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(`{}`))
