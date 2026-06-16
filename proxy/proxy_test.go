@@ -240,6 +240,139 @@ func TestServeHTTPModelsWinsOverMappings(t *testing.T) {
 	}
 }
 
+func TestServeHTTPFamilyMatch(t *testing.T) {
+	cfg := &config.Config{
+		Models: map[string]config.Model{},
+		Mappings: map[string]config.Model{
+			"opus": {Provider: "nim", Model: "meta/llama-3.1-70b-instruct", APIKeyEnv: "NIM_API_KEY"},
+		},
+	}
+	t.Setenv("NIM_API_KEY", "k1")
+	d := newTestDispatcherWithAdapter(t, cfg, map[string]Provider{
+		"nim": &mockProvider{status: 200, body: `{"ok":true,"matched":"family"}`},
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(`{"model":"claude-opus-4-1"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	d.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("status: got %d, want %d (body: %s)", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	if got := rec.Header().Get("X-Freedius-Matched-Provider"); got != "nim" {
+		t.Errorf("provider: got %q, want nim", got)
+	}
+	if got := rec.Header().Get("X-Freedius-Matched-Model"); got != "meta/llama-3.1-70b-instruct" {
+		t.Errorf("model: got %q, want meta/llama-3.1-70b-instruct", got)
+	}
+}
+
+func TestServeHTTPFamilyNoDefault(t *testing.T) {
+	cfg := &config.Config{
+		Models:   map[string]config.Model{},
+		Mappings: map[string]config.Model{},
+	}
+	d := newTestDispatcherWithAdapter(t, cfg, map[string]Provider{
+		"nim": &mockProvider{status: 200, body: `{}`},
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(`{"model":"claude-opus-4-1"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	d.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("status: got %d, want %d", rec.Code, http.StatusNotFound)
+	}
+}
+
+func TestServeHTTPFamilyDefaultCatchAll(t *testing.T) {
+	cfg := &config.Config{
+		Models: map[string]config.Model{},
+		Mappings: map[string]config.Model{
+			"default": {Provider: "nim", Model: "catch-all", APIKeyEnv: "NIM_API_KEY"},
+		},
+	}
+	t.Setenv("NIM_API_KEY", "k1")
+	d := newTestDispatcherWithAdapter(t, cfg, map[string]Provider{
+		"nim": &mockProvider{status: 200, body: `{"ok":true}`},
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(`{"model":"claude-unknown-2026"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	d.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("status: got %d, want %d (body: %s)", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	if got := rec.Header().Get("X-Freedius-Matched-Model"); got != "catch-all" {
+		t.Errorf("model: got %q, want catch-all", got)
+	}
+}
+
+func TestServeHTTPFamilyPriorityIndependentOfYAMLOrder(t *testing.T) {
+	// Mappings list auto before opus — but opus has higher priority in knownFamilies
+	cfg := &config.Config{
+		Models: map[string]config.Model{},
+		Mappings: map[string]config.Model{
+			"auto":    {Provider: "nim", Model: "from-auto", APIKeyEnv: "NIM_API_KEY"},
+			"opus":    {Provider: "nim", Model: "from-opus", APIKeyEnv: "NIM_API_KEY"},
+			"default": {Provider: "nim", Model: "from-default", APIKeyEnv: "NIM_API_KEY"},
+		},
+	}
+	t.Setenv("NIM_API_KEY", "k1")
+	d := newTestDispatcherWithAdapter(t, cfg, map[string]Provider{
+		"nim": &mockProvider{status: 200, body: `{}`},
+	})
+
+	// claude-opus-4-1 should match opus even though auto is listed first in the map
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(`{"model":"claude-opus-4-1"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	d.ServeHTTP(rec, req)
+
+	if got := rec.Header().Get("X-Freedius-Matched-Model"); got != "from-opus" {
+		t.Errorf("expected opus family priority, got model %q", got)
+	}
+}
+
+func TestServeHTTPModelsWinsOverFamilyMatch(t *testing.T) {
+	cfg := &config.Config{
+		Models: map[string]config.Model{
+			"claude-opus-4-1": {Provider: "nim", Model: "exact-match", APIKeyEnv: "NIM_API_KEY"},
+		},
+		Mappings: map[string]config.Model{
+			"opus": {Provider: "nim", Model: "family-match", APIKeyEnv: "NIM_API_KEY"},
+		},
+	}
+	t.Setenv("NIM_API_KEY", "k1")
+	d := newTestDispatcherWithAdapter(t, cfg, map[string]Provider{
+		"nim": &mockProvider{status: 200, body: `{}`},
+	})
+
+	// Exact model match should win over family pattern
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(`{"model":"claude-opus-4-1"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	d.ServeHTTP(rec, req)
+
+	if got := rec.Header().Get("X-Freedius-Matched-Model"); got != "exact-match" {
+		t.Errorf("models exact match should win over family; got model %q, want exact-match", got)
+	}
+
+	// A different opus version not in models: should use the family mapping
+	req2 := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(`{"model":"claude-opus-4-5"}`))
+	req2.Header.Set("Content-Type", "application/json")
+	rec2 := httptest.NewRecorder()
+	d.ServeHTTP(rec2, req2)
+
+	if got2 := rec2.Header().Get("X-Freedius-Matched-Model"); got2 != "family-match" {
+		t.Errorf("unmatched opus version should use family; got model %q, want family-match", got2)
+	}
+}
+
 type mockProvider struct {
 	status int
 	body   string

@@ -81,10 +81,15 @@ func (d *Dispatcher) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		m, ok = d.Cfg.Mappings[req.Model]
 		if !ok {
-			d.Logger.Debug("no match for model", "model", req.Model)
-			d.writeJSON(w, http.StatusNotFound, map[string]string{"status": "no_match"})
-			return
+			if family, found := extractFamily(req.Model); found {
+				m, ok = d.Cfg.Mappings[family]
+			}
 		}
+	}
+	if !ok {
+		d.Logger.Debug("no match for model", "model", req.Model)
+		d.writeJSON(w, http.StatusNotFound, map[string]string{"status": "no_match"})
+		return
 	}
 
 	d.Logger.Debug("dispatch", "model", req.Model, "provider", m.Provider, "target_model", m.Model)

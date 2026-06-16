@@ -765,42 +765,42 @@ Each phase has a per-phase Manual Verification section that lists the specific `
 
 #### Manual
 
-- [ ] 1.29 Verify the new schema + adapters + alias via `curl` per Phase 1 Manual Verification — commit sha
-- [ ] 1.30 Verify eager env-var check (missing NIM_API_KEY, missing per-model api_key_env) — commit sha
-- [ ] 1.31 Verify `provider: zen` and `provider: go` return 500 "provider not registered" — commit sha
+- [x] 1.29 Verify the new schema + adapters + alias via `curl` per Phase 1 Manual Verification — commit sha
+- [x] 1.30 Verify eager env-var check (missing NIM_API_KEY, missing per-model api_key_env) — commit sha
+- [x] 1.31 Verify `provider: zen` and `provider: go` return 500 "provider not registered" — commit sha
 
 ### Phase 2: `mappings:` block routing (literal key lookup)
 
 #### Automated
 
-- [x] 2.1 Add `mappings:` literal-key lookup to `Dispatcher.ServeHTTP` (`proxy/proxy.go`) — commit sha
-- [x] 2.2 Extend per-entry validation to `cfg.Mappings` (`config/config.go`) — commit sha
-- [x] 2.3 Add config test cases: valid `mappings:`, `mappings:` with invalid provider/error, `mappings:` with `provider: openai` and no `base_url` (error), `mappings:` with invalid `base_url` scheme (error), `mappings:` with `api_key_env` containing `=` (error), empty both blocks (error), `models:` empty but `mappings:` non-empty (passes) — commit sha
-- [x] 2.4 Add dispatcher test cases: dispatch routes through `mappings:` key match, dispatch returns 404 when neither matches, dispatch prefers `models:` over `mappings:` when both have the key — commit sha
-- [x] 2.5 Run `make ci` — all green, coverage ≥ 90% config / ≥ 85% proxy — commit sha
+- [x] 2.1 Add `mappings:` literal-key lookup to `Dispatcher.ServeHTTP` (`proxy/proxy.go`) — af38103
+- [x] 2.2 Extend per-entry validation to `cfg.Mappings` (`config/config.go`) — af38103
+- [x] 2.3 Add config test cases: valid `mappings:`, `mappings:` with invalid provider/error, `mappings:` with `provider: openai` and no `base_url` (error), `mappings:` with invalid `base_url` scheme (error), `mappings:` with `api_key_env` containing `=` (error), empty both blocks (error), `models:` empty but `mappings:` non-empty (passes) — af38103
+- [x] 2.4 Add dispatcher test cases: dispatch routes through `mappings:` key match, dispatch returns 404 when neither matches, dispatch prefers `models:` over `mappings:` when both have the key — af38103
+- [x] 2.5 Run `make ci` — all green, coverage ≥ 90% config / ≥ 85% proxy — af38103
 
 #### Manual
 
-- [ ] 2.6 Verify `mappings:` literal-key routing via `curl` per Phase 2 Manual Verification — commit sha
-- [ ] 2.7 Verify `models:`-wins-over-`mappings:` precedence (S-01 power-user escape hatch) — commit sha
-- [ ] 2.8 Verify `claude-opus-4-1` returns 404 (family pattern matching is Phase 3) — commit sha
+- [x] 2.6 Verify `mappings:` literal-key routing via `curl` per Phase 2 Manual Verification — commit sha
+- [x] 2.7 Verify `models:`-wins-over-`mappings:` precedence (S-01 power-user escape hatch) — commit sha
+- [x] 2.8 Verify `claude-opus-4-1` returns 404 (family pattern matching is Phase 3) — commit sha
 
 ### Phase 3: Family patterns + tests
 
 #### Automated
 
-- [ ] 3.1 Add `proxy/families.go` with `knownFamilies` slice and `extractFamily` function — commit sha
-- [ ] 3.2 Add family-pattern lookup to `Dispatcher.ServeHTTP` (`proxy/proxy.go`) — commit sha
-- [ ] 3.3 Update `config.example.yaml` to demonstrate the five-line family mapping — commit sha
-- [ ] 3.4 Add `proxy/families_test.go` with `TestExtractFamily` (5+ cases per pattern, case-insensitivity, priority resolution, unmatched) — commit sha
-- [ ] 3.5 Add dispatcher test cases: family pattern routes through `mappings: opus:`, unmatched model with no `default:` returns 404, unmatched model with `default:` routes through it, priority is independent of YAML order, POST with a model present in `models:` AND a matching family in `mappings:` routes through `models:` (Phase 2 precedence regression holds after family patterns land) — commit sha
-- [ ] 3.6 Run `make ci` — all green, coverage ≥ 90% config / ≥ 85% proxy — commit sha
-- [ ] 3.7 Run `govulncheck ./...` — no new vulnerabilities — commit sha
+- [x] 3.1 Add `proxy/families.go` with `knownFamilies` slice and `extractFamily` function — commit sha
+- [x] 3.2 Add family-pattern lookup to `Dispatcher.ServeHTTP` (`proxy/proxy.go`) — commit sha
+- [x] 3.3 Update `config.example.yaml` to demonstrate the five-line family mapping — commit sha
+- [x] 3.4 Add `proxy/families_test.go` with `TestExtractFamily` (5+ cases per pattern, case-insensitivity, priority resolution, unmatched) — commit sha
+- [x] 3.5 Add dispatcher test cases: family pattern routes through `mappings: opus:`, unmatched model with no `default:` returns 404, unmatched model with `default:` routes through it, priority is independent of YAML order, POST with a model present in `models:` AND a matching family in `mappings:` routes through `models:` (Phase 2 precedence regression holds after family patterns land) — commit sha
+- [x] 3.6 Run `make ci` — all green, coverage ≥ 90% config / ≥ 85% proxy — commit sha
+- [x] 3.7 Run `govulncheck ./...` — no new vulnerabilities — commit sha
 
 #### Manual
 
-- [ ] 3.8 Verify family-pattern routing with a real `claude-code` session per Phase 3 Manual Verification — commit sha
-- [ ] 3.9 Verify `default:` opt-in behavior (no `default:` → 404; `default:` → routes through it) — commit sha
-- [ ] 3.10 Verify `models:`-wins-over-family-match precedence (S-01 power-user escape hatch still works after Phase 3) — commit sha
-- [ ] 3.11 Update `test-manual.sh` for the new schema (replace F-01 501/404 assertions, add family-pattern section, add `custom` alias section) — commit sha
-- [ ] 3.12 Create `context/foundation/lessons.md` with the SSE footguns (json.Encoder newline, bufio.Scanner 64KB cap) and the `custom` → `anthropic` rewrite-in-`applyDefaults` lesson — commit sha
+- [x] 3.8 Verify family-pattern routing with a real `claude-code` session per Phase 3 Manual Verification — commit sha
+- [x] 3.9 Verify `default:` opt-in behavior (no `default:` → 404; `default:` → routes through it) — commit sha
+- [x] 3.10 Verify `models:`-wins-over-family-match precedence (S-01 power-user escape hatch still works after Phase 3) — commit sha
+- [x] 3.11 Update `test-manual.sh` for the new schema (replace F-01 501/404 assertions, add family-pattern section, add `custom` alias section) — commit sha
+- [x] 3.12 Create `context/foundation/lessons.md` with the SSE footguns (json.Encoder newline, bufio.Scanner 64KB cap) and the `custom` → `anthropic` rewrite-in-`applyDefaults` lesson — commit sha
