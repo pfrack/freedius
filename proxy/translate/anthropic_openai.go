@@ -174,7 +174,9 @@ func translateAssistantMessage(content any) ([]openAIMessage, error) {
 					if err != nil {
 						return nil, fmt.Errorf("tool_use input marshal: %w", err)
 					}
-					args = string(encoded)
+					if string(encoded) != "null" {
+						args = string(encoded)
+					}
 				}
 				toolCalls = append(toolCalls, openAIToolCall{
 					Index: len(toolCalls),

@@ -227,14 +227,47 @@ func TestNIMUpstream429(t *testing.T) {
 	}
 }
 
+func TestNIMNonStreamingTextResponse(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"id":"x","object":"chat.completion","created":1,"model":"m","choices":[{"index":0,"message":{"role":"assistant","content":"hi"},"finish_reason":"stop"}]}`))
+	}))
+	defer upstream.Close()
+
+	adapter := newTestNIMAdapter(t, upstream.URL, "sk-test")
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(`{"model":"m","max_tokens":10,"messages":[{"role":"user","content":"hi"}]}`))
+	w := httptest.NewRecorder()
+	m := config.Model{Provider: "nim", Model: "m"}
+
+	if err := adapter.Handle(w, req, m, []byte(`{"model":"m","max_tokens":10,"messages":[{"role":"user","content":"hi"}]}`)); err != nil {
+		t.Fatalf("Handle: %v", err)
+	}
+	if w.Code != http.StatusOK {
+		t.Errorf("status: got %d, want 200", w.Code)
+	}
+	if got := w.Header().Get("Content-Type"); got != "application/json" {
+		t.Errorf("Content-Type: got %q, want application/json (upstream-passthrough)", got)
+	}
+	if !strings.Contains(w.Body.String(), `"content":"hi"`) {
+		t.Errorf("body: got %q, want upstream body verbatim", w.Body.String())
+	}
+}
+
 func TestNIMTransportError(t *testing.T) {
 	adapter := newTestNIMAdapter(t, "http://127.0.0.1:1", "sk-test")
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(`{}`))
 	w := httptest.NewRecorder()
 	m := config.Model{Provider: "nim", Model: "m"}
 	err := adapter.Handle(w, req, m, []byte(`{}`))
-	if err == nil {
-		t.Error("expected error on unreachable upstream, got nil")
+	if err != nil {
+		t.Fatalf("expected nil (adapter writes 502 envelope directly), got %v", err)
+	}
+	if w.Code != http.StatusBadGateway {
+		t.Errorf("status: got %d, want 502", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), "upstream_unreachable") {
+		t.Errorf("body: got %q, want upstream_unreachable envelope", w.Body.String())
 	}
 }
 

@@ -992,3 +992,22 @@ func TestTranslateRequestToolUseNilInput(t *testing.T) {
 		t.Errorf("expected empty arguments, got %q", got.Messages[0].ToolCalls[0].Function.Arguments)
 	}
 }
+
+func TestTranslateRequestToolUseNullInput(t *testing.T) {
+	in := []byte(`{"model":"x","max_tokens":100,"messages":[
+		{"role":"assistant","content":[
+			{"type":"tool_use","id":"c1","name":"f","input":null}
+		]}
+	]}`)
+	out, err := TranslateRequest(in, "m")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got openAIRequest
+	if err := json.Unmarshal(out, &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Messages[0].ToolCalls[0].Function.Arguments != "" {
+		t.Errorf("expected empty arguments for null input, got %q", got.Messages[0].ToolCalls[0].Function.Arguments)
+	}
+}

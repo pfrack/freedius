@@ -216,6 +216,9 @@ func TestCustomClientDisconnect(t *testing.T) {
 	if atomic.LoadInt32(&upstreamHit) != 1 {
 		t.Error("upstream was not reached")
 	}
+	if w.Code == http.StatusBadGateway {
+		t.Errorf("expected no 502 on client disconnect, got %d (body: %q)", w.Code, w.Body.String())
+	}
 }
 
 func TestCustomClientDisconnectNoBodyWritten(t *testing.T) {
@@ -250,6 +253,9 @@ func TestCustomClientDisconnectNoBodyWritten(t *testing.T) {
 	}
 	if atomic.LoadInt32(&upstreamHit) != 1 {
 		t.Error("upstream was not reached")
+	}
+	if w.Code == http.StatusBadGateway {
+		t.Errorf("expected no 502 on client disconnect, got %d (body: %q)", w.Code, w.Body.String())
 	}
 }
 

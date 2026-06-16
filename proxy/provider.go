@@ -15,6 +15,11 @@ type Registry struct {
 }
 
 func NewRegistry(providers map[string]Provider) *Registry {
+	for name, p := range providers {
+		if p == nil {
+			panic("proxy: nil provider for " + name)
+		}
+	}
 	return &Registry{providers: providers}
 }
 

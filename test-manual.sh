@@ -45,7 +45,7 @@ start_server() {
 	"$BIN" > "$LOG" 2>&1 &
 	SERVER_PID=$!
 	for _ in 1 2 3 4 5 6 7 8 9 10; do
-		if curl -sS -o /dev/null http://127.0.0.1:8080/v1/messages 2>/dev/null; then
+		if curl -sS -o /dev/null http://127.0.0.1:8082/v1/messages 2>/dev/null; then
 			return 0
 		fi
 		sleep 0.1
@@ -201,7 +201,7 @@ start_server_with_config() {
 	"$BIN" > "$LOG" 2>&1 &
 	SERVER_PID=$!
 	for _ in 1 2 3 4 5 6 7 8 9 10; do
-		if curl -sS -o /dev/null http://127.0.0.1:8080/v1/messages 2>/dev/null; then
+		if curl -sS -o /dev/null http://127.0.0.1:8082/v1/messages 2>/dev/null; then
 			return 0
 		fi
 		sleep 0.1
@@ -228,15 +228,15 @@ if ! start_server; then
 	exit 1
 fi
 
-RESP=$(curl -sS -D - -o /dev/null -X POST http://127.0.0.1:8080/v1/messages \
+RESP=$(curl -sS -D - -o /dev/null -X POST http://127.0.0.1:8082/v1/messages \
 	-H 'content-type: application/json' -d '{"model":"unknown"}')
 STATUS=$(printf '%s\n' "$RESP" | head -1 | awk '{print $2}')
-BODY=$(curl -sS -X POST http://127.0.0.1:8080/v1/messages \
+BODY=$(curl -sS -X POST http://127.0.0.1:8082/v1/messages \
 	-H 'content-type: application/json' -d '{"model":"unknown"}')
 if [[ "$STATUS" == "404" ]]; then pass "F01 unknown model status=404"; else fail "F01 unknown status (got $STATUS)"; fi
 if [[ "$BODY" == *'"status":"no_match"'* ]]; then pass "F01 unknown body has status:no_match"; else fail "F01 unknown body (got $BODY)"; fi
 
-STATUS=$(curl -sS -o /dev/null -w "%{http_code}" -X POST http://127.0.0.1:8080/v1/messages \
+STATUS=$(curl -sS -o /dev/null -w "%{http_code}" -X POST http://127.0.0.1:8082/v1/messages \
 	-H 'content-type: application/json' -d '{not json')
 if [[ "$STATUS" == "400" ]]; then pass "F01 malformed body status=400"; else fail "F01 malformed status (got $STATUS)"; fi
 
@@ -309,13 +309,13 @@ YAML
 "$BIN" > "$LOG" 2>&1 &
 SERVER_PID=$!
 for _ in 1 2 3 4 5 6 7 8 9 10; do
-	if curl -sS -o /dev/null http://127.0.0.1:8080/v1/messages 2>/dev/null; then
+	if curl -sS -o /dev/null http://127.0.0.1:8082/v1/messages 2>/dev/null; then
 		break
 	fi
 	sleep 0.1
 done
 
-RESP=$(curl -sS -D - -o /tmp/p1_body http://127.0.0.1:8080/v1/messages \
+RESP=$(curl -sS -D - -o /tmp/p1_body http://127.0.0.1:8082/v1/messages \
 	-H 'content-type: application/json' -d '{"model":"claude-opus-4"}')
 STATUS=$(printf '%s\n' "$RESP" | head -1 | awk '{print $2}')
 HEADER_PROV=$(printf '%s\n' "$RESP" | grep -i '^X-Freedius-Matched-Provider:' | tr -d '\r' | awk '{print $2}')
@@ -337,13 +337,13 @@ YAML
 "$BIN" > "$LOG" 2>&1 &
 SERVER_PID=$!
 for _ in 1 2 3 4 5 6 7 8 9 10; do
-	if curl -sS -o /dev/null http://127.0.0.1:8080/v1/messages 2>/dev/null; then
+	if curl -sS -o /dev/null http://127.0.0.1:8082/v1/messages 2>/dev/null; then
 		break
 	fi
 	sleep 0.1
 done
 
-RESP=$(curl -sS -D - -o /tmp/p1_body2 http://127.0.0.1:8080/v1/messages \
+RESP=$(curl -sS -D - -o /tmp/p1_body2 http://127.0.0.1:8082/v1/messages \
 	-H 'content-type: application/json' -d '{"model":"claude-sonnet-4"}')
 STATUS=$(printf '%s\n' "$RESP" | head -1 | awk '{print $2}')
 BODY=$(cat /tmp/p1_body2)
@@ -359,7 +359,7 @@ models:
     model: my-sonnet-shim
 YAML
 start_server
-RESP=$(curl -sS -D - -o /tmp/p1_body3 http://127.0.0.1:8080/v1/messages \
+RESP=$(curl -sS -D - -o /tmp/p1_body3 http://127.0.0.1:8082/v1/messages \
 	-H 'content-type: application/json' -d '{"model":"unknown"}')
 STATUS=$(printf '%s\n' "$RESP" | head -1 | awk '{print $2}')
 if [[ "$STATUS" == "404" ]]; then pass "P1.3 unknown model still returns 404"; else fail "P1.3 status (got $STATUS)"; fi
@@ -417,13 +417,13 @@ export MY_SHIM_API_KEY="sk-test-custom"
 "$BIN" > "$LOG" 2>&1 &
 SERVER_PID=$!
 for _ in 1 2 3 4 5 6 7 8 9 10; do
-	if curl -sS -o /dev/null http://127.0.0.1:8080/v1/messages 2>/dev/null; then
+	if curl -sS -o /dev/null http://127.0.0.1:8082/v1/messages 2>/dev/null; then
 		break
 	fi
 	sleep 0.1
 done
 
-RESP=$(curl -sS -D - -o /tmp/p2_body http://127.0.0.1:8080/v1/messages \
+RESP=$(curl -sS -D - -o /tmp/p2_body http://127.0.0.1:8082/v1/messages \
 	-H 'content-type: application/json' \
 	-d '{"model":"claude-sonnet-4","max_tokens":10,"messages":[{"role":"user","content":"hi"}]}')
 STATUS=$(printf '%s\n' "$RESP" | head -1 | awk '{print $2}')
@@ -433,7 +433,7 @@ if [[ "$STATUS" == "200" ]]; then pass "P2.1 custom adapter non-stream status=20
 if [[ "$HEADER" == "served" ]]; then pass "P2.1 upstream header X-Mock-Custom forwarded"; else fail "P2.1 header (got $HEADER)"; fi
 if [[ "$BODY" == *'"role": "assistant"'* ]] && [[ "$BODY" == *'"id": "msg_custom"'* ]]; then pass "P2.1 body is Anthropic-format JSON"; else fail "P2.1 body shape (got $BODY)"; fi
 
-RESP=$(curl -sS -D - -o /tmp/p2_sse http://127.0.0.1:8080/v1/messages \
+RESP=$(curl -sS -D - -o /tmp/p2_sse http://127.0.0.1:8082/v1/messages \
 	-H 'content-type: application/json' -H 'accept: text/event-stream' \
 	-d '{"model":"claude-sonnet-4","stream":true,"max_tokens":10,"messages":[{"role":"user","content":"hi"}]}')
 STATUS=$(printf '%s\n' "$RESP" | head -1 | awk '{print $2}')
@@ -464,13 +464,13 @@ export MY_SHIM_API_KEY="sk-wrong-key-fails-mock-auth"
 "$BIN" > "$LOG" 2>&1 &
 SERVER_PID=$!
 for _ in 1 2 3 4 5 6 7 8 9 10; do
-	if curl -sS -o /dev/null http://127.0.0.1:8080/v1/messages 2>/dev/null; then
+	if curl -sS -o /dev/null http://127.0.0.1:8082/v1/messages 2>/dev/null; then
 		break
 	fi
 	sleep 0.1
 done
 
-RESP=$(curl -sS -D - -o /tmp/p2_401 http://127.0.0.1:8080/v1/messages \
+RESP=$(curl -sS -D - -o /tmp/p2_401 http://127.0.0.1:8082/v1/messages \
 	-H 'content-type: application/json' \
 	-d '{"model":"claude-sonnet-4","messages":[]}')
 STATUS=$(printf '%s\n' "$RESP" | head -1 | awk '{print $2}')
@@ -494,13 +494,13 @@ export MY_SHIM_API_KEY="sk-test-custom"
 "$BIN" > "$LOG" 2>&1 &
 SERVER_PID=$!
 for _ in 1 2 3 4 5 6 7 8 9 10; do
-	if curl -sS -o /dev/null http://127.0.0.1:8080/v1/messages 2>/dev/null; then
+	if curl -sS -o /dev/null http://127.0.0.1:8082/v1/messages 2>/dev/null; then
 		break
 	fi
 	sleep 0.1
 done
 
-RESP=$(curl -sS -D - -o /tmp/p2_502 http://127.0.0.1:8080/v1/messages \
+RESP=$(curl -sS -D - -o /tmp/p2_502 http://127.0.0.1:8082/v1/messages \
 	-H 'content-type: application/json' \
 	-d '{"model":"claude-sonnet-4","messages":[]}')
 STATUS=$(printf '%s\n' "$RESP" | head -1 | awk '{print $2}')
@@ -522,13 +522,13 @@ YAML
 "$BIN" > "$LOG" 2>&1 &
 SERVER_PID=$!
 for _ in 1 2 3 4 5 6 7 8 9 10; do
-	if curl -sS -o /dev/null http://127.0.0.1:8080/v1/messages 2>/dev/null; then
+	if curl -sS -o /dev/null http://127.0.0.1:8082/v1/messages 2>/dev/null; then
 		break
 	fi
 	sleep 0.1
 done
 
-RESP=$(curl -sS -D - -o /tmp/p2_noenv http://127.0.0.1:8080/v1/messages \
+RESP=$(curl -sS -D - -o /tmp/p2_noenv http://127.0.0.1:8082/v1/messages \
 	-H 'content-type: application/json' \
 	-d '{"model":"claude-sonnet-4","messages":[]}')
 STATUS=$(printf '%s\n' "$RESP" | head -1 | awk '{print $2}')
@@ -561,13 +561,13 @@ export NIM_BASE_URL="http://127.0.0.1:${NIM_PORT}"
 "$BIN" > "$LOG" 2>&1 &
 SERVER_PID=$!
 for _ in 1 2 3 4 5 6 7 8 9 10; do
-	if curl -sS -o /dev/null http://127.0.0.1:8080/v1/messages 2>/dev/null; then
+	if curl -sS -o /dev/null http://127.0.0.1:8082/v1/messages 2>/dev/null; then
 		break
 	fi
 	sleep 0.1
 done
 
-RESP=$(curl -sS -D - -o /tmp/p3_sse http://127.0.0.1:8080/v1/messages \
+RESP=$(curl -sS -D - -o /tmp/p3_sse http://127.0.0.1:8082/v1/messages \
 	-H 'content-type: application/json' -H 'accept: text/event-stream' \
 	-d '{"model":"claude-opus-4","max_tokens":50,"stream":true,"messages":[{"role":"user","content":"Say hi in 5 words or fewer"}]}')
 STATUS=$(printf '%s\n' "$RESP" | head -1 | awk '{print $2}')
@@ -586,7 +586,7 @@ if [[ "$SSE" == *'"text_delta"'* ]]; then pass "P3.1 SSE has text_delta"; else f
 if [[ "$SSE" == *'"stop_reason":"end_turn"'* ]]; then pass "P3.1 stop_reason=end_turn"; else fail "P3.1 stop_reason: $SSE"; fi
 if [[ "$SSE" == *"\n\n\n"* ]]; then fail "P3.1 output contains \\n\\n\\n (json.Encoder trap)"; else pass "P3.1 no triple-newline corruption"; fi
 
-RESP=$(curl -sS -D - -o /tmp/p3_tool http://127.0.0.1:8080/v1/messages \
+RESP=$(curl -sS -D - -o /tmp/p3_tool http://127.0.0.1:8082/v1/messages \
 	-H 'content-type: application/json' -H 'accept: text/event-stream' \
 	-d '{"model":"claude-opus-4","max_tokens":100,"stream":true,"tools":[{"name":"get_weather","description":"Get weather","input_schema":{"type":"object","properties":{"city":{"type":"string"}}}}],"messages":[{"role":"user","content":"weather in Paris?"}]}')
 STATUS=$(printf '%s\n' "$RESP" | head -1 | awk '{print $2}')
@@ -615,13 +615,13 @@ start_mock_nim "$NIM_PORT"
 "$BIN" > "$LOG" 2>&1 &
 SERVER_PID=$!
 for _ in 1 2 3 4 5 6 7 8 9 10; do
-	if curl -sS -o /dev/null http://127.0.0.1:8080/v1/messages 2>/dev/null; then
+	if curl -sS -o /dev/null http://127.0.0.1:8082/v1/messages 2>/dev/null; then
 		break
 	fi
 	sleep 0.1
 done
 
-RESP=$(curl -sS -D - -o /tmp/p3_401 http://127.0.0.1:8080/v1/messages \
+RESP=$(curl -sS -D - -o /tmp/p3_401 http://127.0.0.1:8082/v1/messages \
 	-H 'content-type: application/json' \
 	-d '{"model":"claude-opus-4","max_tokens":10,"messages":[{"role":"user","content":"hi"}]}')
 STATUS=$(printf '%s\n' "$RESP" | head -1 | awk '{print $2}')
@@ -646,20 +646,20 @@ export NIM_BASE_URL="http://127.0.0.1:1"
 "$BIN" > "$LOG" 2>&1 &
 SERVER_PID=$!
 for _ in 1 2 3 4 5 6 7 8 9 10; do
-	if curl -sS -o /dev/null http://127.0.0.1:8080/v1/messages 2>/dev/null; then
+	if curl -sS -o /dev/null http://127.0.0.1:8082/v1/messages 2>/dev/null; then
 		break
 	fi
 	sleep 0.1
 done
 
-RESP=$(curl -sS -D - -o /tmp/p3_502 http://127.0.0.1:8080/v1/messages \
+RESP=$(curl -sS -D - -o /tmp/p3_502 http://127.0.0.1:8082/v1/messages \
 	-H 'content-type: application/json' \
 	-d '{"model":"claude-opus-4","max_tokens":10,"messages":[{"role":"user","content":"hi"}]}')
 STATUS=$(printf '%s\n' "$RESP" | head -1 | awk '{print $2}')
 BODY=$(cat /tmp/p3_502)
 if [[ "$STATUS" == "502" ]]; then pass "P3.4 NIM unreachable returns 502"; else fail "P3.4 status (got $STATUS)"; fi
-if [[ "$BODY" == *"upstream error"* ]] || [[ "$BODY" == *"upstream_unreachable"* ]]; then
-	pass "P3.4 body has upstream error indicator"
+if [[ "$BODY" == *"upstream_unreachable"* ]]; then
+	pass "P3.4 body has upstream_unreachable envelope"
 else
 	fail "P3.4 body: $BODY"
 fi

@@ -5,8 +5,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/pfrack/freedius/config"
 	"github.com/pfrack/freedius/proxy/translate"
@@ -55,11 +57,22 @@ func (a *NIMAdapter) Handle(w http.ResponseWriter, r *http.Request, m config.Mod
 	req.Header.Set("Accept", "text/event-stream")
 	resp, err := a.client.Do(req)
 	if err != nil {
-		return err
+		writeUpstreamUnreachable(w, a.logger, r.URL.Path, err)
+		return nil
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 400 {
 		return forwardUpstreamError(w, resp)
+	}
+	if !strings.HasPrefix(resp.Header.Get("Content-Type"), "text/event-stream") {
+		for k, vv := range resp.Header {
+			for _, v := range vv {
+				w.Header().Add(k, v)
+			}
+		}
+		w.WriteHeader(resp.StatusCode)
+		_, _ = io.Copy(w, resp.Body)
+		return nil
 	}
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
