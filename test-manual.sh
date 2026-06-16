@@ -282,10 +282,20 @@ fi
 echo ""
 echo "=== Phase 1: schema + provider registry ==="
 
-if ! start_server; then
-	echo "  server failed to start (Phase 1)"
-	exit 1
-fi
+cat > "$CFG" <<'YAML'
+models:
+  claude-opus-4:
+    provider: zen
+    model: zen-large
+YAML
+"$BIN" > "$LOG" 2>&1 &
+SERVER_PID=$!
+for _ in 1 2 3 4 5 6 7 8 9 10; do
+	if curl -sS -o /dev/null http://127.0.0.1:8080/v1/messages 2>/dev/null; then
+		break
+	fi
+	sleep 0.1
+done
 
 RESP=$(curl -sS -D - -o /tmp/p1_body http://127.0.0.1:8080/v1/messages \
 	-H 'content-type: application/json' -d '{"model":"claude-opus-4"}')
@@ -293,18 +303,18 @@ STATUS=$(printf '%s\n' "$RESP" | head -1 | awk '{print $2}')
 HEADER_PROV=$(printf '%s\n' "$RESP" | grep -i '^X-Freedius-Matched-Provider:' | tr -d '\r' | awk '{print $2}')
 HEADER_MOD=$(printf '%s\n' "$RESP" | grep -i '^X-Freedius-Matched-Model:' | tr -d '\r' | awk '{print $2}')
 BODY=$(cat /tmp/p1_body)
-if [[ "$STATUS" == "500" ]]; then pass "P1.1 nim model status=500 (no adapter registered for nim)"; else fail "P1.1 status (got $STATUS)"; fi
-if [[ "$HEADER_PROV" == "nim" ]]; then pass "P1.1 X-Freedius-Matched-Provider: nim"; else fail "P1.1 header prov (got $HEADER_PROV)"; fi
-if [[ "$HEADER_MOD" == "meta/llama-3.1-70b-instruct" ]]; then pass "P1.1 X-Freedius-Matched-Model set"; else fail "P1.1 header mod (got $HEADER_MOD)"; fi
-if [[ "$BODY" == *'"error":"provider not registered: nim"'* ]]; then pass "P1.1 body has 'provider not registered: nim'"; else fail "P1.1 body (got $BODY)"; fi
+if [[ "$STATUS" == "500" ]]; then pass "P1.1 zen model status=500 (in KnownProviders but no adapter)"; else fail "P1.1 status (got $STATUS)"; fi
+if [[ "$HEADER_PROV" == "zen" ]]; then pass "P1.1 X-Freedius-Matched-Provider: zen"; else fail "P1.1 header prov (got $HEADER_PROV)"; fi
+if [[ "$HEADER_MOD" == "zen-large" ]]; then pass "P1.1 X-Freedius-Matched-Model set"; else fail "P1.1 header mod (got $HEADER_MOD)"; fi
+if [[ "$BODY" == *'"error":"provider not registered: zen"'* ]]; then pass "P1.1 body has 'provider not registered: zen'"; else fail "P1.1 body (got $BODY)"; fi
 
 stop_server
 
 cat > "$CFG" <<'YAML'
 models:
   claude-sonnet-4:
-    provider: zen
-    model: zen-large
+    provider: go
+    model: go-large
 YAML
 "$BIN" > "$LOG" 2>&1 &
 SERVER_PID=$!
@@ -319,8 +329,8 @@ RESP=$(curl -sS -D - -o /tmp/p1_body2 http://127.0.0.1:8080/v1/messages \
 	-H 'content-type: application/json' -d '{"model":"claude-sonnet-4"}')
 STATUS=$(printf '%s\n' "$RESP" | head -1 | awk '{print $2}')
 BODY=$(cat /tmp/p1_body2)
-if [[ "$STATUS" == "500" ]]; then pass "P1.2 zen provider status=500 (in KnownProviders but no adapter)"; else fail "P1.2 status (got $STATUS)"; fi
-if [[ "$BODY" == *'"error":"provider not registered: zen"'* ]]; then pass "P1.2 body has 'provider not registered: zen'"; else fail "P1.2 body (got $BODY)"; fi
+if [[ "$STATUS" == "500" ]]; then pass "P1.2 go provider status=500 (in KnownProviders but no adapter)"; else fail "P1.2 status (got $STATUS)"; fi
+if [[ "$BODY" == *'"error":"provider not registered: go"'* ]]; then pass "P1.2 body has 'provider not registered: go'"; else fail "P1.2 body (got $BODY)"; fi
 
 stop_server
 
@@ -516,8 +526,134 @@ stop_server
 rm -f "$CFG"
 
 echo ""
+echo "=== Phase 3: NIM adapter + translation module ==="
+
+NIM_PORT=9092
+start_mock_nim "$NIM_PORT"
+
+cat > "$CFG" <<YAML
+models:
+  claude-opus-4:
+    provider: nim
+    model: meta/llama-3.1-70b-instruct
+    api_key_env: NIM_API_KEY
+YAML
+export NIM_API_KEY="sk-test-nim"
+export NIM_BASE_URL="http://127.0.0.1:${NIM_PORT}"
+"$BIN" > "$LOG" 2>&1 &
+SERVER_PID=$!
+for _ in 1 2 3 4 5 6 7 8 9 10; do
+	if curl -sS -o /dev/null http://127.0.0.1:8080/v1/messages 2>/dev/null; then
+		break
+	fi
+	sleep 0.1
+done
+
+RESP=$(curl -sS -D - -o /tmp/p3_sse http://127.0.0.1:8080/v1/messages \
+	-H 'content-type: application/json' -H 'accept: text/event-stream' \
+	-d '{"model":"claude-opus-4","max_tokens":50,"stream":true,"messages":[{"role":"user","content":"Say hi in 5 words or fewer"}]}')
+STATUS=$(printf '%s\n' "$RESP" | head -1 | awk '{print $2}')
+CT=$(printf '%s\n' "$RESP" | grep -i '^Content-Type:' | tr -d '\r' | awk '{print $2}')
+SSE=$(cat /tmp/p3_sse)
+if [[ "$STATUS" == "200" ]]; then pass "P3.1 NIM streaming status=200"; else fail "P3.1 status (got $STATUS)"; fi
+if [[ "$CT" == "text/event-stream" ]]; then pass "P3.1 Content-Type text/event-stream"; else fail "P3.1 CT (got $CT)"; fi
+for ev in "event: message_start" "event: content_block_start" "event: content_block_delta" "event: content_block_stop" "event: message_delta" "event: message_stop"; do
+	if [[ "$SSE" == *"$ev"* ]]; then
+		pass "P3.1 SSE event present: $ev"
+	else
+		fail "P3.1 SSE event missing: $ev"
+	fi
+done
+if [[ "$SSE" == *'"text_delta"'* ]]; then pass "P3.1 SSE has text_delta"; else fail "P3.1 no text_delta: $SSE"; fi
+if [[ "$SSE" == *'"stop_reason":"end_turn"'* ]]; then pass "P3.1 stop_reason=end_turn"; else fail "P3.1 stop_reason: $SSE"; fi
+if [[ "$SSE" == *"\n\n\n"* ]]; then fail "P3.1 output contains \\n\\n\\n (json.Encoder trap)"; else pass "P3.1 no triple-newline corruption"; fi
+
+RESP=$(curl -sS -D - -o /tmp/p3_tool http://127.0.0.1:8080/v1/messages \
+	-H 'content-type: application/json' -H 'accept: text/event-stream' \
+	-d '{"model":"claude-opus-4","max_tokens":100,"stream":true,"tools":[{"name":"get_weather","description":"Get weather","input_schema":{"type":"object","properties":{"city":{"type":"string"}}}}],"messages":[{"role":"user","content":"weather in Paris?"}]}')
+STATUS=$(printf '%s\n' "$RESP" | head -1 | awk '{print $2}')
+TOOL=$(cat /tmp/p3_tool)
+if [[ "$STATUS" == "200" ]]; then pass "P3.2 NIM with tools status=200"; else fail "P3.2 status (got $STATUS)"; fi
+if [[ "$TOOL" == *'"type":"tool_use"'* ]]; then pass "P3.2 tool_use block emitted"; else fail "P3.2 no tool_use: $TOOL"; fi
+if [[ "$TOOL" == *'"name":"get_weather"'* ]]; then pass "P3.2 tool name get_weather"; else fail "P3.2 tool name missing: $TOOL"; fi
+if [[ "$TOOL" == *'"partial_json"'* ]]; then pass "P3.2 input_json_delta emitted"; else fail "P3.2 no partial_json: $TOOL"; fi
+if [[ "$TOOL" == *'"stop_reason":"tool_use"'* ]]; then pass "P3.2 stop_reason=tool_use"; else fail "P3.2 stop_reason: $TOOL"; fi
+
+stop_server
+stop_mock
+unset NIM_API_KEY
+unset NIM_BASE_URL
+
+cat > "$CFG" <<YAML
+models:
+  claude-opus-4:
+    provider: nim
+    model: meta/llama-3.1-70b-instruct
+    api_key_env: NIM_API_KEY
+YAML
+export NIM_API_KEY="sk-wrong-key-mock-rejects"
+export NIM_BASE_URL="http://127.0.0.1:${NIM_PORT}"
+start_mock_nim "$NIM_PORT"
+"$BIN" > "$LOG" 2>&1 &
+SERVER_PID=$!
+for _ in 1 2 3 4 5 6 7 8 9 10; do
+	if curl -sS -o /dev/null http://127.0.0.1:8080/v1/messages 2>/dev/null; then
+		break
+	fi
+	sleep 0.1
+done
+
+RESP=$(curl -sS -D - -o /tmp/p3_401 http://127.0.0.1:8080/v1/messages \
+	-H 'content-type: application/json' \
+	-d '{"model":"claude-opus-4","max_tokens":10,"messages":[{"role":"user","content":"hi"}]}')
+STATUS=$(printf '%s\n' "$RESP" | head -1 | awk '{print $2}')
+BODY=$(cat /tmp/p3_401)
+if [[ "$STATUS" == "401" ]]; then pass "P3.3 NIM 401 forwarded verbatim"; else fail "P3.3 status (got $STATUS)"; fi
+if [[ "$BODY" == *"invalid api key"* ]]; then pass "P3.3 NIM body forwarded"; else fail "P3.3 body: $BODY"; fi
+
+stop_server
+stop_mock
+unset NIM_API_KEY
+unset NIM_BASE_URL
+
+cat > "$CFG" <<YAML
+models:
+  claude-opus-4:
+    provider: nim
+    model: meta/llama-3.1-70b-instruct
+    api_key_env: NIM_API_KEY
+YAML
+export NIM_API_KEY="sk-test-nim"
+export NIM_BASE_URL="http://127.0.0.1:1"
+"$BIN" > "$LOG" 2>&1 &
+SERVER_PID=$!
+for _ in 1 2 3 4 5 6 7 8 9 10; do
+	if curl -sS -o /dev/null http://127.0.0.1:8080/v1/messages 2>/dev/null; then
+		break
+	fi
+	sleep 0.1
+done
+
+RESP=$(curl -sS -D - -o /tmp/p3_502 http://127.0.0.1:8080/v1/messages \
+	-H 'content-type: application/json' \
+	-d '{"model":"claude-opus-4","max_tokens":10,"messages":[{"role":"user","content":"hi"}]}')
+STATUS=$(printf '%s\n' "$RESP" | head -1 | awk '{print $2}')
+BODY=$(cat /tmp/p3_502)
+if [[ "$STATUS" == "502" ]]; then pass "P3.4 NIM unreachable returns 502"; else fail "P3.4 status (got $STATUS)"; fi
+if [[ "$BODY" == *"upstream error"* ]] || [[ "$BODY" == *"upstream_unreachable"* ]]; then
+	pass "P3.4 body has upstream error indicator"
+else
+	fail "P3.4 body: $BODY"
+fi
+
+stop_server
+rm -f "$CFG"
+unset NIM_API_KEY
+unset NIM_BASE_URL
+
+echo ""
 if [[ $FAIL -eq 0 ]]; then
-	echo "All automated checks passed (F-01 + Phase 1 + Phase 2)"
+	echo "All automated checks passed (F-01 + Phase 1 + Phase 2 + Phase 3)"
 else
 	echo "$FAIL checks failed"
 	exit 1

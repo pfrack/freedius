@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"io"
 	"log/slog"
@@ -268,5 +269,71 @@ func TestServeHTTPCustomAdapterEndToEnd(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), `"id":"msg_e2e"`) {
 		t.Errorf("body: got %q", rec.Body.String())
+	}
+}
+
+func TestServeHTTPNIMAdapterEndToEnd(t *testing.T) {
+	var gotModel string
+	var gotStream bool
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		var req map[string]any
+		_ = json.Unmarshal(body, &req)
+		if m, ok := req["model"].(string); ok {
+			gotModel = m
+		}
+		if s, ok := req["stream"].(bool); ok {
+			gotStream = s
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		flusher, _ := w.(http.Flusher)
+		chunks := []string{
+			`data: {"id":"chatcmpl-1","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}` + "\n\n",
+			`data: {"id":"chatcmpl-1","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{"content":"hi"},"finish_reason":null}]}` + "\n\n",
+			`data: {"id":"chatcmpl-1","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}` + "\n\n",
+			`data: {"id":"chatcmpl-1","object":"chat.completion.chunk","created":1,"model":"m","choices":[],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}` + "\n\n",
+			`data: [DONE]` + "\n\n",
+		}
+		for _, c := range chunks {
+			_, _ = w.Write([]byte(c))
+			flusher.Flush()
+		}
+	}))
+	defer upstream.Close()
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	nimAdapter := NewNIMAdapter(NIMAdapterConfig{BaseURL: upstream.URL, APIKey: "sk-test-e2e"}, logger)
+	cfg := &config.Config{
+		Models: map[string]config.Model{
+			"claude-opus-4": {Provider: "nim", Model: "meta/llama-3.1-70b-instruct"},
+		},
+	}
+	registry := NewRegistry(map[string]Provider{"nim": nimAdapter})
+	d := NewDispatcher(cfg, registry, logger)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(`{"model":"claude-opus-4","max_tokens":10,"stream":true,"messages":[{"role":"user","content":"hi"}]}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	d.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("status: got %d, want 200 (body: %s)", rec.Code, rec.Body.String())
+	}
+	if gotModel != "meta/llama-3.1-70b-instruct" {
+		t.Errorf("upstream model: got %q, want meta/llama-3.1-70b-instruct", gotModel)
+	}
+	if !gotStream {
+		t.Error("upstream stream: got false, want true")
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "event: message_start") {
+		t.Errorf("missing message_start: %s", body)
+	}
+	if !strings.Contains(body, "event: message_stop") {
+		t.Errorf("missing message_stop: %s", body)
+	}
+	if rec.Header().Get("X-Freedius-Matched-Provider") != "nim" {
+		t.Errorf("X-Freedius-Matched-Provider: got %q, want nim", rec.Header().Get("X-Freedius-Matched-Provider"))
 	}
 }

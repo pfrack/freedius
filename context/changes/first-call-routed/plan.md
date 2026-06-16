@@ -611,18 +611,18 @@ Each phase has a per-phase Manual Verification section that lists the specific `
 
 #### Automated
 
-- [ ] 2.1 Add `proxy/errors.go` with `forwardUpstreamError` and `freediusErrorHandler` (used by both adapters) — commit sha
-- [ ] 2.2 Add `proxy/custom.go` with `CustomAdapter`, `NewCustomAdapter`, `Handle` — commit sha
-- [ ] 2.3 Add `proxy/custom_test.go` with the 7 cases from Phase 2 Change #4 — commit sha
-- [ ] 2.4 Update `main.go` to register the custom adapter in the registry — commit sha
-- [ ] 2.5 Add dispatcher-level integration test exercising custom adapter end-to-end (proxy/proxy_test.go) — commit sha
-- [ ] 2.6 Run `make ci` — all green, coverage ≥ 85% proxy — commit sha
+- [x] 2.1 Add `proxy/errors.go` with `forwardUpstreamError` and `freediusErrorHandler` (used by both adapters) — f5e98f9
+- [x] 2.2 Add `proxy/custom.go` with `CustomAdapter`, `NewCustomAdapter`, `Handle` — f5e98f9
+- [x] 2.3 Add `proxy/custom_test.go` with the 7 cases from Phase 2 Change #4 — f5e98f9
+- [x] 2.4 Update `main.go` to register the custom adapter in the registry — f5e98f9
+- [x] 2.5 Add dispatcher-level integration test exercising custom adapter end-to-end (proxy/proxy_test.go) — f5e98f9
+- [x] 2.6 Run `make ci` — all green, coverage ≥ 85% proxy — f5e98f9
 
 #### Manual
 
-- [ ] 2.7 Verify custom passthrough end-to-end with a real Anthropic-compatible shim per Phase 2 Manual Verification — commit sha
-- [ ] 2.8 Verify error forwarding (upstream 401/500 reaches Claude Code verbatim) — commit sha
-- [ ] 2.9 Verify client-disconnect handling (no 502 written, debug log emitted) — commit sha
+- [x] 2.7 Verify custom passthrough end-to-end with a real Anthropic-compatible shim per Phase 2 Manual Verification — f5e98f9
+- [x] 2.8 Verify error forwarding (upstream 401/500 reaches Claude Code verbatim) — f5e98f9
+- [x] 2.9 Verify client-disconnect handling (no 502 written, debug log emitted) — f5e98f9
 
 ### Phase 3: NIM adapter + translation module
 

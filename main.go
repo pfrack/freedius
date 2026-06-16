@@ -81,6 +81,7 @@ func run() int {
 
 	registry := proxy.NewRegistry(map[string]proxy.Provider{
 		"custom": proxy.NewCustomAdapter(logger),
+		"nim":    proxy.NewNIMAdapter(proxy.NIMAdapterConfig{BaseURL: os.Getenv("NIM_BASE_URL"), APIKey: os.Getenv("NIM_API_KEY")}, logger),
 	})
 	dispatcher := proxy.NewDispatcher(cfg, registry, logger)
 	mux := http.NewServeMux()
