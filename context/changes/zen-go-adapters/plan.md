@@ -236,10 +236,10 @@ None — the `MixAdapter` adds one `url.Parse` + one `strings.HasSuffix` call pe
 
 #### Automated
 
-- [x] 2.1 Full CI passes: `make ci`
-- [x] 2.2 `proxy/mix_test.go` covers both code paths
-- [x] 2.3 Existing tests unchanged and passing
+- [x] 2.1 Full CI passes: `make ci` — 0ccbf2b
+- [x] 2.2 `proxy/mix_test.go` covers both code paths — 0ccbf2b
+- [x] 2.3 Existing tests unchanged and passing — 0ccbf2b
 
 #### Manual
 
-- [x] 2.4 Review that `config.example.yaml` is clear and demonstrates both URL patterns
+- [x] 2.4 Review that `config.example.yaml` is clear and demonstrates both URL patterns — 0ccbf2b

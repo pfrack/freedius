@@ -1,7 +1,7 @@
 ---
 id: zen-go-adapters
 title: Zen + Go adapters — Opencode Zen and Opencode Go provider support
-status: implementing
+status: implemented
 created: 2026-06-16
 updated: 2026-06-16
 roadmap_id: S-03
