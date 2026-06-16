@@ -594,14 +594,14 @@ Each phase has a per-phase Manual Verification section that lists the specific `
 
 #### Automated
 
-- [ ] 1.1 Add `BaseURL` and `APIKeyEnv` fields to `config.Model` and extend the per-model validation loop (`config/config.go`) — commit sha
-- [ ] 1.2 Add `config.example.yaml` update with one `nim` mapping (env-var only) and one `custom` mapping (URL + env-var) — commit sha
-- [ ] 1.3 Add `proxy/provider.go` with `Provider` interface, `Registry` type, `NewRegistry`, `Lookup` — commit sha
-- [ ] 1.4 Update `Dispatcher` struct + `NewDispatcher` to take a `*Registry`; replace 501 stub with registry lookup (proxy/proxy.go) — commit sha
-- [ ] 1.5 Update `main.go` to pass a `nil` registry for now (Phase 2 replaces it) — commit sha
-- [ ] 1.6 Add config test cases: `provider=custom` without `base_url` (error), invalid `base_url` scheme (error), invalid `api_key_env` (error), valid nim+api_key_env (passes), valid custom+both fields (passes) — commit sha
-- [ ] 1.7 Update `newTestDispatcher` to construct a registry; add "provider not registered" 500 test case — commit sha
-- [ ] 1.8 Run `make ci` — all green, coverage ≥ 90% config / ≥ 85% proxy — commit sha
+- [x] 1.1 Add `BaseURL` and `APIKeyEnv` fields to `config.Model` and extend the per-model validation loop (`config/config.go`) — commit sha
+- [x] 1.2 Add `config.example.yaml` update with one `nim` mapping (env-var only) and one `custom` mapping (URL + env-var) — commit sha
+- [x] 1.3 Add `proxy/provider.go` with `Provider` interface, `Registry` type, `NewRegistry`, `Lookup` — commit sha
+- [x] 1.4 Update `Dispatcher` struct + `NewDispatcher` to take a `*Registry`; replace 501 stub with registry lookup (proxy/proxy.go) — commit sha
+- [x] 1.5 Update `main.go` to pass a `nil` registry for now (Phase 2 replaces it) — commit sha
+- [x] 1.6 Add config test cases: `provider=custom` without `base_url` (error), invalid `base_url` scheme (error), invalid `api_key_env` (error), valid nim+api_key_env (passes), valid custom+both fields (passes) — commit sha
+- [x] 1.7 Update `newTestDispatcher` to construct a registry; add "provider not registered" 500 test case — commit sha
+- [x] 1.8 Run `make ci` — all green, coverage ≥ 90% config / ≥ 85% proxy — commit sha
 
 #### Manual
 

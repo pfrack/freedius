@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -20,7 +21,21 @@ func newTestDispatcher(t *testing.T) *Dispatcher {
 		},
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	return NewDispatcher(cfg, logger)
+	registry := NewRegistry(nil)
+	return NewDispatcher(cfg, registry, logger)
+}
+
+func newTestDispatcherWithRegistry(t *testing.T, providers map[string]Provider) *Dispatcher {
+	t.Helper()
+	cfg := &config.Config{
+		Models: map[string]config.Model{
+			"claude-opus-4":   {Provider: "nim", Model: "meta/llama-3.1-70b-instruct"},
+			"claude-sonnet-4": {Provider: "custom", Model: "my-sonnet-shim"},
+		},
+	}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	registry := NewRegistry(providers)
+	return NewDispatcher(cfg, registry, logger)
 }
 
 func TestServeHTTP(t *testing.T) {
@@ -39,8 +54,8 @@ func TestServeHTTP(t *testing.T) {
 			name:        "POST known model",
 			method:      http.MethodPost,
 			body:        `{"model":"claude-opus-4"}`,
-			wantStatus:  http.StatusNotImplemented,
-			wantBodyHas: []string{`"matched_provider":"nim"`, `"matched_model":"meta/llama-3.1-70b-instruct"`, `"status":"not_implemented"`},
+			wantStatus:  http.StatusInternalServerError,
+			wantBodyHas: []string{`"error":"provider not registered: nim"`},
 			wantHeader: map[string]string{
 				"X-Freedius-Matched-Provider": "nim",
 				"X-Freedius-Matched-Model":    "meta/llama-3.1-70b-instruct",
@@ -48,12 +63,12 @@ func TestServeHTTP(t *testing.T) {
 			},
 		},
 		{
-			name:          "POST unknown model",
-			method:        http.MethodPost,
-			body:          `{"model":"unknown"}`,
-			wantStatus:    http.StatusNotFound,
-			wantBodyHas:   []string{`"status":"no_match"`},
-			wantBodyLacks: []string{"matched_provider", "matched_model"},
+			name:           "POST unknown model",
+			method:         http.MethodPost,
+			body:           `{"model":"unknown"}`,
+			wantStatus:     http.StatusNotFound,
+			wantBodyHas:    []string{`"status":"no_match"`},
+			wantBodyLacks:  []string{"matched_provider", "matched_model"},
 			wantHeaderMiss: []string{"X-Freedius-Matched-Provider", "X-Freedius-Matched-Model"},
 		},
 		{
@@ -149,5 +164,69 @@ func TestServeHTTPOversizeBody(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), "request body too large") {
 		t.Errorf("body %q does not contain 'request body too large'", rec.Body.String())
+	}
+}
+
+type stubProvider struct {
+	called bool
+	body   []byte
+	model  config.Model
+}
+
+func (s *stubProvider) Handle(w http.ResponseWriter, r *http.Request, m config.Model, body []byte) error {
+	s.called = true
+	s.body = body
+	s.model = m
+	w.Header().Set("X-Stub-Provider", "called")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(`{"stub":"ok"}`))
+	return nil
+}
+
+func TestServeHTTPWithRegisteredProvider(t *testing.T) {
+	stub := &stubProvider{}
+	d := newTestDispatcherWithRegistry(t, map[string]Provider{"nim": stub})
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(`{"model":"claude-opus-4","messages":[]}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	d.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("status: got %d, want 200 (body: %s)", rec.Code, rec.Body.String())
+	}
+	if !stub.called {
+		t.Error("provider Handle was not called")
+	}
+	if got := rec.Header().Get("X-Stub-Provider"); got != "called" {
+		t.Errorf("X-Stub-Provider header: got %q, want \"called\"", got)
+	}
+	if got := rec.Header().Get("X-Freedius-Matched-Provider"); got != "nim" {
+		t.Errorf("X-Freedius-Matched-Provider: got %q, want nim (preserved by adapter)", got)
+	}
+	if string(stub.body) != `{"model":"claude-opus-4","messages":[]}` {
+		t.Errorf("adapter received body: got %q", stub.body)
+	}
+}
+
+type erroringProvider struct{}
+
+func (e *erroringProvider) Handle(w http.ResponseWriter, r *http.Request, m config.Model, body []byte) error {
+	return errors.New("transport-level failure")
+}
+
+func TestServeHTTPAdapterError(t *testing.T) {
+	d := newTestDispatcherWithRegistry(t, map[string]Provider{"nim": &erroringProvider{}})
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(`{"model":"claude-opus-4"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	d.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadGateway {
+		t.Errorf("status: got %d, want 502", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "upstream error") {
+		t.Errorf("body %q does not contain \"upstream error\"", rec.Body.String())
 	}
 }

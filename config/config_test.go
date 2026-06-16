@@ -48,6 +48,8 @@ func TestLoad(t *testing.T) {
   claude-sonnet-4:
     provider: custom
     model: my-sonnet-shim
+    base_url: https://my-shim.example.com/v1/messages
+    api_key_env: MY_SHIM_API_KEY
 `,
 			check: func(t *testing.T, cfg *Config) {
 				if len(cfg.Models) != 2 {
@@ -131,10 +133,86 @@ func TestLoad(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "model with header-unsafe characters",
-			yaml: "models:\n  claude-opus-4:\n    provider: nim\n    model: \"foo\\r\\nX-Injected: bar\"\n",
+			name:      "model with header-unsafe characters",
+			yaml:      "models:\n  claude-opus-4:\n    provider: nim\n    model: \"foo\\r\\nX-Injected: bar\"\n",
 			wantErr:   true,
 			errSubstr: "unsafe \"model\" value",
+		},
+		{
+			name: "provider=custom without base_url",
+			yaml: `models:
+  claude-sonnet-4:
+    provider: custom
+    model: my-sonnet-shim
+`,
+			wantErr:   true,
+			errSubstr: `model "claude-sonnet-4" has provider=custom but no base_url`,
+		},
+		{
+			name: "base_url with invalid scheme",
+			yaml: `models:
+  claude-sonnet-4:
+    provider: custom
+    model: my-sonnet-shim
+    base_url: ftp://example.com/v1/messages
+`,
+			wantErr:   true,
+			errSubstr: `model "claude-sonnet-4" has base_url with invalid scheme "ftp" (allowed: http, https)`,
+		},
+		{
+			name:      "api_key_env with newline",
+			yaml:      "models:\n  claude-sonnet-4:\n    provider: custom\n    model: my-sonnet-shim\n    base_url: https://example.com/v1/messages\n    api_key_env: \"FOO\\rBAR\"\n",
+			wantErr:   true,
+			errSubstr: `model "claude-sonnet-4" has unsafe api_key_env`,
+		},
+		{
+			name: "api_key_env with equals sign",
+			yaml: `models:
+  claude-sonnet-4:
+    provider: custom
+    model: my-sonnet-shim
+    base_url: https://example.com/v1/messages
+    api_key_env: FOO=BAR
+`,
+			wantErr:   true,
+			errSubstr: `model "claude-sonnet-4" has unsafe api_key_env`,
+		},
+		{
+			name: "valid nim with api_key_env only",
+			yaml: `models:
+  claude-opus-4:
+    provider: nim
+    model: meta/llama-3.1-70b-instruct
+    api_key_env: NIM_API_KEY
+`,
+			check: func(t *testing.T, cfg *Config) {
+				m := cfg.Models["claude-opus-4"]
+				if m.APIKeyEnv != "NIM_API_KEY" {
+					t.Errorf("api_key_env: got %q, want NIM_API_KEY", m.APIKeyEnv)
+				}
+				if m.BaseURL != "" {
+					t.Errorf("base_url: got %q, want empty", m.BaseURL)
+				}
+			},
+		},
+		{
+			name: "valid custom with base_url and api_key_env",
+			yaml: `models:
+  claude-sonnet-4:
+    provider: custom
+    model: my-sonnet-shim
+    base_url: https://my-shim.example.com/v1/messages
+    api_key_env: MY_SHIM_API_KEY
+`,
+			check: func(t *testing.T, cfg *Config) {
+				m := cfg.Models["claude-sonnet-4"]
+				if m.BaseURL != "https://my-shim.example.com/v1/messages" {
+					t.Errorf("base_url: got %q", m.BaseURL)
+				}
+				if m.APIKeyEnv != "MY_SHIM_API_KEY" {
+					t.Errorf("api_key_env: got %q", m.APIKeyEnv)
+				}
+			},
 		},
 	}
 
