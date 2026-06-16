@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"sync/atomic"
 )
 
 func TranslateRequest(anthropicBody []byte, targetModel string) ([]byte, error) {
@@ -625,6 +626,6 @@ func mapFinishReason(r string) string {
 var idCounter uint64
 
 func randomID() string {
-	idCounter++
-	return fmt.Sprintf("translate-%d", idCounter)
+	id := atomic.AddUint64(&idCounter, 1)
+	return fmt.Sprintf("translate-%d", id)
 }
