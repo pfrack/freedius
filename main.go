@@ -79,7 +79,9 @@ func run() int {
 	serverLogger := logger.With("component", "server")
 	serverLogger.Info(fmt.Sprintf("freedius listening on http://%s", net.JoinHostPort(host, strconv.Itoa(port))), "host", host, "port", port)
 
-	registry := proxy.NewRegistry(nil)
+	registry := proxy.NewRegistry(map[string]proxy.Provider{
+		"custom": proxy.NewCustomAdapter(logger),
+	})
 	dispatcher := proxy.NewDispatcher(cfg, registry, logger)
 	mux := http.NewServeMux()
 	mux.Handle("/", dispatcher)

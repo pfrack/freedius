@@ -230,3 +230,43 @@ func TestServeHTTPAdapterError(t *testing.T) {
 		t.Errorf("body %q does not contain \"upstream error\"", rec.Body.String())
 	}
 }
+
+func TestServeHTTPCustomAdapterEndToEnd(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("X-Upstream-Id", "e2e")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"id":"msg_e2e","type":"message","role":"assistant","content":[],"stop_reason":"end_turn"}`))
+	}))
+	defer upstream.Close()
+
+	t.Setenv("MY_SHIM_API_KEY", "sk-test-e2e")
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	customAdapter := NewCustomAdapter(logger)
+	cfg := &config.Config{
+		Models: map[string]config.Model{
+			"claude-sonnet-4": {Provider: "custom", Model: "my-sonnet-shim", BaseURL: upstream.URL + "/v1/messages", APIKeyEnv: "MY_SHIM_API_KEY"},
+		},
+	}
+	registry := NewRegistry(map[string]Provider{"custom": customAdapter})
+	d := NewDispatcher(cfg, registry, logger)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(`{"model":"claude-sonnet-4","messages":[]}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	d.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("status: got %d, want 200 (body: %s)", rec.Code, rec.Body.String())
+	}
+	if rec.Header().Get("X-Upstream-Id") != "e2e" {
+		t.Errorf("X-Upstream-Id: got %q, want e2e", rec.Header().Get("X-Upstream-Id"))
+	}
+	if rec.Header().Get("X-Freedius-Matched-Provider") != "custom" {
+		t.Errorf("X-Freedius-Matched-Provider: got %q, want custom (preserved through adapter)", rec.Header().Get("X-Freedius-Matched-Provider"))
+	}
+	if !strings.Contains(rec.Body.String(), `"id":"msg_e2e"`) {
+		t.Errorf("body: got %q", rec.Body.String())
+	}
+}

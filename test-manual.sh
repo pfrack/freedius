@@ -293,18 +293,44 @@ STATUS=$(printf '%s\n' "$RESP" | head -1 | awk '{print $2}')
 HEADER_PROV=$(printf '%s\n' "$RESP" | grep -i '^X-Freedius-Matched-Provider:' | tr -d '\r' | awk '{print $2}')
 HEADER_MOD=$(printf '%s\n' "$RESP" | grep -i '^X-Freedius-Matched-Model:' | tr -d '\r' | awk '{print $2}')
 BODY=$(cat /tmp/p1_body)
-if [[ "$STATUS" == "500" ]]; then pass "P1.1 known model status=500 (no adapter)"; else fail "P1.1 status (got $STATUS)"; fi
+if [[ "$STATUS" == "500" ]]; then pass "P1.1 nim model status=500 (no adapter registered for nim)"; else fail "P1.1 status (got $STATUS)"; fi
 if [[ "$HEADER_PROV" == "nim" ]]; then pass "P1.1 X-Freedius-Matched-Provider: nim"; else fail "P1.1 header prov (got $HEADER_PROV)"; fi
 if [[ "$HEADER_MOD" == "meta/llama-3.1-70b-instruct" ]]; then pass "P1.1 X-Freedius-Matched-Model set"; else fail "P1.1 header mod (got $HEADER_MOD)"; fi
 if [[ "$BODY" == *'"error":"provider not registered: nim"'* ]]; then pass "P1.1 body has 'provider not registered: nim'"; else fail "P1.1 body (got $BODY)"; fi
+
+stop_server
+
+cat > "$CFG" <<'YAML'
+models:
+  claude-sonnet-4:
+    provider: zen
+    model: zen-large
+YAML
+"$BIN" > "$LOG" 2>&1 &
+SERVER_PID=$!
+for _ in 1 2 3 4 5 6 7 8 9 10; do
+	if curl -sS -o /dev/null http://127.0.0.1:8080/v1/messages 2>/dev/null; then
+		break
+	fi
+	sleep 0.1
+done
 
 RESP=$(curl -sS -D - -o /tmp/p1_body2 http://127.0.0.1:8080/v1/messages \
 	-H 'content-type: application/json' -d '{"model":"claude-sonnet-4"}')
 STATUS=$(printf '%s\n' "$RESP" | head -1 | awk '{print $2}')
 BODY=$(cat /tmp/p1_body2)
-if [[ "$STATUS" == "500" ]]; then pass "P1.2 custom-mapped model status=500 (no adapter)"; else fail "P1.2 status (got $STATUS)"; fi
-if [[ "$BODY" == *'"error":"provider not registered: custom"'* ]]; then pass "P1.2 body has 'provider not registered: custom'"; else fail "P1.2 body (got $BODY)"; fi
+if [[ "$STATUS" == "500" ]]; then pass "P1.2 zen provider status=500 (in KnownProviders but no adapter)"; else fail "P1.2 status (got $STATUS)"; fi
+if [[ "$BODY" == *'"error":"provider not registered: zen"'* ]]; then pass "P1.2 body has 'provider not registered: zen'"; else fail "P1.2 body (got $BODY)"; fi
 
+stop_server
+
+cat > "$CFG" <<'YAML'
+models:
+  claude-sonnet-4:
+    provider: custom
+    model: my-sonnet-shim
+YAML
+start_server
 RESP=$(curl -sS -D - -o /tmp/p1_body3 http://127.0.0.1:8080/v1/messages \
 	-H 'content-type: application/json' -d '{"model":"unknown"}')
 STATUS=$(printf '%s\n' "$RESP" | head -1 | awk '{print $2}')
@@ -346,8 +372,152 @@ rm -f "$CFG"
 if [[ "$OUTPUT" == *"unsafe api_key_env"* ]]; then pass "P1.6 config rejects api_key_env with ="; else fail "P1.6 (got: $OUTPUT)"; fi
 
 echo ""
+echo "=== Phase 2: custom passthrough adapter ==="
+
+CUSTOM_PORT=9091
+start_mock_custom "$CUSTOM_PORT"
+
+cat > "$CFG" <<YAML
+models:
+  claude-sonnet-4:
+    provider: custom
+    model: my-sonnet-shim
+    base_url: http://127.0.0.1:${CUSTOM_PORT}/v1/messages
+    api_key_env: MY_SHIM_API_KEY
+YAML
+export MY_SHIM_API_KEY="sk-test-custom"
+"$BIN" > "$LOG" 2>&1 &
+SERVER_PID=$!
+for _ in 1 2 3 4 5 6 7 8 9 10; do
+	if curl -sS -o /dev/null http://127.0.0.1:8080/v1/messages 2>/dev/null; then
+		break
+	fi
+	sleep 0.1
+done
+
+RESP=$(curl -sS -D - -o /tmp/p2_body http://127.0.0.1:8080/v1/messages \
+	-H 'content-type: application/json' \
+	-d '{"model":"claude-sonnet-4","max_tokens":10,"messages":[{"role":"user","content":"hi"}]}')
+STATUS=$(printf '%s\n' "$RESP" | head -1 | awk '{print $2}')
+HEADER=$(printf '%s\n' "$RESP" | grep -i '^X-Mock-Custom:' | tr -d '\r' | awk '{print $2}')
+BODY=$(cat /tmp/p2_body)
+if [[ "$STATUS" == "200" ]]; then pass "P2.1 custom adapter non-stream status=200"; else fail "P2.1 status (got $STATUS, body: $BODY)"; fi
+if [[ "$HEADER" == "served" ]]; then pass "P2.1 upstream header X-Mock-Custom forwarded"; else fail "P2.1 header (got $HEADER)"; fi
+if [[ "$BODY" == *'"role": "assistant"'* ]] && [[ "$BODY" == *'"id": "msg_custom"'* ]]; then pass "P2.1 body is Anthropic-format JSON"; else fail "P2.1 body shape (got $BODY)"; fi
+
+RESP=$(curl -sS -D - -o /tmp/p2_sse http://127.0.0.1:8080/v1/messages \
+	-H 'content-type: application/json' -H 'accept: text/event-stream' \
+	-d '{"model":"claude-sonnet-4","stream":true,"max_tokens":10,"messages":[{"role":"user","content":"hi"}]}')
+STATUS=$(printf '%s\n' "$RESP" | head -1 | awk '{print $2}')
+CT=$(printf '%s\n' "$RESP" | grep -i '^Content-Type:' | tr -d '\r' | awk '{print $2}')
+SSE=$(cat /tmp/p2_sse)
+if [[ "$STATUS" == "200" ]]; then pass "P2.2 custom adapter streaming status=200"; else fail "P2.2 status (got $STATUS)"; fi
+if [[ "$CT" == "text/event-stream" ]]; then pass "P2.2 Content-Type text/event-stream"; else fail "P2.2 CT (got $CT)"; fi
+if [[ "$SSE" == *"event: message_start"* ]] && [[ "$SSE" == *"event: content_block_delta"* ]] && [[ "$SSE" == *"event: message_stop"* ]]; then
+	pass "P2.2 SSE events: message_start, content_block_delta, message_stop"
+else
+	fail "P2.2 SSE events missing (got: $SSE)"
+fi
+
+stop_server
+stop_mock
+unset MY_SHIM_API_KEY
+
+cat > "$CFG" <<YAML
+models:
+  claude-sonnet-4:
+    provider: custom
+    model: my-sonnet-shim
+    base_url: http://127.0.0.1:${CUSTOM_PORT}/v1/messages
+    api_key_env: MY_SHIM_API_KEY
+YAML
+start_mock_custom "$CUSTOM_PORT"
+export MY_SHIM_API_KEY="sk-wrong-key-fails-mock-auth"
+"$BIN" > "$LOG" 2>&1 &
+SERVER_PID=$!
+for _ in 1 2 3 4 5 6 7 8 9 10; do
+	if curl -sS -o /dev/null http://127.0.0.1:8080/v1/messages 2>/dev/null; then
+		break
+	fi
+	sleep 0.1
+done
+
+RESP=$(curl -sS -D - -o /tmp/p2_401 http://127.0.0.1:8080/v1/messages \
+	-H 'content-type: application/json' \
+	-d '{"model":"claude-sonnet-4","messages":[]}')
+STATUS=$(printf '%s\n' "$RESP" | head -1 | awk '{print $2}')
+BODY=$(cat /tmp/p2_401)
+if [[ "$STATUS" == "401" ]]; then pass "P2.3 upstream 401 forwarded verbatim"; else fail "P2.3 status (got $STATUS)"; fi
+if [[ "$BODY" == *'"unauthorized"'* ]]; then pass "P2.3 upstream body forwarded verbatim"; else fail "P2.3 body (got $BODY)"; fi
+
+stop_server
+stop_mock
+unset MY_SHIM_API_KEY
+
+cat > "$CFG" <<YAML
+models:
+  claude-sonnet-4:
+    provider: custom
+    model: my-sonnet-shim
+    base_url: http://127.0.0.1:1/v1/messages
+    api_key_env: MY_SHIM_API_KEY
+YAML
+export MY_SHIM_API_KEY="sk-test-custom"
+"$BIN" > "$LOG" 2>&1 &
+SERVER_PID=$!
+for _ in 1 2 3 4 5 6 7 8 9 10; do
+	if curl -sS -o /dev/null http://127.0.0.1:8080/v1/messages 2>/dev/null; then
+		break
+	fi
+	sleep 0.1
+done
+
+RESP=$(curl -sS -D - -o /tmp/p2_502 http://127.0.0.1:8080/v1/messages \
+	-H 'content-type: application/json' \
+	-d '{"model":"claude-sonnet-4","messages":[]}')
+STATUS=$(printf '%s\n' "$RESP" | head -1 | awk '{print $2}')
+BODY=$(cat /tmp/p2_502)
+if [[ "$STATUS" == "502" ]]; then pass "P2.4 unreachable upstream returns 502"; else fail "P2.4 status (got $STATUS)"; fi
+if [[ "$BODY" == *"upstream_unreachable"* ]]; then pass "P2.4 body has upstream_unreachable"; else fail "P2.4 body (got $BODY)"; fi
+
+stop_server
+unset MY_SHIM_API_KEY
+
+cat > "$CFG" <<YAML
+models:
+  claude-sonnet-4:
+    provider: custom
+    model: my-sonnet-shim
+    base_url: http://127.0.0.1:1/v1/messages
+    api_key_env: MY_SHIM_API_KEY
+YAML
+"$BIN" > "$LOG" 2>&1 &
+SERVER_PID=$!
+for _ in 1 2 3 4 5 6 7 8 9 10; do
+	if curl -sS -o /dev/null http://127.0.0.1:8080/v1/messages 2>/dev/null; then
+		break
+	fi
+	sleep 0.1
+done
+
+RESP=$(curl -sS -D - -o /tmp/p2_noenv http://127.0.0.1:8080/v1/messages \
+	-H 'content-type: application/json' \
+	-d '{"model":"claude-sonnet-4","messages":[]}')
+STATUS=$(printf '%s\n' "$RESP" | head -1 | awk '{print $2}')
+BODY=$(cat /tmp/p2_noenv)
+if [[ "$STATUS" == "502" ]]; then pass "P2.5 missing env var returns 502"; else fail "P2.5 status (got $STATUS)"; fi
+if [[ "$BODY" == *"upstream error"* ]] || [[ "$BODY" == *"MY_SHIM_API_KEY"* ]]; then
+	pass "P2.5 body mentions env var / upstream error"
+else
+	fail "P2.5 body (got $BODY)"
+fi
+
+stop_server
+rm -f "$CFG"
+
+echo ""
 if [[ $FAIL -eq 0 ]]; then
-	echo "All automated checks passed (F-01 + Phase 1)"
+	echo "All automated checks passed (F-01 + Phase 1 + Phase 2)"
 else
 	echo "$FAIL checks failed"
 	exit 1
