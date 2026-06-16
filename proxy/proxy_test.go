@@ -159,3 +159,108 @@ func TestServeHTTPOversizeBody(t *testing.T) {
 		t.Errorf("body %q does not contain 'request body too large'", rec.Body.String())
 	}
 }
+
+func TestServeHTTPMappingsLookup(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"ok":true,"from":"upstream"}`))
+	}))
+	defer upstream.Close()
+
+	cfg := &config.Config{
+		Models: map[string]config.Model{},
+		Mappings: map[string]config.Model{
+			"opus": {Provider: "nim", Model: "x", APIKeyEnv: "NIM_API_KEY"},
+		},
+	}
+	t.Setenv("NIM_API_KEY", "k1")
+	d := newTestDispatcherWithAdapter(t, cfg, map[string]Provider{
+		"nim": &mockProvider{status: 200, body: `{"ok":true}`},
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(`{"model":"opus"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	d.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("status: got %d, want %d (body: %s)", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	if got := rec.Header().Get("X-Freedius-Matched-Provider"); got != "nim" {
+		t.Errorf("X-Freedius-Matched-Provider: got %q, want nim", got)
+	}
+	_ = upstream
+}
+
+func TestServeHTTPNeitherMatch(t *testing.T) {
+	cfg := &config.Config{
+		Models: map[string]config.Model{},
+		Mappings: map[string]config.Model{
+			"opus": {Provider: "nim", Model: "x", APIKeyEnv: "NIM_API_KEY"},
+		},
+	}
+	d := newTestDispatcherWithAdapter(t, cfg, map[string]Provider{
+		"nim": &mockProvider{status: 200, body: `{}`},
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(`{"model":"unknown"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	d.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("status: got %d, want %d", rec.Code, http.StatusNotFound)
+	}
+	if !strings.Contains(rec.Body.String(), "no_match") {
+		t.Errorf("body: got %q, want no_match", rec.Body.String())
+	}
+}
+
+func TestServeHTTPModelsWinsOverMappings(t *testing.T) {
+	cfg := &config.Config{
+		Models: map[string]config.Model{
+			"shared-key": {Provider: "nim", Model: "from-models", APIKeyEnv: "NIM_API_KEY"},
+		},
+		Mappings: map[string]config.Model{
+			"shared-key": {Provider: "nim", Model: "from-mappings", APIKeyEnv: "NIM_API_KEY"},
+		},
+	}
+	t.Setenv("NIM_API_KEY", "k1")
+	d := newTestDispatcherWithAdapter(t, cfg, map[string]Provider{
+		"nim": &recordingProvider{},
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(`{"model":"shared-key"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	d.ServeHTTP(rec, req)
+
+	if got := rec.Header().Get("X-Freedius-Matched-Model"); got != "from-models" {
+		t.Errorf("models should win over mappings; got model %q, want from-models", got)
+	}
+}
+
+type mockProvider struct {
+	status int
+	body   string
+}
+
+func (m *mockProvider) Handle(w http.ResponseWriter, r *http.Request, cfg config.Model, body []byte) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(m.status)
+	_, _ = w.Write([]byte(m.body))
+	return nil
+}
+
+type recordingProvider struct {
+	called bool
+	model  string
+}
+
+func (r *recordingProvider) Handle(w http.ResponseWriter, req *http.Request, cfg config.Model, body []byte) error {
+	r.called = true
+	r.model = cfg.Model
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(`{"ok":true}`))
+	return nil
+}

@@ -734,34 +734,34 @@ Each phase has a per-phase Manual Verification section that lists the specific `
 
 #### Automated
 
-- [x] 1.1 Add `BaseURL` and `APIKeyEnv` to `config.Model`; add `Mappings map[string]Model` to `Config` (`config/config.go`) — commit sha
-- [x] 1.2 Extend `KnownProviders` to `{nim, zen, go, custom, openai, anthropic}`; extend per-entry validation (`config/config.go`) — commit sha
-- [x] 1.3 Add "at least one of models/mappings" rule to `config.Load` (`config/config.go`) — commit sha
-- [x] 1.4 Add `config/defaults.go` with `knownProviderDefaults` map and `(*Config).applyDefaults()` (alias rewrite + defaults merge) — commit sha
-- [x] 1.5 Add `(*Config).UsesProvider(name) bool` method (`config/config.go`) — commit sha
-- [x] 1.6 Add `proxy/provider.go` with `Provider` interface, `Registry` type, `NewRegistry`, `Lookup` — commit sha
-- [x] 1.7 Add `proxy/errors.go` with `forwardUpstreamError` and `freediusErrorHandler` — commit sha
-- [x] 1.8 Add `proxy/anthropic_compat.go` with `AnthropicCompatibleAdapter` — commit sha
-- [x] 1.9 Add `proxy/openai_compat.go` with `OpenAICompatibleAdapter` — commit sha
-- [x] 1.10 Add `proxy/translate/` package with `TranslateRequest`, `TranslateStream`, `anthropicEmitter` (`types.go`, `anthropic_openai.go`) — commit sha
-- [x] 1.11 Add `proxy/translate/testdata/` with golden-file fixtures — commit sha
-- [x] 1.12 Add `proxy/translate/anthropic_openai_test.go` with golden-file tests for `TranslateRequest` and `TranslateStream` — commit sha
-- [x] 1.13 Add `proxy/custom.go` with `CustomAdapter` (thin wrapper over `AnthropicCompatibleAdapter`) — commit sha
-- [x] 1.14 Add `proxy/nim.go` with `NIMAdapter` (thin wrapper over `OpenAICompatibleAdapter`) — commit sha
-- [x] 1.15 Update `Dispatcher` struct + `NewDispatcher` to take a `*Registry`; replace 501 stub with Registry lookup (`proxy/proxy.go`) — commit sha
-- [x] 1.16 Update `main.go` to build the Registry, run the eager env-var check loop, register `nim`/`custom`/`openai`/`anthropic` — commit sha
-- [x] 1.17 Update `config.example.yaml` with the new schema (`base_url`, `api_key_env`, new providers) — commit sha
-- [x] 1.18 Add config test cases: extended `KnownProviders` (6 names), `provider=openai`/`anthropic` without `base_url` (error), invalid `base_url` scheme (error), invalid `api_key_env` (error), valid `nim` with defaults (passes), valid `custom` alias rewrite (passes), empty both blocks (error) — commit sha
-- [x] 1.19 Update `newTestDispatcher` to construct a Registry; add "provider not registered" 500 test case — commit sha
-- [x] 1.20 Add `proxy/provider_test.go` with `NewRegistry` and `Lookup` tests — commit sha
-- [x] 1.21 Add `proxy/errors_test.go` with `forwardUpstreamError` and `freediusErrorHandler` tests — commit sha
-- [x] 1.22 Add `proxy/custom_test.go` with the 5-7 Anthropic passthrough cases — commit sha
-- [x] 1.23 Add `proxy/anthropic_compat_test.go` with the 5-7 Anthropic compat adapter cases — commit sha
-- [x] 1.24 Add `proxy/openai_compat_test.go` with the 5-7 OpenAI translation cases — commit sha
-- [x] 1.25 Add `proxy/nim_test.go` with the 5-7 NIM wrapper cases — commit sha
-- [x] 1.26 Run `make ci` — all green, coverage ≥ 90% config / ≥ 85% proxy / ≥ 90% translate — commit sha
-- [x] 1.27 Run `govulncheck ./...` — no new vulnerabilities — commit sha
-- [x] 1.28 Add `main_test.go` unit test for `checkRequiredEnvVars` helper: missing preset env var (e.g. `NIM_API_KEY` unset with `provider: nim` referenced) returns the expected error string; missing per-model `api_key_env` (e.g. `OPENAI_API_KEY` unset on a `provider: openai` model) returns the expected error string; happy path with all vars set returns nil; case where the config references a preset provider that has no default env var (e.g. `provider: custom` is rewritten to `anthropic` which has no default — pass through silently). Use `t.Setenv` so the test is hermetic — commit sha
+- [x] 1.1 Add `BaseURL` and `APIKeyEnv` to `config.Model`; add `Mappings map[string]Model` to `Config` (`config/config.go`) — d06211d
+- [x] 1.2 Extend `KnownProviders` to `{nim, zen, go, custom, openai, anthropic}`; extend per-entry validation (`config/config.go`) — d06211d
+- [x] 1.3 Add "at least one of models/mappings" rule to `config.Load` (`config/config.go`) — d06211d
+- [x] 1.4 Add `config/defaults.go` with `knownProviderDefaults` map and `(*Config).applyDefaults()` (alias rewrite + defaults merge) — d06211d
+- [x] 1.5 Add `(*Config).UsesProvider(name) bool` method (`config/config.go`) — d06211d
+- [x] 1.6 Add `proxy/provider.go` with `Provider` interface, `Registry` type, `NewRegistry`, `Lookup` — d06211d
+- [x] 1.7 Add `proxy/errors.go` with `forwardUpstreamError` and `freediusErrorHandler` — d06211d
+- [x] 1.8 Add `proxy/anthropic_compat.go` with `AnthropicCompatibleAdapter` — d06211d
+- [x] 1.9 Add `proxy/openai_compat.go` with `OpenAICompatibleAdapter` — d06211d
+- [x] 1.10 Add `proxy/translate/` package with `TranslateRequest`, `TranslateStream`, `anthropicEmitter` (`types.go`, `anthropic_openai.go`) — d06211d
+- [x] 1.11 Add `proxy/translate/testdata/` with golden-file fixtures — d06211d
+- [x] 1.12 Add `proxy/translate/anthropic_openai_test.go` with golden-file tests for `TranslateRequest` and `TranslateStream` — d06211d
+- [x] 1.13 Add `proxy/custom.go` with `CustomAdapter` (thin wrapper over `AnthropicCompatibleAdapter`) — d06211d
+- [x] 1.14 Add `proxy/nim.go` with `NIMAdapter` (thin wrapper over `OpenAICompatibleAdapter`) — d06211d
+- [x] 1.15 Update `Dispatcher` struct + `NewDispatcher` to take a `*Registry`; replace 501 stub with Registry lookup (`proxy/proxy.go`) — d06211d
+- [x] 1.16 Update `main.go` to build the Registry, run the eager env-var check loop, register `nim`/`custom`/`openai`/`anthropic` — d06211d
+- [x] 1.17 Update `config.example.yaml` with the new schema (`base_url`, `api_key_env`, new providers) — d06211d
+- [x] 1.18 Add config test cases: extended `KnownProviders` (6 names), `provider=openai`/`anthropic` without `base_url` (error), invalid `base_url` scheme (error), invalid `api_key_env` (error), valid `nim` with defaults (passes), valid `custom` alias rewrite (passes), empty both blocks (error) — d06211d
+- [x] 1.19 Update `newTestDispatcher` to construct a Registry; add "provider not registered" 500 test case — d06211d
+- [x] 1.20 Add `proxy/provider_test.go` with `NewRegistry` and `Lookup` tests — d06211d
+- [x] 1.21 Add `proxy/errors_test.go` with `forwardUpstreamError` and `freediusErrorHandler` tests — d06211d
+- [x] 1.22 Add `proxy/custom_test.go` with the 5-7 Anthropic passthrough cases — d06211d
+- [x] 1.23 Add `proxy/anthropic_compat_test.go` with the 5-7 Anthropic compat adapter cases — d06211d
+- [x] 1.24 Add `proxy/openai_compat_test.go` with the 5-7 OpenAI translation cases — d06211d
+- [x] 1.25 Add `proxy/nim_test.go` with the 5-7 NIM wrapper cases — d06211d
+- [x] 1.26 Run `make ci` — all green, coverage ≥ 90% config / ≥ 85% proxy / ≥ 90% translate — d06211d
+- [x] 1.27 Run `govulncheck ./...` — no new vulnerabilities — d06211d
+- [x] 1.28 Add `main_test.go` unit test for `checkRequiredEnvVars` helper: missing preset env var (e.g. `NIM_API_KEY` unset with `provider: nim` referenced) returns the expected error string; missing per-model `api_key_env` (e.g. `OPENAI_API_KEY` unset on a `provider: openai` model) returns the expected error string; happy path with all vars set returns nil; case where the config references a preset provider that has no default env var (e.g. `provider: custom` is rewritten to `anthropic` which has no default — pass through silently). Use `t.Setenv` so the test is hermetic — d06211d
 
 #### Manual
 
@@ -773,11 +773,11 @@ Each phase has a per-phase Manual Verification section that lists the specific `
 
 #### Automated
 
-- [ ] 2.1 Add `mappings:` literal-key lookup to `Dispatcher.ServeHTTP` (`proxy/proxy.go`) — commit sha
-- [ ] 2.2 Extend per-entry validation to `cfg.Mappings` (`config/config.go`) — commit sha
-- [ ] 2.3 Add config test cases: valid `mappings:`, `mappings:` with invalid provider/error, `mappings:` with `provider: openai` and no `base_url` (error), `mappings:` with invalid `base_url` scheme (error), `mappings:` with `api_key_env` containing `=` (error), empty both blocks (error), `models:` empty but `mappings:` non-empty (passes) — commit sha
-- [ ] 2.4 Add dispatcher test cases: dispatch routes through `mappings:` key match, dispatch returns 404 when neither matches, dispatch prefers `models:` over `mappings:` when both have the key — commit sha
-- [ ] 2.5 Run `make ci` — all green, coverage ≥ 90% config / ≥ 85% proxy — commit sha
+- [x] 2.1 Add `mappings:` literal-key lookup to `Dispatcher.ServeHTTP` (`proxy/proxy.go`) — commit sha
+- [x] 2.2 Extend per-entry validation to `cfg.Mappings` (`config/config.go`) — commit sha
+- [x] 2.3 Add config test cases: valid `mappings:`, `mappings:` with invalid provider/error, `mappings:` with `provider: openai` and no `base_url` (error), `mappings:` with invalid `base_url` scheme (error), `mappings:` with `api_key_env` containing `=` (error), empty both blocks (error), `models:` empty but `mappings:` non-empty (passes) — commit sha
+- [x] 2.4 Add dispatcher test cases: dispatch routes through `mappings:` key match, dispatch returns 404 when neither matches, dispatch prefers `models:` over `mappings:` when both have the key — commit sha
+- [x] 2.5 Run `make ci` — all green, coverage ≥ 90% config / ≥ 85% proxy — commit sha
 
 #### Manual
 

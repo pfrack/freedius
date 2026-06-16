@@ -77,11 +77,14 @@ func (d *Dispatcher) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	m, ok := d.lookupModel(req.Model)
+	m, ok := d.Cfg.Models[req.Model]
 	if !ok {
-		d.Logger.Debug("no match for model", "model", req.Model)
-		d.writeJSON(w, http.StatusNotFound, map[string]string{"status": "no_match"})
-		return
+		m, ok = d.Cfg.Mappings[req.Model]
+		if !ok {
+			d.Logger.Debug("no match for model", "model", req.Model)
+			d.writeJSON(w, http.StatusNotFound, map[string]string{"status": "no_match"})
+			return
+		}
 	}
 
 	d.Logger.Debug("dispatch", "model", req.Model, "provider", m.Provider, "target_model", m.Model)
@@ -98,16 +101,6 @@ func (d *Dispatcher) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		d.Logger.Error("adapter failed", "provider", m.Provider, "err", err)
 		d.writeError(w, http.StatusBadGateway, "upstream error")
 	}
-}
-
-func (d *Dispatcher) lookupModel(name string) (config.Model, bool) {
-	if m, ok := d.Cfg.Models[name]; ok {
-		return m, true
-	}
-	if m, ok := d.Cfg.Mappings[name]; ok {
-		return m, true
-	}
-	return config.Model{}, false
 }
 
 func (d *Dispatcher) writeJSON(w http.ResponseWriter, status int, body map[string]string) {

@@ -242,6 +242,63 @@ func TestLoad(t *testing.T) {
 				}
 			},
 		},
+		{
+			name: "mappings with openai no base_url",
+			yaml: `mappings:
+  opus:
+    provider: openai
+    model: gpt-4
+    api_key_env: OPENAI_API_KEY
+`,
+			wantErr:   true,
+			errSubstr: `provider=openai but no base_url`,
+		},
+		{
+			name: "mappings with invalid scheme",
+			yaml: `mappings:
+  opus:
+    provider: openai
+    model: gpt-4
+    base_url: ftp://example.com
+    api_key_env: OPENAI_API_KEY
+`,
+			wantErr:   true,
+			errSubstr: `invalid scheme`,
+		},
+		{
+			name: "mappings with api_key_env containing equals",
+			yaml: `mappings:
+  opus:
+    provider: openai
+    model: gpt-4
+    base_url: https://x
+    api_key_env: "KEY=VALUE"
+`,
+			wantErr:   true,
+			errSubstr: "api_key_env with invalid characters",
+		},
+		{
+			name: "models empty but mappings non-empty",
+			yaml: `mappings:
+  opus:
+    provider: nim
+    model: x
+`,
+			check: func(t *testing.T, cfg *Config) {
+				if len(cfg.Models) != 0 {
+					t.Errorf("expected 0 models, got %d", len(cfg.Models))
+				}
+				if len(cfg.Mappings) != 1 {
+					t.Errorf("expected 1 mapping, got %d", len(cfg.Mappings))
+				}
+			},
+		},
+		{
+			name:      "empty mappings block alone is not enough",
+			yaml:      "mappings: {}\n",
+			wantErr:   true,
+			errSubstr: "contains no model mappings",
+		},
 	}
 
 	for _, tt := range tests {
