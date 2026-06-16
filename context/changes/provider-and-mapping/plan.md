@@ -789,18 +789,18 @@ Each phase has a per-phase Manual Verification section that lists the specific `
 
 #### Automated
 
-- [x] 3.1 Add `proxy/families.go` with `knownFamilies` slice and `extractFamily` function — commit sha
-- [x] 3.2 Add family-pattern lookup to `Dispatcher.ServeHTTP` (`proxy/proxy.go`) — commit sha
-- [x] 3.3 Update `config.example.yaml` to demonstrate the five-line family mapping — commit sha
-- [x] 3.4 Add `proxy/families_test.go` with `TestExtractFamily` (5+ cases per pattern, case-insensitivity, priority resolution, unmatched) — commit sha
-- [x] 3.5 Add dispatcher test cases: family pattern routes through `mappings: opus:`, unmatched model with no `default:` returns 404, unmatched model with `default:` routes through it, priority is independent of YAML order, POST with a model present in `models:` AND a matching family in `mappings:` routes through `models:` (Phase 2 precedence regression holds after family patterns land) — commit sha
-- [x] 3.6 Run `make ci` — all green, coverage ≥ 90% config / ≥ 85% proxy — commit sha
-- [x] 3.7 Run `govulncheck ./...` — no new vulnerabilities — commit sha
+- [x] 3.1 Add `proxy/families.go` with `knownFamilies` slice and `extractFamily` function — af3051a
+- [x] 3.2 Add family-pattern lookup to `Dispatcher.ServeHTTP` (`proxy/proxy.go`) — af3051a
+- [x] 3.3 Update `config.example.yaml` to demonstrate the five-line family mapping — af3051a
+- [x] 3.4 Add `proxy/families_test.go` with `TestExtractFamily` (5+ cases per pattern, case-insensitivity, priority resolution, unmatched) — af3051a
+- [x] 3.5 Add dispatcher test cases: family pattern routes through `mappings: opus:`, unmatched model with no `default:` returns 404, unmatched model with `default:` routes through it, priority is independent of YAML order, POST with a model present in `models:` AND a matching family in `mappings:` routes through `models:` (Phase 2 precedence regression holds after family patterns land) — af3051a
+- [x] 3.6 Run `make ci` — all green, coverage ≥ 90% config / ≥ 85% proxy — af3051a
+- [x] 3.7 Run `govulncheck ./...` — no new vulnerabilities — af3051a
 
 #### Manual
 
-- [x] 3.8 Verify family-pattern routing with a real `claude-code` session per Phase 3 Manual Verification — commit sha
-- [x] 3.9 Verify `default:` opt-in behavior (no `default:` → 404; `default:` → routes through it) — commit sha
-- [x] 3.10 Verify `models:`-wins-over-family-match precedence (S-01 power-user escape hatch still works after Phase 3) — commit sha
-- [x] 3.11 Update `test-manual.sh` for the new schema (replace F-01 501/404 assertions, add family-pattern section, add `custom` alias section) — commit sha
-- [x] 3.12 Create `context/foundation/lessons.md` with the SSE footguns (json.Encoder newline, bufio.Scanner 64KB cap) and the `custom` → `anthropic` rewrite-in-`applyDefaults` lesson — commit sha
+- [x] 3.8 Verify family-pattern routing with a real `claude-code` session per Phase 3 Manual Verification — af3051a
+- [x] 3.9 Verify `default:` opt-in behavior (no `default:` → 404; `default:` → routes through it) — af3051a
+- [x] 3.10 Verify `models:`-wins-over-family-match precedence (S-01 power-user escape hatch still works after Phase 3) — af3051a
+- [x] 3.11 Update `test-manual.sh` for the new schema (replace F-01 501/404 assertions, add family-pattern section, add `custom` alias section) — af3051a
+- [x] 3.12 Create `context/foundation/lessons.md` with the SSE footguns (json.Encoder newline, bufio.Scanner 64KB cap) and the `custom` → `anthropic` rewrite-in-`applyDefaults` lesson — af3051a
