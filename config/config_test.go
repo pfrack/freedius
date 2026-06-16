@@ -103,7 +103,7 @@ func TestLoad(t *testing.T) {
     model: bar
 `,
 			wantErr:   true,
-			errSubstr: `model "claude-opus-4" uses unknown provider "foo" (known: anthropic, custom, go, nim, openai, zen)`,
+			errSubstr: `model "claude-opus-4" uses unknown provider "foo" (known: anthropic, custom, go, mix, nim, openai, zen)`,
 		},
 		{
 			name: "unknown field typo",
@@ -278,6 +278,104 @@ func TestLoad(t *testing.T) {
 			errSubstr: "api_key_env with invalid characters",
 		},
 		{
+			name: "valid zen model",
+			yaml: `models:
+  test:
+    provider: zen
+    model: test-model
+    base_url: https://opencode.ai/zen/v1/messages
+`,
+			check: func(t *testing.T, cfg *Config) {
+				m, ok := cfg.Models["test"]
+				if !ok {
+					t.Fatal("missing test model")
+				}
+				if m.Provider != "mix" {
+					t.Errorf("zen should rewrite to mix, got %q", m.Provider)
+				}
+				if m.BaseURL != "https://opencode.ai/zen/v1/messages" {
+					t.Errorf("base_url: got %q", m.BaseURL)
+				}
+				if m.APIKeyEnv != "OPENCODE_API_KEY" {
+					t.Errorf("api_key_env: got %q, want OPENCODE_API_KEY", m.APIKeyEnv)
+				}
+			},
+		},
+		{
+			name: "valid go model",
+			yaml: `models:
+  test:
+    provider: go
+    model: test-model
+    base_url: https://opencode.ai/zen/go/v1/messages
+`,
+			check: func(t *testing.T, cfg *Config) {
+				m, ok := cfg.Models["test"]
+				if !ok {
+					t.Fatal("missing test model")
+				}
+				if m.Provider != "mix" {
+					t.Errorf("go should rewrite to mix, got %q", m.Provider)
+				}
+				if m.BaseURL != "https://opencode.ai/zen/go/v1/messages" {
+					t.Errorf("base_url: got %q", m.BaseURL)
+				}
+				if m.APIKeyEnv != "OPENCODE_API_KEY" {
+					t.Errorf("api_key_env: got %q, want OPENCODE_API_KEY", m.APIKeyEnv)
+				}
+			},
+		},
+		{
+			name: "valid mix model",
+			yaml: `models:
+  test:
+    provider: mix
+    model: test-model
+    base_url: https://example.com/v1/chat/completions
+    api_key_env: MIX_API_KEY
+`,
+			check: func(t *testing.T, cfg *Config) {
+				m, ok := cfg.Models["test"]
+				if !ok {
+					t.Fatal("missing test model")
+				}
+				if m.Provider != "mix" {
+					t.Errorf("provider: got %q, want mix", m.Provider)
+				}
+			},
+		},
+		{
+			name: "zen without base_url",
+			yaml: `models:
+  test:
+    provider: zen
+    model: test-model
+`,
+			wantErr:   true,
+			errSubstr: `provider=mix but no base_url`,
+		},
+		{
+			name: "go without base_url",
+			yaml: `models:
+  test:
+    provider: go
+    model: test-model
+`,
+			wantErr:   true,
+			errSubstr: `provider=mix but no base_url`,
+		},
+		{
+			name: "mix without base_url",
+			yaml: `models:
+  test:
+    provider: mix
+    model: test-model
+    api_key_env: MIX_API_KEY
+`,
+			wantErr:   true,
+			errSubstr: `provider=mix but no base_url`,
+		},
+		{
 			name: "models empty but mappings non-empty",
 			yaml: `mappings:
   opus:
@@ -344,7 +442,7 @@ func TestLoadMissingFile(t *testing.T) {
 }
 
 func TestKnownProviders(t *testing.T) {
-	expected := []string{"nim", "zen", "go", "custom", "openai", "anthropic"}
+	expected := []string{"nim", "zen", "go", "custom", "openai", "anthropic", "mix"}
 	if len(KnownProviders) != len(expected) {
 		t.Errorf("KnownProviders has %d entries, want %d", len(KnownProviders), len(expected))
 	}
@@ -367,6 +465,7 @@ func TestProviderEnvVar(t *testing.T) {
 		{"openai has no default", "openai", ""},
 		{"anthropic has no default", "anthropic", ""},
 		{"custom has no default", "custom", ""},
+		{"mix has no default", "mix", ""},
 		{"unknown", "unknown", ""},
 	}
 	for _, tt := range tests {
