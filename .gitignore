@@ -1,0 +1,9 @@
+freedius
+.bootstrap-scaffold/
+.DS_Store
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+freedius-test.log
