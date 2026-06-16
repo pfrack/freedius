@@ -50,7 +50,9 @@ func (a *OpenAICompatibleAdapter) Handle(w http.ResponseWriter, r *http.Request,
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		return forwardUpstreamError(w, resp)
+		// Forward the error; any copy error is ignored because response is already in flight
+		_ = forwardUpstreamError(w, resp)
+		return nil
 	}
 
 	w.Header().Set("Content-Type", "text/event-stream")
@@ -58,5 +60,9 @@ func (a *OpenAICompatibleAdapter) Handle(w http.ResponseWriter, r *http.Request,
 	w.Header().Set("Connection", "keep-alive")
 	w.WriteHeader(http.StatusOK)
 	rc := http.NewResponseController(w)
-	return translate.TranslateStream(resp.Body, w, rc.Flush)
+	if err := translate.TranslateStream(resp.Body, w, rc.Flush); err != nil {
+		// Response already started; log the error but do not return it
+		a.logger.Error("stream translation error", "err", err)
+	}
+	return nil
 }
