@@ -1,0 +1,27 @@
+# freedius starter config — edit and save as freedius.yaml
+# For more examples, see: config.example.yaml
+#
+# Model families recognized in requests:
+#   opus, sonnet, haiku, auto, default
+# Provider options: nim, zen, go, custom, openai, anthropic, mix
+#
+# Export OPENCODE_API_KEY before running freedius:
+#   export OPENCODE_API_KEY=<your-key>
+# (freedius reads keys from environment, not from this file).
+
+mappings:
+  # Opencode Go (OpenAI-format base_url)
+  opus:    { provider: go, model: deepseek-ai/deepseek-v4-pro,   base_url: https://opencode.ai/zen/go/v1/chat/completions, api_key_env: OPENCODE_API_KEY }
+  # Opencode Go (OpenAI-format base_url)
+  sonnet:  { provider: go, model: deepseek-ai/deepseek-v4-flash, base_url: https://opencode.ai/zen/go/v1/chat/completions, api_key_env: OPENCODE_API_KEY }
+  # NVIDIA NIM (OpenAI-format, built-in defaults)
+  haiku:   { provider: nim, model: stepfun-ai/step-3.5-flash }
+  # Opencode Go (OpenAI-format base_url)
+  auto:    { provider: go, model: deepseek-ai/deepseek-v4-flash, base_url: https://opencode.ai/zen/go/v1/chat/completions, api_key_env: OPENCODE_API_KEY }
+  # Catch-all for any Claude Code model not matched above
+  default: { provider: go, model: deepseek-ai/deepseek-v4-pro,   base_url: https://opencode.ai/zen/go/v1/chat/completions, api_key_env: OPENCODE_API_KEY }
+
+# Exact-match entries override family-based mappings.
+# Uncomment and edit:
+# models:
+#   claude-sonnet-4-5-20250929: { provider: zen, model: claude-sonnet-4-6, base_url: https://opencode.ai/zen/v1/messages }

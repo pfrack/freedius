@@ -1,3 +1,9 @@
+// DO NOT log request or response bodies in this file.
+// freedius NFR-Privacy (prd.md): no request or response payload is logged
+// to disk or transmitted beyond the target provider. Metadata (model name,
+// provider, status code) is acceptable; message content, tool arguments,
+// tool results, and API responses are not.
+
 package translate
 
 import (
@@ -253,6 +259,27 @@ func convertOneMessage(m anthropicMsgItem) ([]openAIMessage, error) {
 			om.ToolCalls = toolCalls
 		}
 		return []openAIMessage{om}, nil
+	}
+
+	if m.Role == "system" {
+		content := ""
+		if str, ok := m.Content.(string); ok {
+			content = str
+		} else {
+			var blocks []map[string]any
+			if err := json.Unmarshal(raw, &blocks); err == nil {
+				var parts []string
+				for _, b := range blocks {
+					if btype, _ := b["type"].(string); btype == "text" {
+						if t, _ := b["text"].(string); t != "" {
+							parts = append(parts, t)
+						}
+					}
+				}
+				content = strings.Join(parts, "\n")
+			}
+		}
+		return []openAIMessage{{Role: "system", Content: content}}, nil
 	}
 
 	return nil, fmt.Errorf("translate: unsupported message role %q", m.Role)

@@ -15,7 +15,7 @@ type modelDefaults struct {
 var knownProviderDefaults = map[string]modelDefaults{
 	"nim": {
 		BaseURL:   "https://integrate.api.nvidia.com/v1/chat/completions",
-		APIKeyEnv: "NIM_API_KEY",
+		APIKeyEnv: "NVIDIA_NIM_API_KEY",
 	},
 	"zen": {
 		APIKeyEnv: "OPENCODE_API_KEY",
@@ -43,6 +43,9 @@ func (c *Config) applyDefaults() {
 }
 
 func applyEntryDefaults(m Model) Model {
+	if m.OriginalProvider == "" {
+		m.OriginalProvider = m.Provider
+	}
 	if m.Provider == "custom" {
 		m.Provider = "anthropic"
 	}

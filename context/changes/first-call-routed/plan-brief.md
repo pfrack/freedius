@@ -108,7 +108,7 @@ Single `Provider` interface hides an asymmetry: the custom adapter is a 5-line `
 | --------- | ---------------------- | ------------------------- |
 | 1. Schema + Provider registry | `BaseURL` + `APIKeyEnv` config fields, `Provider` interface, `Registry` lookup, dispatcher wired to registry; 501 stub replaced with 500-on-unknown-provider | Strict-mode YAML decoder will reject unknown fields — new fields must land atomically with consumer code |
 | 2. Custom passthrough adapter | `CustomAdapter` wrapping `*httputil.ReverseProxy` with `Rewrite`; 7 httptest cases; dispatcher end-to-end test | Body re-injection into `r.Body` is easy to forget — without it the upstream sees an empty body |
-| 3. NIM adapter + translation module | Pure `proxy/translate/` package (golden-file tests), `NIMAdapter.Handle` with `http.Client` + `bufio.Reader` + `http.ResponseController`, eager `NIM_API_KEY` check in `main.go` | Two SSE footguns: `json.NewEncoder.Encode` trailing newline and `bufio.Scanner` 64KB cap — both corrupt streaming if missed |
+| 3. NIM adapter + translation module | Pure `proxy/translate/` package (golden-file tests), `NIMAdapter.Handle` with `http.Client` + `bufio.Reader` + `http.ResponseController`, eager `NVIDIA_NIM_API_KEY` check in `main.go` | Two SSE footguns: `json.NewEncoder.Encode` trailing newline and `bufio.Scanner` 64KB cap — both corrupt streaming if missed |
 
 **Prerequisites:** F-01 landed (`make ci` green; dispatcher 501 stub in place). User has a real NIM API key for Phase 3 manual verification. User has a real Anthropic-compatible shim for Phase 2 manual verification.
 **Estimated effort:** ~2-3 focused sessions across 3 phases. Phase 3 is the largest (~60% of the slice). The first two phases can land as single commits each; Phase 3 likely needs 2-3 commits (translation module, adapter, integration).
@@ -127,6 +127,6 @@ Single `Provider` interface hides an asymmetry: the custom adapter is a 5-line `
 - A real `claude-code` session with `ANTHROPIC_BASE_URL=http://127.0.0.1:8080` completes a tool-using, multi-turn conversation routed through freedius to NIM.
 - The custom (Anthropic-compatible) adapter proxies a request to a real shim and Claude Code completes a real conversation.
 - Upstream errors (NIM 401/429/500, custom shim 4xx/5xx) reach Claude Code verbatim — same status code, same body.
-- Missing `NIM_API_KEY` (when config references `provider: nim`) fails at startup with a clear actionable message.
+- Missing `NVIDIA_NIM_API_KEY` (when config references `provider: nim`) fails at startup with a clear actionable message.
 - `X-Freedius-Matched-Provider` and `X-Freedius-Matched-Model` headers are present on every dispatcher's response, including adapter responses.
 - The `context/foundation/lessons.md` file exists with at least the two SSE footguns documented for future slices.

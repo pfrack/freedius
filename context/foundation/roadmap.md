@@ -3,7 +3,7 @@ project: freedius
 version: 1
 status: draft
 created: 2026-06-16
-updated: 2026-06-16
+updated: 2026-06-17
 prd_version: 1
 main_goal: speed
 top_blocker: time
@@ -32,6 +32,7 @@ A developer using Claude Code wants to route LLM calls to cheaper or free provid
 | S-02 | provider-and-mapping | route by semantic family name (`opus`/`sonnet`/`haiku`/`auto`/`default`); use agnostic compat providers (`openai`/`anthropic`) for any compatible endpoint; known providers ship with in-binary defaults | S-01          | FR-001, FR-003, FR-004, FR-009, NFR-Error-handling | proposed |
 | S-03 | zen-go-adapters    | route calls to Opencode Zen or Opencode Go via multi-format adapters (Anthropic-format and OpenAI-format per model) | S-01, S-02    | FR-007, FR-008, NFR-Error-handling               | proposed |
 | S-04 | error-hardening    | get clear error messages on config mistakes and provider failures; freedius auto-injects Claude Code env vars; `freedius init` generates a starter config template | S-01          | FR-004, Success-Criteria-Secondary, NFR-Error-handling | proposed |
+| S-05 | provider-codegen   | add a new provider by adding one entry to `providers.yaml` and running `go generate` — all boilerplate (adapters, config maps, registry, validation) is generated | S-03          | FR-003, FR-004                                   | proposed |
 
 ## Baseline
 
@@ -114,6 +115,18 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Risk:** The auto-inject-env-vars feature (secondary Success Criterion) is low risk (write to a shell config or emit instructions). The config template is a simple file write. The real work is hardening — ensuring every failure path in the proxy produces a user-readable message rather than a crash or a silent timeout.
 - **Status:** proposed
 
+### S-05: Provider codegen — `go:generate` from `providers.yaml`
+
+- **Outcome:** adding a new provider requires only a one-entry addition to `providers.yaml` + `go generate ./...` — all boilerplate (thin adapter wrappers, `KnownProviders` map, `knownProviderDefaults`, rewrite rules, `base_url` validation list, registry construction) is generated at compile time. The three core adapters (`openai_compat.go`, `anthropic_compat.go`, `mix.go`) remain hand-written.
+- **Change ID:** provider-codegen
+- **PRD refs:** FR-003, FR-004
+- **Prerequisites:** S-03 (needs all three behavior classes implemented and stable before extracting them into a codegen pattern)
+- **Parallel with:** S-04
+- **Blockers:** —
+- **Unknowns:** —
+- **Risk:** Low — this is a pure internal refactor with no user-facing behavior change. The generated code is deterministic and reviewable. Risk is over-abstracting: the template must stay simple enough that reading a generated file is trivial.
+- **Status:** proposed
+
 ## Backlog Handoff
 
 | Roadmap ID | Change ID          | Suggested issue title                      | Ready for `/10x-plan` | Notes |
@@ -123,6 +136,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 | S-02       | provider-and-mapping | Family-aware mapping + compat providers + in-binary defaults | no                    | Needs S-01. Architectural refactor; bundles three concerns. S-03 depends on S-02's compat adapter code. |
 | S-03       | zen-go-adapters    | Opencode Zen + Go multi-format adapters   | no                    | Needs S-01 and S-02. Runs parallel with S-04. The `ZenAdapter`/`GoAdapter` are thin routers on S-02's compat adapters. |
 | S-04       | error-hardening    | Error hardening + env auto-injection + config template | no                    | Needs S-01. Runs parallel with S-02 and S-03. |
+| S-05       | provider-codegen   | Provider codegen — go:generate boilerplate from providers.yaml | no                    | Needs S-03. Internal refactor; no user-facing change. |
 
 ## Open Roadmap Questions
 

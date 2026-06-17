@@ -16,5 +16,8 @@ tidy:
 
 ci: vet test build
 
-run:
+manual-test:
 	./test-manual.sh
+
+run:
+	go run .

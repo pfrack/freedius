@@ -47,7 +47,7 @@ This means a `ZenAdapter` (or `GoAdapter`) cannot be a single backend — it mus
 - The minimum viable schema for S-03 uses the S-01 fields (`BaseURL`, `APIKeyEnv`) without additions. **No new struct fields are required** in the MVP.
 - The S-01 plan's `proxy/translate/anthropic_openai.go` can be reused for the OpenAI-format half of Zen/Go. The Anthropic-format half uses passthrough (essentially `CustomAdapter` with a different base URL). Google and OpenAI Responses need new translation modules — these are out of scope for the MVP unless the user explicitly requests them.
 - Env-var convention: a single `OPENCODE_API_KEY` covers both Zen and Go (they share one auth identity — confirmed by the docs and by user clarification on 2026-06-16; Go is a subscription tier of the Opencode Zen billing system). MVP does not support per-provider keys.
-- Eager startup check: mirror S-01's `NIM_API_KEY` pattern. Single-source principle (per F-01 review F7) suggests a data-driven table of `(provider, envVar, requiresKey)` triples in `main.go`.
+- Eager startup check: mirror S-01's `NVIDIA_NIM_API_KEY` pattern. Single-source principle (per F-01 review F7) suggests a data-driven table of `(provider, envVar, requiresKey)` triples in `main.go`.
 - Per-model validation: `provider: zen` and `provider: go` should require `base_url` (no hardcoded default — they expose multiple endpoints; user picks per model).
 
 **Biggest risk for S-03**: the per-target-model endpoint routing logic. If the lookup table is hardcoded into the adapter, every new model Opencode adds forces a code change. A safer design is to let users specify `base_url` per model in YAML (already supported by S-01's schema), and have the adapter use that URL verbatim. This trades convenience (user must look up the endpoint) for evolvability (no code change when Opencode adds models).
@@ -195,8 +195,8 @@ config.Load → check env vars for referenced providers → build registry → b
 S-01 introduces the eager env-var check pattern:
 
 ```go
-if configUsesProvider(cfg, "nim") && os.Getenv("NIM_API_KEY") == "" {
-    return failf("freedius: NIM_API_KEY env var required (config references provider=nim)")
+if configUsesProvider(cfg, "nim") && os.Getenv("NVIDIA_NIM_API_KEY") == "" {
+    return failf("freedius: NVIDIA_NIM_API_KEY env var required (config references provider=nim)")
 }
 ```
 
@@ -339,7 +339,7 @@ models:
   claude-opus-4:
     provider: nim
     model: meta/llama-3.1-70b-instruct
-    api_key_env: NIM_API_KEY
+    api_key_env: NVIDIA_NIM_API_KEY
 
   # Zen Anthropic-format — Claude, Qwen, etc.
   claude-sonnet-4:
@@ -492,7 +492,7 @@ type providerFactory struct {
 }
 
 factories := []providerFactory{
-    {name: "nim", envVar: "NIM_API_KEY", requiresKey: true, construct: proxy.NewNIMAdapter},
+    {name: "nim", envVar: "NVIDIA_NIM_API_KEY", requiresKey: true, construct: proxy.NewNIMAdapter},
     {name: "custom", envVar: "", requiresKey: false, construct: proxy.NewCustomAdapter},
     {name: "zen", envVar: "OPENCODE_API_KEY", requiresKey: true, construct: proxy.NewZenAdapter},
     {name: "go", envVar: "OPENCODE_API_KEY", requiresKey: true, construct: proxy.NewGoAdapter},
@@ -828,7 +828,7 @@ if (cfg.UsesProvider("zen") || cfg.UsesProvider("go")) && os.Getenv("OPENCODE_AP
 
 | Provider string | Wire format | Default URL | Default env var | Eager check |
 |---|---|---|---|---|
-| `nim` | OpenAI Chat Completions | `https://integrate.api.nvidia.com/v1/chat/completions` | `NIM_API_KEY` | yes |
+| `nim` | OpenAI Chat Completions | `https://integrate.api.nvidia.com/v1/chat/completions` | `NVIDIA_NIM_API_KEY` | yes |
 | `zen` | multi-format (Anthropic or OpenAI, derived from `base_url` path) | none (user must specify `base_url`) | `OPENCODE_API_KEY` | yes |
 | `go` | multi-format (Anthropic or OpenAI, derived from `base_url` path) | none (user must specify `base_url`) | `OPENCODE_API_KEY` | yes |
 
@@ -855,7 +855,7 @@ models:
   claude-opus-4:
     provider: nim
     model: meta/llama-3.1-70b-instruct
-    api_key_env: NIM_API_KEY
+    api_key_env: NVIDIA_NIM_API_KEY
 
   # Tier 1: known provider with URL override (Zen Anthropic-format)
   claude-sonnet-4:
@@ -930,7 +930,7 @@ The `providerFactory` table in `main.go` (per §4.3) extends to 6 rows:
 
 ```go
 factories := []providerFactory{
-    {name: "nim", envVar: "NIM_API_KEY", requiresKey: true, construct: proxy.NewNIMAdapter},
+    {name: "nim", envVar: "NVIDIA_NIM_API_KEY", requiresKey: true, construct: proxy.NewNIMAdapter},
     {name: "zen", envVar: "OPENCODE_API_KEY", requiresKey: true, construct: proxy.NewZenAdapter},
     {name: "go", envVar: "OPENCODE_API_KEY", requiresKey: true, construct: proxy.NewGoAdapter},
     {name: "openai", envVar: "", requiresKey: false, construct: proxy.NewOpenAICompatibleAdapter},
@@ -980,7 +980,7 @@ type modelDefaults struct {
 var knownProviderDefaults = map[string]modelDefaults{
     "nim": {
         BaseURL:   "https://integrate.api.nvidia.com/v1/chat/completions",
-        APIKeyEnv: "NIM_API_KEY",
+        APIKeyEnv: "NVIDIA_NIM_API_KEY",
     },
     "zen": {
         // No default base_url — multi-format gateway; user must specify per model.
@@ -1064,7 +1064,7 @@ models:
 
 **Adapter code simplification** (S-03):
 - S-01's `NIMAdapter` was going to have a hardcoded `https://integrate.api.nvidia.com/v1/chat/completions` const default (per `research.md:493`). With the merge-at-load approach, the adapter doesn't need a fallback — it just reads `m.BaseURL` directly. The const goes away.
-- The `(*Config).UsesProvider` check at startup still works: iterate models, if any model uses `nim` and `m.APIKeyEnv == "NIM_API_KEY"` (the default), check the env var. (Or, simpler: just check the env var once for each preset name, as before.)
+- The `(*Config).UsesProvider` check at startup still works: iterate models, if any model uses `nim` and `m.APIKeyEnv == "NVIDIA_NIM_API_KEY"` (the default), check the env var. (Or, simpler: just check the env var once for each preset name, as before.)
 
 #### What stays the same
 
@@ -1078,8 +1078,8 @@ models:
 
 **Option A** (simpler, current approach): hardcoded preset check in `main.go`:
 ```go
-if cfg.UsesProvider("nim") && os.Getenv("NIM_API_KEY") == "" {
-    return failf("freedius: NIM_API_KEY env var required (config references provider=nim)")
+if cfg.UsesProvider("nim") && os.Getenv("NVIDIA_NIM_API_KEY") == "" {
+    return failf("freedius: NVIDIA_NIM_API_KEY env var required (config references provider=nim)")
 }
 if (cfg.UsesProvider("zen") || cfg.UsesProvider("go")) && os.Getenv("OPENCODE_API_KEY") == "" {
     return failf("freedius: OPENCODE_API_KEY env var required (config references provider=zen or provider=go)")
@@ -1107,7 +1107,7 @@ for name, m := range cfg.Models {
 In `config/config_test.go` (new `TestApplyDefaults` function):
 - `nim` model with empty `base_url` → filled with `https://integrate.api.nvidia.com/v1/chat/completions`
 - `nim` model with explicit `base_url` → keeps user value
-- `nim` model with empty `api_key_env` → filled with `NIM_API_KEY`
+- `nim` model with empty `api_key_env` → filled with `NVIDIA_NIM_API_KEY`
 - `zen` model with empty `api_key_env` → filled with `OPENCODE_API_KEY`
 - `zen` model with empty `base_url` → stays empty (no default)
 - `go` model with empty `api_key_env` → filled with `OPENCODE_API_KEY`

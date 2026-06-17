@@ -23,15 +23,15 @@ func NewAnthropicCompatibleAdapter(logger *slog.Logger) *AnthropicCompatibleAdap
 
 func (a *AnthropicCompatibleAdapter) Handle(w http.ResponseWriter, r *http.Request, m config.Model, body []byte) error {
 	if m.BaseURL == "" {
-		return fmt.Errorf("anthropic adapter: missing base_url")
+		return fmt.Errorf("%s adapter (anthropic-compat): missing base_url", originalOr(m))
 	}
 	apiKey := os.Getenv(m.APIKeyEnv)
 	if apiKey == "" {
-		return fmt.Errorf("anthropic adapter: env var %s is not set", m.APIKeyEnv)
+		return fmt.Errorf("%s adapter (anthropic-compat): env var %s is not set", originalOr(m), m.APIKeyEnv)
 	}
 	target, err := url.Parse(m.BaseURL)
 	if err != nil {
-		return fmt.Errorf("anthropic adapter: invalid base_url %q: %w", m.BaseURL, err)
+		return fmt.Errorf("%s adapter (anthropic-compat): invalid base_url %q: %w", originalOr(m), m.BaseURL, err)
 	}
 	r.Body = io.NopCloser(bytes.NewReader(body))
 	r.ContentLength = int64(len(body))
