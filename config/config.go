@@ -13,10 +13,11 @@ type Config struct {
 }
 
 type Model struct {
-	Provider  string `yaml:"provider"`
-	Model     string `yaml:"model"`
-	BaseURL   string `yaml:"base_url,omitempty"`
-	APIKeyEnv string `yaml:"api_key_env,omitempty"`
+	Provider         string `yaml:"provider"`
+	Model            string `yaml:"model"`
+	BaseURL          string `yaml:"base_url,omitempty"`
+	APIKeyEnv        string `yaml:"api_key_env,omitempty"`
+	OriginalProvider string `yaml:"-"`
 }
 
 var KnownProviders = map[string]struct{}{

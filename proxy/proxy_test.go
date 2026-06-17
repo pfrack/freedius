@@ -21,14 +21,14 @@ func newTestDispatcher(t *testing.T) *Dispatcher {
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	registry := NewRegistry(map[string]Provider{})
-	return NewDispatcher(cfg, registry, logger)
+	return NewDispatcher(cfg, registry, logger, false)
 }
 
 func newTestDispatcherWithAdapter(t *testing.T, cfg *config.Config, providers map[string]Provider) *Dispatcher {
 	t.Helper()
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	registry := NewRegistry(providers)
-	return NewDispatcher(cfg, registry, logger)
+	return NewDispatcher(cfg, registry, logger, false)
 }
 
 func TestServeHTTP(t *testing.T) {
@@ -48,7 +48,7 @@ func TestServeHTTP(t *testing.T) {
 			method:      http.MethodPost,
 			body:        `{"model":"claude-opus-4"}`,
 			wantStatus:  http.StatusInternalServerError,
-			wantBodyHas: []string{`"error":"provider not registered: nim"`},
+			wantBodyHas: []string{`"error":"provider_not_registered"`, `is not registered in this freedius build`},
 			wantHeader: map[string]string{
 				"X-Freedius-Matched-Provider": "nim",
 				"X-Freedius-Matched-Model":    "meta/llama-3.1-70b-instruct",
@@ -60,7 +60,7 @@ func TestServeHTTP(t *testing.T) {
 			method:        http.MethodPost,
 			body:          `{"model":"unknown"}`,
 			wantStatus:    http.StatusNotFound,
-			wantBodyHas:   []string{`"status":"no_match"`},
+			wantBodyHas:   []string{`"error":"no_match"`, `no configured mapping for model`},
 			wantBodyLacks: []string{"matched_provider", "matched_model"},
 			wantHeaderMiss: []string{"X-Freedius-Matched-Provider", "X-Freedius-Matched-Model"},
 		},

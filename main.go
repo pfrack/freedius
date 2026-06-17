@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -33,6 +34,22 @@ var allowedHosts = map[string]struct{}{
 	"0.0.0.0":   {},
 }
 
+// newLogger constructs the process-wide logger. When format is "json", the
+// handler emits structured JSON lines; otherwise it emits the human-readable
+// text format. An unknown format returns an error so run() can fail loudly
+// rather than silently fall back.
+func newLogger(format string, w io.Writer) (logger *slog.Logger, err error) {
+	opts := &slog.HandlerOptions{Level: slog.LevelInfo}
+	switch format {
+	case "json":
+		return slog.New(slog.NewJSONHandler(w, opts)), nil
+	case "text":
+		return slog.New(slog.NewTextHandler(w, opts)), nil
+	default:
+		return nil, fmt.Errorf("invalid log format %q (allowed: text, json)", format)
+	}
+}
+
 func main() {
 	os.Exit(run())
 }
@@ -41,10 +58,28 @@ func run() int {
 	flagConfig := flag.String("config", "", "path to config file (auto-resolved if empty)")
 	flagPort := flag.Int("port", 0, "port to listen on (overrides FREEDIUS_PORT; default 8080)")
 	flagHost := flag.String("host", "", "host to bind (127.0.0.1 or 0.0.0.0; default 127.0.0.1)")
+	flagVerboseErrors := flag.Bool("verbose-errors", false, "include upstream error detail in error responses (or set FREEDIUS_VERBOSE_ERRORS=1)")
+	flagLogFormat := flag.String("log-format", "", "log output format: text, json (overrides FREEDIUS_LOG; default text)")
 	flag.Parse()
 
 	setFlags := map[string]bool{}
 	flag.Visit(func(f *flag.Flag) { setFlags[f.Name] = true })
+
+	verboseErrors := *flagVerboseErrors || os.Getenv("FREEDIUS_VERBOSE_ERRORS") == "1"
+
+	logFormat := *flagLogFormat
+	if logFormat == "" {
+		logFormat = os.Getenv("FREEDIUS_LOG")
+	}
+	if logFormat == "" {
+		logFormat = "text"
+	}
+	baseLogger, err := newLogger(logFormat, os.Stderr)
+	if err != nil {
+		return failf("freedius: %v", err)
+	}
+	slog.SetDefault(baseLogger)
+	logger := baseLogger
 
 	port := resolveInt(*flagPort, setFlags["port"], "FREEDIUS_PORT", defaultPort)
 	if port < 1 || port > 65535 {
@@ -58,10 +93,6 @@ func run() int {
 	if _, ok := allowedHosts[host]; !ok {
 		return failf("freedius: invalid --host value: %s (allowed: 127.0.0.1, 0.0.0.0)", host)
 	}
-
-	baseLogger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
-	slog.SetDefault(baseLogger)
-	logger := baseLogger
 
 	cfgPath, err := resolveConfigPath(*flagConfig)
 	if err != nil {
@@ -90,9 +121,20 @@ func run() int {
 		"anthropic": proxy.NewAnthropicCompatibleAdapter(logger),
 		"mix":       proxy.NewMixAdapter(logger),
 	})
-	dispatcher := proxy.NewDispatcher(cfg, registry, logger)
+	dispatcher := proxy.NewDispatcher(cfg, registry, logger, verboseErrors)
 	mux := http.NewServeMux()
-	mux.Handle("/", dispatcher)
+
+	// Middleware wiring (composition order = execution order outermost → innermost):
+	//   RequestIDMiddleware wraps everything so the request ID it generates
+	//   propagates down through context into every downstream log call and
+	//   into the dispatcher. RecoverMiddleware sits inside RequestID so its
+	//   panic-recovery log carries the request_id; it sits outside AccessLog
+	//   so a panic in any downstream layer (including AccessLog itself) is
+	//   caught cleanly with a structured 500 response.
+	httpHandler := proxy.RecoverMiddleware(logger, verboseErrors, dispatcher)
+	httpHandler = proxy.AccessLogMiddleware(logger, httpHandler)
+	httpHandler = proxy.RequestIDMiddleware(httpHandler)
+	mux.Handle("/", httpHandler)
 
 	server := &http.Server{
 		Addr:              net.JoinHostPort(host, strconv.Itoa(port)),

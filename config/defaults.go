@@ -43,6 +43,9 @@ func (c *Config) applyDefaults() {
 }
 
 func applyEntryDefaults(m Model) Model {
+	if m.OriginalProvider == "" {
+		m.OriginalProvider = m.Provider
+	}
 	if m.Provider == "custom" {
 		m.Provider = "anthropic"
 	}

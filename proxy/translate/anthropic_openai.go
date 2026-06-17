@@ -1,3 +1,9 @@
+// DO NOT log request or response bodies in this file.
+// freedius NFR-Privacy (prd.md): no request or response payload is logged
+// to disk or transmitted beyond the target provider. Metadata (model name,
+// provider, status code) is acceptable; message content, tool arguments,
+// tool results, and API responses are not.
+
 package translate
 
 import (

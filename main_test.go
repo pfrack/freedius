@@ -1,6 +1,9 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
+	"io"
 	"strings"
 	"testing"
 
@@ -95,5 +98,56 @@ func TestCheckRequiredEnvVars_MappingMissingEnv(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "MY_MAPPING_KEY") {
 		t.Errorf("error should mention mapping env: %v", err)
+	}
+}
+
+func TestNewLogger_JSONFormat(t *testing.T) {
+	var buf bytes.Buffer
+	logger, err := newLogger("json", &buf)
+	if err != nil {
+		t.Fatalf("newLogger(json): %v", err)
+	}
+	logger.Info("hello", "key", "value")
+	out := strings.TrimSpace(buf.String())
+	if out == "" {
+		t.Fatal("expected non-empty output")
+	}
+	var parsed map[string]any
+	if err := json.Unmarshal([]byte(out), &parsed); err != nil {
+		t.Fatalf("output is not valid JSON: %v (raw: %s)", err, out)
+	}
+	if parsed["msg"] != "hello" {
+		t.Errorf("msg: got %v, want hello", parsed["msg"])
+	}
+	if parsed["key"] != "value" {
+		t.Errorf("key: got %v, want value", parsed["key"])
+	}
+}
+
+func TestNewLogger_TextFormat(t *testing.T) {
+	var buf bytes.Buffer
+	logger, err := newLogger("text", &buf)
+	if err != nil {
+		t.Fatalf("newLogger(text): %v", err)
+	}
+	logger.Info("hello", "key", "value")
+	out := buf.String()
+	if !strings.Contains(out, "msg=hello") || !strings.Contains(out, "key=value") {
+		t.Errorf("text format output missing key= / msg= pairs: %s", out)
+	}
+	// Ensure output is NOT JSON (text handler produces key=value pairs).
+	var parsed map[string]any
+	if err := json.Unmarshal([]byte(strings.TrimSpace(out)), &parsed); err == nil {
+		t.Errorf("text format should not produce valid JSON, got: %s", out)
+	}
+}
+
+func TestNewLogger_InvalidFormat(t *testing.T) {
+	_, err := newLogger("yaml", io.Discard)
+	if err == nil {
+		t.Fatal("expected error for invalid log format")
+	}
+	if !strings.Contains(err.Error(), "yaml") {
+		t.Errorf("error should mention invalid format: %v", err)
 	}
 }
