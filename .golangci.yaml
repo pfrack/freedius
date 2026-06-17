@@ -1,0 +1,81 @@
+version: "2"
+
+run:
+  timeout: 5m
+  concurrency: 4
+
+linters:
+  default: none
+  enable:
+    # Correctness
+    - govet          # suspicious constructs & bugs
+    - errcheck       # unhandled errors
+    - staticcheck    # bugs, perf, style (replaces megacheck)
+    - unused         # unused code
+    - ineffassign    # assigned but never used
+    - bodyclose      # unclosed HTTP response bodies
+    - durationcheck  # suspicious time.Duration arithmetic
+    - copyloopvar    # loop variable copy issues (Go <1.22)
+    - exhaustive     # switch covers all enum cases
+
+    # Style & quality
+    - revive         # replaces golint, 80+ configurable rules
+    - gocritic       # opinionated but useful suggestions
+    - gocyclo        # cyclomatic complexity
+    - nakedret       # naked returns in long functions
+    - unconvert      # unnecessary type conversions
+    - misspell       # spelling mistakes in comments/strings
+    - whitespace     # trailing spaces, blank lines
+    - nolintlint     # ensures //nolint comments are valid
+
+    # Security
+    - gosec          # common security issues
+
+formatters:
+  default: none
+  enable:
+    - gofmt          # standard formatting
+    - goimports      # import grouping & ordering
+
+linters-settings:
+  gocyclo:
+    min-complexity: 15
+
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - style
+      - performance
+
+  revive:
+    rules:
+      - name: exported
+      - name: var-naming
+      - name: error-return
+      - name: error-strings
+
+  gosec:
+    excludes:
+      - G104  # suppress "errors unhandled" (covered by errcheck)
+
+  staticcheck:
+    checks:
+      - all
+      - "-ST1000"  # no package comment required
+      - "-ST1003"  # relax naming conventions
+
+  errcheck:
+    check-type-assertions: true
+    check-blank: true
+    exclude-functions:
+      - fmt.Printf
+      - fmt.Println
+      - (io.Closer).Close
+
+exclusions:
+  rules:
+    - path: "_test\\.go"
+      linters:
+        - errcheck
+        - gosec
+        - bodyclose

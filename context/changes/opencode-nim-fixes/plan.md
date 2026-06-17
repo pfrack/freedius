@@ -399,10 +399,10 @@ The function:
 
 #### Automated
 
-- [x] 2.1 `go build ./...` compiles cleanly
-- [x] 2.2 `go vet ./...` passes
-- [x] 2.3 `go test ./proxy/translate/... -v` — new and existing translate tests pass
-- [x] 2.4 `make ci` passes
+- [x] 2.1 `go build ./...` compiles cleanly — 8019171
+- [x] 2.2 `go vet ./...` passes — 8019171
+- [x] 2.3 `go test ./proxy/translate/... -v` — new and existing translate tests pass — 8019171
+- [x] 2.4 `make ci` passes — 8019171
 
 #### Manual
 
@@ -412,12 +412,12 @@ The function:
 
 #### Automated
 
-- [ ] 3.1 `go build ./...` compiles cleanly
-- [ ] 3.2 `go vet ./...` passes
-- [ ] 3.3 `go test ./proxy/... -v` — existing tests pass with new TranslateOpts parameter
-- [ ] 3.4 New tests: `proxy/nim_sanitize_test.go` — boolean subschema stripping, type param renaming, no-tools passthrough
-- [ ] 3.5 New end-to-end test: `proxy/nim_test.go` — NIMAdapter integration verifies `stream_options` is absent AND boolean schema is stripped in upstream body
-- [ ] 3.5 `make ci` passes
+- [x] 3.1 `go build ./...` compiles cleanly
+- [x] 3.2 `go vet ./...` passes
+- [x] 3.3 `go test ./proxy/... -v` — existing tests pass with new TranslateOpts parameter
+- [x] 3.4 New tests: `proxy/nim_sanitize_test.go` — boolean subschema stripping, type param renaming, no-tools passthrough
+- [x] 3.5 New end-to-end test: `proxy/nim_test.go` — NIMAdapter integration verifies `stream_options` is absent AND boolean schema is stripped in upstream body
+- [x] 3.5 `make ci` passes
 
 #### Manual
 

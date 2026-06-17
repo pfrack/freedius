@@ -15,7 +15,7 @@ func TestTranslateRequest_TextOnly(t *testing.T) {
 		"messages":[{"role":"user","content":"hello"}],
 		"stream":true
 	}`)
-	out, err := TranslateRequest(in, "meta-llama")
+	out, err := TranslateRequest(in, "meta-llama", TranslateOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,7 +56,7 @@ func TestTranslateRequest_SystemAndMessages(t *testing.T) {
 			{"role":"user","content":"how are you?"}
 		]
 	}`)
-	out, err := TranslateRequest(in, "x")
+	out, err := TranslateRequest(in, "x", TranslateOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -88,7 +88,7 @@ func TestTranslateRequest_ToolUse(t *testing.T) {
 		],
 		"tool_choice":"auto"
 	}`)
-	out, err := TranslateRequest(in, "x")
+	out, err := TranslateRequest(in, "x", TranslateOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -130,7 +130,7 @@ func TestTranslateRequest_ToolResult(t *testing.T) {
 			{"role":"user","content":[{"type":"tool_result","tool_use_id":"call_1","content":"sunny"}]}
 		]
 	}`)
-	out, err := TranslateRequest(in, "x")
+	out, err := TranslateRequest(in, "x", TranslateOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -153,7 +153,7 @@ func TestTranslateRequest_StopSequences(t *testing.T) {
 		"stop_sequences":["END"],
 		"messages":[{"role":"user","content":"hi"}]
 	}`)
-	out, err := TranslateRequest(in, "x")
+	out, err := TranslateRequest(in, "x", TranslateOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -324,7 +324,7 @@ func TestTranslateRequest_ToolChoiceStringNone(t *testing.T) {
 		"tool_choice":"none",
 		"messages":[{"role":"user","content":"hi"}]
 	}`)
-	out, err := TranslateRequest(in, "x")
+	out, err := TranslateRequest(in, "x", TranslateOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -342,7 +342,7 @@ func TestTranslateRequest_ToolChoiceUnknownType(t *testing.T) {
 		"tool_choice":{"type":"weird"},
 		"messages":[{"role":"user","content":"hi"}]
 	}`)
-	out, err := TranslateRequest(in, "x")
+	out, err := TranslateRequest(in, "x", TranslateOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -360,7 +360,7 @@ func TestTranslateRequest_ToolChoiceToolNoName(t *testing.T) {
 		"tool_choice":{"type":"tool"},
 		"messages":[{"role":"user","content":"hi"}]
 	}`)
-	out, err := TranslateRequest(in, "x")
+	out, err := TranslateRequest(in, "x", TranslateOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -378,7 +378,7 @@ func TestTranslateRequest_SystemEmptyArray(t *testing.T) {
 		"system":[],
 		"messages":[{"role":"user","content":"hi"}]
 	}`)
-	out, err := TranslateRequest(in, "x")
+	out, err := TranslateRequest(in, "x", TranslateOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -397,7 +397,7 @@ func TestTranslateRequest_StopMultiple(t *testing.T) {
 		"stop_sequences":["END","STOP"],
 		"messages":[{"role":"user","content":"hi"}]
 	}`)
-	out, err := TranslateRequest(in, "x")
+	out, err := TranslateRequest(in, "x", TranslateOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -414,7 +414,7 @@ func TestTranslateRequest_NoMaxTokens(t *testing.T) {
 		"model":"x",
 		"messages":[{"role":"user","content":"hi"}]
 	}`)
-	out, err := TranslateRequest(in, "x")
+	out, err := TranslateRequest(in, "x", TranslateOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -431,7 +431,7 @@ func TestTranslateRequest_StreamNoStreamOptions(t *testing.T) {
 		"max_tokens":10,
 		"messages":[{"role":"user","content":"hi"}]
 	}`)
-	out, err := TranslateRequest(in, "x")
+	out, err := TranslateRequest(in, "x", TranslateOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -450,7 +450,7 @@ func TestTranslateRequest_Temperature(t *testing.T) {
 		"temperature":0.5,
 		"messages":[{"role":"user","content":"hi"}]
 	}`)
-	out, err := TranslateRequest(in, "x")
+	out, err := TranslateRequest(in, "x", TranslateOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -470,7 +470,7 @@ func TestTranslateRequest_AssistantEmpty(t *testing.T) {
 			{"role":"assistant","content":[]}
 		]
 	}`)
-	out, err := TranslateRequest(in, "x")
+	out, err := TranslateRequest(in, "x", TranslateOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -500,7 +500,7 @@ func TestTranslateRequest_AssistantTextAndToolUse(t *testing.T) {
 			]}
 		]
 	}`)
-	out, err := TranslateRequest(in, "x")
+	out, err := TranslateRequest(in, "x", TranslateOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -585,7 +585,7 @@ func TestTranslateRequest_ToolResultObjectContent(t *testing.T) {
 			{"role":"user","content":[{"type":"tool_result","tool_use_id":"call_1","content":{"key":"value"}}]}
 		]
 	}`)
-	out, err := TranslateRequest(in, "x")
+	out, err := TranslateRequest(in, "x", TranslateOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -608,7 +608,7 @@ func TestTranslateRequest_SystemInvalidJSON(t *testing.T) {
 		"system":42,
 		"messages":[{"role":"user","content":"hi"}]
 	}`)
-	out, err := TranslateRequest(in, "x")
+	out, err := TranslateRequest(in, "x", TranslateOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -646,7 +646,7 @@ func TestTranslateRequest_StreamWithUsage(t *testing.T) {
 		"stream":true,
 		"messages":[{"role":"user","content":"hi"}]
 	}`)
-	out, err := TranslateRequest(in, "x")
+	out, err := TranslateRequest(in, "x", TranslateOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -668,7 +668,7 @@ func TestTranslateRequest_ToolChoiceUnknownString(t *testing.T) {
 		"tool_choice":"some_unknown_string",
 		"messages":[{"role":"user","content":"hi"}]
 	}`)
-	out, err := TranslateRequest(in, "x")
+	out, err := TranslateRequest(in, "x", TranslateOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -791,7 +791,7 @@ func TestTranslateRequest_ToolResultWithText(t *testing.T) {
 			{"role":"user","content":[{"type":"tool_result","tool_use_id":"call_1","content":[{"type":"text","text":"sunny"}]}]}
 		]
 	}`)
-	out, err := TranslateRequest(in, "x")
+	out, err := TranslateRequest(in, "x", TranslateOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -815,7 +815,7 @@ func TestTranslateRequest_UserImageBlockPassesThrough(t *testing.T) {
 			]}
 		]
 	}`)
-	out, err := TranslateRequest(in, "x")
+	out, err := TranslateRequest(in, "x", TranslateOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -889,7 +889,7 @@ func TestTranslateRequest_ToolChoiceObject(t *testing.T) {
 		"tool_choice":{"type":"tool","name":"get_weather"},
 		"messages":[{"role":"user","content":"hi"}]
 	}`)
-	out, err := TranslateRequest(in, "x")
+	out, err := TranslateRequest(in, "x", TranslateOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -911,7 +911,7 @@ func TestTranslateRequest_ToolChoiceAny(t *testing.T) {
 		"tool_choice":{"type":"any"},
 		"messages":[{"role":"user","content":"hi"}]
 	}`)
-	out, err := TranslateRequest(in, "x")
+	out, err := TranslateRequest(in, "x", TranslateOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -929,7 +929,7 @@ func TestTranslateRequest_SystemAsBlocks(t *testing.T) {
 		"system":[{"type":"text","text":"Hello "},{"type":"text","text":"world"}],
 		"messages":[{"role":"user","content":"hi"}]
 	}`)
-	out, err := TranslateRequest(in, "x")
+	out, err := TranslateRequest(in, "x", TranslateOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -943,7 +943,7 @@ func TestTranslateRequest_SystemAsBlocks(t *testing.T) {
 }
 
 func TestTranslateRequest_InvalidJSON(t *testing.T) {
-	_, err := TranslateRequest([]byte(`{not json`), "x")
+	_, err := TranslateRequest([]byte(`{not json`), "x", TranslateOpts{})
 	if err == nil {
 		t.Fatal("expected error on invalid JSON")
 	}
@@ -955,7 +955,7 @@ func TestTranslateRequest_SystemRole(t *testing.T) {
 		"max_tokens":10,
 		"messages":[{"role":"system","content":"foo"}]
 	}`)
-	out, err := TranslateRequest(in, "x")
+	out, err := TranslateRequest(in, "x", TranslateOpts{})
 	if err != nil {
 		t.Fatalf("TranslateRequest with system role should succeed: %v", err)
 	}
@@ -1127,5 +1127,39 @@ data: [DONE]
 	stopCount := strings.Count(out, "content_block_stop")
 	if stopCount < 2 {
 		t.Errorf("expected at least 2 content_block_stop events (text close + thinking close), got %d in %q", stopCount, out)
+	}
+}
+
+func TestTranslateRequest_NoStreamUsageOmitsStreamOptions(t *testing.T) {
+	in := []byte(`{"model":"x","max_tokens":10,"stream":true,"messages":[{"role":"user","content":"hi"}]}`)
+	out, err := TranslateRequest(in, "x", TranslateOpts{NoStreamUsage: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got map[string]any
+	if err := json.Unmarshal(out, &got); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := got["stream_options"]; ok {
+		t.Errorf("expected stream_options absent when NoStreamUsage=true, got %v", got["stream_options"])
+	}
+}
+
+func TestTranslateRequest_NoStreamUsageFalseIncludesStreamOptions(t *testing.T) {
+	in := []byte(`{"model":"x","max_tokens":10,"stream":true,"messages":[{"role":"user","content":"hi"}]}`)
+	out, err := TranslateRequest(in, "x", TranslateOpts{NoStreamUsage: false})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got map[string]any
+	if err := json.Unmarshal(out, &got); err != nil {
+		t.Fatal(err)
+	}
+	streamOpts, ok := got["stream_options"].(map[string]any)
+	if !ok {
+		t.Fatalf("stream_options missing")
+	}
+	if streamOpts["include_usage"] != true {
+		t.Errorf("include_usage: got %v, want true", streamOpts["include_usage"])
 	}
 }

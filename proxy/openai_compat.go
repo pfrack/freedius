@@ -15,9 +15,11 @@ import (
 )
 
 type OpenAICompatibleAdapter struct {
-	client       *http.Client
-	logger       *slog.Logger
+	client        *http.Client
+	logger        *slog.Logger
 	streamTimeout time.Duration
+	translateOpts translate.TranslateOpts
+	preSendHook   func([]byte) ([]byte, error)
 }
 
 func NewOpenAICompatibleAdapter(logger *slog.Logger) *OpenAICompatibleAdapter {
@@ -50,9 +52,15 @@ func (a *OpenAICompatibleAdapter) Handle(w http.ResponseWriter, r *http.Request,
 	if apiKey == "" {
 		return fmt.Errorf("%s adapter (openai-compat): env var %s is not set", originalOr(m), m.APIKeyEnv)
 	}
-	upstreamBody, err := translate.TranslateRequest(body, m.Model)
+	upstreamBody, err := translate.TranslateRequest(body, m.Model, a.translateOpts)
 	if err != nil {
 		return fmt.Errorf("%s adapter (openai-compat): translate request: %w", originalOr(m), err)
+	}
+	if a.preSendHook != nil {
+		upstreamBody, err = a.preSendHook(upstreamBody)
+		if err != nil {
+			return fmt.Errorf("%s adapter (openai-compat): sanitize body: %w", originalOr(m), err)
+		}
 	}
 	// Bound the upstream call so a hanging provider cannot pin the goroutine.
 	// Cancellation still propagates via r.Context() to the upstream request.

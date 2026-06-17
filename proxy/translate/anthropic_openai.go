@@ -17,7 +17,11 @@ import (
 	"sync/atomic"
 )
 
-func TranslateRequest(anthropicBody []byte, targetModel string) ([]byte, error) {
+type TranslateOpts struct {
+	NoStreamUsage bool
+}
+
+func TranslateRequest(anthropicBody []byte, targetModel string, opts TranslateOpts) ([]byte, error) {
 	var req anthropicMessage
 	if err := json.Unmarshal(anthropicBody, &req); err != nil {
 		return nil, fmt.Errorf("translate: parse anthropic body: %w", err)
@@ -38,7 +42,7 @@ func TranslateRequest(anthropicBody []byte, targetModel string) ([]byte, error) 
 		StreamOptions: nil,
 	}
 
-	if req.Stream {
+	if req.Stream && !opts.NoStreamUsage {
 		out.StreamOptions = &openAIStreamOpts{IncludeUsage: true}
 	}
 

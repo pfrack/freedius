@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -e
+
+echo "Running linters before commit..."
+make lint
+
+echo "All checks passed."
