@@ -21,8 +21,14 @@ func newMixAdapter(t *testing.T) *MixAdapter {
 func TestMixAdapter_AnthropicPassthrough(t *testing.T) {
 	t.Setenv("MIX_API_KEY", "sk-test")
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get("Authorization") != "Bearer sk-test" {
-			t.Errorf("Authorization: got %q, want Bearer sk-test", r.Header.Get("Authorization"))
+		if r.Header.Get("x-api-key") != "sk-test" {
+			t.Errorf("x-api-key: got %q, want sk-test", r.Header.Get("x-api-key"))
+		}
+		if r.Header.Get("anthropic-version") != "2023-06-01" {
+			t.Errorf("anthropic-version: got %q, want 2023-06-01", r.Header.Get("anthropic-version"))
+		}
+		if r.Header.Get("Authorization") != "" {
+			t.Errorf("Authorization should be empty, got %q", r.Header.Get("Authorization"))
 		}
 		body, _ := io.ReadAll(r.Body)
 		if !strings.Contains(string(body), `"model":"my-model"`) {
