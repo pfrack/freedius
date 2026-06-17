@@ -28,7 +28,7 @@ func (fr *failingRecorder) Write(data []byte) (int, error) {
 func newCustomTestAdapter(t *testing.T) *CustomAdapter {
 	t.Helper()
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	return NewCustomAdapter(logger)
+	return NewCustomAdapter(logger, false)
 }
 
 func TestCustomAdapter_PassthroughText(t *testing.T) {

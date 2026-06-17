@@ -3,6 +3,7 @@ package translate
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"io"
 	"strings"
 	"testing"
@@ -314,6 +315,63 @@ func TestTranslateStream_JustDone(t *testing.T) {
 	}
 	if !strings.Contains(downstream.String(), "event: message_stop") {
 		t.Errorf("expected message_stop on [DONE]-only, got: %q", downstream.String())
+	}
+}
+
+func TestTranslateStream_DoubleDone_Idempotent(t *testing.T) {
+	upstream := "data: [DONE]\n\ndata: [DONE]\n\n"
+	var downstream bytes.Buffer
+	flush := func() error { return nil }
+	if _, err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestTranslateStream_NonDataLine_Ignored(t *testing.T) {
+	upstream := "event: ping\ndata: {\"event\":\"ping\"}\n\n" +
+		"data: [DONE]\n\n"
+	var downstream bytes.Buffer
+	flush := func() error { return nil }
+	if _, err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(downstream.String(), "event: message_stop") {
+		t.Errorf("expected message_stop after ignored ping line, got: %q", downstream.String())
+	}
+}
+
+func TestTranslateStream_FinishBeforeUsage_UsesPendingFinish(t *testing.T) {
+	upstream := "data: {\"id\":\"x\",\"object\":\"chat.completion.chunk\",\"created\":1,\"model\":\"m\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\"},\"finish_reason\":null}]}\n\n" +
+		"data: {\"id\":\"x\",\"object\":\"chat.completion.chunk\",\"created\":1,\"model\":\"m\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}\n\n" +
+		"data: [DONE]\n\n"
+	var downstream bytes.Buffer
+	flush := func() error { return nil }
+	if _, err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
+		t.Fatal(err)
+	}
+	out := downstream.String()
+	if !strings.Contains(out, "event: message_delta") {
+		t.Errorf("expected message_delta (stop_reason) after finish-before-usage, got: %q", out)
+	}
+	if !strings.Contains(out, "event: message_stop") {
+		t.Errorf("expected message_stop, got: %q", out)
+	}
+	if strings.Count(out, "event: message_delta") != 1 {
+		t.Errorf("expected exactly 1 message_delta, got: %q", out)
+	}
+}
+
+func TestTranslateStream_FlushError_PropagatesErr(t *testing.T) {
+	upstream := "data: {\"id\":\"x\",\"object\":\"chat.completion.chunk\",\"created\":1,\"model\":\"m\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\"},\"finish_reason\":null}]}\n\n"
+	var downstream bytes.Buffer
+	flushErr := "simulated flush failure"
+	flush := func() error { return errors.New(flushErr) }
+	_, err := TranslateStream(strings.NewReader(upstream), &downstream, flush)
+	if err == nil {
+		t.Fatal("expected error from flush")
+	}
+	if !strings.Contains(err.Error(), flushErr) {
+		t.Errorf("expected flush error, got: %v", err)
 	}
 }
 

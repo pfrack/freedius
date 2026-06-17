@@ -35,6 +35,7 @@ func runInit(args []string) int {
 	}
 
 	output := *flagOutput
+	var backup string
 	if *flagDryRun {
 		fmt.Println(starterTemplate)
 		return 0
@@ -47,7 +48,7 @@ func runInit(args []string) int {
 
 	if *flagForce {
 		if _, err := os.Stat(output); err == nil {
-			backup := output + ".bak"
+			backup = output + ".bak"
 			if err := os.Rename(output, backup); err != nil {
 				fmt.Fprintf(os.Stderr, "freedius: backup %s failed: %v\n", backup, err)
 				return 1
@@ -63,7 +64,13 @@ func runInit(args []string) int {
 	}
 
 	if err := os.WriteFile(output, []byte(starterTemplate), 0o644); err != nil {
-		fmt.Fprintf(os.Stderr, "freedius: write %s: %v\n", output, err)
+		if output != "" && backup != "" {
+			if rerr := os.Rename(backup, output); rerr != nil {
+				fmt.Fprintf(os.Stderr, "freedius: write %s failed (%v); backup restored from %s (recovery also failed: %v)\n", output, err, backup, rerr)
+			} else {
+				fmt.Fprintf(os.Stderr, "freedius: write %s failed (%v); original restored from %s\n", output, err, backup)
+			}
+		}
 		return 1
 	}
 	fmt.Printf("wrote %s\n", output)

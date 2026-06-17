@@ -463,7 +463,7 @@ func TestProviderEnvVar(t *testing.T) {
 		{"zen", "zen", "OPENCODE_API_KEY"},
 		{"go", "go", "OPENCODE_API_KEY"},
 		{"openai has no default", "openai", ""},
-		{"anthropic has no default", "anthropic", ""},
+		{"anthropic has default", "anthropic", "ANTHROPIC_API_KEY"},
 		{"custom has no default", "custom", ""},
 		{"mix has no default", "mix", ""},
 		{"unknown", "unknown", ""},

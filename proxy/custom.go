@@ -11,8 +11,13 @@ type CustomAdapter struct {
 	inner *AnthropicCompatibleAdapter
 }
 
-func NewCustomAdapter(logger *slog.Logger) *CustomAdapter {
-	return &CustomAdapter{inner: NewAnthropicCompatibleAdapter(logger)}
+// NewCustomAdapter returns a `custom` provider adapter. The actual
+// request/response logic lives in AnthropicCompatibleAdapter
+// (proxy/anthropic_compat.go); this wrapper exists so the registry
+// can key `custom` separately and apply custom-only configuration.
+
+func NewCustomAdapter(logger *slog.Logger, verboseErrors bool) *CustomAdapter {
+	return &CustomAdapter{inner: NewAnthropicCompatibleAdapter(logger, verboseErrors)}
 }
 
 func (a *CustomAdapter) Handle(w http.ResponseWriter, r *http.Request, m config.Model, body []byte) error {

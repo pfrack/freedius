@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/pfrack/freedius/config"
 )
@@ -17,7 +18,7 @@ import (
 func newMixAdapter(t *testing.T) *MixAdapter {
 	t.Helper()
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	return NewMixAdapter(logger)
+	return NewMixAdapter(logger, false, 5*time.Minute)
 }
 
 func TestMixAdapter_AnthropicPassthrough(t *testing.T) {

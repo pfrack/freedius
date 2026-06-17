@@ -110,7 +110,7 @@ func convertToolChoice(tc any) any {
 	}
 	raw, err := json.Marshal(tc)
 	if err != nil {
-		return nil
+		return tc
 	}
 	var probe struct {
 		Type string `json:"type"`
@@ -266,7 +266,11 @@ func convertOneMessage(m anthropicMsgItem) ([]openAIMessage, error) {
 				case "tool_use":
 					id, _ := b["id"].(string)
 					name, _ := b["name"].(string)
-					inputRaw, _ := json.Marshal(b["input"])
+					input := b["input"]
+					if input == nil {
+						input = map[string]any{}
+					}
+					inputRaw, _ := json.Marshal(input)
 					tc := openAIToolCall{
 						Index: 0,
 						ID:    id,
@@ -613,6 +617,14 @@ func (e *emitter) emitThinkingDelta(thinking string) ([][]byte, error) {
 
 func (e *emitter) emitToolCall(tc openAIToolCall) ([][]byte, error) {
 	if _, ok := e.toolToBlock[tc.Index]; !ok {
+		var events [][]byte
+		if e.openBlock != "" {
+			ev, err := e.emitBlockStop()
+			if err != nil {
+				return nil, err
+			}
+			events = append(events, ev...)
+		}
 		e.toolToBlock[tc.Index] = e.blockIndex
 		if tc.ID != "" {
 			e.toolIDs[tc.Index] = tc.ID
@@ -636,8 +648,9 @@ func (e *emitter) emitToolCall(tc openAIToolCall) ([][]byte, error) {
 		if err != nil {
 			return nil, err
 		}
+		events = append(events, startEv...)
 		if tc.Function.Arguments == "" {
-			return startEv, nil
+			return events, nil
 		}
 		delta := map[string]any{
 			"type":  "content_block_delta",
@@ -651,7 +664,8 @@ func (e *emitter) emitToolCall(tc openAIToolCall) ([][]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-		return append(startEv, deltaEv...), nil
+		events = append(events, deltaEv...)
+		return events, nil
 	}
 	if tc.Function.Arguments == "" {
 		return nil, nil

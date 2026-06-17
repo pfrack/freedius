@@ -17,6 +17,7 @@ type Model struct {
 	Model            string `yaml:"model"`
 	BaseURL          string `yaml:"base_url,omitempty"`
 	APIKeyEnv        string `yaml:"api_key_env,omitempty"`
+	AnthropicVersion string `yaml:"anthropic_version,omitempty"`
 	OriginalProvider string `yaml:"-"`
 }
 

@@ -14,7 +14,7 @@ import (
 func newAnthropicCompatAdapter(t *testing.T) *AnthropicCompatibleAdapter {
 	t.Helper()
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	return NewAnthropicCompatibleAdapter(logger)
+	return NewAnthropicCompatibleAdapter(logger, false)
 }
 
 func TestAnthropicCompat_PassthroughText(t *testing.T) {

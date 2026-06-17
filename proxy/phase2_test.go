@@ -86,7 +86,7 @@ func TestDispatcher_AdapterError_ForwardedAsUpstreamError(t *testing.T) {
 
 func TestFreediusErrorHandler_UnifiedShape(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	handler := freediusErrorHandler(logger)
+	handler := freediusErrorHandler(logger, true)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 
@@ -137,7 +137,7 @@ func TestAdapter_ErrorTemplate_UsesOriginalProvider(t *testing.T) {
 			apiKeyEnv: "CUSTOM_KEY",
 			envValue:  "",
 			adapterCtor: func(l *slog.Logger) Provider {
-				return NewAnthropicCompatibleAdapter(l)
+				return NewAnthropicCompatibleAdapter(l, false)
 			},
 			wantContains: []string{"custom adapter (anthropic-compat)", "CUSTOM_KEY"},
 		},
@@ -147,7 +147,7 @@ func TestAdapter_ErrorTemplate_UsesOriginalProvider(t *testing.T) {
 			apiKeyEnv: "OPENCODE_API_KEY",
 			envValue:  "",
 			adapterCtor: func(l *slog.Logger) Provider {
-				return NewMixAdapter(l)
+				return NewMixAdapter(l, false, 5*time.Minute)
 			},
 			wantContains: []string{"zen adapter (anthropic-compat)", "OPENCODE_API_KEY"},
 		},
@@ -206,7 +206,7 @@ func TestOpenAICompat_MissingBaseURL_UsesOriginalProvider(t *testing.T) {
 }
 
 func TestAnthropicCompat_MissingBaseURL_UsesOriginalProvider(t *testing.T) {
-	a := NewAnthropicCompatibleAdapter(slog.New(slog.NewTextHandler(io.Discard, nil)))
+	a := NewAnthropicCompatibleAdapter(slog.New(slog.NewTextHandler(io.Discard, nil)), false)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader("{}"))
 	err := a.Handle(rec, req, config.Model{Provider: "anthropic", Model: "x", OriginalProvider: "custom"}, []byte("{}"))
@@ -259,7 +259,7 @@ func TestOpenAICompat_StreamTimeout_Honored(t *testing.T) {
 func TestMixAdapter_RoutingDebugLog(t *testing.T) {
 	logBuf := &bytes.Buffer{}
 	logger := slog.New(slog.NewTextHandler(logBuf, &slog.HandlerOptions{Level: slog.LevelDebug}))
-	mix := NewMixAdapter(logger)
+	mix := NewMixAdapter(logger, false, 5*time.Minute)
 
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)

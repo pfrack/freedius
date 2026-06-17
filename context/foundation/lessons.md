@@ -41,3 +41,15 @@ The `custom` provider alias is rewritten to `anthropic` in `applyDefaults()` (`c
 **Applies to**: All implementations of the `Provider` interface, especially `OpenAICompatibleAdapter` and future adapters.
 
 **Source**: `proxy/openai_compat.go` — Handle method return value handling.
+
+## Custom Provider: `x-api-key` + `anthropic-version` required
+
+**Context**: `proxy/anthropic_compat.go` — Anthropic-compatible adapter Handle method.
+
+**Problem**: The S-01 plan specified `Authorization: Bearer <key>` as the only auth header for custom providers, and explicitly deferred the `anthropic-version` header. The Anthropic API does not accept Bearer — it requires `x-api-key` and `anthropic-version: 2023-06-01`. The plan was wrong; code is right.
+
+**Rule**: Always set `x-api-key` and `anthropic-version: 2023-06-01` on outgoing request headers for Anthropic-compatible upstreams. Strip any stray `Authorization` header via `pr.Out.Header.Del("Authorization")` in the Rewrite function.
+
+**Applies to**: Future Anthropic-shaped adapters
+
+**Source**: `proxy/anthropic_compat.go` — Handle method lines 38-46.

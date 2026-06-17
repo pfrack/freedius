@@ -91,7 +91,7 @@ Lands the three server-wide middleware primitives (request-ID, panic recovery, a
 
 **Intent**: Generate a 32-hex-char request ID via `crypto/rand`, set an `X-Freedius-Request-ID` response header, store in `r.Context()`, and attach to the logger for all downstream log calls.
 
-**Contract**: Exported function `RequestIDMiddleware(logger *slog.Logger, next http.Handler) http.Handler`. Uses a `context.WithValue` with an unexported `contextKey` type. Helper `RequestIDFromContext(ctx) string` for extraction. Every log call in this file picks up `request_id` from context or falls back to `"unknown"`.
+**Contract**: Exported function `RequestIDMiddleware(next http.Handler) http.Handler` (no logger param — the middleware does not log directly). Uses a `context.WithValue` with an unexported `contextKey` type. Helper `RequestIDFromContext(ctx) string` for extraction. Every log call in this file picks up `request_id` from context or falls back to `""`.
 
 #### 2. Panic recovery middleware
 
@@ -115,7 +115,7 @@ Lands the three server-wide middleware primitives (request-ID, panic recovery, a
 
 **Intent**: Single helper producing `{"error":"<code>","message":"<human>","detail":"<optional>","request_id":"<id>"}`. Every failure path in `ServeHTTP` calls this instead of ad-hoc `writeError` or `writeJSON`. Replace the `{"status":"no_match"}` 404 shape; the code becomes `"no_match"`.
 
-**Contract**: `func (d *Dispatcher) writeErrorJSON(w http.ResponseWriter, status int, code string, message string, opts ...ErrorOption)` where `ErrorOption` is `WithDetail(string)` and `WithVerbose(error)`. The `request_id` is pulled from `r` if available, otherwise omitted. The `detail` field is included only when `opts` provides it AND `d.VerboseErrors` is true.
+**Contract**: `func (d *Dispatcher) writeErrorJSON(w http.ResponseWriter, r *http.Request, status int, code string, message string, opts ...ErrorOption)` where `ErrorOption` is `WithDetail(string)`. The `request_id` is pulled from `r.Context()` if available, otherwise omitted. The `detail` field is included only when `WithDetail` is provided AND `d.VerboseErrors` is true. (Deviation from draft: added `r *http.Request` param to avoid context-passing boilerplate; replaced planned `WithVerbose(error)` with a `VerboseErrors` field on the Dispatcher combined with `WithDetail(string)` for a simpler API.)
 
 #### 5. `--verbose-errors` flag
 
@@ -163,9 +163,9 @@ Same comment in `proxy/translate/anthropic_openai.go`.
 
 **File**: `main.go:93-96` (replace `mux.Handle("/", dispatcher)` with middleware stack)
 
-**Intent**: Wire the middleware stack outermost-to-innermost: `recoverMiddleware` → `accessLogMiddleware` → `requestIDMiddleware` → dispatcher.
+**Intent**: Wire the middleware stack outermost-to-innermost: `requestIDMiddleware` → `accessLogMiddleware` → `recoverMiddleware` → dispatcher. Request-ID middleware is outermost so every downstream handler, including the recover handler, can read the request ID from context.
 
-**Contract**: The `mux.Handle("/", ...)` call passes the dispatcher through three wrappers. `RecoverMiddleware` wraps `AccessLogMiddleware` wraps `RequestIDMiddleware` wraps dispatcher.
+**Contract**: The `mux.Handle("/", ...)` call passes the dispatcher through three wrappers. `RequestIDMiddleware` wraps `AccessLogMiddleware` wraps `RecoverMiddleware` wraps dispatcher.
 
 ### Success Criteria:
 
@@ -253,7 +253,7 @@ Fixes pre-WriteHeader error forwarding in the dispatcher (replacing generic `"up
 **Contract**:
 - Add `slog.Info("freedius starting")` as the first log line after handler creation (before config load).
 - `resolveConfigPath` failure: single `slog.Error` message (not two).
-- `failf` becomes a thin wrapper over `slog.Error` + `os.Stderr`. Actually, `failf` already writes to stderr and returns error code. Change: make it also call `slog.Error` for consistency with the rest of the startup path. Keep the stderr write for cases where slog hasn't been initialized yet (early flag parse failures).
+- `failf` remains a thin stderr writer only (no `slog.Error` call), because it is used before the logger is fully initialized (early flag parse failures). The logger-based error path is handled by the caller separately when the logger is available.
 
 #### 7. `checkRequiredEnvVars` fix (dead code)
 
@@ -745,3 +745,35 @@ set -gx DISABLE_ERROR_REPORTING "1"
 - [x] 4.17 `freedius init --shell-install --force` replaces block (not doubled)
 - [x] 4.18 `freedius serve` prints eval-snippet; `freedius serve --no-export-hint` suppresses it — fe56264
 - [x] 4.19 `freedius init --no-env` writes config only, no settings.json mutation
+
+## Post-Review Addenda
+
+The following changes were shipped with this commit but were not in the original plan. They are documented here for completeness.
+
+### A. Auto-write starter config when none found
+
+When the default config path does not exist and no explicit `--config` was given, freedius now auto-writes the embedded starter template and starts the server instead of failing with "config not found". This improves first-run developer experience.
+
+**File**: `main.go:155-172`
+
+### B. Rename NIM_API_KEY → NVIDIA_NIM_API_KEY
+
+The env var for NIM API key was renamed from `NIM_API_KEY` to `NVIDIA_NIM_API_KEY` across all source, tests, manual scripts, and context docs for clarity and consistency with NVIDIA's naming conventions.
+
+### C. Default port 8080 → 8082
+
+The default listen port changed from 8080 to 8082 to reduce conflicts with common local services.
+
+### D. Starter template uses go/zen providers with OPENCODE_API_KEY
+
+The auto-written starter template now uses `go`/`zen` providers (which delegate to `openai`/`anthropic`/`mix` internally) with `api_key_env: OPENCODE_API_KEY` instead of `nim` with `NVIDIA_NIM_API_KEY`, since the template targets opencode.ai users.
+
+### E. Starter model mapping updates
+
+Mappings were adjusted: `sonnet` → `deepseek-v4-fresh`, `haiku` → `nim step-3.5`, `auto` → `deepseek-v4-fresh`, with corrected model IDs (`deepseek-ai/deepseek-v4-pro`, etc.). All `go` entries use `/v1/messages` or `/v1/chat/completions` based on the upstream format.
+
+### F. Support system message role in Anthropic→OpenAI conversion
+
+Claude Code sends system prompts as messages with `role: system`. The converter previously returned "unsupported message role" and a 502. Now maps `system` role directly to OpenAI's system message role.
+
+**File**: `proxy/translate/anthropic_openai.go:303-322`

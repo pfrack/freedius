@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/pfrack/freedius/config"
 	"github.com/pfrack/freedius/proxy/translate"
@@ -17,11 +18,11 @@ type MixAdapter struct {
 	logger    *slog.Logger
 }
 
-func NewMixAdapter(logger *slog.Logger) *MixAdapter {
-	openai := NewOpenAICompatibleAdapter(logger)
+func NewMixAdapter(logger *slog.Logger, verboseErrors bool, streamTimeout time.Duration) *MixAdapter {
+	openai := NewOpenAICompatibleAdapterWithTimeout(logger, streamTimeout)
 	openai.translateOpts = translate.TranslateOpts{NoStreamUsage: true}
 	return &MixAdapter{
-		anthropic: NewAnthropicCompatibleAdapter(logger),
+		anthropic: NewAnthropicCompatibleAdapter(logger, verboseErrors),
 		openai:    openai,
 		logger:    logger.With("component", "adapter.mix"),
 	}

@@ -123,13 +123,17 @@ func (d *Dispatcher) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		d.writeErrorJSON(w, r, http.StatusInternalServerError, "provider_not_registered", fmt.Sprintf("provider %q is not registered in this freedius build", originalOr(m)))
 		return
 	}
-	if err := adapter.Handle(w, r, m, body); err != nil {
-		// Per Adapter Return Contract (lessons.md): pre-WriteHeader errors are returned by
-		// the adapter; post-WriteHeader errors are logged but the adapter returns nil.
-		// When we get here, headers have NOT been written yet (otherwise adapter would have
-		// returned nil). Forward the original error to the client, gated by --verbose-errors.
-		d.Logger.Error("adapter failed", "request_id", RequestIDFromContext(r.Context()), "provider", originalOr(m), "err", err)
-		d.writeErrorJSON(w, r, http.StatusBadGateway, "upstream_error", "request to upstream provider failed", WithDetail(err.Error()))
+	ww := &wroteHeaderResponseWriter{ResponseWriter: w}
+	if err := adapter.Handle(ww, r, m, body); err != nil {
+		if !ww.wroteHeader {
+			// Pre-WriteHeader error — safe to forward to the client.
+			d.Logger.Error("adapter failed", "request_id", RequestIDFromContext(r.Context()), "provider", originalOr(m), "err", err)
+			d.writeErrorJSON(w, r, http.StatusBadGateway, "upstream_error", "request to upstream provider failed", WithDetail(err.Error()))
+		} else {
+			// Post-WriteHeader error — adapter already sent a response.
+			// Log and discard to avoid "superfluous WriteHeader" panics.
+			d.Logger.Error("adapter returned error after writing response headers", "request_id", RequestIDFromContext(r.Context()), "provider", originalOr(m), "err", err)
+		}
 	}
 }
 
@@ -240,9 +244,10 @@ func RecoverMiddleware(logger *slog.Logger, verboseErrors bool, next http.Handle
 			if rec == nil {
 				return
 			}
-			// RecoverMiddleware is wired outermost, so r.Context() does NOT carry
-			// the inner RequestIDMiddleware's ID. Read it from the response header
-			// that RequestIDMiddleware set on the wrapper (which forwards to w).
+			// RecoverMiddleware is wired one layer below RequestIDMiddleware, so
+			// r.Context() carries the request ID. We read from the response header
+			// as a deliberate robustness choice — it works regardless of middleware
+			// reordering.
 			id := ww.Header().Get("X-Freedius-Request-ID")
 			stack := debug.Stack()
 			logger.Error("panic recovered",

@@ -23,6 +23,9 @@ var knownProviderDefaults = map[string]modelDefaults{
 	"go": {
 		APIKeyEnv: "OPENCODE_API_KEY",
 	},
+	"anthropic": {
+		APIKeyEnv: "ANTHROPIC_API_KEY",
+	},
 }
 
 func ProviderEnvVar(name string) string {

@@ -33,7 +33,8 @@ A developer using Claude Code wants to route LLM calls to cheaper or free provid
 | S-03 | zen-go-adapters    | route calls to Opencode Zen or Opencode Go via multi-format adapters (Anthropic-format and OpenAI-format per model) | S-01, S-02    | FR-007, FR-008, NFR-Error-handling               | proposed |
 | S-04 | error-hardening    | get clear error messages on config mistakes and provider failures; freedius auto-injects Claude Code env vars; `freedius init` generates a starter config template | S-01          | FR-004, Success-Criteria-Secondary, NFR-Error-handling | proposed |
 | S-05 | opencode-nim-fixes | route calls to OpenCode Go Anthropic-format models (MiniMax, Qwen on `/v1/messages`) without 401; NIM streaming delivers reasoning content instead of empty/malformed SSE responses | S-03          | FR-006, FR-007, FR-008, NFR-Error-handling       | proposed |
-| S-06 | provider-codegen   | add a new provider by adding one entry to `providers.yaml` and running `go generate` — all boilerplate (adapters, config maps, registry, validation) is generated | S-05          | FR-003, FR-004                                   | proposed |
+| S-06 | custom-to-mix-protocol | use `provider: custom` with any endpoint — freedius auto-detects protocol from URL or user sets explicit `protocol: openai\|anthropic` field | S-03          | FR-003, FR-009                                   | proposed |
+| S-07 | provider-codegen   | add a new provider by adding one entry to `providers.yaml` and running `go generate` — all boilerplate (adapters, config maps, registry, validation) is generated | S-05, S-06    | FR-003, FR-004                                   | proposed |
 
 ## Baseline
 
@@ -129,13 +130,25 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Risk:** The auth change (`x-api-key` instead of `Authorization: Bearer`) is a universal shift for all Anthropic-compatible providers. Any custom provider configured with `provider: custom` or `provider: anthropic` that relied on the old `Authorization: Bearer` header will break — but those providers were already violating the Anthropic spec, so this is a correctness fix, not a regression. The S-03 research explicitly flagged the `anthropic-version` header as an unknown (see S-03 Unknowns item #1); this slice resolves it. NIM SSE fixes only affect NIM, which currently produces no useful output — this is purely additive.
 - **Status:** proposed
 
-### S-06: Provider codegen — `go:generate` from `providers.yaml`
+### S-06: Custom → mix + protocol field
+
+- **Outcome:** user can use `provider: custom` with any endpoint (OpenAI-compatible or Anthropic-compatible) — freedius auto-detects the protocol from `base_url` path (existing `mix` behavior) or the user explicitly sets `protocol: openai` or `protocol: anthropic` to override when URLs are ambiguous. The `CustomAdapter` struct is removed; `custom` is rewritten to `mix` in `applyDefaults()` following the same pattern as `zen`/`go`.
+- **Change ID:** custom-to-mix-protocol
+- **PRD refs:** FR-003, FR-009
+- **Prerequisites:** S-03 (depends on `MixAdapter` being the proven multi-format router)
+- **Parallel with:** S-05
+- **Blockers:** —
+- **Unknowns:** —
+- **Risk:** Low — follows the exact rewrite pattern already used for `zen`/`go` → `mix`. The `protocol` field is additive (optional, validated at config load). Existing `custom` configs with `/v1/messages` URLs keep working because `mix` already routes them to the Anthropic adapter. The only risk is users with ambiguous URLs who relied on the implicit "always Anthropic" behavior — they'd need to add `protocol: anthropic`.
+- **Status:** proposed
+
+### S-07: Provider codegen — `go:generate` from `providers.yaml`
 
 - **Outcome:** adding a new provider requires only a one-entry addition to `providers.yaml` + `go generate ./...` — all boilerplate (thin adapter wrappers, `KnownProviders` map, `knownProviderDefaults`, rewrite rules, `base_url` validation list, registry construction) is generated at compile time. The three core adapters (`openai_compat.go`, `anthropic_compat.go`, `mix.go`) remain hand-written.
 - **Change ID:** provider-codegen
 - **PRD refs:** FR-003, FR-004
-- **Prerequisites:** S-05 (needs auth scheme (`x-api-key` vs `Bearer`), NIM body sanitization, and SSE stream translation patterns stabilized before extracting them into a codegen template — without S-05, the generated code would embed the wrong auth header for Anthropic-format providers)
-- **Parallel with:** S-04
+- **Prerequisites:** S-05, S-06 (needs auth scheme (`x-api-key` vs `Bearer`), NIM body sanitization, SSE stream translation patterns, and the `protocol` field all stabilized before extracting them into a codegen template)
+- **Parallel with:** —
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** Low — this is a pure internal refactor with no user-facing behavior change. The generated code is deterministic and reviewable. Risk is over-abstracting: the template must stay simple enough that reading a generated file is trivial.
@@ -151,7 +164,8 @@ Foundations below assume these are present and do NOT re-scaffold them.
 | S-03       | zen-go-adapters    | Opencode Zen + Go multi-format adapters   | no                    | Needs S-01 and S-02. Runs parallel with S-04. The `ZenAdapter`/`GoAdapter` are thin routers on S-02's compat adapters. |
 | S-04       | error-hardening    | Error hardening + env auto-injection + config template | no                    | Needs S-01. Runs parallel with S-02 and S-03. |
 | S-05       | opencode-nim-fixes | OpenCode Go Anthropic-format 401 fix + NIM SSE reasoning fixes | no                    | Needs S-03. Auth change (x-api-key) applies universally to all Anthropic-compat providers. |
-| S-06       | provider-codegen   | Provider codegen — go:generate boilerplate from providers.yaml | no                    | Needs S-05. Auth scheme and SSE patterns must be stable before codegen extraction. |
+| S-06       | custom-to-mix-protocol | Custom → mix + protocol field — remove CustomAdapter, add protocol config field | no                    | Needs S-03. Runs parallel with S-05. Small refactor following existing zen/go pattern. |
+| S-07       | provider-codegen   | Provider codegen — go:generate boilerplate from providers.yaml | no                    | Needs S-05, S-06. Auth scheme, SSE patterns, and protocol field must be stable before codegen extraction. |
 
 ## Open Roadmap Questions
 

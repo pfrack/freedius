@@ -23,8 +23,9 @@ func forwardUpstreamError(w http.ResponseWriter, resp *http.Response) error {
 // freediusErrorHandler returns a transport-error handler for httputil.ReverseProxy
 // that emits the unified error JSON shape (`error` / `message` / `detail` /
 // `request_id`). Client cancellations are still logged at Debug and produce
-// no response body — the connection simply closes.
-func freediusErrorHandler(logger *slog.Logger) func(http.ResponseWriter, *http.Request, error) {
+// no response body — the connection simply closes. The `detail` field is
+// gated on verboseErrors, matching writeErrorJSON (proxy.go:165).
+func freediusErrorHandler(logger *slog.Logger, verboseErrors bool) func(http.ResponseWriter, *http.Request, error) {
 	return func(w http.ResponseWriter, r *http.Request, err error) {
 		if errors.Is(err, context.Canceled) {
 			logger.Debug("client disconnect", "request_id", RequestIDFromContext(r.Context()), "path", r.URL.Path)
@@ -38,7 +39,9 @@ func freediusErrorHandler(logger *slog.Logger) func(http.ResponseWriter, *http.R
 		body := map[string]string{
 			"error":   "upstream_unreachable",
 			"message": "upstream not reachable",
-			"detail":  err.Error(),
+		}
+		if verboseErrors {
+			body["detail"] = err.Error()
 		}
 		if id := RequestIDFromContext(r.Context()); id != "" {
 			body["request_id"] = id
