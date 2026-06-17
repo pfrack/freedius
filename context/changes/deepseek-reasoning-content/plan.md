@@ -233,19 +233,19 @@ This ensures that even when Claude Code sends back `{"type": "thinking", "thinki
 
 #### Automated
 
-- [x] 1.1 Change ReasoningContent to *string in types.go + add strPtr helper
-- [x] 1.2 Update convertOneMessage to collect thinkingParts and use strPtr
-- [x] 1.3 Add post-pass in convertMessages for tool_call messages
-- [x] 1.4 Test: reasoning_content present on tool_call messages with thinking
-- [x] 1.5 Test: placeholder injected on tool_call messages without thinking
-- [x] 1.6 Test: no reasoning_content when no thinking in conversation
-- [x] 1.7 Test: multiple thinking blocks concatenated with newline
-- [x] 1.8 Test: assistant message without tool_calls — no injection
+- [x] 1.1 Change ReasoningContent to *string in types.go + add strPtr helper — e347cd7
+- [x] 1.2 Update convertOneMessage to collect thinkingParts and use strPtr — e347cd7
+- [x] 1.3 Add post-pass in convertMessages for tool_call messages — e347cd7
+- [x] 1.4 Test: reasoning_content present on tool_call messages with thinking — e347cd7
+- [x] 1.5 Test: placeholder injected on tool_call messages without thinking — e347cd7
+- [x] 1.6 Test: no reasoning_content when no thinking in conversation — e347cd7
+- [x] 1.7 Test: multiple thinking blocks concatenated with newline — e347cd7
+- [x] 1.8 Test: assistant message without tool_calls — no injection — e347cd7
 
 ### Phase 2: Handle thinking blocks with empty text
 
 #### Automated
 
-- [x] 2.1 Empty thinking blocks produce space placeholder
-- [x] 2.2 All tests pass: `go test ./proxy/translate/...`
-- [x] 2.3 Build passes: `go build ./...`
+- [x] 2.1 Empty thinking blocks produce space placeholder — e347cd7
+- [x] 2.2 All tests pass: `go test ./proxy/translate/...` — e347cd7
+- [x] 2.3 Build passes: `go build ./...` — e347cd7
