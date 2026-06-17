@@ -1243,3 +1243,179 @@ func TestTranslateRequest_NoStreamUsageFalseIncludesStreamOptions(t *testing.T) 
 		t.Errorf("include_usage: got %v, want true", streamOpts["include_usage"])
 	}
 }
+
+func TestTranslateRequest_ReasoningContentOnToolCallWithThinking(t *testing.T) {
+	in := []byte(`{
+		"model":"x",
+		"max_tokens":10,
+		"messages":[
+			{"role":"user","content":"hi"},
+			{"role":"assistant","content":[
+				{"type":"thinking","thinking":"let me reason"},
+				{"type":"tool_use","id":"t1","name":"do","input":{}}
+			]}
+		]
+	}`)
+	out, err := TranslateRequest(in, "x", TranslateOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got map[string]any
+	_ = json.Unmarshal(out, &got)
+	msgs := got["messages"].([]any)
+	assistant := msgs[1].(map[string]any)
+	rc, ok := assistant["reasoning_content"]
+	if !ok {
+		t.Fatal("reasoning_content missing on tool_call message with thinking")
+	}
+	if rc != "let me reason" {
+		t.Errorf("reasoning_content: got %v, want 'let me reason'", rc)
+	}
+}
+
+func TestTranslateRequest_PlaceholderInjectedOnToolCallWithoutThinking(t *testing.T) {
+	in := []byte(`{
+		"model":"x",
+		"max_tokens":10,
+		"messages":[
+			{"role":"user","content":"hi"},
+			{"role":"assistant","content":[
+				{"type":"thinking","thinking":"reasoning here"},
+				{"type":"text","text":"answer"}
+			]},
+			{"role":"user","content":"use tool"},
+			{"role":"assistant","content":[
+				{"type":"tool_use","id":"t1","name":"do","input":{}}
+			]}
+		]
+	}`)
+	out, err := TranslateRequest(in, "x", TranslateOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got map[string]any
+	_ = json.Unmarshal(out, &got)
+	msgs := got["messages"].([]any)
+	// msgs[2] is the second assistant (tool_call without thinking)
+	assistant := msgs[3].(map[string]any)
+	rc, ok := assistant["reasoning_content"]
+	if !ok {
+		t.Fatal("reasoning_content missing — placeholder should be injected")
+	}
+	if rc != " " {
+		t.Errorf("reasoning_content: got %q, want single space", rc)
+	}
+}
+
+func TestTranslateRequest_NoReasoningWhenNoThinkingInConversation(t *testing.T) {
+	in := []byte(`{
+		"model":"x",
+		"max_tokens":10,
+		"messages":[
+			{"role":"user","content":"hi"},
+			{"role":"assistant","content":[
+				{"type":"tool_use","id":"t1","name":"do","input":{}}
+			]}
+		]
+	}`)
+	out, err := TranslateRequest(in, "x", TranslateOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got map[string]any
+	_ = json.Unmarshal(out, &got)
+	msgs := got["messages"].([]any)
+	assistant := msgs[1].(map[string]any)
+	if _, ok := assistant["reasoning_content"]; ok {
+		t.Error("reasoning_content should NOT be present when no thinking in conversation")
+	}
+}
+
+func TestTranslateRequest_MultipleThinkingBlocksConcatenated(t *testing.T) {
+	in := []byte(`{
+		"model":"x",
+		"max_tokens":10,
+		"messages":[
+			{"role":"user","content":"hi"},
+			{"role":"assistant","content":[
+				{"type":"thinking","thinking":"hello"},
+				{"type":"thinking","thinking":"world"},
+				{"type":"text","text":"done"}
+			]}
+		]
+	}`)
+	out, err := TranslateRequest(in, "x", TranslateOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got map[string]any
+	_ = json.Unmarshal(out, &got)
+	msgs := got["messages"].([]any)
+	assistant := msgs[1].(map[string]any)
+	rc, ok := assistant["reasoning_content"]
+	if !ok {
+		t.Fatal("reasoning_content missing")
+	}
+	if rc != "hello\nworld" {
+		t.Errorf("reasoning_content: got %q, want %q", rc, "hello\nworld")
+	}
+}
+
+func TestTranslateRequest_NoInjectionOnAssistantWithoutToolCalls(t *testing.T) {
+	in := []byte(`{
+		"model":"x",
+		"max_tokens":10,
+		"messages":[
+			{"role":"user","content":"hi"},
+			{"role":"assistant","content":[
+				{"type":"thinking","thinking":"deep thought"},
+				{"type":"tool_use","id":"t1","name":"do","input":{}}
+			]},
+			{"role":"user","content":"thanks"},
+			{"role":"assistant","content":[
+				{"type":"text","text":"you're welcome"}
+			]}
+		]
+	}`)
+	out, err := TranslateRequest(in, "x", TranslateOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got map[string]any
+	_ = json.Unmarshal(out, &got)
+	msgs := got["messages"].([]any)
+	// Last assistant has no tool_calls — should NOT get reasoning injected
+	lastAssistant := msgs[3].(map[string]any)
+	if _, ok := lastAssistant["reasoning_content"]; ok {
+		t.Error("reasoning_content should NOT be injected on assistant without tool_calls")
+	}
+}
+
+func TestTranslateRequest_EmptyThinkingBlockProducesPlaceholder(t *testing.T) {
+	in := []byte(`{
+		"model":"x",
+		"max_tokens":10,
+		"messages":[
+			{"role":"user","content":"hi"},
+			{"role":"assistant","content":[
+				{"type":"thinking","thinking":""},
+				{"type":"text","text":"answer"}
+			]}
+		]
+	}`)
+	out, err := TranslateRequest(in, "x", TranslateOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got map[string]any
+	_ = json.Unmarshal(out, &got)
+	msgs := got["messages"].([]any)
+	assistant := msgs[1].(map[string]any)
+	rc, ok := assistant["reasoning_content"]
+	if !ok {
+		t.Fatal("reasoning_content missing — empty thinking should still produce field")
+	}
+	if rc != " " {
+		t.Errorf("reasoning_content: got %q, want single space placeholder", rc)
+	}
+}

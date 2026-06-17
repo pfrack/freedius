@@ -137,6 +137,8 @@ func convertToolChoice(tc any) any {
 	}
 }
 
+func strPtr(s string) *string { return &s }
+
 func convertMessages(system any, msgs []anthropicMsgItem) ([]openAIMessage, error) {
 	var out []openAIMessage
 
@@ -151,6 +153,25 @@ func convertMessages(system any, msgs []anthropicMsgItem) ([]openAIMessage, erro
 		}
 		out = append(out, converted...)
 	}
+
+	// Post-pass: if any assistant message has reasoning, ensure all assistant
+	// messages with tool_calls also have it (DeepSeek/Kimi require non-empty
+	// reasoning_content on tool_call messages once thinking mode is active).
+	hasReasoning := false
+	for _, m := range out {
+		if m.Role == "assistant" && m.ReasoningContent != nil {
+			hasReasoning = true
+			break
+		}
+	}
+	if hasReasoning {
+		for i := range out {
+			if out[i].Role == "assistant" && len(out[i].ToolCalls) > 0 && out[i].ReasoningContent == nil {
+				out[i].ReasoningContent = strPtr(" ")
+			}
+		}
+	}
+
 	return out, nil
 }
 
@@ -222,12 +243,10 @@ func convertOneMessage(m anthropicMsgItem) ([]openAIMessage, error) {
 		om := openAIMessage{Role: "assistant"}
 		var textParts []string
 		var toolCalls []openAIToolCall
+		var thinkingParts []string
 
 		if str, ok := m.Content.(string); ok && str != "" {
 			textParts = append(textParts, str)
-			if om.ReasoningContent == "" && m.ReasoningContent != "" {
-				om.ReasoningContent = m.ReasoningContent
-			}
 		} else {
 			var blocks []map[string]any
 			if err := json.Unmarshal(raw, &blocks); err != nil {
@@ -243,9 +262,7 @@ func convertOneMessage(m anthropicMsgItem) ([]openAIMessage, error) {
 					}
 				case "thinking":
 					thinking, _ := b["thinking"].(string)
-					if thinking != "" {
-						om.ReasoningContent = thinking
-					}
+					thinkingParts = append(thinkingParts, thinking)
 				case "tool_use":
 					id, _ := b["id"].(string)
 					name, _ := b["name"].(string)
@@ -264,14 +281,21 @@ func convertOneMessage(m anthropicMsgItem) ([]openAIMessage, error) {
 			}
 		}
 
+		if len(thinkingParts) > 0 {
+			joined := strings.Join(thinkingParts, "\n")
+			if strings.TrimSpace(joined) == "" {
+				joined = " "
+			}
+			om.ReasoningContent = strPtr(joined)
+		}
 		if len(textParts) > 0 {
 			om.Content = strings.Join(textParts, "")
 		}
 		if len(toolCalls) > 0 {
 			om.ToolCalls = toolCalls
 		}
-		if om.ReasoningContent == "" && m.ReasoningContent != "" {
-			om.ReasoningContent = m.ReasoningContent
+		if om.ReasoningContent == nil && m.ReasoningContent != "" {
+			om.ReasoningContent = strPtr(m.ReasoningContent)
 		}
 		return []openAIMessage{om}, nil
 	}
