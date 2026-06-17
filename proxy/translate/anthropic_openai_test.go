@@ -1013,3 +1013,119 @@ data: [DONE]
 		t.Errorf("expected message_stop, got: %q", out)
 	}
 }
+
+func TestTranslateStream_SingleReasoningDelta(t *testing.T) {
+	upstream := `data: {"id":"x","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}
+
+data: {"id":"x","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{"reasoning_content":"thinking hard"},"finish_reason":null}]}
+
+data: {"id":"x","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}
+
+data: [DONE]
+
+`
+	var downstream bytes.Buffer
+	flush := func() error { return nil }
+	if err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
+		t.Fatal(err)
+	}
+	out := downstream.String()
+	if !strings.Contains(out, `"type":"thinking"`) {
+		t.Errorf("expected thinking content_block, got: %q", out)
+	}
+	if !strings.Contains(out, `"type":"thinking_delta"`) {
+		t.Errorf("expected thinking_delta event, got: %q", out)
+	}
+	if !strings.Contains(out, `"thinking":"thinking hard"`) {
+		t.Errorf("expected thinking content in delta, got: %q", out)
+	}
+}
+
+func TestTranslateStream_MultipleReasoningDeltas(t *testing.T) {
+	upstream := `data: {"id":"x","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}
+
+data: {"id":"x","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{"reasoning_content":"first "},"finish_reason":null}]}
+
+data: {"id":"x","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{"reasoning_content":"second"},"finish_reason":null}]}
+
+data: {"id":"x","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}
+
+data: [DONE]
+
+`
+	var downstream bytes.Buffer
+	flush := func() error { return nil }
+	if err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
+		t.Fatal(err)
+	}
+	out := downstream.String()
+	startCount := strings.Count(out, `"type":"thinking"`)
+	if startCount != 1 {
+		t.Errorf("expected exactly 1 content_block_start(type=thinking), got %d in %q", startCount, out)
+	}
+	deltaCount := strings.Count(out, `"type":"thinking_delta"`)
+	if deltaCount != 2 {
+		t.Errorf("expected 2 thinking_delta events, got %d in %q", deltaCount, out)
+	}
+}
+
+func TestTranslateStream_ReasoningThenTextTransition(t *testing.T) {
+	upstream := `data: {"id":"x","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}
+
+data: {"id":"x","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{"reasoning_content":"thinking"},"finish_reason":null}]}
+
+data: {"id":"x","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{"content":"answer"},"finish_reason":null}]}
+
+data: {"id":"x","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}
+
+data: [DONE]
+
+`
+	var downstream bytes.Buffer
+	flush := func() error { return nil }
+	if err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
+		t.Fatal(err)
+	}
+	out := downstream.String()
+	if !strings.Contains(out, `"type":"thinking"`) {
+		t.Errorf("expected thinking block, got: %q", out)
+	}
+	if !strings.Contains(out, `"type":"text"`) {
+		t.Errorf("expected text block, got: %q", out)
+	}
+	// content_block_stop should appear at least twice (once for thinking, once for text)
+	stopCount := strings.Count(out, "content_block_stop")
+	if stopCount < 2 {
+		t.Errorf("expected at least 2 content_block_stop events (thinking close + text close), got %d in %q", stopCount, out)
+	}
+}
+
+func TestTranslateStream_TextThenReasoningTransition(t *testing.T) {
+	upstream := `data: {"id":"x","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}
+
+data: {"id":"x","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{"content":"hi"},"finish_reason":null}]}
+
+data: {"id":"x","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{"reasoning_content":"thought"},"finish_reason":null}]}
+
+data: {"id":"x","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}
+
+data: [DONE]
+
+`
+	var downstream bytes.Buffer
+	flush := func() error { return nil }
+	if err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
+		t.Fatal(err)
+	}
+	out := downstream.String()
+	if !strings.Contains(out, `"type":"text"`) {
+		t.Errorf("expected text block, got: %q", out)
+	}
+	if !strings.Contains(out, `"type":"thinking"`) {
+		t.Errorf("expected thinking block, got: %q", out)
+	}
+	stopCount := strings.Count(out, "content_block_stop")
+	if stopCount < 2 {
+		t.Errorf("expected at least 2 content_block_stop events (text close + thinking close), got %d in %q", stopCount, out)
+	}
+}

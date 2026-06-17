@@ -386,10 +386,10 @@ The function:
 
 #### Automated
 
-- [x] 1.1 `go build ./...` compiles cleanly
-- [x] 1.2 `go vet ./...` passes
-- [x] 1.3 `go test ./proxy/... -run "AnthropicCompat|MixAnthropic|CustomAdapter" -v` — all tests pass with updated header assertions
-- [x] 1.4 `make ci` passes
+- [x] 1.1 `go build ./...` compiles cleanly — 223c7c0
+- [x] 1.2 `go vet ./...` passes — 223c7c0
+- [x] 1.3 `go test ./proxy/... -run "AnthropicCompat|MixAnthropic|CustomAdapter" -v` — all tests pass with updated header assertions — 223c7c0
+- [x] 1.4 `make ci` passes — 223c7c0
 
 #### Manual
 
@@ -399,10 +399,10 @@ The function:
 
 #### Automated
 
-- [ ] 2.1 `go build ./...` compiles cleanly
-- [ ] 2.2 `go vet ./...` passes
-- [ ] 2.3 `go test ./proxy/translate/... -v` — new and existing translate tests pass
-- [ ] 2.4 `make ci` passes
+- [x] 2.1 `go build ./...` compiles cleanly
+- [x] 2.2 `go vet ./...` passes
+- [x] 2.3 `go test ./proxy/translate/... -v` — new and existing translate tests pass
+- [x] 2.4 `make ci` passes
 
 #### Manual
 

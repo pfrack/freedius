@@ -416,6 +416,13 @@ func (e *emitter) consume(payload []byte) ([][]byte, error) {
 			}
 			events = append(events, ev...)
 		}
+		if ch.Delta.ReasoningContent != "" {
+			ev, err := e.emitThinkingDelta(ch.Delta.ReasoningContent)
+			if err != nil {
+				return nil, err
+			}
+			events = append(events, ev...)
+		}
 		if ch.Delta.Content != "" {
 			ev, err := e.emitText(ch.Delta.Content)
 			if err != nil {
@@ -523,6 +530,48 @@ func (e *emitter) emitText(text string) ([][]byte, error) {
 	return events, nil
 }
 
+func (e *emitter) emitThinkingDelta(thinking string) ([][]byte, error) {
+	var events [][]byte
+	if e.openBlock != "thinking" {
+		if e.openBlock != "" {
+			ev, err := e.emitBlockStop()
+			if err != nil {
+				return nil, err
+			}
+			events = append(events, ev...)
+		}
+		start := map[string]any{
+			"type":  "content_block_start",
+			"index": e.blockIndex,
+			"content_block": map[string]any{
+				"type":     "thinking",
+				"thinking": "",
+			},
+		}
+		ev, err := e.emit("content_block_start", start)
+		if err != nil {
+			return nil, err
+		}
+		events = append(events, ev...)
+		e.blockIndex++
+		e.openBlock = "thinking"
+	}
+	delta := map[string]any{
+		"type":  "content_block_delta",
+		"index": e.blockIndex - 1,
+		"delta": map[string]any{
+			"type":     "thinking_delta",
+			"thinking": thinking,
+		},
+	}
+	ev, err := e.emit("content_block_delta", delta)
+	if err != nil {
+		return nil, err
+	}
+	events = append(events, ev...)
+	return events, nil
+}
+
 func (e *emitter) emitToolCall(tc openAIToolCall) ([][]byte, error) {
 	if _, ok := e.toolToBlock[tc.Index]; !ok {
 		e.toolToBlock[tc.Index] = e.blockIndex
@@ -610,7 +659,7 @@ func (e *emitter) emitFinish(reason string) ([][]byte, error) {
 
 func (e *emitter) emitBlockStop() ([][]byte, error) {
 	idx := e.blockIndex
-	if e.openBlock == "text" || e.openBlock == "tool" {
+	if e.openBlock == "text" || e.openBlock == "tool" || e.openBlock == "thinking" {
 		idx--
 	}
 	payload := map[string]any{
