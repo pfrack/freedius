@@ -716,8 +716,8 @@ set -gx DISABLE_ERROR_REPORTING "1"
 
 #### Manual
 
-- [ ] 3.10 `freedius init` in fresh directory produces valid, readable config
-- [ ] 3.11 Re-run `freedius init` shows helpful refusal message
+- [x] 3.10 `freedius init` in fresh directory produces valid, readable config — 1d82761
+- [x] 3.11 Re-run `freedius init` shows helpful refusal message — 1d82761
 
 ### Phase 4: Env auto-injection
 
