@@ -152,10 +152,24 @@ func runServe(args []string) int {
 	}
 	cfg, err := config.Load(cfgPath)
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return failf("freedius: %s \u2014 create one or pass --config <path>", err)
+		if errors.Is(err, os.ErrNotExist) && *flagConfig == "" {
+			baseLogger.Info("no config found, writing default config", "path", cfgPath)
+			if parent := filepath.Dir(cfgPath); parent != "." {
+				if err := os.MkdirAll(parent, 0o755); err != nil {
+					return failf("freedius: cannot create config directory %s: %v", parent, err)
+				}
+			}
+			if err := os.WriteFile(cfgPath, []byte(starterTemplate), 0o644); err != nil {
+				return failf("freedius: write default config %s: %v", cfgPath, err)
+			}
+			fmt.Fprintf(os.Stderr, "wrote default config to %s\n", cfgPath)
+			cfg, err = config.Load(cfgPath)
+			if err != nil {
+				return failf("freedius: %s", err)
+			}
+		} else {
+			return failf("freedius: %s", err)
 		}
-		return failf("freedius: %s", err)
 	}
 
 	if err := checkRequiredEnvVars(cfg); err != nil {
