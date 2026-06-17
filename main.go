@@ -24,7 +24,7 @@ import (
 
 const (
 	defaultHost         = "127.0.0.1"
-	defaultPort         = 8080
+	defaultPort         = 8082
 	shutdownTimeout     = 5 * time.Second
 	readHeaderTimeout   = 5 * time.Second
 	readTimeout         = 30 * time.Second
