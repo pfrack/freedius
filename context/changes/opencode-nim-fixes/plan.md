@@ -2,7 +2,7 @@
 
 ## Overview
 
-Fix four root causes that prevent OpenCode Go models and NIM streaming from working through freedius: wrong auth headers causing 401, missing reasoning content in SSE causing empty responses, lack of provider-aware translation + NIM body sanitization, and `stream_options.include_usage` injected via MixAdapter's OpenAI path triggering "feature not supported" on OpenCode Go.
+Fix five root causes that prevent OpenCode Go models and NIM streaming from working through freedius: wrong auth headers causing 401, missing reasoning content in SSE causing empty responses, lack of provider-aware translation + NIM body sanitization, `stream_options.include_usage` injected via MixAdapter's OpenAI path, and middleware response-writer wrappers that hide `http.Flusher` from `http.NewResponseController`.
 
 ## Current State Analysis
 
@@ -45,12 +45,13 @@ After Phase 3: NIM requests with complex tool schemas (boolean `additionalProper
 
 ## Implementation Approach
 
-Three orthogonal fixes shipped in dependency order:
+Five orthogonal fixes shipped in dependency order:
 
 1. **Auth** (Phase 1) — the simplest fix with the widest blast radius. Ships first so any regressions emerge before SSE/NIM changes layer on top.
 2. **SSE reasoning** (Phase 2) — additive emitter logic. Depends on stream not being broken (Phase 3 fixes `stream_options` for NIM), but unit-testable with mock SSE chunks independently.
 3. **stream_options + NIM sanitization** (Phase 3) — the largest change. Adds provider-awareness to `TranslateRequest` and a post-translation sanitization hook.
-4. **MixAdapter NoStreamUsage** (Phase 4) — apply `NoStreamUsage: true` to MixAdapter's OpenAI path, mirroring the NIM fix in Phase 3. Resolves "feature not supported" for OpenCode Go endpoints accessed through `go`→`mix` provider routing.
+4. **MixAdapter NoStreamUsage** (Phase 4) — apply `NoStreamUsage: true` to MixAdapter's OpenAI path, mirroring the NIM fix in Phase 3.
+5. **Middleware Flush** (Phase 5) — fix `wroteHeaderResponseWriter` to expose `http.Flusher` so `http.NewResponseController(w).Flush()` works through the middleware chain.
 
 ## Critical Implementation Details
 
@@ -394,6 +395,53 @@ func NewMixAdapter(logger *slog.Logger) *MixAdapter {
 
 ---
 
+## Phase 5: Fix Middleware Wrapper Hiding http.Flusher
+
+### Overview
+
+`RecoverMiddleware` and `AccessLogMiddleware` both wrap `w` in `wroteHeaderResponseWriter`, which embeds `http.ResponseWriter` but does not implement `http.Flusher`. When `OpenAICompatibleAdapter.Handle` calls `http.NewResponseController(w).Flush()` (line 93-96 of `openai_compat.go`), Go's `ResponseController` walks the wrapper chain looking for `FlushError()`, `http.Flusher`, or `Unwrap()`. Finding none, it returns `errors.New("feature not supported")` — the exact error logged for every SSE streaming response.
+
+This bug affects all providers that emit SSE through `OpenAICompatibleAdapter` (NIM, Go, OpenAI, and MixAdapter's OpenAI path). Every `flush()` call inside `TranslateStream` returns the error and aborts the entire stream, producing the "empty or malformed response" symptom on the client.
+
+### Changes Required
+
+#### 5.1 Add Flush method to wroteHeaderResponseWriter
+
+**File**: `proxy/proxy.go`
+
+**Intent**: Expose `http.Flusher` through the middleware wrapper so `http.NewResponseController` can delegate `Flush()` to the underlying response writer.
+
+**Contract**: Add a `Flush()` method to `wroteHeaderResponseWriter` that delegates to the embedded writer if it implements `http.Flusher`; silent no-op otherwise.
+
+```go
+func (w *wroteHeaderResponseWriter) Flush() {
+    if f, ok := w.ResponseWriter.(http.Flusher); ok {
+        f.Flush()
+    }
+}
+```
+
+#### 5.2 Add unit and integration tests
+
+**File**: `proxy/middleware_test.go`
+
+**Intent**: Verify (a) the wrapper implements `http.Flusher` so `rc.Flush()` succeeds, (b) each middleware individually passes Flush through, and (c) the full middleware chain (Recover + AccessLog) passes Flush through.
+
+**Contract**: Four new tests:
+1. `TestWroteHeaderResponseWriter_FlushDelegatesToUnderlyingFlusher` — direct `rc.Flush()` on wrapper → no error, `rec.Flushed == true`
+2. `TestRecoverMiddleware_FlushWorksThroughWrapper` — streaming handler through `RecoverMiddleware` → flushed
+3. `TestAccessLogMiddleware_FlushWorksThroughWrapper` — streaming handler through `AccessLogMiddleware` → flushed
+4. `TestMiddlewareChain_FlushWorksThroughBothWrappers` — streaming handler through `RecoverMiddleware` → `AccessLogMiddleware` → flushed
+
+### Success Criteria
+
+- `go build ./...` compiles cleanly
+- `go vet ./...` passes
+- `go test ./proxy/... -run "FlushWorksThrough|WroteHeader.*Flush" -v` — all 4 new tests pass
+- `go test ./proxy/...` — all existing tests pass (no regressions on middleware, adapters, translate)
+
+---
+
 ## Testing Strategy
 
 ### Unit Tests (Phase 1)
@@ -489,3 +537,16 @@ func NewMixAdapter(logger *slog.Logger) *MixAdapter {
 #### Manual
 
 - [ ] 4.5 Manual test: OpenCode Go through MixAdapter → no "feature not supported" error, streaming works
+
+### Phase 5: Fix Middleware Wrapper Hiding http.Flusher
+
+#### Automated
+
+- [x] 5.1 `go build ./...` compiles cleanly — TBD
+- [x] 5.2 `go vet ./...` passes — TBD
+- [x] 5.3 `go test ./proxy/... -run "FlushWorksThrough|WroteHeader.*Flush" -v` — all 4 new tests pass — TBD
+- [x] 5.4 `go test ./proxy/...` — all existing tests pass — TBD
+
+#### Manual
+
+- [ ] 5.5 Manual test: all streaming providers (NIM, Go, OpenAI, mix) → no "feature not supported" errors, streaming works end-to-end
