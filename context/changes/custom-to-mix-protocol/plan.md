@@ -254,8 +254,8 @@ Fix test assertions that expect `custom → anthropic` rewrite, replace with `cu
 
 #### Automated
 
-- [x] 1.1 `go build ./...` passes
-- [x] 1.2 `go test ./config/...` passes
+- [x] 1.1 `go build ./...` passes — e771bb3
+- [x] 1.2 `go test ./config/...` passes — e771bb3
 
 #### Manual
 
@@ -265,8 +265,8 @@ Fix test assertions that expect `custom → anthropic` rewrite, replace with `cu
 
 #### Automated
 
-- [x] 2.1 `go test ./proxy/...` passes
-- [x] 2.2 Protocol-first routing tests added and passing
+- [x] 2.1 `go test ./proxy/...` passes — e771bb3
+- [x] 2.2 Protocol-first routing tests added and passing — e771bb3
 
 #### Manual
 
@@ -276,8 +276,8 @@ Fix test assertions that expect `custom → anthropic` rewrite, replace with `cu
 
 #### Automated
 
-- [x] 3.1 `go build ./...` passes (no dangling references)
-- [x] 3.2 `go test ./...` passes
+- [x] 3.1 `go build ./...` passes (no dangling references) — e771bb3
+- [x] 3.2 `go test ./...` passes — e771bb3
 
 #### Manual
 
@@ -287,6 +287,6 @@ Fix test assertions that expect `custom → anthropic` rewrite, replace with `cu
 
 #### Automated
 
-- [x] 4.1 `go test ./...` passes with zero failures
-- [x] 4.2 `go vet ./...` clean
-- [x] 4.3 No references to CustomAdapter remain
+- [x] 4.1 `go test ./...` passes with zero failures — e771bb3
+- [x] 4.2 `go vet ./...` clean — e771bb3
+- [x] 4.3 No references to CustomAdapter remain — e771bb3
