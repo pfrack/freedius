@@ -23,7 +23,8 @@ func TestCheckRequiredEnvVars_PresetEnvVarMissing(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for missing NVIDIA_NIM_API_KEY")
 	}
-	if !strings.Contains(err.Error(), "NVIDIA_NIM_API_KEY") || !strings.Contains(err.Error(), "nim") {
+	if !strings.Contains(err.Error(), "NVIDIA_NIM_API_KEY") ||
+		!strings.Contains(err.Error(), "nim") {
 		t.Errorf("error should mention env var and provider: %v", err)
 	}
 }
@@ -77,7 +78,12 @@ func TestCheckRequiredEnvVars_ProviderNotReferenced(t *testing.T) {
 	t.Setenv("OPENAI_API_KEY", "k2")
 	cfg := &config.Config{
 		Models: map[string]config.Model{
-			"a": {Provider: "openai", Model: "gpt-4", BaseURL: "https://x", APIKeyEnv: "OPENAI_API_KEY"},
+			"a": {
+				Provider:  "openai",
+				Model:     "gpt-4",
+				BaseURL:   "https://x",
+				APIKeyEnv: "OPENAI_API_KEY",
+			},
 		},
 	}
 	if err := checkRequiredEnvVars(cfg); err != nil {

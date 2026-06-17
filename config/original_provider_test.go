@@ -16,8 +16,13 @@ func TestApplyEntryDefaults_OriginalProviderSetBeforeRewrite(t *testing.T) {
 			wantProv: "nim",
 		},
 		{
-			name:     "custom rewrites Provider but preserves OriginalProvider",
-			input:    Model{Provider: "custom", Model: "x", BaseURL: "https://x", APIKeyEnv: "CUSTOM_KEY"},
+			name: "custom rewrites Provider but preserves OriginalProvider",
+			input: Model{
+				Provider:  "custom",
+				Model:     "x",
+				BaseURL:   "https://x",
+				APIKeyEnv: "CUSTOM_KEY",
+			},
 			wantOrig: "custom",
 			wantProv: "anthropic",
 		},
@@ -57,13 +62,23 @@ func TestApplyEntryDefaults_OriginalProviderSetBeforeRewrite(t *testing.T) {
 func TestApplyEntryDefaults_DoesNotOverwriteExistingOriginalProvider(t *testing.T) {
 	// Once OriginalProvider is set (e.g., from a previous applyDefaults call),
 	// subsequent calls must NOT replace it with the rewritten Provider.
-	first := applyEntryDefaults(Model{Provider: "custom", Model: "x", BaseURL: "https://x", APIKeyEnv: "K"})
+	first := applyEntryDefaults(
+		Model{Provider: "custom", Model: "x", BaseURL: "https://x", APIKeyEnv: "K"},
+	)
 	if first.OriginalProvider != "custom" || first.Provider != "anthropic" {
-		t.Fatalf("first pass: got orig=%q prov=%q, want orig=custom prov=anthropic", first.OriginalProvider, first.Provider)
+		t.Fatalf(
+			"first pass: got orig=%q prov=%q, want orig=custom prov=anthropic",
+			first.OriginalProvider,
+			first.Provider,
+		)
 	}
 	second := applyEntryDefaults(first)
 	if second.OriginalProvider != "custom" || second.Provider != "anthropic" {
-		t.Errorf("second pass: got orig=%q prov=%q, want orig=custom prov=anthropic (stable)", second.OriginalProvider, second.Provider)
+		t.Errorf(
+			"second pass: got orig=%q prov=%q, want orig=custom prov=anthropic (stable)",
+			second.OriginalProvider,
+			second.Provider,
+		)
 	}
 }
 

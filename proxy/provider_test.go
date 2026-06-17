@@ -12,7 +12,12 @@ type stubProvider struct {
 	err    error
 }
 
-func (s *stubProvider) Handle(w http.ResponseWriter, r *http.Request, m config.Model, body []byte) error {
+func (s *stubProvider) Handle(
+	w http.ResponseWriter,
+	r *http.Request,
+	m config.Model,
+	body []byte,
+) error {
 	s.called = true
 	if s.err != nil {
 		w.WriteHeader(http.StatusBadGateway)

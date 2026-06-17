@@ -25,6 +25,11 @@ func NewNIMAdapter(logger *slog.Logger, streamTimeout time.Duration) *NIMAdapter
 	return &NIMAdapter{inner: inner}
 }
 
-func (a *NIMAdapter) Handle(w http.ResponseWriter, r *http.Request, m config.Model, body []byte) error {
+func (a *NIMAdapter) Handle(
+	w http.ResponseWriter,
+	r *http.Request,
+	m config.Model,
+	body []byte,
+) error {
 	return a.inner.Handle(w, r, m, body)
 }

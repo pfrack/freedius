@@ -51,7 +51,14 @@ set -gx DISABLE_ERROR_REPORTING "1"
 	}
 }
 
-func WriteShellRC(homeDir string, shell string, host string, port int, force bool, dryRun bool) (string, error) {
+func WriteShellRC(
+	homeDir string,
+	shell string,
+	host string,
+	port int,
+	force bool,
+	dryRun bool,
+) (string, error) {
 	shell = filepath.Base(shell)
 	cfg, ok := knownShells[shell]
 	if !ok {

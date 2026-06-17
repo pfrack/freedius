@@ -24,7 +24,11 @@ func newTestDispatcher(t *testing.T) *Dispatcher {
 	return NewDispatcher(cfg, registry, logger, false)
 }
 
-func newTestDispatcherWithAdapter(t *testing.T, cfg *config.Config, providers map[string]Provider) *Dispatcher {
+func newTestDispatcherWithAdapter(
+	t *testing.T,
+	cfg *config.Config,
+	providers map[string]Provider,
+) *Dispatcher {
 	t.Helper()
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	registry := NewRegistry(providers)
@@ -44,11 +48,14 @@ func TestServeHTTP(t *testing.T) {
 		wantHeaderMiss []string
 	}{
 		{
-			name:        "POST known model no registered adapter",
-			method:      http.MethodPost,
-			body:        `{"model":"claude-opus-4"}`,
-			wantStatus:  http.StatusInternalServerError,
-			wantBodyHas: []string{`"error":"provider_not_registered"`, `is not registered in this freedius build`},
+			name:       "POST known model no registered adapter",
+			method:     http.MethodPost,
+			body:       `{"model":"claude-opus-4"}`,
+			wantStatus: http.StatusInternalServerError,
+			wantBodyHas: []string{
+				`"error":"provider_not_registered"`,
+				`is not registered in this freedius build`,
+			},
 			wantHeader: map[string]string{
 				"X-Freedius-Matched-Provider": "nim",
 				"X-Freedius-Matched-Model":    "meta/llama-3.1-70b-instruct",
@@ -56,12 +63,12 @@ func TestServeHTTP(t *testing.T) {
 			},
 		},
 		{
-			name:          "POST unknown model",
-			method:        http.MethodPost,
-			body:          `{"model":"unknown"}`,
-			wantStatus:    http.StatusNotFound,
-			wantBodyHas:   []string{`"error":"no_match"`, `no configured mapping for model`},
-			wantBodyLacks: []string{"matched_provider", "matched_model"},
+			name:           "POST unknown model",
+			method:         http.MethodPost,
+			body:           `{"model":"unknown"}`,
+			wantStatus:     http.StatusNotFound,
+			wantBodyHas:    []string{`"error":"no_match"`, `no configured mapping for model`},
+			wantBodyLacks:  []string{"matched_provider", "matched_model"},
 			wantHeaderMiss: []string{"X-Freedius-Matched-Provider", "X-Freedius-Matched-Model"},
 		},
 		{
@@ -115,7 +122,12 @@ func TestServeHTTP(t *testing.T) {
 			d.ServeHTTP(rec, req)
 
 			if rec.Code != tt.wantStatus {
-				t.Errorf("status: got %d, want %d (body: %s)", rec.Code, tt.wantStatus, rec.Body.String())
+				t.Errorf(
+					"status: got %d, want %d (body: %s)",
+					rec.Code,
+					tt.wantStatus,
+					rec.Body.String(),
+				)
 			}
 
 			for k, v := range tt.wantHeader {
@@ -178,7 +190,11 @@ func TestServeHTTPMappingsLookup(t *testing.T) {
 		"nim": &mockProvider{status: 200, body: `{"ok":true}`},
 	})
 
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(`{"model":"opus"}`))
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/v1/messages",
+		strings.NewReader(`{"model":"opus"}`),
+	)
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	d.ServeHTTP(rec, req)
@@ -203,7 +219,11 @@ func TestServeHTTPNeitherMatch(t *testing.T) {
 		"nim": &mockProvider{status: 200, body: `{}`},
 	})
 
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(`{"model":"unknown"}`))
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/v1/messages",
+		strings.NewReader(`{"model":"unknown"}`),
+	)
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	d.ServeHTTP(rec, req)
@@ -222,7 +242,11 @@ func TestServeHTTPModelsWinsOverMappings(t *testing.T) {
 			"shared-key": {Provider: "nim", Model: "from-models", APIKeyEnv: "NVIDIA_NIM_API_KEY"},
 		},
 		Mappings: map[string]config.Model{
-			"shared-key": {Provider: "nim", Model: "from-mappings", APIKeyEnv: "NVIDIA_NIM_API_KEY"},
+			"shared-key": {
+				Provider:  "nim",
+				Model:     "from-mappings",
+				APIKeyEnv: "NVIDIA_NIM_API_KEY",
+			},
 		},
 	}
 	t.Setenv("NVIDIA_NIM_API_KEY", "k1")
@@ -230,7 +254,11 @@ func TestServeHTTPModelsWinsOverMappings(t *testing.T) {
 		"nim": &recordingProvider{},
 	})
 
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(`{"model":"shared-key"}`))
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/v1/messages",
+		strings.NewReader(`{"model":"shared-key"}`),
+	)
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	d.ServeHTTP(rec, req)
@@ -244,7 +272,11 @@ func TestServeHTTPFamilyMatch(t *testing.T) {
 	cfg := &config.Config{
 		Models: map[string]config.Model{},
 		Mappings: map[string]config.Model{
-			"opus": {Provider: "nim", Model: "meta/llama-3.1-70b-instruct", APIKeyEnv: "NVIDIA_NIM_API_KEY"},
+			"opus": {
+				Provider:  "nim",
+				Model:     "meta/llama-3.1-70b-instruct",
+				APIKeyEnv: "NVIDIA_NIM_API_KEY",
+			},
 		},
 	}
 	t.Setenv("NVIDIA_NIM_API_KEY", "k1")
@@ -252,7 +284,11 @@ func TestServeHTTPFamilyMatch(t *testing.T) {
 		"nim": &mockProvider{status: 200, body: `{"ok":true,"matched":"family"}`},
 	})
 
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(`{"model":"claude-opus-4-1"}`))
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/v1/messages",
+		strings.NewReader(`{"model":"claude-opus-4-1"}`),
+	)
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	d.ServeHTTP(rec, req)
@@ -277,7 +313,11 @@ func TestServeHTTPFamilyNoDefault(t *testing.T) {
 		"nim": &mockProvider{status: 200, body: `{}`},
 	})
 
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(`{"model":"claude-opus-4-1"}`))
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/v1/messages",
+		strings.NewReader(`{"model":"claude-opus-4-1"}`),
+	)
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	d.ServeHTTP(rec, req)
@@ -299,7 +339,11 @@ func TestServeHTTPFamilyDefaultCatchAll(t *testing.T) {
 		"nim": &mockProvider{status: 200, body: `{"ok":true}`},
 	})
 
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(`{"model":"claude-unknown-2026"}`))
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/v1/messages",
+		strings.NewReader(`{"model":"claude-unknown-2026"}`),
+	)
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	d.ServeHTTP(rec, req)
@@ -328,7 +372,11 @@ func TestServeHTTPFamilyPriorityIndependentOfYAMLOrder(t *testing.T) {
 	})
 
 	// claude-opus-4-1 should match opus even though auto is listed first in the map
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(`{"model":"claude-opus-4-1"}`))
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/v1/messages",
+		strings.NewReader(`{"model":"claude-opus-4-1"}`),
+	)
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	d.ServeHTTP(rec, req)
@@ -341,7 +389,11 @@ func TestServeHTTPFamilyPriorityIndependentOfYAMLOrder(t *testing.T) {
 func TestServeHTTPModelsWinsOverFamilyMatch(t *testing.T) {
 	cfg := &config.Config{
 		Models: map[string]config.Model{
-			"claude-opus-4-1": {Provider: "nim", Model: "exact-match", APIKeyEnv: "NVIDIA_NIM_API_KEY"},
+			"claude-opus-4-1": {
+				Provider:  "nim",
+				Model:     "exact-match",
+				APIKeyEnv: "NVIDIA_NIM_API_KEY",
+			},
 		},
 		Mappings: map[string]config.Model{
 			"opus": {Provider: "nim", Model: "family-match", APIKeyEnv: "NVIDIA_NIM_API_KEY"},
@@ -353,7 +405,11 @@ func TestServeHTTPModelsWinsOverFamilyMatch(t *testing.T) {
 	})
 
 	// Exact model match should win over family pattern
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(`{"model":"claude-opus-4-1"}`))
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/v1/messages",
+		strings.NewReader(`{"model":"claude-opus-4-1"}`),
+	)
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	d.ServeHTTP(rec, req)
@@ -363,7 +419,11 @@ func TestServeHTTPModelsWinsOverFamilyMatch(t *testing.T) {
 	}
 
 	// A different opus version not in models: should use the family mapping
-	req2 := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(`{"model":"claude-opus-4-5"}`))
+	req2 := httptest.NewRequest(
+		http.MethodPost,
+		"/v1/messages",
+		strings.NewReader(`{"model":"claude-opus-4-5"}`),
+	)
 	req2.Header.Set("Content-Type", "application/json")
 	rec2 := httptest.NewRecorder()
 	d.ServeHTTP(rec2, req2)
@@ -378,7 +438,12 @@ type mockProvider struct {
 	body   string
 }
 
-func (m *mockProvider) Handle(w http.ResponseWriter, r *http.Request, cfg config.Model, body []byte) error {
+func (m *mockProvider) Handle(
+	w http.ResponseWriter,
+	r *http.Request,
+	cfg config.Model,
+	body []byte,
+) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(m.status)
 	_, _ = w.Write([]byte(m.body))
@@ -390,7 +455,12 @@ type recordingProvider struct {
 	model  string
 }
 
-func (r *recordingProvider) Handle(w http.ResponseWriter, req *http.Request, cfg config.Model, body []byte) error {
+func (r *recordingProvider) Handle(
+	w http.ResponseWriter,
+	req *http.Request,
+	cfg config.Model,
+	body []byte,
+) error {
 	r.called = true
 	r.model = cfg.Model
 	w.WriteHeader(http.StatusOK)

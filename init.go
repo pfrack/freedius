@@ -1,12 +1,13 @@
 package main
 
 import (
-	_ "embed"
 	"errors"
 	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
+
+	_ "embed"
 
 	"github.com/pfrack/freedius/internal/envinject"
 )
@@ -66,7 +67,14 @@ func runInit(args []string) int {
 	if err := os.WriteFile(output, []byte(starterTemplate), 0o644); err != nil {
 		if output != "" && backup != "" {
 			if rerr := os.Rename(backup, output); rerr != nil {
-				fmt.Fprintf(os.Stderr, "freedius: write %s failed (%v); backup restored from %s (recovery also failed: %v)\n", output, err, backup, rerr)
+				fmt.Fprintf(
+					os.Stderr,
+					"freedius: write %s failed (%v); backup restored from %s (recovery also failed: %v)\n",
+					output,
+					err,
+					backup,
+					rerr,
+				)
 			} else {
 				fmt.Fprintf(os.Stderr, "freedius: write %s failed (%v); original restored from %s\n", output, err, backup)
 			}

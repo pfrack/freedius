@@ -21,7 +21,11 @@ type TranslateOpts struct {
 	NoStreamUsage bool
 }
 
-func TranslateRequest(anthropicBody []byte, targetModel string, opts TranslateOpts) ([]byte, error) {
+func TranslateRequest(
+	anthropicBody []byte,
+	targetModel string,
+	opts TranslateOpts,
+) ([]byte, error) {
 	var req anthropicMessage
 	if err := json.Unmarshal(anthropicBody, &req); err != nil {
 		return nil, fmt.Errorf("translate: parse anthropic body: %w", err)
@@ -31,14 +35,14 @@ func TranslateRequest(anthropicBody []byte, targetModel string, opts TranslateOp
 	}
 
 	out := openAIRequest{
-		Model:       req.Model,
-		MaxTokens:   intPtrOrNil(req.MaxTokens),
-		Temperature: req.Temperature,
-		TopP:        req.TopP,
-		Stream:      req.Stream,
-		Tools:       convertTools(req.Tools),
-		ToolChoice:  convertToolChoice(req.ToolChoice),
-		Stop:        convertStop(req.StopSequences),
+		Model:         req.Model,
+		MaxTokens:     intPtrOrNil(req.MaxTokens),
+		Temperature:   req.Temperature,
+		TopP:          req.TopP,
+		Stream:        req.Stream,
+		Tools:         convertTools(req.Tools),
+		ToolChoice:    convertToolChoice(req.ToolChoice),
+		Stop:          convertStop(req.StopSequences),
 		StreamOptions: nil,
 	}
 
@@ -166,7 +170,8 @@ func convertMessages(system any, msgs []anthropicMsgItem) ([]openAIMessage, erro
 	}
 	if hasReasoning {
 		for i := range out {
-			if out[i].Role == "assistant" && len(out[i].ToolCalls) > 0 && out[i].ReasoningContent == nil {
+			if out[i].Role == "assistant" && len(out[i].ToolCalls) > 0 &&
+				out[i].ReasoningContent == nil {
 				out[i].ReasoningContent = strPtr(" ")
 			}
 		}
@@ -398,19 +403,19 @@ func readSSEEvent(br *bufio.Reader) ([]byte, error) {
 }
 
 type emitter struct {
-	messageID      string
-	model          string
-	blockIndex     int
-	openBlock      string
-	toolToBlock    map[int]int
-	toolNames      map[int]string
-	toolIDs        map[int]string
-	inputTokens    int
-	outputTokens   int
-	sawUsage       bool
-	roleSent       bool
-	finished       bool
-	pendingFinish  string
+	messageID     string
+	model         string
+	blockIndex    int
+	openBlock     string
+	toolToBlock   map[int]int
+	toolNames     map[int]string
+	toolIDs       map[int]string
+	inputTokens   int
+	outputTokens  int
+	sawUsage      bool
+	roleSent      bool
+	finished      bool
+	pendingFinish string
 }
 
 func newAnthropicEmitter() *emitter {
@@ -516,12 +521,12 @@ func (e *emitter) emitMessageStart() ([][]byte, error) {
 	payload := map[string]any{
 		"type": "message_start",
 		"message": map[string]any{
-			"id":      e.messageID,
-			"type":    "message",
-			"role":    "assistant",
-			"model":   e.model,
-			"content": []any{},
-			"stop_reason": nil,
+			"id":            e.messageID,
+			"type":          "message",
+			"role":          "assistant",
+			"model":         e.model,
+			"content":       []any{},
+			"stop_reason":   nil,
 			"stop_sequence": nil,
 			"usage": map[string]int{
 				"input_tokens":  e.inputTokens,

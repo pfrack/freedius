@@ -599,7 +599,10 @@ func TestTranslateRequest_AssistantThinkingBlock(t *testing.T) {
 		t.Errorf("assistant content: got %v, want 'the answer'", assistant["content"])
 	}
 	if assistant["reasoning_content"] != "let me think..." {
-		t.Errorf("reasoning_content: got %v, want 'let me think...'", assistant["reasoning_content"])
+		t.Errorf(
+			"reasoning_content: got %v, want 'let me think...'",
+			assistant["reasoning_content"],
+		)
 	}
 }
 
@@ -1199,7 +1202,11 @@ data: [DONE]
 	out := downstream.String()
 	startCount := strings.Count(out, `"type":"thinking"`)
 	if startCount != 1 {
-		t.Errorf("expected exactly 1 content_block_start(type=thinking), got %d in %q", startCount, out)
+		t.Errorf(
+			"expected exactly 1 content_block_start(type=thinking), got %d in %q",
+			startCount,
+			out,
+		)
 	}
 	deltaCount := strings.Count(out, `"type":"thinking_delta"`)
 	if deltaCount != 2 {
@@ -1234,7 +1241,11 @@ data: [DONE]
 	// content_block_stop should appear at least twice (once for thinking, once for text)
 	stopCount := strings.Count(out, "content_block_stop")
 	if stopCount < 2 {
-		t.Errorf("expected at least 2 content_block_stop events (thinking close + text close), got %d in %q", stopCount, out)
+		t.Errorf(
+			"expected at least 2 content_block_stop events (thinking close + text close), got %d in %q",
+			stopCount,
+			out,
+		)
 	}
 }
 
@@ -1264,12 +1275,18 @@ data: [DONE]
 	}
 	stopCount := strings.Count(out, "content_block_stop")
 	if stopCount < 2 {
-		t.Errorf("expected at least 2 content_block_stop events (text close + thinking close), got %d in %q", stopCount, out)
+		t.Errorf(
+			"expected at least 2 content_block_stop events (text close + thinking close), got %d in %q",
+			stopCount,
+			out,
+		)
 	}
 }
 
 func TestTranslateRequest_NoStreamUsageOmitsStreamOptions(t *testing.T) {
-	in := []byte(`{"model":"x","max_tokens":10,"stream":true,"messages":[{"role":"user","content":"hi"}]}`)
+	in := []byte(
+		`{"model":"x","max_tokens":10,"stream":true,"messages":[{"role":"user","content":"hi"}]}`,
+	)
 	out, err := TranslateRequest(in, "x", TranslateOpts{NoStreamUsage: true})
 	if err != nil {
 		t.Fatal(err)
@@ -1279,12 +1296,17 @@ func TestTranslateRequest_NoStreamUsageOmitsStreamOptions(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, ok := got["stream_options"]; ok {
-		t.Errorf("expected stream_options absent when NoStreamUsage=true, got %v", got["stream_options"])
+		t.Errorf(
+			"expected stream_options absent when NoStreamUsage=true, got %v",
+			got["stream_options"],
+		)
 	}
 }
 
 func TestTranslateRequest_NoStreamUsageFalseIncludesStreamOptions(t *testing.T) {
-	in := []byte(`{"model":"x","max_tokens":10,"stream":true,"messages":[{"role":"user","content":"hi"}]}`)
+	in := []byte(
+		`{"model":"x","max_tokens":10,"stream":true,"messages":[{"role":"user","content":"hi"}]}`,
+	)
 	out, err := TranslateRequest(in, "x", TranslateOpts{NoStreamUsage: false})
 	if err != nil {
 		t.Fatal(err)

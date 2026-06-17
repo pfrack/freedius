@@ -38,7 +38,10 @@ func TestCustomAdapter_PassthroughText(t *testing.T) {
 			t.Errorf("x-api-key: got %q, want sk-test", r.Header.Get("x-api-key"))
 		}
 		if r.Header.Get("anthropic-version") != "2023-06-01" {
-			t.Errorf("anthropic-version: got %q, want 2023-06-01", r.Header.Get("anthropic-version"))
+			t.Errorf(
+				"anthropic-version: got %q, want 2023-06-01",
+				r.Header.Get("anthropic-version"),
+			)
 		}
 		if r.Header.Get("Authorization") != "" {
 			t.Errorf("Authorization should be empty, got %q", r.Header.Get("Authorization"))
@@ -55,8 +58,22 @@ func TestCustomAdapter_PassthroughText(t *testing.T) {
 
 	a := newCustomTestAdapter(t)
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader([]byte(`{"model":"my-shim"}`)))
-	a.Handle(rec, req, config.Model{Provider: "custom", Model: "my-shim", BaseURL: upstream.URL, APIKeyEnv: "CUSTOM_API_KEY"}, []byte(`{"model":"my-shim"}`))
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/v1/messages",
+		bytes.NewReader([]byte(`{"model":"my-shim"}`)),
+	)
+	a.Handle(
+		rec,
+		req,
+		config.Model{
+			Provider:  "custom",
+			Model:     "my-shim",
+			BaseURL:   upstream.URL,
+			APIKeyEnv: "CUSTOM_API_KEY",
+		},
+		[]byte(`{"model":"my-shim"}`),
+	)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status: got %d, want %d (body: %s)", rec.Code, http.StatusOK, rec.Body.String())
@@ -80,7 +97,11 @@ func TestCustomAdapter_PassthroughStreaming(t *testing.T) {
 
 	a := newCustomTestAdapter(t)
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader([]byte(`{"model":"my-shim"}`)))
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/v1/messages",
+		bytes.NewReader([]byte(`{"model":"my-shim"}`)),
+	)
 	body := []byte(`{"model":"my-shim"}`)
 	if err := a.Handle(rec, req, config.Model{Provider: "custom", Model: "my-shim", BaseURL: upstream.URL, APIKeyEnv: "CUSTOM_API_KEY"}, body); err != nil {
 		t.Fatalf("Handle returned err: %v", err)
@@ -107,8 +128,22 @@ func TestCustomAdapter_Upstream401(t *testing.T) {
 
 	a := newCustomTestAdapter(t)
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader([]byte(`{"model":"my-shim"}`)))
-	a.Handle(rec, req, config.Model{Provider: "custom", Model: "my-shim", BaseURL: upstream.URL, APIKeyEnv: "CUSTOM_API_KEY"}, []byte(`{"model":"my-shim"}`))
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/v1/messages",
+		bytes.NewReader([]byte(`{"model":"my-shim"}`)),
+	)
+	a.Handle(
+		rec,
+		req,
+		config.Model{
+			Provider:  "custom",
+			Model:     "my-shim",
+			BaseURL:   upstream.URL,
+			APIKeyEnv: "CUSTOM_API_KEY",
+		},
+		[]byte(`{"model":"my-shim"}`),
+	)
 
 	if rec.Code != http.StatusUnauthorized {
 		t.Errorf("status: got %d, want %d", rec.Code, http.StatusUnauthorized)
@@ -129,7 +164,17 @@ func TestCustomAdapter_Upstream500(t *testing.T) {
 	a := newCustomTestAdapter(t)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader([]byte(`{}`)))
-	a.Handle(rec, req, config.Model{Provider: "custom", Model: "my-shim", BaseURL: upstream.URL, APIKeyEnv: "CUSTOM_API_KEY"}, []byte(`{}`))
+	a.Handle(
+		rec,
+		req,
+		config.Model{
+			Provider:  "custom",
+			Model:     "my-shim",
+			BaseURL:   upstream.URL,
+			APIKeyEnv: "CUSTOM_API_KEY",
+		},
+		[]byte(`{}`),
+	)
 
 	if rec.Code != http.StatusInternalServerError {
 		t.Errorf("status: got %d, want %d", rec.Code, http.StatusInternalServerError)
@@ -141,7 +186,17 @@ func TestCustomAdapter_MissingEnvVar(t *testing.T) {
 	a := newCustomTestAdapter(t)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader([]byte(`{}`)))
-	err := a.Handle(rec, req, config.Model{Provider: "custom", Model: "my-shim", BaseURL: "https://example.com", APIKeyEnv: "CUSTOM_API_KEY"}, []byte(`{}`))
+	err := a.Handle(
+		rec,
+		req,
+		config.Model{
+			Provider:  "custom",
+			Model:     "my-shim",
+			BaseURL:   "https://example.com",
+			APIKeyEnv: "CUSTOM_API_KEY",
+		},
+		[]byte(`{}`),
+	)
 	if err == nil {
 		t.Fatal("expected error for missing env var")
 	}
@@ -155,7 +210,12 @@ func TestCustomAdapter_MissingBaseURL(t *testing.T) {
 	a := newCustomTestAdapter(t)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader([]byte(`{}`)))
-	err := a.Handle(rec, req, config.Model{Provider: "custom", Model: "my-shim", APIKeyEnv: "CUSTOM_API_KEY"}, []byte(`{}`))
+	err := a.Handle(
+		rec,
+		req,
+		config.Model{Provider: "custom", Model: "my-shim", APIKeyEnv: "CUSTOM_API_KEY"},
+		[]byte(`{}`),
+	)
 	if err == nil {
 		t.Fatal("expected error for missing base_url")
 	}
@@ -172,8 +232,22 @@ func TestCustomAdapter_ClientDisconnect(t *testing.T) {
 	rec := &failingRecorder{ResponseRecorder: httptest.NewRecorder(), failed: false}
 
 	a := newCustomTestAdapter(t)
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader([]byte(`{"model":"my-shim"}`)))
-	err := a.Handle(rec, req, config.Model{Provider: "custom", Model: "my-shim", BaseURL: upstream.URL, APIKeyEnv: "CUSTOM_API_KEY"}, []byte(`{"model":"my-shim"}`))
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/v1/messages",
+		bytes.NewReader([]byte(`{"model":"my-shim"}`)),
+	)
+	err := a.Handle(
+		rec,
+		req,
+		config.Model{
+			Provider:  "custom",
+			Model:     "my-shim",
+			BaseURL:   upstream.URL,
+			APIKeyEnv: "CUSTOM_API_KEY",
+		},
+		[]byte(`{"model":"my-shim"}`),
+	)
 	if err != nil {
 		t.Fatalf("Handle returned %v, want nil", err)
 	}

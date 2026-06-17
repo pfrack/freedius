@@ -18,15 +18,35 @@ func TestExtractFamily(t *testing.T) {
 		{name: "opus uppercase", model: "CLAUDE-OPUS-4-1", want: "opus", wantFound: true},
 		{name: "sonnet mixed case", model: "Claude-Sonnet-4-6", want: "sonnet", wantFound: true},
 		// Priority resolution: sonnet beats haiku (order in knownFamilies)
-		{name: "priority sonnet over haiku", model: "claude-haiku-sonnet-2024", want: "sonnet", wantFound: true},
+		{
+			name:      "priority sonnet over haiku",
+			model:     "claude-haiku-sonnet-2024",
+			want:      "sonnet",
+			wantFound: true,
+		},
 		// default matches anything
-		{name: "default catches unknown", model: "claude-future-model-2026", want: "default", wantFound: true},
+		{
+			name:      "default catches unknown",
+			model:     "claude-future-model-2026",
+			want:      "default",
+			wantFound: true,
+		},
 		{name: "default empty string", model: "", want: "default", wantFound: true},
 		// Additional variants
 		{name: "opus variant", model: "claude-3-opus-20240229", want: "opus", wantFound: true},
-		{name: "sonnet variant", model: "claude-3-sonnet-20240229", want: "sonnet", wantFound: true},
+		{
+			name:      "sonnet variant",
+			model:     "claude-3-sonnet-20240229",
+			want:      "sonnet",
+			wantFound: true,
+		},
 		{name: "haiku variant", model: "claude-3-haiku-20240307", want: "haiku", wantFound: true},
-		{name: "haiku in company name", model: "haiku-company-model-v2", want: "haiku", wantFound: true},
+		{
+			name:      "haiku in company name",
+			model:     "haiku-company-model-v2",
+			want:      "haiku",
+			wantFound: true,
+		},
 	}
 
 	for _, tt := range tests {

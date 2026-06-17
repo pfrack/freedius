@@ -25,10 +25,19 @@ func forwardUpstreamError(w http.ResponseWriter, resp *http.Response) error {
 // `request_id`). Client cancellations are still logged at Debug and produce
 // no response body — the connection simply closes. The `detail` field is
 // gated on verboseErrors, matching writeErrorJSON (proxy.go:165).
-func freediusErrorHandler(logger *slog.Logger, verboseErrors bool) func(http.ResponseWriter, *http.Request, error) {
+func freediusErrorHandler(
+	logger *slog.Logger,
+	verboseErrors bool,
+) func(http.ResponseWriter, *http.Request, error) {
 	return func(w http.ResponseWriter, r *http.Request, err error) {
 		if errors.Is(err, context.Canceled) {
-			logger.Debug("client disconnect", "request_id", RequestIDFromContext(r.Context()), "path", r.URL.Path)
+			logger.Debug(
+				"client disconnect",
+				"request_id",
+				RequestIDFromContext(r.Context()),
+				"path",
+				r.URL.Path,
+			)
 			return
 		}
 		logger.Error("upstream transport error",

@@ -18,7 +18,11 @@ type MixAdapter struct {
 	logger    *slog.Logger
 }
 
-func NewMixAdapter(logger *slog.Logger, verboseErrors bool, streamTimeout time.Duration) *MixAdapter {
+func NewMixAdapter(
+	logger *slog.Logger,
+	verboseErrors bool,
+	streamTimeout time.Duration,
+) *MixAdapter {
 	openai := NewOpenAICompatibleAdapterWithTimeout(logger, streamTimeout)
 	openai.translateOpts = translate.TranslateOpts{NoStreamUsage: true}
 	return &MixAdapter{
@@ -28,7 +32,12 @@ func NewMixAdapter(logger *slog.Logger, verboseErrors bool, streamTimeout time.D
 	}
 }
 
-func (a *MixAdapter) Handle(w http.ResponseWriter, r *http.Request, m config.Model, body []byte) error {
+func (a *MixAdapter) Handle(
+	w http.ResponseWriter,
+	r *http.Request,
+	m config.Model,
+	body []byte,
+) error {
 	parsedURL, err := url.Parse(m.BaseURL)
 	if err != nil {
 		return fmt.Errorf("%s adapter (mix): parse base_url: %w", originalOr(m), err)

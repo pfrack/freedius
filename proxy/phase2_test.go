@@ -23,7 +23,12 @@ type preWriteHeaderErrProvider struct {
 	err error
 }
 
-func (s *preWriteHeaderErrProvider) Handle(w http.ResponseWriter, r *http.Request, m config.Model, body []byte) error {
+func (s *preWriteHeaderErrProvider) Handle(
+	w http.ResponseWriter,
+	r *http.Request,
+	m config.Model,
+	body []byte,
+) error {
 	return s.err
 }
 
@@ -122,8 +127,14 @@ func TestAdapter_ErrorTemplate_UsesOriginalProvider(t *testing.T) {
 		wantContains []string
 	}{
 		{
-			name:      "nim via openai-compat names provider nim not openai",
-			model:     config.Model{Provider: "openai", Model: "x", BaseURL: "https://x/v1/chat/completions", APIKeyEnv: "NVIDIA_NIM_API_KEY", OriginalProvider: "nim"},
+			name: "nim via openai-compat names provider nim not openai",
+			model: config.Model{
+				Provider:         "openai",
+				Model:            "x",
+				BaseURL:          "https://x/v1/chat/completions",
+				APIKeyEnv:        "NVIDIA_NIM_API_KEY",
+				OriginalProvider: "nim",
+			},
 			apiKeyEnv: "NVIDIA_NIM_API_KEY",
 			envValue:  "",
 			adapterCtor: func(l *slog.Logger) Provider {
@@ -132,8 +143,14 @@ func TestAdapter_ErrorTemplate_UsesOriginalProvider(t *testing.T) {
 			wantContains: []string{"nim adapter (openai-compat)", "NVIDIA_NIM_API_KEY"},
 		},
 		{
-			name:      "custom via anthropic-compat names provider custom not anthropic",
-			model:     config.Model{Provider: "anthropic", Model: "x", BaseURL: "https://x", APIKeyEnv: "CUSTOM_KEY", OriginalProvider: "custom"},
+			name: "custom via anthropic-compat names provider custom not anthropic",
+			model: config.Model{
+				Provider:         "anthropic",
+				Model:            "x",
+				BaseURL:          "https://x",
+				APIKeyEnv:        "CUSTOM_KEY",
+				OriginalProvider: "custom",
+			},
 			apiKeyEnv: "CUSTOM_KEY",
 			envValue:  "",
 			adapterCtor: func(l *slog.Logger) Provider {
@@ -142,8 +159,14 @@ func TestAdapter_ErrorTemplate_UsesOriginalProvider(t *testing.T) {
 			wantContains: []string{"custom adapter (anthropic-compat)", "CUSTOM_KEY"},
 		},
 		{
-			name:      "zen post-rewrite names provider zen not mix",
-			model:     config.Model{Provider: "mix", Model: "x", BaseURL: "https://x/v1/messages", APIKeyEnv: "OPENCODE_API_KEY", OriginalProvider: "zen"},
+			name: "zen post-rewrite names provider zen not mix",
+			model: config.Model{
+				Provider:         "mix",
+				Model:            "x",
+				BaseURL:          "https://x/v1/messages",
+				APIKeyEnv:        "OPENCODE_API_KEY",
+				OriginalProvider: "zen",
+			},
 			apiKeyEnv: "OPENCODE_API_KEY",
 			envValue:  "",
 			adapterCtor: func(l *slog.Logger) Provider {
@@ -152,8 +175,14 @@ func TestAdapter_ErrorTemplate_UsesOriginalProvider(t *testing.T) {
 			wantContains: []string{"zen adapter (anthropic-compat)", "OPENCODE_API_KEY"},
 		},
 		{
-			name:      "go via openai-compat names provider go",
-			model:     config.Model{Provider: "openai", Model: "x", BaseURL: "https://x/v1/chat/completions", APIKeyEnv: "OPENAI_API_KEY", OriginalProvider: "go"},
+			name: "go via openai-compat names provider go",
+			model: config.Model{
+				Provider:         "openai",
+				Model:            "x",
+				BaseURL:          "https://x/v1/chat/completions",
+				APIKeyEnv:        "OPENAI_API_KEY",
+				OriginalProvider: "go",
+			},
 			apiKeyEnv: "OPENAI_API_KEY",
 			envValue:  "",
 			adapterCtor: func(l *slog.Logger) Provider {
@@ -193,7 +222,12 @@ func TestOpenAICompat_MissingBaseURL_UsesOriginalProvider(t *testing.T) {
 	a := NewOpenAICompatibleAdapter(slog.New(slog.NewTextHandler(io.Discard, nil)))
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader("{}"))
-	err := a.Handle(rec, req, config.Model{Provider: "openai", Model: "x", OriginalProvider: "go"}, []byte("{}"))
+	err := a.Handle(
+		rec,
+		req,
+		config.Model{Provider: "openai", Model: "x", OriginalProvider: "go"},
+		[]byte("{}"),
+	)
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -209,7 +243,12 @@ func TestAnthropicCompat_MissingBaseURL_UsesOriginalProvider(t *testing.T) {
 	a := NewAnthropicCompatibleAdapter(slog.New(slog.NewTextHandler(io.Discard, nil)), false)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader("{}"))
-	err := a.Handle(rec, req, config.Model{Provider: "anthropic", Model: "x", OriginalProvider: "custom"}, []byte("{}"))
+	err := a.Handle(
+		rec,
+		req,
+		config.Model{Provider: "anthropic", Model: "x", OriginalProvider: "custom"},
+		[]byte("{}"),
+	)
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -271,10 +310,14 @@ func TestMixAdapter_RoutingDebugLog(t *testing.T) {
 	t.Run("anthropic-format base_url routes to anthropic", func(t *testing.T) {
 		logBuf.Reset()
 		rec := httptest.NewRecorder()
-		req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(`{"stream":false}`))
+		req := httptest.NewRequest(
+			http.MethodPost,
+			"/v1/messages",
+			strings.NewReader(`{"stream":false}`),
+		)
 		mix.Handle(rec, req, config.Model{
 			Provider: "mix", Model: "x",
-			BaseURL: upstream.URL + "/v1/messages",
+			BaseURL:   upstream.URL + "/v1/messages",
 			APIKeyEnv: "OPENAI_API_KEY",
 		}, []byte(`{}`))
 		if !strings.Contains(logBuf.String(), `selected=anthropic`) {
@@ -288,7 +331,7 @@ func TestMixAdapter_RoutingDebugLog(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(`{}`))
 		mix.Handle(rec, req, config.Model{
 			Provider: "mix", Model: "x",
-			BaseURL: upstream.URL + "/v1/chat/completions",
+			BaseURL:   upstream.URL + "/v1/chat/completions",
 			APIKeyEnv: "OPENAI_API_KEY",
 		}, []byte(`{}`))
 		if !strings.Contains(logBuf.String(), `selected=openai`) {

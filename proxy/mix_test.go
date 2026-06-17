@@ -28,7 +28,10 @@ func TestMixAdapter_AnthropicPassthrough(t *testing.T) {
 			t.Errorf("x-api-key: got %q, want sk-test", r.Header.Get("x-api-key"))
 		}
 		if r.Header.Get("anthropic-version") != "2023-06-01" {
-			t.Errorf("anthropic-version: got %q, want 2023-06-01", r.Header.Get("anthropic-version"))
+			t.Errorf(
+				"anthropic-version: got %q, want 2023-06-01",
+				r.Header.Get("anthropic-version"),
+			)
 		}
 		if r.Header.Get("Authorization") != "" {
 			t.Errorf("Authorization should be empty, got %q", r.Header.Get("Authorization"))
@@ -45,8 +48,22 @@ func TestMixAdapter_AnthropicPassthrough(t *testing.T) {
 
 	a := newMixAdapter(t)
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader([]byte(`{"model":"my-model"}`)))
-	err := a.Handle(rec, req, config.Model{Provider: "mix", Model: "my-model", BaseURL: upstream.URL + "/v1/messages", APIKeyEnv: "MIX_API_KEY"}, []byte(`{"model":"my-model"}`))
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/v1/messages",
+		bytes.NewReader([]byte(`{"model":"my-model"}`)),
+	)
+	err := a.Handle(
+		rec,
+		req,
+		config.Model{
+			Provider:  "mix",
+			Model:     "my-model",
+			BaseURL:   upstream.URL + "/v1/messages",
+			APIKeyEnv: "MIX_API_KEY",
+		},
+		[]byte(`{"model":"my-model"}`),
+	)
 	if err != nil {
 		t.Fatalf("Handle returned err: %v", err)
 	}
@@ -70,18 +87,42 @@ func TestMixAdapter_OpenAITranslation(t *testing.T) {
 		}
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("data: {\"id\":\"x\",\"object\":\"chat.completion.chunk\",\"created\":1,\"model\":\"my-model\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\"},\"finish_reason\":null}]}\n\n"))
-		_, _ = w.Write([]byte("data: {\"id\":\"x\",\"object\":\"chat.completion.chunk\",\"created\":1,\"model\":\"my-model\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"hi\"},\"finish_reason\":null}]}\n\n"))
-		_, _ = w.Write([]byte("data: {\"id\":\"x\",\"object\":\"chat.completion.chunk\",\"created\":1,\"model\":\"my-model\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":1,\"completion_tokens\":1,\"total_tokens\":2}}\n\n"))
+		_, _ = w.Write(
+			[]byte(
+				"data: {\"id\":\"x\",\"object\":\"chat.completion.chunk\",\"created\":1,\"model\":\"my-model\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\"},\"finish_reason\":null}]}\n\n",
+			),
+		)
+		_, _ = w.Write(
+			[]byte(
+				"data: {\"id\":\"x\",\"object\":\"chat.completion.chunk\",\"created\":1,\"model\":\"my-model\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"hi\"},\"finish_reason\":null}]}\n\n",
+			),
+		)
+		_, _ = w.Write(
+			[]byte(
+				"data: {\"id\":\"x\",\"object\":\"chat.completion.chunk\",\"created\":1,\"model\":\"my-model\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":1,\"completion_tokens\":1,\"total_tokens\":2}}\n\n",
+			),
+		)
 		_, _ = w.Write([]byte("data: [DONE]\n\n"))
 	}))
 	defer upstream.Close()
 
 	a := newMixAdapter(t)
 	rec := httptest.NewRecorder()
-	body := []byte(`{"model":"claude-opus-4","max_tokens":50,"messages":[{"role":"user","content":"hi"}],"stream":true}`)
+	body := []byte(
+		`{"model":"claude-opus-4","max_tokens":50,"messages":[{"role":"user","content":"hi"}],"stream":true}`,
+	)
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader(body))
-	err := a.Handle(rec, req, config.Model{Provider: "mix", Model: "my-model", BaseURL: upstream.URL + "/v1/chat/completions", APIKeyEnv: "MIX_API_KEY"}, body)
+	err := a.Handle(
+		rec,
+		req,
+		config.Model{
+			Provider:  "mix",
+			Model:     "my-model",
+			BaseURL:   upstream.URL + "/v1/chat/completions",
+			APIKeyEnv: "MIX_API_KEY",
+		},
+		body,
+	)
 	if err != nil {
 		t.Fatalf("Handle returned err: %v", err)
 	}
@@ -108,17 +149,37 @@ func TestMixAdapter_OpenAIPathOmitsStreamOptions(t *testing.T) {
 		mu.Unlock()
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("data: {\"id\":\"x\",\"object\":\"chat.completion.chunk\",\"created\":1,\"model\":\"my-model\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\"},\"finish_reason\":null}]}\n\n"))
-		_, _ = w.Write([]byte("data: {\"id\":\"x\",\"object\":\"chat.completion.chunk\",\"created\":1,\"model\":\"my-model\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}\n\n"))
+		_, _ = w.Write(
+			[]byte(
+				"data: {\"id\":\"x\",\"object\":\"chat.completion.chunk\",\"created\":1,\"model\":\"my-model\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\"},\"finish_reason\":null}]}\n\n",
+			),
+		)
+		_, _ = w.Write(
+			[]byte(
+				"data: {\"id\":\"x\",\"object\":\"chat.completion.chunk\",\"created\":1,\"model\":\"my-model\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}\n\n",
+			),
+		)
 		_, _ = w.Write([]byte("data: [DONE]\n\n"))
 	}))
 	defer upstream.Close()
 
 	a := newMixAdapter(t)
 	rec := httptest.NewRecorder()
-	body := []byte(`{"model":"claude-opus-4","max_tokens":50,"messages":[{"role":"user","content":"hi"}],"stream":true}`)
+	body := []byte(
+		`{"model":"claude-opus-4","max_tokens":50,"messages":[{"role":"user","content":"hi"}],"stream":true}`,
+	)
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader(body))
-	err := a.Handle(rec, req, config.Model{Provider: "mix", Model: "my-model", BaseURL: upstream.URL + "/v1/chat/completions", APIKeyEnv: "MIX_API_KEY"}, body)
+	err := a.Handle(
+		rec,
+		req,
+		config.Model{
+			Provider:  "mix",
+			Model:     "my-model",
+			BaseURL:   upstream.URL + "/v1/chat/completions",
+			APIKeyEnv: "MIX_API_KEY",
+		},
+		body,
+	)
 	if err != nil {
 		t.Fatalf("Handle returned err: %v", err)
 	}
@@ -135,7 +196,10 @@ func TestMixAdapter_OpenAIPathOmitsStreamOptions(t *testing.T) {
 		t.Fatalf("upstream body not JSON: %v\n%s", err, string(upstreamBody))
 	}
 	if _, ok := got["stream_options"]; ok {
-		t.Errorf("MixAdapter OpenAI path should not send stream_options (NoStreamUsage=true), got %v", got["stream_options"])
+		t.Errorf(
+			"MixAdapter OpenAI path should not send stream_options (NoStreamUsage=true), got %v",
+			got["stream_options"],
+		)
 	}
 }
 
@@ -150,7 +214,17 @@ func TestMixAdapter_Upstream401_AnthropicPath(t *testing.T) {
 	a := newMixAdapter(t)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader([]byte(`{}`)))
-	err := a.Handle(rec, req, config.Model{Provider: "mix", Model: "x", BaseURL: upstream.URL + "/v1/messages", APIKeyEnv: "MIX_API_KEY"}, []byte(`{}`))
+	err := a.Handle(
+		rec,
+		req,
+		config.Model{
+			Provider:  "mix",
+			Model:     "x",
+			BaseURL:   upstream.URL + "/v1/messages",
+			APIKeyEnv: "MIX_API_KEY",
+		},
+		[]byte(`{}`),
+	)
 	if err != nil {
 		t.Fatalf("Handle returned err: %v", err)
 	}
@@ -173,7 +247,17 @@ func TestMixAdapter_Upstream401_OpenAIPath(t *testing.T) {
 	a := newMixAdapter(t)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader([]byte(`{}`)))
-	err := a.Handle(rec, req, config.Model{Provider: "mix", Model: "x", BaseURL: upstream.URL + "/v1/chat/completions", APIKeyEnv: "MIX_API_KEY"}, []byte(`{}`))
+	err := a.Handle(
+		rec,
+		req,
+		config.Model{
+			Provider:  "mix",
+			Model:     "x",
+			BaseURL:   upstream.URL + "/v1/chat/completions",
+			APIKeyEnv: "MIX_API_KEY",
+		},
+		[]byte(`{}`),
+	)
 	if err != nil {
 		t.Fatalf("Handle returned err: %v", err)
 	}
@@ -190,7 +274,17 @@ func TestMixAdapter_MissingEnvVar(t *testing.T) {
 	a := newMixAdapter(t)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader([]byte(`{}`)))
-	err := a.Handle(rec, req, config.Model{Provider: "mix", Model: "x", BaseURL: "https://example.com/v1/messages", APIKeyEnv: "MIX_API_KEY"}, []byte(`{}`))
+	err := a.Handle(
+		rec,
+		req,
+		config.Model{
+			Provider:  "mix",
+			Model:     "x",
+			BaseURL:   "https://example.com/v1/messages",
+			APIKeyEnv: "MIX_API_KEY",
+		},
+		[]byte(`{}`),
+	)
 	if err == nil {
 		t.Fatal("expected error for missing env var")
 	}
@@ -204,7 +298,12 @@ func TestMixAdapter_MissingBaseURL(t *testing.T) {
 	a := newMixAdapter(t)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader([]byte(`{}`)))
-	err := a.Handle(rec, req, config.Model{Provider: "mix", Model: "x", APIKeyEnv: "MIX_API_KEY"}, []byte(`{}`))
+	err := a.Handle(
+		rec,
+		req,
+		config.Model{Provider: "mix", Model: "x", APIKeyEnv: "MIX_API_KEY"},
+		[]byte(`{}`),
+	)
 	if err == nil {
 		t.Fatal("expected error for missing base_url")
 	}

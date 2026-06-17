@@ -157,7 +157,10 @@ func TestRecoverMiddleware_PostWriteHeaderDoesNotRewrite(t *testing.T) {
 	}
 	// Body should NOT contain the opaque panic response.
 	if strings.Contains(rec.Body.String(), "internal_error") {
-		t.Errorf("body should not contain panic response after headers written, got: %s", rec.Body.String())
+		t.Errorf(
+			"body should not contain panic response after headers written, got: %s",
+			rec.Body.String(),
+		)
 	}
 }
 
@@ -215,7 +218,11 @@ func TestWroteHeaderResponseWriter_TracksFirstWrite(t *testing.T) {
 	}
 	w.WriteHeader(http.StatusCreated)
 	if !w.wroteHeader || w.code != http.StatusCreated {
-		t.Errorf("expected wroteHeader=true, code=201; got wroteHeader=%v code=%d", w.wroteHeader, w.code)
+		t.Errorf(
+			"expected wroteHeader=true, code=201; got wroteHeader=%v code=%d",
+			w.wroteHeader,
+			w.code,
+		)
 	}
 	if rec.Code != http.StatusCreated {
 		t.Errorf("underlying recorder: got %d, want 201", rec.Code)
@@ -228,7 +235,11 @@ func TestWroteHeaderResponseWriter_WriteImplicitlyOpens(t *testing.T) {
 
 	_, _ = w.Write([]byte("hello"))
 	if !w.wroteHeader || w.code != http.StatusOK {
-		t.Errorf("Write without WriteHeader should mark wroteHeader=true with code=200; got wroteHeader=%v code=%d", w.wroteHeader, w.code)
+		t.Errorf(
+			"Write without WriteHeader should mark wroteHeader=true with code=200; got wroteHeader=%v code=%d",
+			w.wroteHeader,
+			w.code,
+		)
 	}
 	if rec.Code != http.StatusOK {
 		t.Errorf("underlying recorder: got %d, want 200", rec.Code)

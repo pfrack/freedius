@@ -143,8 +143,8 @@ func TestLoad(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "model with header-unsafe characters",
-			yaml: "models:\n  claude-opus-4:\n    provider: nim\n    model: \"foo\\r\\nX-Injected: bar\"\n",
+			name:      "model with header-unsafe characters",
+			yaml:      "models:\n  claude-opus-4:\n    provider: nim\n    model: \"foo\\r\\nX-Injected: bar\"\n",
 			wantErr:   true,
 			errSubstr: "unsafe \"model\" value",
 		},
@@ -183,8 +183,8 @@ func TestLoad(t *testing.T) {
 			errSubstr: `invalid scheme`,
 		},
 		{
-			name: "api_key_env with newline",
-			yaml: "models:\n  claude-opus-4:\n    provider: openai\n    model: gpt-4\n    base_url: https://example.com\n    api_key_env: \"OPENAI\\nKEY\"\n",
+			name:      "api_key_env with newline",
+			yaml:      "models:\n  claude-opus-4:\n    provider: openai\n    model: gpt-4\n    base_url: https://example.com\n    api_key_env: \"OPENAI\\nKEY\"\n",
 			wantErr:   true,
 			errSubstr: "api_key_env with invalid characters",
 		},

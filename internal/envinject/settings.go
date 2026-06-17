@@ -11,11 +11,11 @@ import (
 func envBlock(host string, port int) map[string]string {
 	addr := fmt.Sprintf("http://%s:%d", host, port)
 	return map[string]string{
-		"ANTHROPIC_BASE_URL":       addr,
-		"ANTHROPIC_API_KEY":        "freedius-dummy",
-		"ENABLE_TOOL_SEARCH":       "true",
-		"DISABLE_TELEMETRY":        "1",
-		"DISABLE_ERROR_REPORTING":  "1",
+		"ANTHROPIC_BASE_URL":      addr,
+		"ANTHROPIC_API_KEY":       "freedius-dummy",
+		"ENABLE_TOOL_SEARCH":      "true",
+		"DISABLE_TELEMETRY":       "1",
+		"DISABLE_ERROR_REPORTING": "1",
 	}
 }
 
@@ -34,7 +34,13 @@ func WriteSettingsJSON(configDir string, host string, port int, dryRun bool) err
 	existing := make(map[string]any)
 	if data, err := os.ReadFile(path); err == nil {
 		if err := json.Unmarshal(data, &existing); err != nil {
-			slog.Warn("envinject: malformed existing settings.json, replacing", "path", path, "err", err)
+			slog.Warn(
+				"envinject: malformed existing settings.json, replacing",
+				"path",
+				path,
+				"err",
+				err,
+			)
 			existing = make(map[string]any)
 		}
 	}

@@ -169,7 +169,10 @@ func TestWriteShellRC_ForceReplaces(t *testing.T) {
 	data, _ := os.ReadFile(rcPath)
 	content := string(data)
 	if strings.Count(content, startMarker) != 1 {
-		t.Errorf("expected exactly one start marker after force replace, got %d", strings.Count(content, startMarker))
+		t.Errorf(
+			"expected exactly one start marker after force replace, got %d",
+			strings.Count(content, startMarker),
+		)
 	}
 	if !strings.Contains(content, "0.0.0.0:9090") {
 		t.Errorf("force replace should write new values (0.0.0.0:9090)")

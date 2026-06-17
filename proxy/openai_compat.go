@@ -26,7 +26,10 @@ func NewOpenAICompatibleAdapter(logger *slog.Logger) *OpenAICompatibleAdapter {
 	return NewOpenAICompatibleAdapterWithTimeout(logger, 5*time.Minute)
 }
 
-func NewOpenAICompatibleAdapterWithTimeout(logger *slog.Logger, streamTimeout time.Duration) *OpenAICompatibleAdapter {
+func NewOpenAICompatibleAdapterWithTimeout(
+	logger *slog.Logger,
+	streamTimeout time.Duration,
+) *OpenAICompatibleAdapter {
 	return &OpenAICompatibleAdapter{
 		client: &http.Client{
 			Timeout: 0, // bounded per-request via context.WithTimeout below
@@ -44,13 +47,22 @@ func NewOpenAICompatibleAdapterWithTimeout(logger *slog.Logger, streamTimeout ti
 	}
 }
 
-func (a *OpenAICompatibleAdapter) Handle(w http.ResponseWriter, r *http.Request, m config.Model, body []byte) error {
+func (a *OpenAICompatibleAdapter) Handle(
+	w http.ResponseWriter,
+	r *http.Request,
+	m config.Model,
+	body []byte,
+) error {
 	if m.BaseURL == "" {
 		return fmt.Errorf("%s adapter (openai-compat): missing base_url", originalOr(m))
 	}
 	apiKey := os.Getenv(m.APIKeyEnv)
 	if apiKey == "" {
-		return fmt.Errorf("%s adapter (openai-compat): env var %s is not set", originalOr(m), m.APIKeyEnv)
+		return fmt.Errorf(
+			"%s adapter (openai-compat): env var %s is not set",
+			originalOr(m),
+			m.APIKeyEnv,
+		)
 	}
 	upstreamBody, err := translate.TranslateRequest(body, m.Model, a.translateOpts)
 	if err != nil {
@@ -66,7 +78,12 @@ func (a *OpenAICompatibleAdapter) Handle(w http.ResponseWriter, r *http.Request,
 	// Cancellation still propagates via r.Context() to the upstream request.
 	ctx, cancel := context.WithTimeout(r.Context(), a.streamTimeout)
 	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, m.BaseURL, bytes.NewReader(upstreamBody))
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodPost,
+		m.BaseURL,
+		bytes.NewReader(upstreamBody),
+	)
 	if err != nil {
 		return fmt.Errorf("%s adapter (openai-compat): build request: %w", originalOr(m), err)
 	}

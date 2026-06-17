@@ -20,6 +20,11 @@ func NewCustomAdapter(logger *slog.Logger, verboseErrors bool) *CustomAdapter {
 	return &CustomAdapter{inner: NewAnthropicCompatibleAdapter(logger, verboseErrors)}
 }
 
-func (a *CustomAdapter) Handle(w http.ResponseWriter, r *http.Request, m config.Model, body []byte) error {
+func (a *CustomAdapter) Handle(
+	w http.ResponseWriter,
+	r *http.Request,
+	m config.Model,
+	body []byte,
+) error {
 	return a.inner.Handle(w, r, m, body)
 }
