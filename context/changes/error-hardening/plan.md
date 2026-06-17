@@ -739,9 +739,9 @@ set -gx DISABLE_ERROR_REPORTING "1"
 
 #### Manual
 
-- [ ] 4.14 `freedius init` in fresh env writes settings.json env block; `claude` routes through freedius
-- [ ] 4.15 `freedius init --shell-install` in zsh; source rc; `echo $ANTHROPIC_BASE_URL` shows proxy URL
-- [ ] 4.16 Re-run `--shell-install` shows "already installed"; rc has single marker block
-- [ ] 4.17 `freedius init --shell-install --force` replaces block (not doubled)
-- [ ] 4.18 `freedius serve` prints eval-snippet; `freedius serve --no-export-hint` suppresses it
-- [ ] 4.19 `freedius init --no-env` writes config only, no settings.json mutation
+- [~] 4.14 `freedius init` in fresh env writes settings.json env block (script passes); `claude` routing check requires manual `claude` run
+- [x] 4.15 `freedius init --shell-install` in zsh; source rc; `echo $ANTHROPIC_BASE_URL` shows proxy URL
+- [x] 4.16 Re-run `--shell-install` shows "already installed"; rc has single marker block
+- [x] 4.17 `freedius init --shell-install --force` replaces block (not doubled)
+- [x] 4.18 `freedius serve` prints eval-snippet; `freedius serve --no-export-hint` suppresses it — fe56264
+- [x] 4.19 `freedius init --no-env` writes config only, no settings.json mutation
