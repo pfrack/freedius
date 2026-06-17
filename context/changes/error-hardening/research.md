@@ -39,7 +39,7 @@ The plan that consumes this research will need to know: what failure paths exist
 1. **Error paths are 70% good, 30% bad.** Config loading and per-entry validation produce clear, descriptive messages with file path + field name + known-values list. Dispatch and adapter errors are where it falls apart: pre-WriteHeader adapter errors are **swallowed** by the dispatcher ([proxy/proxy.go:107](proxy/proxy.go)) into a generic `"upstream error"` body; panics in handlers have **no recovery middleware** ([main.go:97-103](main.go)); three different error JSON shapes exist for morally-the-same condition; the OpenAI HTTP client has **no `Timeout`** ([proxy/openai_compat.go:21](proxy/openai_compat.go)).
 2. **The PRD placeholder `CLAUDE_CODE_API_BASE` does not exist.** The canonical variable is `ANTHROPIC_BASE_URL` (with `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN`). Claude Code reads env from process env *and* from `~/.claude/settings.json` `env` block; shell env wins over settings-file env. Companion var `ENABLE_TOOL_SEARCH=true` is required because `ANTHROPIC_BASE_URL` pointing at a non-first-party host disables MCP tool search.
 3. **`main.go` is a 190-line single-`run()` function with zero subcommand parsing.** Today, `freedius init` is silently dropped by stdlib `flag`, then config load fails. Adding `init` / `version` / `serve` is ~40 LoC of stdlib dispatch + a `templates/starter.yaml` loaded via `embed.FS` (~5 LoC) + the starter template content (~50 LoC of YAML).
-4. **Cross-cutting concern: adapter error messages leak the inner adapter name**, not the configured provider name. A user with `provider: nim` sees `"openai adapter: env var NIM_API_KEY is not set"`. Fix: pass the original provider name into inner adapters via a wrapper.
+4. **Cross-cutting concern: adapter error messages leak the inner adapter name**, not the configured provider name. A user with `provider: nim` sees `"openai adapter: env var NVIDIA_NIM_API_KEY is not set"`. Fix: pass the original provider name into inner adapters via a wrapper.
 5. **Total S-04 LoC estimate: ~700-1000 LoC across 3-4 phases** (error hardening + env injection + init subcommand). Within the MVP budget ([prd.md:13](context/foundation/prd.md) — 2 weeks, after-hours).
 
 ## Detailed Findings
@@ -274,7 +274,7 @@ There is no `version` variable anywhere in the binary. `os.Args[0]` is never ref
 
 **Comments to include**: top-of-file purpose; per-mapping provider explanation (matching `config.example.yaml:2,4,6,8` style); note that `api_key_env` is the env-var name not the value (NFR-Privacy); note that `mappings` uses family names (`opus`/`sonnet`/`haiku`/`auto`/`default` per `proxy/families.go:10-16`) while `models` is exact-match.
 
-**Out-of-box validity**: the template will parse YAML, but `config.Load` will fail at server start until the user exports `NIM_API_KEY` / `OPENCODE_API_KEY` (which the loader auto-injects from `knownProviderDefaults` at [config/defaults.go:53-58](config/defaults.go)). This is **correct** behavior — the template should mention "set the env vars listed in `api_key_env` before running `freedius`".
+**Out-of-box validity**: the template will parse YAML, but `config.Load` will fail at server start until the user exports `NVIDIA_NIM_API_KEY` / `OPENCODE_API_KEY` (which the loader auto-injects from `knownProviderDefaults` at [config/defaults.go:53-58](config/defaults.go)). This is **correct** behavior — the template should mention "set the env vars listed in `api_key_env` before running `freedius`".
 
 **Docs URL**: `README.md:1` is one word; no docs URL is established. Defer the URL mention in the template — recommend a comment pointing at `config.example.yaml` as the canonical example instead.
 
@@ -314,7 +314,7 @@ Two design choices:
 
 ### D. Cross-cutting patterns
 
-1. **Adapter error messages leak inner name.** A user with `provider: nim` and no `NIM_API_KEY` set gets `"openai adapter: env var NIM_API_KEY is not set"`. Affects all 4 production adapters via delegation. **Fix**: preserve original provider name on `Model` (`Model.OriginalProvider` field); pass through inner adapter constructors; use in error templates.
+1. **Adapter error messages leak inner name.** A user with `provider: nim` and no `NVIDIA_NIM_API_KEY` set gets `"openai adapter: env var NVIDIA_NIM_API_KEY is not set"`. Affects all 4 production adapters via delegation. **Fix**: preserve original provider name on `Model` (`Model.OriginalProvider` field); pass through inner adapter constructors; use in error templates.
 
 2. **Pre-WriteHeader errors are swallowed by the dispatcher.** [proxy/proxy.go:107](proxy/proxy.go) writes only `"upstream error"` regardless of the original `err`. Direct violation of NFR-Error-handling. **Fix**: forward the adapter's error to the client body for pre-WriteHeader failures; keep nil-return for post-WriteHeader (per `lessons.md`).
 

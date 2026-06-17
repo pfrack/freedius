@@ -97,7 +97,7 @@ type Model struct {
     Provider  string `yaml:"provider"`
     Model     string `yaml:"model"`
     BaseURL   string `yaml:"base_url,omitempty"`    // required for provider=custom; optional override for provider=nim
-    APIKeyEnv string `yaml:"api_key_env,omitempty"` // env-var NAME (e.g. "NIM_API_KEY"), not the value
+    APIKeyEnv string `yaml:"api_key_env,omitempty"` // env-var NAME (e.g. "NVIDIA_NIM_API_KEY"), not the value
 }
 ```
 

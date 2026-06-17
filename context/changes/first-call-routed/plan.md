@@ -61,7 +61,7 @@ After S-01 lands:
 - **Total upstream-call timeout** — no `http.Client.Timeout`, no `context.WithTimeout` on the outbound call. Wall-clock is bounded only by the inbound `r.Context()` (client disconnect). Per Round-2 question #5 decision.
 - **Anthropic-version header on custom adapters** — only `Authorization: Bearer <key>`. Custom providers that require `anthropic-version` will be the user's problem to handle (e.g. via a shim). Per Round-2 question #7 decision.
 - **Error envelope wrapping** — upstream 4xx/5xx reach Claude Code verbatim. No Anthropic-shaped error wrapping. Per Round-2 question #6 decision.
-- **Real NIM in CI** — tests use `httptest.NewServer` mocks. No `NIM_API_KEY` in CI secrets. Per Round-3 question #9 decision.
+- **Real NIM in CI** — tests use `httptest.NewServer` mocks. No `NVIDIA_NIM_API_KEY` in CI secrets. Per Round-3 question #9 decision.
 - **Env-var lazy re-read** — read once at startup, stored in the adapter struct. Rotation requires a freedius restart. Per Round-1 question #2 decision.
 - **Top-level `providers:` block in YAML** — per-model `base_url` + `api_key_env`. Per Round-1 question #1 decision.
 - **Provider-specific adapter files for `zen` and `go`** — they still return 501 "not_implemented" in S-01. S-02 adds the real adapters.
@@ -109,7 +109,7 @@ Wire the dispatcher's lookup path from a hardcoded 501 to a registry-driven disp
 
 **Contract**: `Model` gains two `yaml` tags:
 - `BaseURL string \`yaml:"base_url,omitempty"\`` — the upstream endpoint (e.g. `https://integrate.api.nvidia.com/v1/chat/completions` for NIM, `https://my-shim.example.com/v1/messages` for custom)
-- `APIKeyEnv string \`yaml:"api_key_env,omitempty"\`` — the env-var *name* (e.g. `NIM_API_KEY`), not the value
+- `APIKeyEnv string \`yaml:"api_key_env,omitempty"\`` — the env-var *name* (e.g. `NVIDIA_NIM_API_KEY`), not the value
 The existing per-model validation loop (currently at `config/config.go:51-63`) adds:
 - Reject `provider=custom` without `BaseURL` (error: "config: config file at <path>: model <name> has provider=custom but no base_url")
 - Reject `BaseURL` whose scheme is not `http` or `https` (error: "config: config file at <path>: model <name> has base_url with invalid scheme <scheme> (allowed: http, https)")
@@ -122,7 +122,7 @@ The existing CRLF/colon check on `Model` (line 61-63) does NOT need to be extend
 
 **Intent**: Replace the F-01 stub example with one that shows the new fields and demonstrates both `nim` and `custom` mappings.
 
-**Contract**: Two model entries, one for each. The `nim` entry has `api_key_env: NIM_API_KEY` and no `base_url` (the adapter uses a hardcoded const default). The `custom` entry has both `base_url` and `api_key_env`. This is the user-facing documentation for the S-01 schema.
+**Contract**: Two model entries, one for each. The `nim` entry has `api_key_env: NVIDIA_NIM_API_KEY` and no `base_url` (the adapter uses a hardcoded const default). The `custom` entry has both `base_url` and `api_key_env`. This is the user-facing documentation for the S-01 schema.
 
 #### 3. Add the `Provider` interface and `Registry`
 
@@ -324,7 +324,7 @@ func forwardUpstreamError(w http.ResponseWriter, resp *http.Response) error {
 - Add a `registry := proxy.NewRegistry(...)` after `cfg, err := config.Load(cfgPath)`.
 - For Phase 2, the registry has only the `custom` entry: `map[string]proxy.Provider{"custom": proxy.NewCustomAdapter(logger)}`.
 - Replace `proxy.NewDispatcher(cfg, nil, logger)` with `proxy.NewDispatcher(cfg, registry, logger)`.
-- `NIM_API_KEY` is not yet required (NIM adapter is Phase 3).
+- `NVIDIA_NIM_API_KEY` is not yet required (NIM adapter is Phase 3).
 
 #### 4. Write the custom adapter test
 
@@ -499,13 +499,13 @@ The `defer resp.Body.Close()` is critical — without it, the upstream connectio
 
 **File**: `main.go`
 
-**Intent**: Build a `NIMAdapter` at startup, register it in the `Registry`. Read `NIM_API_KEY` at startup, fail-fast if missing when the config references `provider: nim`.
+**Intent**: Build a `NIMAdapter` at startup, register it in the `Registry`. Read `NVIDIA_NIM_API_KEY` at startup, fail-fast if missing when the config references `provider: nim`.
 
 **Contract**:
 - Add eager env-var check after `cfg, err := config.Load(cfgPath)`:
   ```go
-  if configUsesProvider(cfg, "nim") && os.Getenv("NIM_API_KEY") == "" {
-      return failf("freedius: NIM_API_KEY env var required (config references provider=nim)")
+  if configUsesProvider(cfg, "nim") && os.Getenv("NVIDIA_NIM_API_KEY") == "" {
+      return failf("freedius: NVIDIA_NIM_API_KEY env var required (config references provider=nim)")
   }
   ```
   The `configUsesProvider` helper iterates `cfg.Models` and returns true if any model has the given provider. (Could be a method on `*Config` — implementation choice.)
@@ -533,13 +533,13 @@ The `defer resp.Body.Close()` is critical — without it, the upstream connectio
 
 #### Manual Verification:
 
-- Set `NIM_API_KEY=<your-key>` in the env
+- Set `NVIDIA_NIM_API_KEY=<your-key>` in the env
 - Start `./freedius` with a config that maps a Claude Code model (e.g. `claude-opus-4`) to `provider: nim` with `model: meta/llama-3.1-70b-instruct`
 - `curl -X POST http://127.0.0.1:8080 -H "Content-Type: application/json" -d '{"model":"claude-opus-4","max_tokens":50,"stream":true,"messages":[{"role":"user","content":"Say hi in 5 words or fewer"}]}'` returns 200 with `Content-Type: text/event-stream` and a valid Anthropic-format SSE stream
 - Pipe the response to a JSON-lines parser: confirm `event: message_start`, `event: content_block_start`, one or more `event: content_block_delta` with `text_delta`, `event: content_block_stop`, `event: message_delta` with `stop_reason: "end_turn"`, `event: message_stop`
 - Run a real `claude-code` session routed through freedius to NIM; confirm a tool-using task (e.g. "list the files in the current directory") completes successfully
 - Run a multi-turn conversation; confirm `input_tokens` is reported in the `message_start` usage (may be 0 if NIM's usage chunk arrives late — see Round-3 #10 known limitation) and `output_tokens` in the `message_delta` usage
-- Set `NIM_API_KEY` to an invalid value; restart freedius; `curl` returns 401 with NIM's body verbatim
+- Set `NVIDIA_NIM_API_KEY` to an invalid value; restart freedius; `curl` returns 401 with NIM's body verbatim
 - Point NIM at a non-existent URL via `NIM_BASE_URL=http://127.0.0.1:1`; `curl` returns 502 with `{"error":"upstream_unreachable", ...}`
 
 **Implementation Note**: After completing this phase and all automated verification passes, S-01 is done. The next step is `/10x-impl-review first-call-routed` to audit the implementation against this plan, then `/10x-archive` to close the change. The `context/foundation/lessons.md` file should be created (if it doesn't exist) with at least one entry: the json.Encoder newline / bufio.Scanner 64KB SSE footguns, captured for future reference.
@@ -636,7 +636,7 @@ Each phase has a per-phase Manual Verification section that lists the specific `
 - [ ] 3.6 Add `proxy/translate/testdata/` with recorded SSE fixtures (text-only, single tool, parallel tools, error mid-stream, etc.) — commit sha
 - [ ] 3.7 Add `proxy/nim.go` with `NIMAdapter`, `NewNIMAdapter`, `Handle` — commit sha
 - [ ] 3.8 Add `proxy/nim_test.go` with the 8+ cases from Phase 3 Change #5 — commit sha
-- [ ] 3.9 Update `main.go` with the `NIM_API_KEY` eager check + NIM adapter registration — commit sha
+- [ ] 3.9 Update `main.go` with the `NVIDIA_NIM_API_KEY` eager check + NIM adapter registration — commit sha
 - [ ] 3.10 Add dispatcher-level integration test exercising NIM adapter end-to-end (proxy/proxy_test.go) — commit sha
 - [ ] 3.11 Run `make ci` — all green, coverage ≥ 90% translate / ≥ 85% proxy — commit sha
 - [ ] 3.12 Run `govulncheck ./...` — no new vulnerabilities — commit sha
@@ -646,5 +646,5 @@ Each phase has a per-phase Manual Verification section that lists the specific `
 - [ ] 3.13 Verify NIM translation end-to-end with a real NIM API key per Phase 3 Manual Verification — commit sha
 - [ ] 3.14 Verify a real `claude-code` session through freedius to NIM completes a tool-using task — commit sha
 - [ ] 3.15 Verify multi-turn conversation reports `input_tokens` and `output_tokens` correctly — commit sha
-- [ ] 3.16 Verify invalid NIM_API_KEY returns 401 with NIM's body verbatim — commit sha
+- [ ] 3.16 Verify invalid NVIDIA_NIM_API_KEY returns 401 with NIM's body verbatim — commit sha
 - [ ] 3.17 Create `context/foundation/lessons.md` with the json.Encoder newline / bufio.Scanner 64KB SSE footguns — commit sha

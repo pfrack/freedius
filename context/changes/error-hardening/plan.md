@@ -32,7 +32,7 @@ The proxy has 70% good error handling (config loading + per-entry validation are
 - Every HTTP error path returns a consistent JSON body: `{"error":"<code>","message":"<human text>","detail":"<optional upstream error>","request_id":"<32-hex>"}`. The `detail` field requires `--verbose-errors` (or `FREEDIUS_VERBOSE_ERRORS=1`).
 - A panic anywhere in the handler/adapter/translator stack produces a logged stack trace (with `request_id` and path) and a structured 500 response — not a connection reset.
 - Every response carries an `X-Freedius-Request-ID` header, and every log line for that request includes the same `request_id`.
-- Adapter error messages name the user's configured provider (e.g., `"nim adapter (openai-compat): env var NIM_API_KEY is not set"`), not the inner delegation target.
+- Adapter error messages name the user's configured provider (e.g., `"nim adapter (openai-compat): env var NVIDIA_NIM_API_KEY is not set"`), not the inner delegation target.
 - `freedius init` writes a valid `freedius.yaml` template; `freedius init --force` backs up then overwrites; `--dry-run` previews; `--output <path>` targets a custom path. Refuse-on-exists by default.
 - On startup, freedius prints a copy-paste-ready `export` block to stderr (silenceable with `--no-export-hint`).
 - `freedius init` optionally writes a merged `env` block into `~/.claude/settings.json` (skippable via `--no-env`).
@@ -231,7 +231,7 @@ Fixes pre-WriteHeader error forwarding in the dispatcher (replacing generic `"up
 **Intent**: Every `fmt.Errorf("openai adapter: …")` becomes `fmt.Errorf("…")` where the error message uses `m.OriginalProvider` (with fallback to `m.Provider` when empty) and includes the inner format family in parens: `"<orig> adapter (openai-compat): env var %s is not set"`.
 
 **Contract**: Add a helper `originalOr(m config.Model) string` in `proxy/proxy.go` that returns `m.OriginalProvider` if non-empty, else `m.Provider`. Adapter error templates use this helper. Example outputs:
-- `provider: nim`, no `NIM_API_KEY` → `"nim adapter (openai-compat): env var NIM_API_KEY is not set"`
+- `provider: nim`, no `NVIDIA_NIM_API_KEY` → `"nim adapter (openai-compat): env var NVIDIA_NIM_API_KEY is not set"`
 - `provider: custom`, no `CUSTOM_KEY` → `"custom adapter (anthropic-compat): env var CUSTOM_KEY is not set"`
 - `provider: go`, OpenAI path → `"go adapter (openai-compat): env var OPENCODE_API_KEY is not set"`
 - `provider: zen`, missing base URL → `"zen adapter (anthropic-compat): missing base_url"`
@@ -270,7 +270,7 @@ Fixes pre-WriteHeader error forwarding in the dispatcher (replacing generic `"up
 - Test: stub adapter returns pre-WriteHeader error; default (no `--verbose-errors`) → 502 body has `"error":"upstream_error"` and `"message"` but no `"detail"`; with `--verbose-errors` → body has `"detail":"<original error>"`.
 - Test: stub upstream hangs; with `--stream-timeout=1s`, context deadline exceeded and client gets a well-formed error response (if headers not yet written) or connection error (if mid-stream).
 - Test: `provider=zen` config (post-rewrite `provider=mix`) with missing `OPENCODE_API_KEY`; adapter error template says `"zen adapter (anthropic-compat): …"` not `"anthropic adapter: …"`.
-- Test: `provider=nim` config with missing `NIM_API_KEY`; error says `"nim adapter (openai-compat): …"` not `"openai adapter: …"`.
+- Test: `provider=nim` config with missing `NVIDIA_NIM_API_KEY`; error says `"nim adapter (openai-compat): …"` not `"openai adapter: …"`.
 - Test: `freediusErrorHandler` body matches unified shape: `{"error":"upstream_unreachable","message":"upstream not reachable","detail":"…","request_id":"…"}`.
 - Test: Mix routing log emitted with correct `selected` value.
 - Test: `checkRequiredEnvVars` catches missing env for `provider=zen` after rewrites (verified via `OriginalProvider`).

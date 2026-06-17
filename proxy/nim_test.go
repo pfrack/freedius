@@ -19,7 +19,7 @@ func newNIMAdapter(t *testing.T) *NIMAdapter {
 }
 
 func TestNIMAdapter_DispatchesToOpenAI(t *testing.T) {
-	t.Setenv("NIM_API_KEY", "sk-test")
+	t.Setenv("NVIDIA_NIM_API_KEY", "sk-test")
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "Bearer sk-test" {
 			t.Errorf("Authorization: got %q, want Bearer sk-test", r.Header.Get("Authorization"))
@@ -41,7 +41,7 @@ func TestNIMAdapter_DispatchesToOpenAI(t *testing.T) {
 	rec := httptest.NewRecorder()
 	body := []byte(`{"model":"claude-opus-4","max_tokens":50,"messages":[{"role":"user","content":"hi"}],"stream":true}`)
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader(body))
-	err := a.Handle(rec, req, config.Model{Provider: "nim", Model: "meta-llama", BaseURL: upstream.URL + "/v1/chat/completions", APIKeyEnv: "NIM_API_KEY"}, body)
+	err := a.Handle(rec, req, config.Model{Provider: "nim", Model: "meta-llama", BaseURL: upstream.URL + "/v1/chat/completions", APIKeyEnv: "NVIDIA_NIM_API_KEY"}, body)
 	if err != nil {
 		t.Fatalf("Handle returned err: %v", err)
 	}

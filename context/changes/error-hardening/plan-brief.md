@@ -15,7 +15,7 @@ The proxy has 70% good error handling — config loading and per-entry validatio
 
 - Every error response is `{"error":"<code>","message":"…","detail":"…","request_id":"32-hex"}` — with `detail` gated by `--verbose-errors`.
 - A panic anywhere produces a logged stack trace (with `request_id`) and a structured 500 — never a connection reset.
-- Adapter errors name the user's provider: `"nim adapter (openai-compat): env var NIM_API_KEY is not set"` instead of `"openai adapter: …"`.
+- Adapter errors name the user's provider: `"nim adapter (openai-compat): env var NVIDIA_NIM_API_KEY is not set"` instead of `"openai adapter: …"`.
 - `freedius init` writes a valid config; `--force` backs up then overwrites; `--dry-run` previews.
 - On startup, a copy-paste `export` block prints to stderr. `freedius init` optionally writes `~/.claude/settings.json` and/or shell rc.
 - `--stream-timeout=5m` bounds upstream calls; `FREEDIUS_LOG=json` opts into structured logging.

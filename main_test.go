@@ -13,23 +13,23 @@ import (
 )
 
 func TestCheckRequiredEnvVars_PresetEnvVarMissing(t *testing.T) {
-	t.Setenv("NIM_API_KEY", "")
+	t.Setenv("NVIDIA_NIM_API_KEY", "")
 	cfg := &config.Config{
 		Models: map[string]config.Model{
-			"a": {Provider: "nim", Model: "x", APIKeyEnv: "NIM_API_KEY"},
+			"a": {Provider: "nim", Model: "x", APIKeyEnv: "NVIDIA_NIM_API_KEY"},
 		},
 	}
 	err := checkRequiredEnvVars(cfg)
 	if err == nil {
-		t.Fatal("expected error for missing NIM_API_KEY")
+		t.Fatal("expected error for missing NVIDIA_NIM_API_KEY")
 	}
-	if !strings.Contains(err.Error(), "NIM_API_KEY") || !strings.Contains(err.Error(), "nim") {
+	if !strings.Contains(err.Error(), "NVIDIA_NIM_API_KEY") || !strings.Contains(err.Error(), "nim") {
 		t.Errorf("error should mention env var and provider: %v", err)
 	}
 }
 
 func TestCheckRequiredEnvVars_PerModelOverrideMissing(t *testing.T) {
-	t.Setenv("NIM_API_KEY", "set")
+	t.Setenv("NVIDIA_NIM_API_KEY", "set")
 	t.Setenv("OPENAI_API_KEY", "")
 	cfg := &config.Config{
 		Models: map[string]config.Model{
@@ -46,11 +46,11 @@ func TestCheckRequiredEnvVars_PerModelOverrideMissing(t *testing.T) {
 }
 
 func TestCheckRequiredEnvVars_AllSet(t *testing.T) {
-	t.Setenv("NIM_API_KEY", "k1")
+	t.Setenv("NVIDIA_NIM_API_KEY", "k1")
 	t.Setenv("OPENAI_API_KEY", "k2")
 	cfg := &config.Config{
 		Models: map[string]config.Model{
-			"a": {Provider: "nim", Model: "x", APIKeyEnv: "NIM_API_KEY"},
+			"a": {Provider: "nim", Model: "x", APIKeyEnv: "NVIDIA_NIM_API_KEY"},
 			"b": {Provider: "openai", Model: "gpt-4", APIKeyEnv: "OPENAI_API_KEY"},
 		},
 	}
@@ -60,7 +60,7 @@ func TestCheckRequiredEnvVars_AllSet(t *testing.T) {
 }
 
 func TestCheckRequiredEnvVars_CustomNoDefault(t *testing.T) {
-	t.Setenv("NIM_API_KEY", "k1")
+	t.Setenv("NVIDIA_NIM_API_KEY", "k1")
 	cfg := &config.Config{
 		Models: map[string]config.Model{
 			"a": {Provider: "custom", Model: "x", BaseURL: "https://x", APIKeyEnv: "CUSTOM_KEY"},
@@ -73,7 +73,7 @@ func TestCheckRequiredEnvVars_CustomNoDefault(t *testing.T) {
 }
 
 func TestCheckRequiredEnvVars_ProviderNotReferenced(t *testing.T) {
-	t.Setenv("NIM_API_KEY", "")
+	t.Setenv("NVIDIA_NIM_API_KEY", "")
 	t.Setenv("OPENAI_API_KEY", "k2")
 	cfg := &config.Config{
 		Models: map[string]config.Model{
@@ -86,7 +86,7 @@ func TestCheckRequiredEnvVars_ProviderNotReferenced(t *testing.T) {
 }
 
 func TestCheckRequiredEnvVars_MappingMissingEnv(t *testing.T) {
-	t.Setenv("NIM_API_KEY", "k1")
+	t.Setenv("NVIDIA_NIM_API_KEY", "k1")
 	t.Setenv("MY_MAPPING_KEY", "")
 	cfg := &config.Config{
 		Models: map[string]config.Model{},
@@ -515,7 +515,7 @@ func TestRunServe_EvalSnippetAppears(t *testing.T) {
 	if err := os.WriteFile(cfgPath, []byte("mappings:\n  opus: {provider: nim, model: test}\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("NIM_API_KEY", "test-key")
+	t.Setenv("NVIDIA_NIM_API_KEY", "test-key")
 
 	cmd := exec.Command("go", "run", ".", "--config", cfgPath, "--port", "1")
 	var stderr bytes.Buffer
@@ -537,7 +537,7 @@ func TestRunServe_EvalSnippetSuppressed(t *testing.T) {
 	if err := os.WriteFile(cfgPath, []byte("mappings:\n  opus: {provider: nim, model: test}\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("NIM_API_KEY", "test-key")
+	t.Setenv("NVIDIA_NIM_API_KEY", "test-key")
 
 	cmd := exec.Command("go", "run", ".", "--config", cfgPath, "--port", "1", "--no-export-hint")
 	var stderr bytes.Buffer

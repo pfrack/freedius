@@ -123,13 +123,13 @@ func TestAdapter_ErrorTemplate_UsesOriginalProvider(t *testing.T) {
 	}{
 		{
 			name:      "nim via openai-compat names provider nim not openai",
-			model:     config.Model{Provider: "openai", Model: "x", BaseURL: "https://x/v1/chat/completions", APIKeyEnv: "NIM_API_KEY", OriginalProvider: "nim"},
-			apiKeyEnv: "NIM_API_KEY",
+			model:     config.Model{Provider: "openai", Model: "x", BaseURL: "https://x/v1/chat/completions", APIKeyEnv: "NVIDIA_NIM_API_KEY", OriginalProvider: "nim"},
+			apiKeyEnv: "NVIDIA_NIM_API_KEY",
 			envValue:  "",
 			adapterCtor: func(l *slog.Logger) Provider {
 				return NewOpenAICompatibleAdapter(l)
 			},
-			wantContains: []string{"nim adapter (openai-compat)", "NIM_API_KEY"},
+			wantContains: []string{"nim adapter (openai-compat)", "NVIDIA_NIM_API_KEY"},
 		},
 		{
 			name:      "custom via anthropic-compat names provider custom not anthropic",

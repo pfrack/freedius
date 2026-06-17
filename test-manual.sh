@@ -71,7 +71,7 @@ mappings:
   default: { provider: nim, model: default-target }
 YAML
 
-export NIM_API_KEY=test-dummy-key
+export NVIDIA_NIM_API_KEY=test-dummy-key
 
 if ! start_server; then
 	echo "  server failed to start"
@@ -263,7 +263,7 @@ fi
 cat > /dev/null <<'NOTE'
 The 4.10 test is removed because the behavior changed: freedius now
 auto-writes the starter config to ~/.config/freedius/config.yaml when
-no config is found, then starts the server. With NIM_API_KEY set
+no config is found, then starts the server. With NVIDIA_NIM_API_KEY set
 globally in this script, the server starts successfully.
 
 The auto-write path is implicitly covered by Phase 4 tests (4.14-4.19)

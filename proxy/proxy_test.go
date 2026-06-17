@@ -170,10 +170,10 @@ func TestServeHTTPMappingsLookup(t *testing.T) {
 	cfg := &config.Config{
 		Models: map[string]config.Model{},
 		Mappings: map[string]config.Model{
-			"opus": {Provider: "nim", Model: "x", APIKeyEnv: "NIM_API_KEY"},
+			"opus": {Provider: "nim", Model: "x", APIKeyEnv: "NVIDIA_NIM_API_KEY"},
 		},
 	}
-	t.Setenv("NIM_API_KEY", "k1")
+	t.Setenv("NVIDIA_NIM_API_KEY", "k1")
 	d := newTestDispatcherWithAdapter(t, cfg, map[string]Provider{
 		"nim": &mockProvider{status: 200, body: `{"ok":true}`},
 	})
@@ -196,7 +196,7 @@ func TestServeHTTPNeitherMatch(t *testing.T) {
 	cfg := &config.Config{
 		Models: map[string]config.Model{},
 		Mappings: map[string]config.Model{
-			"opus": {Provider: "nim", Model: "x", APIKeyEnv: "NIM_API_KEY"},
+			"opus": {Provider: "nim", Model: "x", APIKeyEnv: "NVIDIA_NIM_API_KEY"},
 		},
 	}
 	d := newTestDispatcherWithAdapter(t, cfg, map[string]Provider{
@@ -219,13 +219,13 @@ func TestServeHTTPNeitherMatch(t *testing.T) {
 func TestServeHTTPModelsWinsOverMappings(t *testing.T) {
 	cfg := &config.Config{
 		Models: map[string]config.Model{
-			"shared-key": {Provider: "nim", Model: "from-models", APIKeyEnv: "NIM_API_KEY"},
+			"shared-key": {Provider: "nim", Model: "from-models", APIKeyEnv: "NVIDIA_NIM_API_KEY"},
 		},
 		Mappings: map[string]config.Model{
-			"shared-key": {Provider: "nim", Model: "from-mappings", APIKeyEnv: "NIM_API_KEY"},
+			"shared-key": {Provider: "nim", Model: "from-mappings", APIKeyEnv: "NVIDIA_NIM_API_KEY"},
 		},
 	}
-	t.Setenv("NIM_API_KEY", "k1")
+	t.Setenv("NVIDIA_NIM_API_KEY", "k1")
 	d := newTestDispatcherWithAdapter(t, cfg, map[string]Provider{
 		"nim": &recordingProvider{},
 	})
@@ -244,10 +244,10 @@ func TestServeHTTPFamilyMatch(t *testing.T) {
 	cfg := &config.Config{
 		Models: map[string]config.Model{},
 		Mappings: map[string]config.Model{
-			"opus": {Provider: "nim", Model: "meta/llama-3.1-70b-instruct", APIKeyEnv: "NIM_API_KEY"},
+			"opus": {Provider: "nim", Model: "meta/llama-3.1-70b-instruct", APIKeyEnv: "NVIDIA_NIM_API_KEY"},
 		},
 	}
-	t.Setenv("NIM_API_KEY", "k1")
+	t.Setenv("NVIDIA_NIM_API_KEY", "k1")
 	d := newTestDispatcherWithAdapter(t, cfg, map[string]Provider{
 		"nim": &mockProvider{status: 200, body: `{"ok":true,"matched":"family"}`},
 	})
@@ -291,10 +291,10 @@ func TestServeHTTPFamilyDefaultCatchAll(t *testing.T) {
 	cfg := &config.Config{
 		Models: map[string]config.Model{},
 		Mappings: map[string]config.Model{
-			"default": {Provider: "nim", Model: "catch-all", APIKeyEnv: "NIM_API_KEY"},
+			"default": {Provider: "nim", Model: "catch-all", APIKeyEnv: "NVIDIA_NIM_API_KEY"},
 		},
 	}
-	t.Setenv("NIM_API_KEY", "k1")
+	t.Setenv("NVIDIA_NIM_API_KEY", "k1")
 	d := newTestDispatcherWithAdapter(t, cfg, map[string]Provider{
 		"nim": &mockProvider{status: 200, body: `{"ok":true}`},
 	})
@@ -317,12 +317,12 @@ func TestServeHTTPFamilyPriorityIndependentOfYAMLOrder(t *testing.T) {
 	cfg := &config.Config{
 		Models: map[string]config.Model{},
 		Mappings: map[string]config.Model{
-			"auto":    {Provider: "nim", Model: "from-auto", APIKeyEnv: "NIM_API_KEY"},
-			"opus":    {Provider: "nim", Model: "from-opus", APIKeyEnv: "NIM_API_KEY"},
-			"default": {Provider: "nim", Model: "from-default", APIKeyEnv: "NIM_API_KEY"},
+			"auto":    {Provider: "nim", Model: "from-auto", APIKeyEnv: "NVIDIA_NIM_API_KEY"},
+			"opus":    {Provider: "nim", Model: "from-opus", APIKeyEnv: "NVIDIA_NIM_API_KEY"},
+			"default": {Provider: "nim", Model: "from-default", APIKeyEnv: "NVIDIA_NIM_API_KEY"},
 		},
 	}
-	t.Setenv("NIM_API_KEY", "k1")
+	t.Setenv("NVIDIA_NIM_API_KEY", "k1")
 	d := newTestDispatcherWithAdapter(t, cfg, map[string]Provider{
 		"nim": &mockProvider{status: 200, body: `{}`},
 	})
@@ -341,13 +341,13 @@ func TestServeHTTPFamilyPriorityIndependentOfYAMLOrder(t *testing.T) {
 func TestServeHTTPModelsWinsOverFamilyMatch(t *testing.T) {
 	cfg := &config.Config{
 		Models: map[string]config.Model{
-			"claude-opus-4-1": {Provider: "nim", Model: "exact-match", APIKeyEnv: "NIM_API_KEY"},
+			"claude-opus-4-1": {Provider: "nim", Model: "exact-match", APIKeyEnv: "NVIDIA_NIM_API_KEY"},
 		},
 		Mappings: map[string]config.Model{
-			"opus": {Provider: "nim", Model: "family-match", APIKeyEnv: "NIM_API_KEY"},
+			"opus": {Provider: "nim", Model: "family-match", APIKeyEnv: "NVIDIA_NIM_API_KEY"},
 		},
 	}
-	t.Setenv("NIM_API_KEY", "k1")
+	t.Setenv("NVIDIA_NIM_API_KEY", "k1")
 	d := newTestDispatcherWithAdapter(t, cfg, map[string]Provider{
 		"nim": &mockProvider{status: 200, body: `{}`},
 	})

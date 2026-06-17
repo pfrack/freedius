@@ -40,8 +40,8 @@ func TestLoad(t *testing.T) {
 				if m.BaseURL == "" {
 					t.Error("expected nim default base_url to be filled in")
 				}
-				if m.APIKeyEnv != "NIM_API_KEY" {
-					t.Errorf("api_key_env: got %q, want NIM_API_KEY", m.APIKeyEnv)
+				if m.APIKeyEnv != "NVIDIA_NIM_API_KEY" {
+					t.Errorf("api_key_env: got %q, want NVIDIA_NIM_API_KEY", m.APIKeyEnv)
 				}
 			},
 		},
@@ -459,7 +459,7 @@ func TestProviderEnvVar(t *testing.T) {
 		in   string
 		want string
 	}{
-		{"nim", "nim", "NIM_API_KEY"},
+		{"nim", "nim", "NVIDIA_NIM_API_KEY"},
 		{"zen", "zen", "OPENCODE_API_KEY"},
 		{"go", "go", "OPENCODE_API_KEY"},
 		{"openai has no default", "openai", ""},
