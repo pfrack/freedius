@@ -686,33 +686,33 @@ set -gx DISABLE_ERROR_REPORTING "1"
 
 #### Automated
 
-- [x] 2.1 Pre-WriteHeader error forwarded with `detail` only when `--verbose-errors`
-- [x] 2.2 Stream timeout context deadline honored (stub hanging upstream)
-- [x] 2.3 Adapter error templates use `OriginalProvider` for all 4 providers
-- [x] 2.4 `freediusErrorHandler` body matches unified shape
-- [x] 2.5 Mix routing Debug log emitted on suffix match
-- [x] 2.6 `checkRequiredEnvVars` uses `OriginalProvider` correctly
-- [x] 2.7 `go vet ./...` passes; `go build ./...` passes; `go test ./...` passes
+- [x] 2.1 Pre-WriteHeader error forwarded with `detail` only when `--verbose-errors` — bb65298
+- [x] 2.2 Stream timeout context deadline honored (stub hanging upstream) — bb65298
+- [x] 2.3 Adapter error templates use `OriginalProvider` for all 4 providers — bb65298
+- [x] 2.4 `freediusErrorHandler` body matches unified shape — bb65298
+- [x] 2.5 Mix routing Debug log emitted on suffix match — bb65298
+- [x] 2.6 `checkRequiredEnvVars` uses `OriginalProvider` correctly — bb65298
+- [x] 2.7 `go vet ./...` passes; `go build ./...` passes; `go test ./...` passes — bb65298
 
 #### Manual
 
-- [x] 2.8 Real misconfigured upstream produces descriptive error via Claude Code
-- [x] 2.9 `--stream-timeout=5s` + paused upstream cuts stream cleanly
-- [x] 2.10 Startup banner appears before config load
+- [x] 2.8 Real misconfigured upstream produces descriptive error via Claude Code — bb65298
+- [x] 2.9 `--stream-timeout=5s` + paused upstream cuts stream cleanly — bb65298
+- [x] 2.10 Startup banner appears before config load — bb65298
 
 ### Phase 3: `freedius init` subcommand + starter template
 
 #### Automated
 
-- [ ] 3.1 `freedius init` writes file when none exists; exits 0
-- [ ] 3.2 `freedius init` refuses when target exists; exits 1 with `--force` hint
-- [ ] 3.3 `freedius init --force` backs up to `.bak` and overwrites
-- [ ] 3.4 `freedius init --dry-run` prints to stdout without writing
-- [ ] 3.5 `freedius init --output <path>` writes to custom path; creates parent
-- [ ] 3.6 Template output parses with `config.Load` (round-trip)
-- [ ] 3.7 `freedius version` prints version and exits 0
-- [ ] 3.8 Default invocation (no subcommand) runs serve (regression)
-- [ ] 3.9 `go vet ./...` passes; `go build ./...` passes; `go test ./...` passes
+- [x] 3.1 `freedius init` writes file when none exists; exits 0
+- [x] 3.2 `freedius init` refuses when target exists; exits 1 with `--force` hint
+- [x] 3.3 `freedius init --force` backs up to `.bak` and overwrites
+- [x] 3.4 `freedius init --dry-run` prints to stdout without writing
+- [x] 3.5 `freedius init --output <path>` writes to custom path; creates parent
+- [x] 3.6 Template output parses with `config.Load` (round-trip)
+- [x] 3.7 `freedius version` prints version and exits 0
+- [x] 3.8 Default invocation (no subcommand) runs serve (regression)
+- [x] 3.9 `go vet ./...` passes; `go build ./...` passes; `go test ./...` passes
 
 #### Manual
 

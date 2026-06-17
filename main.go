@@ -13,6 +13,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -21,12 +22,12 @@ import (
 )
 
 const (
-	defaultHost       = "127.0.0.1"
-	defaultPort       = 8080
-	shutdownTimeout   = 5 * time.Second
-	readHeaderTimeout = 5 * time.Second
-	readTimeout       = 30 * time.Second
-	idleTimeout       = 120 * time.Second
+	defaultHost         = "127.0.0.1"
+	defaultPort         = 8080
+	shutdownTimeout     = 5 * time.Second
+	readHeaderTimeout   = 5 * time.Second
+	readTimeout         = 30 * time.Second
+	idleTimeout         = 120 * time.Second
 	defaultStreamTimeout = 5 * time.Minute
 )
 
@@ -35,10 +36,11 @@ var allowedHosts = map[string]struct{}{
 	"0.0.0.0":   {},
 }
 
+var version = "dev"
+
 // newLogger constructs the process-wide logger. When format is "json", the
 // handler emits structured JSON lines; otherwise it emits the human-readable
-// text format. An unknown format returns an error so run() can fail loudly
-// rather than silently fall back.
+// text format.
 func newLogger(format string, w io.Writer) (logger *slog.Logger, err error) {
 	opts := &slog.HandlerOptions{Level: slog.LevelInfo}
 	switch format {
@@ -52,20 +54,54 @@ func newLogger(format string, w io.Writer) (logger *slog.Logger, err error) {
 }
 
 func main() {
-	os.Exit(run())
+	os.Exit(dispatch(os.Args))
 }
 
-func run() int {
-	flagConfig := flag.String("config", "", "path to config file (auto-resolved if empty)")
-	flagPort := flag.Int("port", 0, "port to listen on (overrides FREEDIUS_PORT; default 8080)")
-	flagHost := flag.String("host", "", "host to bind (127.0.0.1 or 0.0.0.0; default 127.0.0.1)")
-	flagVerboseErrors := flag.Bool("verbose-errors", false, "include upstream error detail in error responses (or set FREEDIUS_VERBOSE_ERRORS=1)")
-	flagLogFormat := flag.String("log-format", "", "log output format: text, json (overrides FREEDIUS_LOG; default text)")
-	flagStreamTimeout := flag.Duration("stream-timeout", 0, "per-request upstream timeout (overrides FREEDIUS_STREAM_TIMEOUT; default 5m)")
-	flag.Parse()
+func dispatch(argv []string) int {
+	sub := "serve"
+	args := argv[1:]
+	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
+		sub = args[0]
+		args = args[1:]
+	}
+	switch sub {
+	case "serve":
+		return runServe(args)
+	case "init":
+		return runInit(args)
+	case "version":
+		fmt.Printf("freedius %s\n", version)
+		return 0
+	case "help", "-h", "--help":
+		printTopLevelHelp()
+		return 0
+	default:
+		fmt.Fprintf(os.Stderr, "freedius: unknown subcommand %q\nRun 'freedius help' for usage.\n", sub)
+		return 2
+	}
+}
+
+func runServe(args []string) int {
+	fs := flag.NewFlagSet("serve", flag.ContinueOnError)
+	flagConfig := fs.String("config", "", "path to config file (auto-resolved if empty)")
+	flagPort := fs.Int("port", 0, "port to listen on (overrides FREEDIUS_PORT; default 8080)")
+	flagHost := fs.String("host", "", "host to bind (127.0.0.1 or 0.0.0.0; default 127.0.0.1)")
+	flagVerboseErrors := fs.Bool("verbose-errors", false, "include upstream error detail in error responses (or set FREEDIUS_VERBOSE_ERRORS=1)")
+	flagLogFormat := fs.String("log-format", "", "log output format: text, json (overrides FREEDIUS_LOG; default text)")
+	flagStreamTimeout := fs.Duration("stream-timeout", 0, "per-request upstream timeout (overrides FREEDIUS_STREAM_TIMEOUT; default 5m)")
+	fs.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage: freedius serve [flags]\n\nFlags:\n")
+		fs.PrintDefaults()
+	}
+	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
+		return 2
+	}
 
 	setFlags := map[string]bool{}
-	flag.Visit(func(f *flag.Flag) { setFlags[f.Name] = true })
+	fs.Visit(func(f *flag.Flag) { setFlags[f.Name] = true })
 
 	verboseErrors := *flagVerboseErrors || os.Getenv("FREEDIUS_VERBOSE_ERRORS") == "1"
 
@@ -83,7 +119,6 @@ func run() int {
 	slog.SetDefault(baseLogger)
 	logger := baseLogger
 
-	// Startup banner — before config load so slow loads don't look frozen.
 	logger.Info("freedius starting")
 
 	streamTimeout := defaultStreamTimeout
@@ -138,13 +173,6 @@ func run() int {
 	dispatcher := proxy.NewDispatcher(cfg, registry, logger, verboseErrors)
 	mux := http.NewServeMux()
 
-	// Middleware wiring (composition order = execution order outermost → innermost):
-	//   RequestIDMiddleware wraps everything so the request ID it generates
-	//   propagates down through context into every downstream log call and
-	//   into the dispatcher. RecoverMiddleware sits inside RequestID so its
-	//   panic-recovery log carries the request_id; it sits outside AccessLog
-	//   so a panic in any downstream layer (including AccessLog itself) is
-	//   caught cleanly with a structured 500 response.
 	httpHandler := proxy.RecoverMiddleware(logger, verboseErrors, dispatcher)
 	httpHandler = proxy.AccessLogMiddleware(logger, httpHandler)
 	httpHandler = proxy.RequestIDMiddleware(httpHandler)
@@ -184,6 +212,20 @@ func run() int {
 	return 0
 }
 
+func printTopLevelHelp() {
+	fmt.Print(`freedius — local Claude Code proxy
+
+Usage: freedius [<subcommand>] [<flags>]
+
+  serve     Start the proxy server (default)
+  init      Generate a starter config file
+  version   Print the binary version
+  help      Show this help
+
+Run 'freedius <subcommand> --help' for subcommand-specific flags.
+`)
+}
+
 func failf(format string, args ...any) int {
 	fmt.Fprintf(os.Stderr, format+"\n", args...)
 	return 1
@@ -203,9 +245,6 @@ func checkRequiredEnvVars(cfg *config.Config) error {
 	return nil
 }
 
-// originalProviderName returns the user-facing provider name for error
-// messages. Falls back to Provider when OriginalProvider wasn't recorded
-// (e.g., for Model literals constructed in tests).
 func originalProviderName(m config.Model) string {
 	if m.OriginalProvider != "" {
 		return m.OriginalProvider

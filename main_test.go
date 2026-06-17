@@ -219,3 +219,180 @@ func TestRun_StartupBanner(t *testing.T) {
 	}
 	// The "listening on" line may or may not appear (port 0 fails to bind).
 }
+
+// --- Phase 3: init subcommand + subcommand dispatch ---
+
+func TestDispatch_HelpSubcommand(t *testing.T) {
+	code := dispatch([]string{"freedius", "help"})
+	if code != 0 {
+		t.Errorf("expected exit 0, got %d", code)
+	}
+}
+
+func TestDispatch_VersionSubcommand(t *testing.T) {
+	code := dispatch([]string{"freedius", "version"})
+	if code != 0 {
+		t.Errorf("expected exit 0, got %d", code)
+	}
+}
+
+func TestDispatch_UnknownSubcommand(t *testing.T) {
+	var stderr bytes.Buffer
+	r, w, _ := os.Pipe()
+	old := os.Stderr
+	os.Stderr = w
+
+	code := dispatch([]string{"freedius", "nonexistent_sub"})
+	w.Close()
+	os.Stderr = old
+	_, _ = io.Copy(&stderr, r)
+
+	if code != 2 {
+		t.Errorf("expected exit 2, got %d", code)
+	}
+	if !strings.Contains(stderr.String(), "nonexistent_sub") {
+		t.Errorf("stderr should mention unknown subcommand")
+	}
+}
+
+func TestDispatch_NoSubcommandRoutesToServe(t *testing.T) {
+	// Regression: freedius with no subcommand or flags starting with "-"
+	// routes to serve, not help/version or unknown.
+	code := dispatch([]string{"freedius", "--help"})
+	if code != 0 {
+		t.Errorf("expected 0 for --help via serve, got %d", code)
+	}
+	code = dispatch([]string{"freedius", "-h"})
+	if code != 0 {
+		t.Errorf("expected 0 for -h via serve, got %d", code)
+	}
+}
+
+func TestRunInit_WritesDefaultOutput(t *testing.T) {
+	dir := t.TempDir()
+	cwd, _ := os.Getwd()
+	defer os.Chdir(cwd)
+	os.Chdir(dir)
+
+	code := runInit([]string{})
+	if code != 0 {
+		t.Fatalf("expected 0, got %d", code)
+	}
+	if _, err := os.Stat("freedius.yaml"); err != nil {
+		t.Fatalf("freedius.yaml not written: %v", err)
+	}
+	data, _ := os.ReadFile("freedius.yaml")
+	if !strings.Contains(string(data), "mappings:") {
+		t.Errorf("template should contain mappings: section")
+	}
+}
+
+func TestRunInit_DryRunPrintsToStdout(t *testing.T) {
+	var stdout bytes.Buffer
+	r, w, _ := os.Pipe()
+	old := os.Stdout
+	os.Stdout = w
+
+	code := runInit([]string{"--dry-run"})
+	w.Close()
+	os.Stdout = old
+	_, _ = io.Copy(&stdout, r)
+
+	if code != 0 {
+		t.Fatalf("expected 0, got %d", code)
+	}
+	if !strings.Contains(stdout.String(), "mappings:") {
+		t.Errorf("dry-run stdout should contain template content")
+	}
+}
+
+func TestRunInit_CustomOutputPath(t *testing.T) {
+	dir := t.TempDir()
+	out := dir + "/custom_config.yaml"
+
+	code := runInit([]string{"--output", out})
+	if code != 0 {
+		t.Fatalf("expected 0, got %d", code)
+	}
+	if _, err := os.Stat(out); err != nil {
+		t.Fatalf("output not written: %v", err)
+	}
+}
+
+func TestRunInit_CustomOutputCreatesParentDir(t *testing.T) {
+	dir := t.TempDir()
+	out := dir + "/subdir/nested/config.yaml"
+
+	code := runInit([]string{"--output", out})
+	if code != 0 {
+		t.Fatalf("expected 0, got %d", code)
+	}
+	if _, err := os.Stat(out); err != nil {
+		t.Fatalf("output not written: %v", err)
+	}
+}
+
+func TestRunInit_ExistingFileFailsWithoutForce(t *testing.T) {
+	dir := t.TempDir()
+	cwd, _ := os.Getwd()
+	defer os.Chdir(cwd)
+	os.Chdir(dir)
+	os.WriteFile("freedius.yaml", []byte("existing"), 0o644)
+
+	var stderr bytes.Buffer
+	r, w, _ := os.Pipe()
+	old := os.Stderr
+	os.Stderr = w
+
+	code := runInit([]string{})
+	w.Close()
+	os.Stderr = old
+	_, _ = io.Copy(&stderr, r)
+
+	if code != 1 {
+		t.Errorf("expected exit 1, got %d", code)
+	}
+	if !strings.Contains(stderr.String(), "already exists") {
+		t.Errorf("stderr should mention file exists, got: %s", stderr.String())
+	}
+}
+
+func TestRunInit_ForceOverwritesAndBacksUp(t *testing.T) {
+	dir := t.TempDir()
+	cwd, _ := os.Getwd()
+	defer os.Chdir(cwd)
+	os.Chdir(dir)
+	os.WriteFile("freedius.yaml", []byte("old content"), 0o644)
+
+	code := runInit([]string{"--force"})
+	if code != 0 {
+		t.Fatalf("expected 0 with --force, got %d", code)
+	}
+	data, _ := os.ReadFile("freedius.yaml")
+	if strings.Contains(string(data), "old content") {
+		t.Errorf("file should be overwritten, not contain old content")
+	}
+	if !strings.Contains(string(data), "mappings:") {
+		t.Errorf("overwritten file should contain template")
+	}
+	if _, err := os.Stat("freedius.yaml.bak"); err != nil {
+		t.Errorf("backup freedius.yaml.bak should exist: %v", err)
+	}
+}
+
+func TestStarterTemplate_ValidYAML(t *testing.T) {
+	// Dry-run instead of writing to disk: parse via config.Load.
+	// We validate the template produces a parseable Config.
+	dir := t.TempDir()
+	cfgPath := dir + "/freedius.yaml"
+	if err := os.WriteFile(cfgPath, []byte(starterTemplate), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := config.Load(cfgPath)
+	if err != nil {
+		t.Fatalf("starter template should be valid config: %v", err)
+	}
+	if len(cfg.Mappings) == 0 {
+		t.Errorf("starter template should define at least one mapping")
+	}
+}
