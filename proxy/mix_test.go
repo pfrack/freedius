@@ -2,11 +2,13 @@ package proxy
 
 import (
 	"bytes"
+	"encoding/json"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/pfrack/freedius/config"
@@ -90,6 +92,49 @@ func TestMixAdapter_OpenAITranslation(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), "event: message_stop") {
 		t.Errorf("body should contain message_stop, got %q", rec.Body.String())
+	}
+}
+
+func TestMixAdapter_OpenAIPathOmitsStreamOptions(t *testing.T) {
+	t.Setenv("MIX_API_KEY", "sk-test")
+
+	var capturedBody []byte
+	var mu sync.Mutex
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		mu.Lock()
+		capturedBody = body
+		mu.Unlock()
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("data: {\"id\":\"x\",\"object\":\"chat.completion.chunk\",\"created\":1,\"model\":\"my-model\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\"},\"finish_reason\":null}]}\n\n"))
+		_, _ = w.Write([]byte("data: {\"id\":\"x\",\"object\":\"chat.completion.chunk\",\"created\":1,\"model\":\"my-model\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}\n\n"))
+		_, _ = w.Write([]byte("data: [DONE]\n\n"))
+	}))
+	defer upstream.Close()
+
+	a := newMixAdapter(t)
+	rec := httptest.NewRecorder()
+	body := []byte(`{"model":"claude-opus-4","max_tokens":50,"messages":[{"role":"user","content":"hi"}],"stream":true}`)
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader(body))
+	err := a.Handle(rec, req, config.Model{Provider: "mix", Model: "my-model", BaseURL: upstream.URL + "/v1/chat/completions", APIKeyEnv: "MIX_API_KEY"}, body)
+	if err != nil {
+		t.Fatalf("Handle returned err: %v", err)
+	}
+	if rec.Code != http.StatusOK {
+		t.Errorf("status: got %d, want %d (body: %s)", rec.Code, http.StatusOK, rec.Body.String())
+	}
+
+	mu.Lock()
+	upstreamBody := append([]byte{}, capturedBody...)
+	mu.Unlock()
+
+	var got map[string]any
+	if err := json.Unmarshal(upstreamBody, &got); err != nil {
+		t.Fatalf("upstream body not JSON: %v\n%s", err, string(upstreamBody))
+	}
+	if _, ok := got["stream_options"]; ok {
+		t.Errorf("MixAdapter OpenAI path should not send stream_options (NoStreamUsage=true), got %v", got["stream_options"])
 	}
 }
 

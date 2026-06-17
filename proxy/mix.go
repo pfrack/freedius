@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/pfrack/freedius/config"
+	"github.com/pfrack/freedius/proxy/translate"
 )
 
 type MixAdapter struct {
@@ -17,9 +18,11 @@ type MixAdapter struct {
 }
 
 func NewMixAdapter(logger *slog.Logger) *MixAdapter {
+	openai := NewOpenAICompatibleAdapter(logger)
+	openai.translateOpts = translate.TranslateOpts{NoStreamUsage: true}
 	return &MixAdapter{
 		anthropic: NewAnthropicCompatibleAdapter(logger),
-		openai:    NewOpenAICompatibleAdapter(logger),
+		openai:    openai,
 		logger:    logger.With("component", "adapter.mix"),
 	}
 }

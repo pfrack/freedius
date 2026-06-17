@@ -2,7 +2,7 @@
 
 ## Overview
 
-Fix three root causes that prevent OpenCode Go Anthropic-format models (MiniMax, Qwen on `/v1/messages`) and NIM streaming from working through freedius: wrong auth headers causing 401, missing reasoning content in SSE causing empty responses, and lack of provider-aware translation + NIM body sanitization.
+Fix four root causes that prevent OpenCode Go models and NIM streaming from working through freedius: wrong auth headers causing 401, missing reasoning content in SSE causing empty responses, lack of provider-aware translation + NIM body sanitization, and `stream_options.include_usage` injected via MixAdapter's OpenAI path triggering "feature not supported" on OpenCode Go.
 
 ## Current State Analysis
 
@@ -50,6 +50,7 @@ Three orthogonal fixes shipped in dependency order:
 1. **Auth** (Phase 1) — the simplest fix with the widest blast radius. Ships first so any regressions emerge before SSE/NIM changes layer on top.
 2. **SSE reasoning** (Phase 2) — additive emitter logic. Depends on stream not being broken (Phase 3 fixes `stream_options` for NIM), but unit-testable with mock SSE chunks independently.
 3. **stream_options + NIM sanitization** (Phase 3) — the largest change. Adds provider-awareness to `TranslateRequest` and a post-translation sanitization hook.
+4. **MixAdapter NoStreamUsage** (Phase 4) — apply `NoStreamUsage: true` to MixAdapter's OpenAI path, mirroring the NIM fix in Phase 3. Resolves "feature not supported" for OpenCode Go endpoints accessed through `go`→`mix` provider routing.
 
 ## Critical Implementation Details
 
@@ -341,6 +342,58 @@ The function:
 
 ---
 
+## Phase 4: MixAdapter OpenAI Path — Omit stream_options
+
+### Overview
+
+The MixAdapter creates its inner `OpenAICompatibleAdapter` with zero-value `TranslateOpts` (i.e. `NoStreamUsage=false`). When the upstream URL is an OpenAI-format endpoint (path does NOT end with `/v1/messages`), `TranslateRequest` injects `stream_options: {include_usage: true}` per `proxy/translate/anthropic_openai.go:45`. OpenCode Go rejects this field, triggering the "feature not supported" stream translation error and "empty or malformed response (HTTP 200)" on the client.
+
+Phase 3 added `NoStreamUsage: true` for NIM (`proxy/nim.go:17`). The same root cause affects OpenCode Go, whose config (`provider: go`, rewritten to `mix` at `config/defaults.go:62-63`) routes through MixAdapter's OpenAI path.
+
+### Changes Required
+
+#### 4.1 Set NoStreamUsage on MixAdapter's inner OpenAI adapter
+
+**File**: `proxy/mix.go`
+
+**Intent**: Mirror the NIM pattern — configure the inner `OpenAICompatibleAdapter` with `NoStreamUsage: true` so `stream_options` is omitted from translated requests.
+
+**Contract**: In `NewMixAdapter`, set `openai.translateOpts = translate.TranslateOpts{NoStreamUsage: true}` on the constructed adapter before returning. Add `"github.com/pfrack/freedius/proxy/translate"` import.
+
+```go
+func NewMixAdapter(logger *slog.Logger) *MixAdapter {
+    openai := NewOpenAICompatibleAdapter(logger)
+    openai.translateOpts = translate.TranslateOpts{NoStreamUsage: true}
+    return &MixAdapter{
+        anthropic: NewAnthropicCompatibleAdapter(logger),
+        openai:    openai,
+        logger:    logger.With("component", "adapter.mix"),
+    }
+}
+```
+
+#### 4.2 Add end-to-end test for MixAdapter OpenAI path
+
+**File**: `proxy/mix_test.go`
+
+**Intent**: Verify that when MixAdapter routes to the OpenAI path (non-`/v1/messages` upstream), the translated upstream body does NOT contain `stream_options`.
+
+**Contract**: New test `TestMixAdapter_OpenAIPathOmitsStreamOptions`:
+- Creates a test upstream server and captures the request body
+- Routes a streaming Anthropic-format request through MixAdapter to a non-`/v1/messages` URL
+- Asserts the upstream JSON body has no `stream_options` key
+
+### Success Criteria
+
+#### Automated Verification
+
+- `go build ./...` compiles cleanly
+- `go vet ./...` passes
+- `go test ./proxy/... -v` — existing MixAdapter tests pass, new test asserts `stream_options` absent
+- `make ci` passes (pre-existing lint baseline unchanged)
+
+---
+
 ## Testing Strategy
 
 ### Unit Tests (Phase 1)
@@ -412,14 +465,27 @@ The function:
 
 #### Automated
 
-- [x] 3.1 `go build ./...` compiles cleanly
-- [x] 3.2 `go vet ./...` passes
-- [x] 3.3 `go test ./proxy/... -v` — existing tests pass with new TranslateOpts parameter
-- [x] 3.4 New tests: `proxy/nim_sanitize_test.go` — boolean subschema stripping, type param renaming, no-tools passthrough
-- [x] 3.5 New end-to-end test: `proxy/nim_test.go` — NIMAdapter integration verifies `stream_options` is absent AND boolean schema is stripped in upstream body
-- [x] 3.5 `make ci` passes
+- [x] 3.1 `go build ./...` compiles cleanly — 5025c67
+- [x] 3.2 `go vet ./...` passes — 5025c67
+- [x] 3.3 `go test ./proxy/... -v` — existing tests pass with new TranslateOpts parameter — 5025c67
+- [x] 3.4 New tests: `proxy/nim_sanitize_test.go` — boolean subschema stripping, type param renaming, no-tools passthrough — 5025c67
+- [x] 3.5 New end-to-end test: `proxy/nim_test.go` — NIMAdapter integration verifies `stream_options` is absent AND boolean schema is stripped in upstream body — 5025c67
+- [x] 3.5 `make ci` passes — 5025c67
 
 #### Manual
 
 - [ ] 3.6 Manual test: NIM with tools containing boolean schema → 200 (not 400), streaming works
 - [ ] 3.7 Manual test: NIM without tools → streaming works, no `stream_options` in request body
+
+### Phase 4: MixAdapter OpenAI Path — Omit stream_options
+
+#### Automated
+
+- [x] 4.1 `go build ./...` compiles cleanly — b5b4928
+- [x] 4.2 `go vet ./...` passes — b5b4928
+- [x] 4.3 `go test ./proxy/... -v` — existing MixAdapter tests pass, new test `TestMixAdapter_OpenAIPathOmitsStreamOptions` asserts `stream_options` absent — b5b4928
+- [x] 4.4 `make ci` passes (no new lint issues) — b5b4928
+
+#### Manual
+
+- [ ] 4.5 Manual test: OpenCode Go through MixAdapter → no "feature not supported" error, streaming works
