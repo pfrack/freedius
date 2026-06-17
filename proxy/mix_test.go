@@ -205,7 +205,7 @@ func TestMixAdapter_OpenAIPathOmitsStreamOptions(t *testing.T) {
 
 func TestMixAdapter_Upstream401_AnthropicPath(t *testing.T) {
 	t.Setenv("MIX_API_KEY", "sk-test")
-	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 		_, _ = w.Write([]byte(`{"error":"bad key"}`))
 	}))
@@ -238,7 +238,7 @@ func TestMixAdapter_Upstream401_AnthropicPath(t *testing.T) {
 
 func TestMixAdapter_Upstream401_OpenAIPath(t *testing.T) {
 	t.Setenv("MIX_API_KEY", "sk-test")
-	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 		_, _ = w.Write([]byte(`{"error":"bad key"}`))
 	}))

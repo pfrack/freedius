@@ -171,10 +171,12 @@ func runServe(args []string) int {
 		if errors.Is(err, os.ErrNotExist) && *flagConfig == "" {
 			baseLogger.Info("no config found, writing default config", "path", cfgPath)
 			if parent := filepath.Dir(cfgPath); parent != "." {
+				// #nosec G301 -- user-owned config directory; group/other read keeps tools compatible
 				if err := os.MkdirAll(parent, 0o755); err != nil {
 					return failf("freedius: cannot create config directory %s: %v", parent, err)
 				}
 			}
+			// #nosec G306 -- starter config is non-sensitive and should be readable by tooling
 			if err := os.WriteFile(cfgPath, []byte(starterTemplate), 0o644); err != nil {
 				return failf("freedius: write default config %s: %v", cfgPath, err)
 			}

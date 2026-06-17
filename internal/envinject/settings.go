@@ -19,6 +19,9 @@ func envBlock(host string, port int) map[string]string {
 	}
 }
 
+// WriteSettingsJSON writes the env block into Claude Code's settings.json
+// (at $HOME/.claude/settings.json when configDir is empty). It preserves any
+// existing keys and only sets/updates the "env" object.
 func WriteSettingsJSON(configDir string, host string, port int, dryRun bool) error {
 	if configDir == "" {
 		home, err := os.UserHomeDir()
@@ -32,6 +35,7 @@ func WriteSettingsJSON(configDir string, host string, port int, dryRun bool) err
 	env := envBlock(host, port)
 
 	existing := make(map[string]any)
+	// #nosec G304 -- path is operator-supplied via $HOME/.claude
 	if data, err := os.ReadFile(path); err == nil {
 		if err := json.Unmarshal(data, &existing); err != nil {
 			slog.Warn(
@@ -64,6 +68,7 @@ func WriteSettingsJSON(configDir string, host string, port int, dryRun bool) err
 	}
 
 	tmpPath := path + ".tmp"
+	// #nosec G306 -- settings.json needs to be readable by external tooling (Claude Code)
 	if err := os.WriteFile(tmpPath, output, 0o644); err != nil {
 		return fmt.Errorf("envinject: write %s: %w", tmpPath, err)
 	}

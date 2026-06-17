@@ -1,3 +1,5 @@
+// Package config loads, validates, and exposes the freedius YAML configuration
+// (provider defaults, model mappings, and per-model overrides).
 package config
 
 import (
@@ -7,11 +9,13 @@ import (
 	"strings"
 )
 
+// Config is the top-level configuration loaded from a freedius.yaml file.
 type Config struct {
 	Models   map[string]Model `yaml:"models"`
 	Mappings map[string]Model `yaml:"mappings,omitempty"`
 }
 
+// Model describes a single upstream LLM endpoint and its identity inside freedius.
 type Model struct {
 	Provider         string `yaml:"provider"`
 	Model            string `yaml:"model"`
@@ -21,6 +25,7 @@ type Model struct {
 	OriginalProvider string `yaml:"-"`
 }
 
+// KnownProviders lists the provider names accepted by the validator.
 var KnownProviders = map[string]struct{}{
 	"nim":       {},
 	"zen":       {},
@@ -31,6 +36,7 @@ var KnownProviders = map[string]struct{}{
 	"mix":       {},
 }
 
+// Load reads, parses, and validates the freedius configuration at path.
 func Load(path string) (*Config, error) {
 	data, err := readConfigFile(path)
 	if err != nil {
@@ -58,6 +64,7 @@ func Load(path string) (*Config, error) {
 	return &cfg, nil
 }
 
+// UsesProvider reports whether any model or mapping references the given provider name.
 func (c *Config) UsesProvider(name string) bool {
 	for _, m := range c.Models {
 		if m.Provider == name {

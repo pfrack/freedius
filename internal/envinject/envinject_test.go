@@ -1,3 +1,5 @@
+// Package envinject writes the per-user shell and Claude-Code settings files
+// that route traffic through the local freedius proxy.
 package envinject
 
 import (

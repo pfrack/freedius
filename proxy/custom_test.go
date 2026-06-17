@@ -85,7 +85,7 @@ func TestCustomAdapter_PassthroughText(t *testing.T) {
 
 func TestCustomAdapter_PassthroughStreaming(t *testing.T) {
 	t.Setenv("CUSTOM_API_KEY", "sk-test")
-	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.WriteHeader(http.StatusOK)
 		// Write three SSE chunks
@@ -103,7 +103,15 @@ func TestCustomAdapter_PassthroughStreaming(t *testing.T) {
 		bytes.NewReader([]byte(`{"model":"my-shim"}`)),
 	)
 	body := []byte(`{"model":"my-shim"}`)
-	if err := a.Handle(rec, req, config.Model{Provider: "custom", Model: "my-shim", BaseURL: upstream.URL, APIKeyEnv: "CUSTOM_API_KEY"}, body); err != nil {
+	if err := a.Handle(
+		rec,
+		req,
+		config.Model{
+			Provider: "custom", Model: "my-shim",
+			BaseURL: upstream.URL, APIKeyEnv: "CUSTOM_API_KEY",
+		},
+		body,
+	); err != nil {
 		t.Fatalf("Handle returned err: %v", err)
 	}
 
@@ -120,7 +128,7 @@ func TestCustomAdapter_PassthroughStreaming(t *testing.T) {
 
 func TestCustomAdapter_Upstream401(t *testing.T) {
 	t.Setenv("CUSTOM_API_KEY", "sk-test")
-	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 		_, _ = w.Write([]byte(`{"error":"bad key"}`))
 	}))
@@ -155,7 +163,7 @@ func TestCustomAdapter_Upstream401(t *testing.T) {
 
 func TestCustomAdapter_Upstream500(t *testing.T) {
 	t.Setenv("CUSTOM_API_KEY", "sk-test")
-	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = w.Write([]byte(`oops`))
 	}))
@@ -223,7 +231,7 @@ func TestCustomAdapter_MissingBaseURL(t *testing.T) {
 
 func TestCustomAdapter_ClientDisconnect(t *testing.T) {
 	t.Setenv("CUSTOM_API_KEY", "sk-test")
-	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"ok":true}`))
 	}))

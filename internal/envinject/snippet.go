@@ -2,6 +2,8 @@ package envinject
 
 import "fmt"
 
+// Snippet returns the shell snippet printed at startup so the operator can
+// route Claude Code through the local freedius proxy in the current shell.
 func Snippet(host string, port int) string {
 	addr := fmt.Sprintf("%s:%d", host, port)
 	return fmt.Sprintf(`# Paste these into your shell to route Claude Code through freedius:

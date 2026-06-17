@@ -24,10 +24,10 @@ type preWriteHeaderErrProvider struct {
 }
 
 func (s *preWriteHeaderErrProvider) Handle(
-	w http.ResponseWriter,
-	r *http.Request,
-	m config.Model,
-	body []byte,
+	_ http.ResponseWriter,
+	_ *http.Request,
+	_ config.Model,
+	_ []byte,
 ) error {
 	return s.err
 }
@@ -259,7 +259,7 @@ func TestAnthropicCompat_MissingBaseURL_UsesOriginalProvider(t *testing.T) {
 
 func TestOpenAICompat_StreamTimeout_Honored(t *testing.T) {
 	// Stub upstream that hangs for 5 seconds.
-	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 		select {
 		case <-r.Context().Done():
 			return
@@ -300,7 +300,7 @@ func TestMixAdapter_RoutingDebugLog(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(logBuf, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	mix := NewMixAdapter(logger, false, 5*time.Minute)
 
-	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{}`))
 	}))

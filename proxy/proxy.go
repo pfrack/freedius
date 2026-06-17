@@ -23,12 +23,17 @@ import (
 	"github.com/pfrack/freedius/config"
 )
 
+// MaxBodyBytes is the upper bound on the size of a request body the dispatcher
+// will read into memory before returning 413.
 const MaxBodyBytes = 10 * 1024 * 1024
 
 type contextKey int
 
 const requestIDKey contextKey = iota
 
+// Dispatcher is the top-level HTTP handler that resolves a freedius request
+// to a configured model, looks up the right Provider in the Registry, and
+// forwards the request.
 type Dispatcher struct {
 	Cfg           *config.Config
 	Logger        *slog.Logger
@@ -36,6 +41,9 @@ type Dispatcher struct {
 	VerboseErrors bool
 }
 
+// NewDispatcher returns a Dispatcher wired to the given config, registry, and
+// logger. It panics on nil cfg or nil logger so configuration mistakes fail
+// loudly at startup.
 func NewDispatcher(
 	cfg *config.Config,
 	registry *Registry,
@@ -84,7 +92,7 @@ func (d *Dispatcher) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	r.Body = http.MaxBytesReader(w, r.Body, MaxBodyBytes)
-	defer r.Body.Close()
+	defer func() { _ = r.Body.Close() }()
 
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -222,7 +230,15 @@ func (d *Dispatcher) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		} else {
 			// Post-WriteHeader error — adapter already sent a response.
 			// Log and discard to avoid "superfluous WriteHeader" panics.
-			d.Logger.Error("adapter returned error after writing response headers", "request_id", RequestIDFromContext(r.Context()), "provider", originalOr(m), "err", err)
+			d.Logger.Error(
+				"adapter returned error after writing response headers",
+				"request_id",
+				RequestIDFromContext(r.Context()),
+				"provider",
+				originalOr(m),
+				"err",
+				err,
+			)
 		}
 	}
 }
@@ -234,12 +250,15 @@ func originalOr(m config.Model) string {
 	return m.Provider
 }
 
+// ErrorOption mutates the internal errorJSON used by (*Dispatcher).writeErrorJSON.
 type ErrorOption func(*errorJSON)
 
 type errorJSON struct {
 	detail string
 }
 
+// WithDetail returns an ErrorOption that sets the optional "detail" field on
+// the JSON error envelope (included only when VerboseErrors is true).
 func WithDetail(detail string) ErrorOption {
 	return func(e *errorJSON) { e.detail = detail }
 }
@@ -288,6 +307,8 @@ func generateRequestID() string {
 	return hex.EncodeToString(b[:])
 }
 
+// RequestIDFromContext returns the request ID stored in ctx, or "" if none
+// was set (i.e. the request did not pass through RequestIDMiddleware).
 func RequestIDFromContext(ctx context.Context) string {
 	if id, ok := ctx.Value(requestIDKey).(string); ok {
 		return id
@@ -295,6 +316,9 @@ func RequestIDFromContext(ctx context.Context) string {
 	return ""
 }
 
+// RequestIDMiddleware assigns a fresh request ID to every incoming request,
+// propagates it via the X-Freedius-Request-ID response header and via
+// r.Context(), and then delegates to next.
 func RequestIDMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id := generateRequestID()
@@ -338,6 +362,9 @@ func (w *wroteHeaderResponseWriter) Flush() {
 	}
 }
 
+// RecoverMiddleware catches panics from downstream handlers, logs them with
+// the request's ID, and (if no response has been written yet) replaces the
+// in-flight response with a 500 JSON error envelope.
 func RecoverMiddleware(logger *slog.Logger, verboseErrors bool, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ww := &wroteHeaderResponseWriter{ResponseWriter: w}
@@ -382,6 +409,9 @@ func writeInternalErrorResponse(w http.ResponseWriter, requestID string) {
 
 // --- Access log middleware ---
 
+// AccessLogMiddleware writes one structured log line per request with the
+// request ID, matched provider/model, status code, and duration. It does not
+// log request or response bodies (see the privacy note at the top of this file).
 func AccessLogMiddleware(logger *slog.Logger, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()

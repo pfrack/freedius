@@ -15,19 +15,21 @@ type modelDefaults struct {
 var knownProviderDefaults = map[string]modelDefaults{
 	"nim": {
 		BaseURL:   "https://integrate.api.nvidia.com/v1/chat/completions",
-		APIKeyEnv: "NVIDIA_NIM_API_KEY",
+		APIKeyEnv: "NVIDIA_NIM_API_KEY", // #nosec G101 -- env var name, not a credential
 	},
 	"zen": {
-		APIKeyEnv: "OPENCODE_API_KEY",
+		APIKeyEnv: "OPENCODE_API_KEY", // #nosec G101 -- env var name, not a credential
 	},
 	"go": {
-		APIKeyEnv: "OPENCODE_API_KEY",
+		APIKeyEnv: "OPENCODE_API_KEY", // #nosec G101 -- env var name, not a credential
 	},
 	"anthropic": {
-		APIKeyEnv: "ANTHROPIC_API_KEY",
+		APIKeyEnv: "ANTHROPIC_API_KEY", // #nosec G101 -- env var name, not a credential
 	},
 }
 
+// ProviderEnvVar returns the conventional environment-variable name that holds
+// the API key for the given provider, or "" if the provider has no known default.
 func ProviderEnvVar(name string) string {
 	d, ok := knownProviderDefaults[name]
 	if !ok {
@@ -69,6 +71,7 @@ func applyEntryDefaults(m Model) Model {
 }
 
 func readConfigFile(path string) ([]byte, error) {
+	// #nosec G304 -- path is supplied by the operator (flag/config) and not attacker-controlled
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {

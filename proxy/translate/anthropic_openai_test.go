@@ -9,14 +9,14 @@ import (
 	"testing"
 )
 
-func TestTranslateRequest_TextOnly(t *testing.T) {
+func TestRequest_TextOnly(t *testing.T) {
 	in := []byte(`{
 		"model":"claude-opus-4",
 		"max_tokens":50,
 		"messages":[{"role":"user","content":"hello"}],
 		"stream":true
 	}`)
-	out, err := TranslateRequest(in, "meta-llama", TranslateOpts{})
+	out, err := Request(in, "meta-llama", Opts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,7 +46,7 @@ func TestTranslateRequest_TextOnly(t *testing.T) {
 	}
 }
 
-func TestTranslateRequest_SystemAndMessages(t *testing.T) {
+func TestRequest_SystemAndMessages(t *testing.T) {
 	in := []byte(`{
 		"model":"x",
 		"max_tokens":10,
@@ -57,7 +57,7 @@ func TestTranslateRequest_SystemAndMessages(t *testing.T) {
 			{"role":"user","content":"how are you?"}
 		]
 	}`)
-	out, err := TranslateRequest(in, "x", TranslateOpts{})
+	out, err := Request(in, "x", Opts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,7 +74,7 @@ func TestTranslateRequest_SystemAndMessages(t *testing.T) {
 	}
 }
 
-func TestTranslateRequest_ToolUse(t *testing.T) {
+func TestRequest_ToolUse(t *testing.T) {
 	in := []byte(`{
 		"model":"x",
 		"max_tokens":100,
@@ -89,7 +89,7 @@ func TestTranslateRequest_ToolUse(t *testing.T) {
 		],
 		"tool_choice":"auto"
 	}`)
-	out, err := TranslateRequest(in, "x", TranslateOpts{})
+	out, err := Request(in, "x", Opts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -123,7 +123,7 @@ func TestTranslateRequest_ToolUse(t *testing.T) {
 	}
 }
 
-func TestTranslateRequest_ToolResult(t *testing.T) {
+func TestRequest_ToolResult(t *testing.T) {
 	in := []byte(`{
 		"model":"x",
 		"max_tokens":50,
@@ -131,7 +131,7 @@ func TestTranslateRequest_ToolResult(t *testing.T) {
 			{"role":"user","content":[{"type":"tool_result","tool_use_id":"call_1","content":"sunny"}]}
 		]
 	}`)
-	out, err := TranslateRequest(in, "x", TranslateOpts{})
+	out, err := Request(in, "x", Opts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -147,14 +147,14 @@ func TestTranslateRequest_ToolResult(t *testing.T) {
 	}
 }
 
-func TestTranslateRequest_StopSequences(t *testing.T) {
+func TestRequest_StopSequences(t *testing.T) {
 	in := []byte(`{
 		"model":"x",
 		"max_tokens":10,
 		"stop_sequences":["END"],
 		"messages":[{"role":"user","content":"hi"}]
 	}`)
-	out, err := TranslateRequest(in, "x", TranslateOpts{})
+	out, err := Request(in, "x", Opts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -165,7 +165,7 @@ func TestTranslateRequest_StopSequences(t *testing.T) {
 	}
 }
 
-func TestTranslateStream_TextStream(t *testing.T) {
+func TestStream_TextStream(t *testing.T) {
 	upstream := `data: {"id":"x","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}
 
 data: {"id":"x","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{"content":"hello "},"finish_reason":null}]}
@@ -180,7 +180,7 @@ data: [DONE]
 	var downstream bytes.Buffer
 	flushes := 0
 	flush := func() error { flushes++; return nil }
-	if _, err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
+	if _, err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
 		t.Fatal(err)
 	}
 	out := downstream.String()
@@ -213,7 +213,7 @@ data: [DONE]
 	}
 }
 
-func TestTranslateStream_ToolCall(t *testing.T) {
+func TestStream_ToolCall(t *testing.T) {
 	upstream := `data: {"id":"x","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}
 
 data: {"id":"x","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"get_weather","arguments":""}}]},"finish_reason":null}]}
@@ -229,7 +229,7 @@ data: [DONE]
 `
 	var downstream bytes.Buffer
 	flush := func() error { return nil }
-	if _, err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
+	if _, err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
 		t.Fatal(err)
 	}
 	out := downstream.String()
@@ -247,7 +247,7 @@ data: [DONE]
 	}
 }
 
-func TestTranslateStream_ContentFilterFinishReason(t *testing.T) {
+func TestStream_ContentFilterFinishReason(t *testing.T) {
 	upstream := `data: {"id":"x","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{"role":"assistant","content":"x"},"finish_reason":null}]}
 
 data: {"id":"x","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{},"finish_reason":"content_filter"}]}
@@ -257,7 +257,7 @@ data: [DONE]
 `
 	var downstream bytes.Buffer
 	flush := func() error { return nil }
-	if _, err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
+	if _, err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
 		t.Fatal(err)
 	}
 	out := downstream.String()
@@ -266,7 +266,7 @@ data: [DONE]
 	}
 }
 
-func TestTranslateStream_LengthFinishReason(t *testing.T) {
+func TestStream_LengthFinishReason(t *testing.T) {
 	upstream := `data: {"id":"x","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{"role":"assistant","content":"x"},"finish_reason":null}]}
 
 data: {"id":"x","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{},"finish_reason":"length"}]}
@@ -276,7 +276,7 @@ data: [DONE]
 `
 	var downstream bytes.Buffer
 	flush := func() error { return nil }
-	if _, err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
+	if _, err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
 		t.Fatal(err)
 	}
 	out := downstream.String()
@@ -285,7 +285,7 @@ data: [DONE]
 	}
 }
 
-func TestTranslateStream_UsageOnlyChunk(t *testing.T) {
+func TestStream_UsageOnlyChunk(t *testing.T) {
 	upstream := `data: {"id":"x","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}
 
 data: {"id":"x","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}
@@ -297,7 +297,7 @@ data: [DONE]
 `
 	var downstream bytes.Buffer
 	flush := func() error { return nil }
-	if _, err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
+	if _, err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
 		t.Fatal(err)
 	}
 	out := downstream.String()
@@ -306,11 +306,11 @@ data: [DONE]
 	}
 }
 
-func TestTranslateStream_JustDone(t *testing.T) {
+func TestStream_JustDone(t *testing.T) {
 	upstream := "data: [DONE]\n\n"
 	var downstream bytes.Buffer
 	flush := func() error { return nil }
-	if _, err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
+	if _, err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(downstream.String(), "event: message_stop") {
@@ -318,21 +318,21 @@ func TestTranslateStream_JustDone(t *testing.T) {
 	}
 }
 
-func TestTranslateStream_DoubleDone_Idempotent(t *testing.T) {
+func TestStream_DoubleDone_Idempotent(t *testing.T) {
 	upstream := "data: [DONE]\n\ndata: [DONE]\n\n"
 	var downstream bytes.Buffer
 	flush := func() error { return nil }
-	if _, err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
+	if _, err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
 		t.Fatal(err)
 	}
 }
 
-func TestTranslateStream_NonDataLine_Ignored(t *testing.T) {
+func TestStream_NonDataLine_Ignored(t *testing.T) {
 	upstream := "event: ping\ndata: {\"event\":\"ping\"}\n\n" +
 		"data: [DONE]\n\n"
 	var downstream bytes.Buffer
 	flush := func() error { return nil }
-	if _, err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
+	if _, err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(downstream.String(), "event: message_stop") {
@@ -340,13 +340,13 @@ func TestTranslateStream_NonDataLine_Ignored(t *testing.T) {
 	}
 }
 
-func TestTranslateStream_FinishBeforeUsage_UsesPendingFinish(t *testing.T) {
+func TestStream_FinishBeforeUsage_UsesPendingFinish(t *testing.T) {
 	upstream := "data: {\"id\":\"x\",\"object\":\"chat.completion.chunk\",\"created\":1,\"model\":\"m\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\"},\"finish_reason\":null}]}\n\n" +
 		"data: {\"id\":\"x\",\"object\":\"chat.completion.chunk\",\"created\":1,\"model\":\"m\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}\n\n" +
 		"data: [DONE]\n\n"
 	var downstream bytes.Buffer
 	flush := func() error { return nil }
-	if _, err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
+	if _, err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
 		t.Fatal(err)
 	}
 	out := downstream.String()
@@ -361,12 +361,12 @@ func TestTranslateStream_FinishBeforeUsage_UsesPendingFinish(t *testing.T) {
 	}
 }
 
-func TestTranslateStream_FlushError_PropagatesErr(t *testing.T) {
+func TestStream_FlushError_PropagatesErr(t *testing.T) {
 	upstream := "data: {\"id\":\"x\",\"object\":\"chat.completion.chunk\",\"created\":1,\"model\":\"m\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\"},\"finish_reason\":null}]}\n\n"
 	var downstream bytes.Buffer
 	flushErr := "simulated flush failure"
 	flush := func() error { return errors.New(flushErr) }
-	_, err := TranslateStream(strings.NewReader(upstream), &downstream, flush)
+	_, err := Stream(strings.NewReader(upstream), &downstream, flush)
 	if err == nil {
 		t.Fatal("expected error from flush")
 	}
@@ -375,14 +375,14 @@ func TestTranslateStream_FlushError_PropagatesErr(t *testing.T) {
 	}
 }
 
-func TestTranslateRequest_ToolChoiceStringNone(t *testing.T) {
+func TestRequest_ToolChoiceStringNone(t *testing.T) {
 	in := []byte(`{
 		"model":"x",
 		"max_tokens":10,
 		"tool_choice":"none",
 		"messages":[{"role":"user","content":"hi"}]
 	}`)
-	out, err := TranslateRequest(in, "x", TranslateOpts{})
+	out, err := Request(in, "x", Opts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -393,14 +393,14 @@ func TestTranslateRequest_ToolChoiceStringNone(t *testing.T) {
 	}
 }
 
-func TestTranslateRequest_ToolChoiceUnknownType(t *testing.T) {
+func TestRequest_ToolChoiceUnknownType(t *testing.T) {
 	in := []byte(`{
 		"model":"x",
 		"max_tokens":10,
 		"tool_choice":{"type":"weird"},
 		"messages":[{"role":"user","content":"hi"}]
 	}`)
-	out, err := TranslateRequest(in, "x", TranslateOpts{})
+	out, err := Request(in, "x", Opts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -411,14 +411,14 @@ func TestTranslateRequest_ToolChoiceUnknownType(t *testing.T) {
 	}
 }
 
-func TestTranslateRequest_ToolChoiceToolNoName(t *testing.T) {
+func TestRequest_ToolChoiceToolNoName(t *testing.T) {
 	in := []byte(`{
 		"model":"x",
 		"max_tokens":10,
 		"tool_choice":{"type":"tool"},
 		"messages":[{"role":"user","content":"hi"}]
 	}`)
-	out, err := TranslateRequest(in, "x", TranslateOpts{})
+	out, err := Request(in, "x", Opts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -429,14 +429,14 @@ func TestTranslateRequest_ToolChoiceToolNoName(t *testing.T) {
 	}
 }
 
-func TestTranslateRequest_SystemEmptyArray(t *testing.T) {
+func TestRequest_SystemEmptyArray(t *testing.T) {
 	in := []byte(`{
 		"model":"x",
 		"max_tokens":10,
 		"system":[],
 		"messages":[{"role":"user","content":"hi"}]
 	}`)
-	out, err := TranslateRequest(in, "x", TranslateOpts{})
+	out, err := Request(in, "x", Opts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -448,14 +448,14 @@ func TestTranslateRequest_SystemEmptyArray(t *testing.T) {
 	}
 }
 
-func TestTranslateRequest_StopMultiple(t *testing.T) {
+func TestRequest_StopMultiple(t *testing.T) {
 	in := []byte(`{
 		"model":"x",
 		"max_tokens":10,
 		"stop_sequences":["END","STOP"],
 		"messages":[{"role":"user","content":"hi"}]
 	}`)
-	out, err := TranslateRequest(in, "x", TranslateOpts{})
+	out, err := Request(in, "x", Opts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -467,12 +467,12 @@ func TestTranslateRequest_StopMultiple(t *testing.T) {
 	}
 }
 
-func TestTranslateRequest_NoMaxTokens(t *testing.T) {
+func TestRequest_NoMaxTokens(t *testing.T) {
 	in := []byte(`{
 		"model":"x",
 		"messages":[{"role":"user","content":"hi"}]
 	}`)
-	out, err := TranslateRequest(in, "x", TranslateOpts{})
+	out, err := Request(in, "x", Opts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -483,13 +483,13 @@ func TestTranslateRequest_NoMaxTokens(t *testing.T) {
 	}
 }
 
-func TestTranslateRequest_StreamNoStreamOptions(t *testing.T) {
+func TestRequest_StreamNoStreamOptions(t *testing.T) {
 	in := []byte(`{
 		"model":"x",
 		"max_tokens":10,
 		"messages":[{"role":"user","content":"hi"}]
 	}`)
-	out, err := TranslateRequest(in, "x", TranslateOpts{})
+	out, err := Request(in, "x", Opts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -500,7 +500,7 @@ func TestTranslateRequest_StreamNoStreamOptions(t *testing.T) {
 	}
 }
 
-func TestTranslateRequest_Temperature(t *testing.T) {
+func TestRequest_Temperature(t *testing.T) {
 	temp := 0.5
 	in := []byte(`{
 		"model":"x",
@@ -508,7 +508,7 @@ func TestTranslateRequest_Temperature(t *testing.T) {
 		"temperature":0.5,
 		"messages":[{"role":"user","content":"hi"}]
 	}`)
-	out, err := TranslateRequest(in, "x", TranslateOpts{})
+	out, err := Request(in, "x", Opts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -519,7 +519,7 @@ func TestTranslateRequest_Temperature(t *testing.T) {
 	}
 }
 
-func TestTranslateRequest_AssistantEmpty(t *testing.T) {
+func TestRequest_AssistantEmpty(t *testing.T) {
 	in := []byte(`{
 		"model":"x",
 		"max_tokens":10,
@@ -528,7 +528,7 @@ func TestTranslateRequest_AssistantEmpty(t *testing.T) {
 			{"role":"assistant","content":[]}
 		]
 	}`)
-	out, err := TranslateRequest(in, "x", TranslateOpts{})
+	out, err := Request(in, "x", Opts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -547,7 +547,7 @@ func TestTranslateRequest_AssistantEmpty(t *testing.T) {
 	}
 }
 
-func TestTranslateRequest_AssistantTextAndToolUse(t *testing.T) {
+func TestRequest_AssistantTextAndToolUse(t *testing.T) {
 	in := []byte(`{
 		"model":"x",
 		"max_tokens":10,
@@ -558,7 +558,7 @@ func TestTranslateRequest_AssistantTextAndToolUse(t *testing.T) {
 			]}
 		]
 	}`)
-	out, err := TranslateRequest(in, "x", TranslateOpts{})
+	out, err := Request(in, "x", Opts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -575,7 +575,7 @@ func TestTranslateRequest_AssistantTextAndToolUse(t *testing.T) {
 	}
 }
 
-func TestTranslateRequest_AssistantThinkingBlock(t *testing.T) {
+func TestRequest_AssistantThinkingBlock(t *testing.T) {
 	in := []byte(`{
 		"model":"x",
 		"max_tokens":10,
@@ -587,7 +587,7 @@ func TestTranslateRequest_AssistantThinkingBlock(t *testing.T) {
 			]}
 		]
 	}`)
-	out, err := TranslateRequest(in, "x", TranslateOpts{})
+	out, err := Request(in, "x", Opts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -606,7 +606,7 @@ func TestTranslateRequest_AssistantThinkingBlock(t *testing.T) {
 	}
 }
 
-func TestTranslateRequest_AssistantThinkingOnlyBlock(t *testing.T) {
+func TestRequest_AssistantThinkingOnlyBlock(t *testing.T) {
 	in := []byte(`{
 		"model":"x",
 		"max_tokens":10,
@@ -617,7 +617,7 @@ func TestTranslateRequest_AssistantThinkingOnlyBlock(t *testing.T) {
 			]}
 		]
 	}`)
-	out, err := TranslateRequest(in, "x", TranslateOpts{})
+	out, err := Request(in, "x", Opts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -633,7 +633,7 @@ func TestTranslateRequest_AssistantThinkingOnlyBlock(t *testing.T) {
 	}
 }
 
-func TestTranslateRequest_AssistantReasoningContentTopLevel(t *testing.T) {
+func TestRequest_AssistantReasoningContentTopLevel(t *testing.T) {
 	in := []byte(`{
 		"model":"x",
 		"max_tokens":10,
@@ -642,7 +642,7 @@ func TestTranslateRequest_AssistantReasoningContentTopLevel(t *testing.T) {
 			{"role":"assistant","content":"the answer","reasoning_content":"the thinking"}
 		]
 	}`)
-	out, err := TranslateRequest(in, "x", TranslateOpts{})
+	out, err := Request(in, "x", Opts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -658,7 +658,7 @@ func TestTranslateRequest_AssistantReasoningContentTopLevel(t *testing.T) {
 	}
 }
 
-func TestTranslateStream_MultipleTextBlocks(t *testing.T) {
+func TestStream_MultipleTextBlocks(t *testing.T) {
 	upstream := `data: {"id":"x","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}
 
 data: {"id":"x","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{"content":"first"},"finish_reason":null}]}
@@ -672,7 +672,7 @@ data: [DONE]
 `
 	var downstream bytes.Buffer
 	flush := func() error { return nil }
-	if _, err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
+	if _, err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
 		t.Fatal(err)
 	}
 	out := downstream.String()
@@ -684,18 +684,18 @@ data: [DONE]
 	}
 }
 
-func TestTranslateStream_CloseBeforeDone(t *testing.T) {
+func TestStream_CloseBeforeDone(t *testing.T) {
 	upstream := `data: {"id":"x","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}
 
 `
 	var downstream bytes.Buffer
 	flush := func() error { return nil }
-	if _, err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
+	if _, err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
 		t.Errorf("unexpected error on clean EOF: %v", err)
 	}
 }
 
-func TestTranslateStream_SwitchBlockTypes(t *testing.T) {
+func TestStream_SwitchBlockTypes(t *testing.T) {
 	upstream := `data: {"id":"x","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}
 
 data: {"id":"x","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{"content":"text "},"finish_reason":null}]}
@@ -709,7 +709,7 @@ data: [DONE]
 `
 	var downstream bytes.Buffer
 	flush := func() error { return nil }
-	if _, err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
+	if _, err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
 		t.Fatal(err)
 	}
 	out := downstream.String()
@@ -718,7 +718,7 @@ data: [DONE]
 	}
 }
 
-func TestTranslateRequest_ToolResultObjectContent(t *testing.T) {
+func TestRequest_ToolResultObjectContent(t *testing.T) {
 	in := []byte(`{
 		"model":"x",
 		"max_tokens":50,
@@ -726,7 +726,7 @@ func TestTranslateRequest_ToolResultObjectContent(t *testing.T) {
 			{"role":"user","content":[{"type":"tool_result","tool_use_id":"call_1","content":{"key":"value"}}]}
 		]
 	}`)
-	out, err := TranslateRequest(in, "x", TranslateOpts{})
+	out, err := Request(in, "x", Opts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -742,14 +742,14 @@ func TestTranslateRequest_ToolResultObjectContent(t *testing.T) {
 	}
 }
 
-func TestTranslateRequest_SystemInvalidJSON(t *testing.T) {
+func TestRequest_SystemInvalidJSON(t *testing.T) {
 	in := []byte(`{
 		"model":"x",
 		"max_tokens":10,
 		"system":42,
 		"messages":[{"role":"user","content":"hi"}]
 	}`)
-	out, err := TranslateRequest(in, "x", TranslateOpts{})
+	out, err := Request(in, "x", Opts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -761,7 +761,7 @@ func TestTranslateRequest_SystemInvalidJSON(t *testing.T) {
 	}
 }
 
-func TestTranslateStream_NoOpenBlockFinish(t *testing.T) {
+func TestStream_NoOpenBlockFinish(t *testing.T) {
 	upstream := `data: {"id":"x","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}
 
 data: {"id":"x","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}
@@ -771,7 +771,7 @@ data: [DONE]
 `
 	var downstream bytes.Buffer
 	flush := func() error { return nil }
-	if _, err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
+	if _, err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
 		t.Fatal(err)
 	}
 	out := downstream.String()
@@ -780,14 +780,14 @@ data: [DONE]
 	}
 }
 
-func TestTranslateRequest_StreamWithUsage(t *testing.T) {
+func TestRequest_StreamWithUsage(t *testing.T) {
 	in := []byte(`{
 		"model":"x",
 		"max_tokens":10,
 		"stream":true,
 		"messages":[{"role":"user","content":"hi"}]
 	}`)
-	out, err := TranslateRequest(in, "x", TranslateOpts{})
+	out, err := Request(in, "x", Opts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -802,14 +802,14 @@ func TestTranslateRequest_StreamWithUsage(t *testing.T) {
 	}
 }
 
-func TestTranslateRequest_ToolChoiceUnknownString(t *testing.T) {
+func TestRequest_ToolChoiceUnknownString(t *testing.T) {
 	in := []byte(`{
 		"model":"x",
 		"max_tokens":10,
 		"tool_choice":"some_unknown_string",
 		"messages":[{"role":"user","content":"hi"}]
 	}`)
-	out, err := TranslateRequest(in, "x", TranslateOpts{})
+	out, err := Request(in, "x", Opts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -820,7 +820,7 @@ func TestTranslateRequest_ToolChoiceUnknownString(t *testing.T) {
 	}
 }
 
-func TestTranslateStream_DownstreamWriteError(t *testing.T) {
+func TestStream_DownstreamWriteError(t *testing.T) {
 	upstream := `data: {"id":"x","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{"role":"assistant","content":"x"},"finish_reason":"stop"}]}
 
 data: [DONE]
@@ -828,7 +828,7 @@ data: [DONE]
 `
 	w := &failingWriter{}
 	flush := func() error { return nil }
-	if _, err := TranslateStream(strings.NewReader(upstream), w, flush); err == nil {
+	if _, err := Stream(strings.NewReader(upstream), w, flush); err == nil {
 		t.Fatal("expected error from failing writer")
 	}
 }
@@ -845,11 +845,11 @@ func (f *failingWriter) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
-func TestTranslateStream_MultilineData(t *testing.T) {
+func TestStream_MultilineData(t *testing.T) {
 	upstream := "data: {\"a\":1}\n\ndata: {\"b\":2}\n\ndata: [DONE]\n\n"
 	var downstream bytes.Buffer
 	flush := func() error { return nil }
-	if _, err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
+	if _, err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(downstream.String(), "event: message_stop") {
@@ -857,16 +857,16 @@ func TestTranslateStream_MultilineData(t *testing.T) {
 	}
 }
 
-func TestTranslateStream_EOFOnPartialData(t *testing.T) {
+func TestStream_EOFOnPartialData(t *testing.T) {
 	upstream := "data: {\"a\":1}\n"
 	var downstream bytes.Buffer
 	flush := func() error { return nil }
-	if _, err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
+	if _, err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
 		t.Errorf("unexpected error on partial EOF: %v", err)
 	}
 }
 
-func TestTranslateStream_UnknownFinishReason(t *testing.T) {
+func TestStream_UnknownFinishReason(t *testing.T) {
 	upstream := `data: {"id":"x","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{"role":"assistant","content":"x"},"finish_reason":null}]}
 
 data: {"id":"x","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{},"finish_reason":"some_new_reason"}]}
@@ -876,7 +876,7 @@ data: [DONE]
 `
 	var downstream bytes.Buffer
 	flush := func() error { return nil }
-	if _, err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
+	if _, err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
 		t.Fatal(err)
 	}
 	out := downstream.String()
@@ -885,7 +885,7 @@ data: [DONE]
 	}
 }
 
-func TestTranslateStream_TextThenToolThenFinish(t *testing.T) {
+func TestStream_TextThenToolThenFinish(t *testing.T) {
 	upstream := `data: {"id":"x","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}
 
 data: {"id":"x","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{"content":"hi"},"finish_reason":null}]}
@@ -899,7 +899,7 @@ data: [DONE]
 `
 	var downstream bytes.Buffer
 	flush := func() error { return nil }
-	if _, err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
+	if _, err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
 		t.Fatal(err)
 	}
 	out := downstream.String()
@@ -911,7 +911,7 @@ data: [DONE]
 	}
 }
 
-func TestTranslateStream_FlushError(t *testing.T) {
+func TestStream_FlushError(t *testing.T) {
 	upstream := `data: {"id":"x","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{"role":"assistant","content":"x"},"finish_reason":"stop"}]}
 
 data: [DONE]
@@ -919,12 +919,12 @@ data: [DONE]
 `
 	var downstream bytes.Buffer
 	flush := func() error { return io.ErrShortWrite }
-	if _, err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err == nil {
+	if _, err := Stream(strings.NewReader(upstream), &downstream, flush); err == nil {
 		t.Fatal("expected error when flush fails")
 	}
 }
 
-func TestTranslateRequest_ToolResultWithText(t *testing.T) {
+func TestRequest_ToolResultWithText(t *testing.T) {
 	in := []byte(`{
 		"model":"x",
 		"max_tokens":10,
@@ -932,7 +932,7 @@ func TestTranslateRequest_ToolResultWithText(t *testing.T) {
 			{"role":"user","content":[{"type":"tool_result","tool_use_id":"call_1","content":[{"type":"text","text":"sunny"}]}]}
 		]
 	}`)
-	out, err := TranslateRequest(in, "x", TranslateOpts{})
+	out, err := Request(in, "x", Opts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -945,7 +945,7 @@ func TestTranslateRequest_ToolResultWithText(t *testing.T) {
 	}
 }
 
-func TestTranslateRequest_UserImageBlockPassesThrough(t *testing.T) {
+func TestRequest_UserImageBlockPassesThrough(t *testing.T) {
 	in := []byte(`{
 		"model":"x",
 		"max_tokens":10,
@@ -956,7 +956,7 @@ func TestTranslateRequest_UserImageBlockPassesThrough(t *testing.T) {
 			]}
 		]
 	}`)
-	out, err := TranslateRequest(in, "x", TranslateOpts{})
+	out, err := Request(in, "x", Opts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -968,7 +968,7 @@ func TestTranslateRequest_UserImageBlockPassesThrough(t *testing.T) {
 	}
 }
 
-func TestTranslateStream_ToolThenTextBlock(t *testing.T) {
+func TestStream_ToolThenTextBlock(t *testing.T) {
 	upstream := `data: {"id":"x","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}
 
 data: {"id":"x","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"t1","type":"function","function":{"name":"do","arguments":"{}"}}]},"finish_reason":null}]}
@@ -982,7 +982,7 @@ data: [DONE]
 `
 	var downstream bytes.Buffer
 	flush := func() error { return nil }
-	if _, err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
+	if _, err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
 		t.Fatal(err)
 	}
 	out := downstream.String()
@@ -997,7 +997,7 @@ data: [DONE]
 	}
 }
 
-func TestTranslateStream_ToolCallSubsequentArgs(t *testing.T) {
+func TestStream_ToolCallSubsequentArgs(t *testing.T) {
 	upstream := `data: {"id":"x","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}
 
 data: {"id":"x","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"t1","type":"function","function":{"name":"do_thing","arguments":"{\"x\":"}}]},"finish_reason":null}]}
@@ -1011,7 +1011,7 @@ data: [DONE]
 `
 	var downstream bytes.Buffer
 	flush := func() error { return nil }
-	if _, err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
+	if _, err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
 		t.Fatal(err)
 	}
 	out := downstream.String()
@@ -1023,14 +1023,14 @@ data: [DONE]
 	}
 }
 
-func TestTranslateRequest_ToolChoiceObject(t *testing.T) {
+func TestRequest_ToolChoiceObject(t *testing.T) {
 	in := []byte(`{
 		"model":"x",
 		"max_tokens":10,
 		"tool_choice":{"type":"tool","name":"get_weather"},
 		"messages":[{"role":"user","content":"hi"}]
 	}`)
-	out, err := TranslateRequest(in, "x", TranslateOpts{})
+	out, err := Request(in, "x", Opts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1045,14 +1045,14 @@ func TestTranslateRequest_ToolChoiceObject(t *testing.T) {
 	}
 }
 
-func TestTranslateRequest_ToolChoiceAny(t *testing.T) {
+func TestRequest_ToolChoiceAny(t *testing.T) {
 	in := []byte(`{
 		"model":"x",
 		"max_tokens":10,
 		"tool_choice":{"type":"any"},
 		"messages":[{"role":"user","content":"hi"}]
 	}`)
-	out, err := TranslateRequest(in, "x", TranslateOpts{})
+	out, err := Request(in, "x", Opts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1063,14 +1063,14 @@ func TestTranslateRequest_ToolChoiceAny(t *testing.T) {
 	}
 }
 
-func TestTranslateRequest_SystemAsBlocks(t *testing.T) {
+func TestRequest_SystemAsBlocks(t *testing.T) {
 	in := []byte(`{
 		"model":"x",
 		"max_tokens":10,
 		"system":[{"type":"text","text":"Hello "},{"type":"text","text":"world"}],
 		"messages":[{"role":"user","content":"hi"}]
 	}`)
-	out, err := TranslateRequest(in, "x", TranslateOpts{})
+	out, err := Request(in, "x", Opts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1083,20 +1083,20 @@ func TestTranslateRequest_SystemAsBlocks(t *testing.T) {
 	}
 }
 
-func TestTranslateRequest_InvalidJSON(t *testing.T) {
-	_, err := TranslateRequest([]byte(`{not json`), "x", TranslateOpts{})
+func TestRequest_InvalidJSON(t *testing.T) {
+	_, err := Request([]byte(`{not json`), "x", Opts{})
 	if err == nil {
 		t.Fatal("expected error on invalid JSON")
 	}
 }
 
-func TestTranslateRequest_SystemRole(t *testing.T) {
+func TestRequest_SystemRole(t *testing.T) {
 	in := json.RawMessage(`{
 		"model":"claude-opus-4-1",
 		"max_tokens":10,
 		"messages":[{"role":"system","content":"foo"}]
 	}`)
-	out, err := TranslateRequest(in, "x", TranslateOpts{})
+	out, err := Request(in, "x", Opts{})
 	if err != nil {
 		t.Fatalf("TranslateRequest with system role should succeed: %v", err)
 	}
@@ -1120,7 +1120,7 @@ func TestTranslateRequest_SystemRole(t *testing.T) {
 	}
 }
 
-func TestTranslateStream_ErrorMidStream(t *testing.T) {
+func TestStream_ErrorMidStream(t *testing.T) {
 	upstream := `data: {"id":"x","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}
 
 data: not-json
@@ -1128,12 +1128,12 @@ data: not-json
 `
 	var downstream bytes.Buffer
 	flush := func() error { return nil }
-	if _, err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err == nil {
+	if _, err := Stream(strings.NewReader(upstream), &downstream, flush); err == nil {
 		t.Fatal("expected error for malformed chunk")
 	}
 }
 
-func TestTranslateStream_PendingFinishFlushesOnDone(t *testing.T) {
+func TestStream_PendingFinishFlushesOnDone(t *testing.T) {
 	upstream := `data: {"id":"x","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}
 
 data: {"id":"x","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}
@@ -1143,7 +1143,7 @@ data: [DONE]
 `
 	var downstream bytes.Buffer
 	flush := func() error { return nil }
-	if _, err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
+	if _, err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
 		t.Fatal(err)
 	}
 	out := downstream.String()
@@ -1155,7 +1155,7 @@ data: [DONE]
 	}
 }
 
-func TestTranslateStream_SingleReasoningDelta(t *testing.T) {
+func TestStream_SingleReasoningDelta(t *testing.T) {
 	upstream := `data: {"id":"x","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}
 
 data: {"id":"x","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{"reasoning_content":"thinking hard"},"finish_reason":null}]}
@@ -1167,7 +1167,7 @@ data: [DONE]
 `
 	var downstream bytes.Buffer
 	flush := func() error { return nil }
-	if _, err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
+	if _, err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
 		t.Fatal(err)
 	}
 	out := downstream.String()
@@ -1182,7 +1182,7 @@ data: [DONE]
 	}
 }
 
-func TestTranslateStream_MultipleReasoningDeltas(t *testing.T) {
+func TestStream_MultipleReasoningDeltas(t *testing.T) {
 	upstream := `data: {"id":"x","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}
 
 data: {"id":"x","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{"reasoning_content":"first "},"finish_reason":null}]}
@@ -1196,7 +1196,7 @@ data: [DONE]
 `
 	var downstream bytes.Buffer
 	flush := func() error { return nil }
-	if _, err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
+	if _, err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
 		t.Fatal(err)
 	}
 	out := downstream.String()
@@ -1214,7 +1214,7 @@ data: [DONE]
 	}
 }
 
-func TestTranslateStream_ReasoningThenTextTransition(t *testing.T) {
+func TestStream_ReasoningThenTextTransition(t *testing.T) {
 	upstream := `data: {"id":"x","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}
 
 data: {"id":"x","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{"reasoning_content":"thinking"},"finish_reason":null}]}
@@ -1228,7 +1228,7 @@ data: [DONE]
 `
 	var downstream bytes.Buffer
 	flush := func() error { return nil }
-	if _, err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
+	if _, err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
 		t.Fatal(err)
 	}
 	out := downstream.String()
@@ -1249,7 +1249,7 @@ data: [DONE]
 	}
 }
 
-func TestTranslateStream_TextThenReasoningTransition(t *testing.T) {
+func TestStream_TextThenReasoningTransition(t *testing.T) {
 	upstream := `data: {"id":"x","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}
 
 data: {"id":"x","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{"content":"hi"},"finish_reason":null}]}
@@ -1263,7 +1263,7 @@ data: [DONE]
 `
 	var downstream bytes.Buffer
 	flush := func() error { return nil }
-	if _, err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
+	if _, err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
 		t.Fatal(err)
 	}
 	out := downstream.String()
@@ -1283,11 +1283,11 @@ data: [DONE]
 	}
 }
 
-func TestTranslateRequest_NoStreamUsageOmitsStreamOptions(t *testing.T) {
+func TestRequest_NoStreamUsageOmitsStreamOptions(t *testing.T) {
 	in := []byte(
 		`{"model":"x","max_tokens":10,"stream":true,"messages":[{"role":"user","content":"hi"}]}`,
 	)
-	out, err := TranslateRequest(in, "x", TranslateOpts{NoStreamUsage: true})
+	out, err := Request(in, "x", Opts{NoStreamUsage: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1303,11 +1303,11 @@ func TestTranslateRequest_NoStreamUsageOmitsStreamOptions(t *testing.T) {
 	}
 }
 
-func TestTranslateRequest_NoStreamUsageFalseIncludesStreamOptions(t *testing.T) {
+func TestRequest_NoStreamUsageFalseIncludesStreamOptions(t *testing.T) {
 	in := []byte(
 		`{"model":"x","max_tokens":10,"stream":true,"messages":[{"role":"user","content":"hi"}]}`,
 	)
-	out, err := TranslateRequest(in, "x", TranslateOpts{NoStreamUsage: false})
+	out, err := Request(in, "x", Opts{NoStreamUsage: false})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1324,7 +1324,7 @@ func TestTranslateRequest_NoStreamUsageFalseIncludesStreamOptions(t *testing.T) 
 	}
 }
 
-func TestTranslateRequest_ReasoningContentOnToolCallWithThinking(t *testing.T) {
+func TestRequest_ReasoningContentOnToolCallWithThinking(t *testing.T) {
 	in := []byte(`{
 		"model":"x",
 		"max_tokens":10,
@@ -1336,7 +1336,7 @@ func TestTranslateRequest_ReasoningContentOnToolCallWithThinking(t *testing.T) {
 			]}
 		]
 	}`)
-	out, err := TranslateRequest(in, "x", TranslateOpts{})
+	out, err := Request(in, "x", Opts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1353,7 +1353,7 @@ func TestTranslateRequest_ReasoningContentOnToolCallWithThinking(t *testing.T) {
 	}
 }
 
-func TestTranslateRequest_PlaceholderInjectedOnToolCallWithoutThinking(t *testing.T) {
+func TestRequest_PlaceholderInjectedOnToolCallWithoutThinking(t *testing.T) {
 	in := []byte(`{
 		"model":"x",
 		"max_tokens":10,
@@ -1369,7 +1369,7 @@ func TestTranslateRequest_PlaceholderInjectedOnToolCallWithoutThinking(t *testin
 			]}
 		]
 	}`)
-	out, err := TranslateRequest(in, "x", TranslateOpts{})
+	out, err := Request(in, "x", Opts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1387,7 +1387,7 @@ func TestTranslateRequest_PlaceholderInjectedOnToolCallWithoutThinking(t *testin
 	}
 }
 
-func TestTranslateRequest_NoReasoningWhenNoThinkingInConversation(t *testing.T) {
+func TestRequest_NoReasoningWhenNoThinkingInConversation(t *testing.T) {
 	in := []byte(`{
 		"model":"x",
 		"max_tokens":10,
@@ -1398,7 +1398,7 @@ func TestTranslateRequest_NoReasoningWhenNoThinkingInConversation(t *testing.T) 
 			]}
 		]
 	}`)
-	out, err := TranslateRequest(in, "x", TranslateOpts{})
+	out, err := Request(in, "x", Opts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1411,7 +1411,7 @@ func TestTranslateRequest_NoReasoningWhenNoThinkingInConversation(t *testing.T) 
 	}
 }
 
-func TestTranslateRequest_MultipleThinkingBlocksConcatenated(t *testing.T) {
+func TestRequest_MultipleThinkingBlocksConcatenated(t *testing.T) {
 	in := []byte(`{
 		"model":"x",
 		"max_tokens":10,
@@ -1424,7 +1424,7 @@ func TestTranslateRequest_MultipleThinkingBlocksConcatenated(t *testing.T) {
 			]}
 		]
 	}`)
-	out, err := TranslateRequest(in, "x", TranslateOpts{})
+	out, err := Request(in, "x", Opts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1441,7 +1441,7 @@ func TestTranslateRequest_MultipleThinkingBlocksConcatenated(t *testing.T) {
 	}
 }
 
-func TestTranslateRequest_NoInjectionOnAssistantWithoutToolCalls(t *testing.T) {
+func TestRequest_NoInjectionOnAssistantWithoutToolCalls(t *testing.T) {
 	in := []byte(`{
 		"model":"x",
 		"max_tokens":10,
@@ -1457,7 +1457,7 @@ func TestTranslateRequest_NoInjectionOnAssistantWithoutToolCalls(t *testing.T) {
 			]}
 		]
 	}`)
-	out, err := TranslateRequest(in, "x", TranslateOpts{})
+	out, err := Request(in, "x", Opts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1471,7 +1471,7 @@ func TestTranslateRequest_NoInjectionOnAssistantWithoutToolCalls(t *testing.T) {
 	}
 }
 
-func TestTranslateRequest_EmptyThinkingBlockProducesPlaceholder(t *testing.T) {
+func TestRequest_EmptyThinkingBlockProducesPlaceholder(t *testing.T) {
 	in := []byte(`{
 		"model":"x",
 		"max_tokens":10,
@@ -1483,7 +1483,7 @@ func TestTranslateRequest_EmptyThinkingBlockProducesPlaceholder(t *testing.T) {
 			]}
 		]
 	}`)
-	out, err := TranslateRequest(in, "x", TranslateOpts{})
+	out, err := Request(in, "x", Opts{})
 	if err != nil {
 		t.Fatal(err)
 	}

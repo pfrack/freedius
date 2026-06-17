@@ -12,19 +12,26 @@ import (
 	"github.com/pfrack/freedius/proxy/translate"
 )
 
+// MixAdapter routes each request to either the Anthropic or OpenAI code path
+// based on the suffix of the configured base URL path. A path ending in
+// "/v1/messages" goes through the Anthropic adapter; everything else goes
+// through the OpenAI-compatible adapter.
 type MixAdapter struct {
 	anthropic *AnthropicCompatibleAdapter
 	openai    *OpenAICompatibleAdapter
 	logger    *slog.Logger
 }
 
+// NewMixAdapter returns a mix adapter wired to fresh Anthropic and OpenAI
+// sub-adapters, with OpenAI's stream-usage suppressed because mix providers
+// (zen, go) cannot return usage on the last chunk.
 func NewMixAdapter(
 	logger *slog.Logger,
 	verboseErrors bool,
 	streamTimeout time.Duration,
 ) *MixAdapter {
 	openai := NewOpenAICompatibleAdapterWithTimeout(logger, streamTimeout)
-	openai.translateOpts = translate.TranslateOpts{NoStreamUsage: true}
+	openai.translateOpts = translate.Opts{NoStreamUsage: true}
 	return &MixAdapter{
 		anthropic: NewAnthropicCompatibleAdapter(logger, verboseErrors),
 		openai:    openai,
@@ -32,6 +39,8 @@ func NewMixAdapter(
 	}
 }
 
+// Handle dispatches the request to the Anthropic or OpenAI sub-adapter based
+// on the suffix of m.BaseURL's path.
 func (a *MixAdapter) Handle(
 	w http.ResponseWriter,
 	r *http.Request,

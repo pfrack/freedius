@@ -38,7 +38,7 @@ func TestRequestIDMiddleware_GeneratesAndPropagates(t *testing.T) {
 }
 
 func TestRequestIDMiddleware_UniquePerRequest(t *testing.T) {
-	handler := RequestIDMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := RequestIDMiddleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -67,7 +67,7 @@ func TestRecoverMiddleware_500WithOpaqueBody(t *testing.T) {
 	logBuf := &bytes.Buffer{}
 	logger := slog.New(slog.NewTextHandler(logBuf, &slog.HandlerOptions{Level: slog.LevelDebug}))
 
-	panicHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	panicHandler := http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 		panic("boom")
 	})
 
@@ -124,7 +124,7 @@ func TestRecoverMiddleware_500WithOpaqueBody(t *testing.T) {
 
 func TestRecoverMiddleware_NoPanicPassesThrough(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	inner := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("X-Test", "ok")
 		w.WriteHeader(http.StatusTeapot)
 	})
@@ -142,7 +142,7 @@ func TestRecoverMiddleware_NoPanicPassesThrough(t *testing.T) {
 
 func TestRecoverMiddleware_PostWriteHeaderDoesNotRewrite(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	inner := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		// Panic AFTER WriteHeader was called.
 		panic("late panic")
@@ -168,7 +168,7 @@ func TestAccessLogMiddleware_LogsStatusAndDuration(t *testing.T) {
 	logBuf := &bytes.Buffer{}
 	logger := slog.New(slog.NewTextHandler(logBuf, &slog.HandlerOptions{Level: slog.LevelInfo}))
 
-	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	inner := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("X-Freedius-Matched-Provider", "nim")
 		w.Header().Set("X-Freedius-Matched-Model", "test-model")
 		w.WriteHeader(http.StatusOK)
@@ -197,7 +197,7 @@ func TestAccessLogMiddleware_CapturesErrorStatus(t *testing.T) {
 	logBuf := &bytes.Buffer{}
 	logger := slog.New(slog.NewTextHandler(logBuf, &slog.HandlerOptions{Level: slog.LevelInfo}))
 
-	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	inner := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusBadGateway)
 	})
 	handler := AccessLogMiddleware(logger, inner)
@@ -265,7 +265,7 @@ type streamHandler struct {
 	body []byte
 }
 
-func (s *streamHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (s *streamHandler) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.WriteHeader(http.StatusOK)

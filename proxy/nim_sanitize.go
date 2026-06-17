@@ -44,7 +44,6 @@ func stripBooleanSubschemas(node map[string]any) {
 			}
 		}
 	}
-
 }
 
 func aliasTypeParams(node map[string]any) {

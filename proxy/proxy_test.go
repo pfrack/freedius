@@ -173,7 +173,7 @@ func TestServeHTTPOversizeBody(t *testing.T) {
 }
 
 func TestServeHTTPMappingsLookup(t *testing.T) {
-	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"ok":true,"from":"upstream"}`))
 	}))
@@ -440,9 +440,9 @@ type mockProvider struct {
 
 func (m *mockProvider) Handle(
 	w http.ResponseWriter,
-	r *http.Request,
-	cfg config.Model,
-	body []byte,
+	_ *http.Request,
+	_ config.Model,
+	_ []byte,
 ) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(m.status)
@@ -457,9 +457,9 @@ type recordingProvider struct {
 
 func (r *recordingProvider) Handle(
 	w http.ResponseWriter,
-	req *http.Request,
+	_ *http.Request,
 	cfg config.Model,
-	body []byte,
+	_ []byte,
 ) error {
 	r.called = true
 	r.model = cfg.Model

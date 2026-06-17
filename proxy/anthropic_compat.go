@@ -1,3 +1,5 @@
+// Package proxy implements the freedius HTTP reverse proxy: provider adapters,
+// middleware (request ID, recover, access log), and the request dispatcher.
 package proxy
 
 import (
@@ -13,11 +15,15 @@ import (
 	"github.com/pfrack/freedius/config"
 )
 
+// AnthropicCompatibleAdapter forwards requests to an Anthropic-API-compatible
+// upstream using an httputil.ReverseProxy (no streaming translation needed).
 type AnthropicCompatibleAdapter struct {
 	logger        *slog.Logger
 	verboseErrors bool
 }
 
+// NewAnthropicCompatibleAdapter returns an adapter tagged with the
+// "adapter.anthropic" slog component and the given verboseErrors setting.
 func NewAnthropicCompatibleAdapter(
 	logger *slog.Logger,
 	verboseErrors bool,
@@ -28,6 +34,8 @@ func NewAnthropicCompatibleAdapter(
 	}
 }
 
+// Handle rewrites the request for the upstream Anthropic-API-compatible base
+// URL, sets x-api-key / anthropic-version, and serves via ReverseProxy.
 func (a *AnthropicCompatibleAdapter) Handle(
 	w http.ResponseWriter,
 	r *http.Request,

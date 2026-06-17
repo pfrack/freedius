@@ -20,7 +20,7 @@ func newOpenAICompatibleAdapter(t *testing.T) *OpenAICompatibleAdapter {
 
 func TestOpenAICompat_Upstream401(t *testing.T) {
 	t.Setenv("OPENAI_API_KEY", "sk-test")
-	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 		_, _ = w.Write([]byte(`{"error":"bad"}`))
 	}))

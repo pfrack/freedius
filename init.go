@@ -1,3 +1,5 @@
+// Package main implements the freedius binary: the proxy server, the
+// "init" subcommand that writes a starter config, and shared CLI plumbing.
 package main
 
 import (
@@ -58,12 +60,13 @@ func runInit(args []string) int {
 	}
 
 	if parent := filepath.Dir(output); parent != "." {
+		// #nosec G301 -- user-owned config directory; group/other read keeps tools (e.g. Claude Code) compatible
 		if err := os.MkdirAll(parent, 0o755); err != nil {
 			fmt.Fprintf(os.Stderr, "freedius: cannot create directory %s: %v\n", parent, err)
 			return 1
 		}
 	}
-
+	// #nosec G306 -- starter config is non-sensitive and should be readable by tooling
 	if err := os.WriteFile(output, []byte(starterTemplate), 0o644); err != nil {
 		if output != "" && backup != "" {
 			if rerr := os.Rename(backup, output); rerr != nil {
@@ -76,7 +79,13 @@ func runInit(args []string) int {
 					rerr,
 				)
 			} else {
-				fmt.Fprintf(os.Stderr, "freedius: write %s failed (%v); original restored from %s\n", output, err, backup)
+				fmt.Fprintf(
+					os.Stderr,
+					"freedius: write %s failed (%v); original restored from %s\n",
+					output,
+					err,
+					backup,
+				)
 			}
 		}
 		return 1

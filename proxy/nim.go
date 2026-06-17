@@ -9,6 +9,9 @@ import (
 	"github.com/pfrack/freedius/proxy/translate"
 )
 
+// NIMAdapter wraps OpenAICompatibleAdapter with NVIDIA NIM-specific options:
+// stream-usage is suppressed and the request body is run through
+// sanitizeNIMBody before being sent.
 type NIMAdapter struct {
 	inner *OpenAICompatibleAdapter
 }
@@ -17,14 +20,14 @@ type NIMAdapter struct {
 // request/response logic lives in OpenAICompatibleAdapter
 // (proxy/openai_compat.go); this wrapper enables NIM-specific
 // options (NoStreamUsage, sanitizeNIMBody pre-send hook).
-
 func NewNIMAdapter(logger *slog.Logger, streamTimeout time.Duration) *NIMAdapter {
 	inner := NewOpenAICompatibleAdapterWithTimeout(logger, streamTimeout)
-	inner.translateOpts = translate.TranslateOpts{NoStreamUsage: true}
+	inner.translateOpts = translate.Opts{NoStreamUsage: true}
 	inner.preSendHook = sanitizeNIMBody
 	return &NIMAdapter{inner: inner}
 }
 
+// Handle delegates to the embedded OpenAICompatibleAdapter.
 func (a *NIMAdapter) Handle(
 	w http.ResponseWriter,
 	r *http.Request,

@@ -51,6 +51,10 @@ set -gx DISABLE_ERROR_REPORTING "1"
 	}
 }
 
+// WriteShellRC appends (or replaces, when force is true) the freedius env block
+// in the user's shell rc file for the shell identified by $SHELL. When dryRun
+// is true the resulting file content is printed to stdout and the file is left
+// untouched. The returned string is the rc file path that would be (or was) edited.
 func WriteShellRC(
 	homeDir string,
 	shell string,
@@ -72,6 +76,7 @@ func WriteShellRC(
 	}
 
 	existing := ""
+	// #nosec G304 -- path is the operator's own shell rc file
 	if data, err := os.ReadFile(rcPath); err == nil {
 		existing = string(data)
 	}
@@ -106,9 +111,11 @@ func WriteShellRC(
 	}
 
 	dir := filepath.Dir(rcPath)
+	// #nosec G301 -- user-owned directory; group/other read keeps the rc file tooling-compatible
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", fmt.Errorf("create parent dir %s: %w", dir, err)
 	}
+	// #nosec G306,G703 -- user-owned rc file; rcPath is filepath.Join(homeDir, knownSafe) where homeDir is the operator's $HOME
 	if err := os.WriteFile(rcPath, []byte(content), 0o644); err != nil {
 		return "", fmt.Errorf("write %s: %w", rcPath, err)
 	}

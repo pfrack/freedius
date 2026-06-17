@@ -165,7 +165,7 @@ func TestNIMAdapter_OmitsStreamOptionsAndStripsBooleanSchema(t *testing.T) {
 
 func TestNIMAdapter_Upstream401_ForwardsVerbatim(t *testing.T) {
 	t.Setenv("NVIDIA_NIM_API_KEY", "sk-test")
-	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusUnauthorized)
 		_, _ = w.Write([]byte(`{"error":"invalid api key","detail":"key not found"}`))
@@ -202,7 +202,7 @@ func TestNIMAdapter_Upstream401_ForwardsVerbatim(t *testing.T) {
 
 func TestNIMAdapter_Upstream429_ForwardsVerbatim(t *testing.T) {
 	t.Setenv("NVIDIA_NIM_API_KEY", "sk-test")
-	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusTooManyRequests)
 		_, _ = w.Write([]byte(`{"error":"rate limited"}`))
@@ -236,7 +236,7 @@ func TestNIMAdapter_Upstream429_ForwardsVerbatim(t *testing.T) {
 
 func TestNIMAdapter_StreamingToolUse_EmitsContentBlockStart(t *testing.T) {
 	t.Setenv("NVIDIA_NIM_API_KEY", "sk-test")
-	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write(
@@ -297,7 +297,7 @@ func TestNIMAdapter_StreamingToolUse_EmitsContentBlockStart(t *testing.T) {
 
 func TestNIMAdapter_ParallelToolCalls_EmitsMultipleIndices(t *testing.T) {
 	t.Setenv("NVIDIA_NIM_API_KEY", "sk-test")
-	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write(
@@ -346,7 +346,7 @@ func TestNIMAdapter_ParallelToolCalls_EmitsMultipleIndices(t *testing.T) {
 
 func TestNIMAdapter_NonStreamingResponse_NoOutput(t *testing.T) {
 	t.Setenv("NVIDIA_NIM_API_KEY", "sk-test")
-	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write(
