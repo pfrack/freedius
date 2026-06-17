@@ -20,6 +20,15 @@ func newAnthropicCompatAdapter(t *testing.T) *AnthropicCompatibleAdapter {
 func TestAnthropicCompat_PassthroughText(t *testing.T) {
 	t.Setenv("ANTHROPIC_API_KEY", "sk-test")
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("x-api-key") != "sk-test" {
+			t.Errorf("x-api-key: got %q, want sk-test", r.Header.Get("x-api-key"))
+		}
+		if r.Header.Get("anthropic-version") != "2023-06-01" {
+			t.Errorf("anthropic-version: got %q, want 2023-06-01", r.Header.Get("anthropic-version"))
+		}
+		if r.Header.Get("Authorization") != "" {
+			t.Errorf("Authorization should be empty, got %q", r.Header.Get("Authorization"))
+		}
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"ok":true}`))
 	}))

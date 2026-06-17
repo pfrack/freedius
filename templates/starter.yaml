@@ -11,15 +11,15 @@
 
 mappings:
   # Opencode Go (OpenAI-format base_url)
-  opus:    { provider: go, model: deepseek-ai/deepseek-v4-pro,   base_url: https://opencode.ai/zen/go/v1/chat/completions, api_key_env: OPENCODE_API_KEY }
+  opus:    { provider: go, model: deepseek-v4-pro,   base_url: https://opencode.ai/zen/go/v1/chat/completions, api_key_env: OPENCODE_API_KEY }
   # Opencode Go (OpenAI-format base_url)
-  sonnet:  { provider: go, model: deepseek-ai/deepseek-v4-flash, base_url: https://opencode.ai/zen/go/v1/chat/completions, api_key_env: OPENCODE_API_KEY }
+  sonnet:  { provider: go, model: deepseek-v4-flash, base_url: https://opencode.ai/zen/go/v1/chat/completions, api_key_env: OPENCODE_API_KEY }
   # NVIDIA NIM (OpenAI-format, built-in defaults)
   haiku:   { provider: nim, model: stepfun-ai/step-3.5-flash }
   # Opencode Go (OpenAI-format base_url)
-  auto:    { provider: go, model: deepseek-ai/deepseek-v4-flash, base_url: https://opencode.ai/zen/go/v1/chat/completions, api_key_env: OPENCODE_API_KEY }
+  auto:    { provider: go, model: deepseek-v4-flash, base_url: https://opencode.ai/zen/go/v1/chat/completions, api_key_env: OPENCODE_API_KEY }
   # Catch-all for any Claude Code model not matched above
-  default: { provider: go, model: deepseek-ai/deepseek-v4-pro,   base_url: https://opencode.ai/zen/go/v1/chat/completions, api_key_env: OPENCODE_API_KEY }
+  default: { provider: go, model: deepseek-v4-pro,   base_url: https://opencode.ai/zen/go/v1/chat/completions, api_key_env: OPENCODE_API_KEY }
 
 # Exact-match entries override family-based mappings.
 # Uncomment and edit:

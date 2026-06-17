@@ -234,3 +234,83 @@ func TestWroteHeaderResponseWriter_WriteImplicitlyOpens(t *testing.T) {
 		t.Errorf("underlying recorder: got %d, want 200", rec.Code)
 	}
 }
+
+func TestWroteHeaderResponseWriter_FlushDelegatesToUnderlyingFlusher(t *testing.T) {
+	rec := httptest.NewRecorder()
+	w := &wroteHeaderResponseWriter{ResponseWriter: rec}
+
+	// http.NewResponseController must see Flush on the wrapper.
+	rc := http.NewResponseController(w)
+	if err := rc.Flush(); err != nil {
+		t.Fatalf("rc.Flush() returned error, wrapper hides Flusher: %v", err)
+	}
+	if !rec.Flushed {
+		t.Error("expected recorder.Flushed to be true after rc.Flush()")
+	}
+}
+
+// streamHandler is a minimal streaming adapter for middleware flush tests.
+type streamHandler struct {
+	body []byte
+}
+
+func (s *streamHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.WriteHeader(http.StatusOK)
+	rc := http.NewResponseController(w)
+	for i := 0; i < len(s.body); i++ {
+		if _, err := w.Write(s.body[i : i+1]); err != nil {
+			return
+		}
+		if err := rc.Flush(); err != nil {
+			return
+		}
+	}
+}
+
+func TestRecoverMiddleware_FlushWorksThroughWrapper(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	inner := &streamHandler{body: []byte("data: hello\n\n")}
+	handler := RecoverMiddleware(logger, false, inner)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/v1/messages", nil))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status: got %d, want 200", rec.Code)
+	}
+	if !rec.Flushed {
+		t.Error("expected response to be flushed")
+	}
+}
+
+func TestAccessLogMiddleware_FlushWorksThroughWrapper(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	inner := &streamHandler{body: []byte("data: hello\n\n")}
+	handler := AccessLogMiddleware(logger, inner)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/v1/messages", nil))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status: got %d, want 200", rec.Code)
+	}
+	if !rec.Flushed {
+		t.Error("expected response to be flushed")
+	}
+}
+
+func TestMiddlewareChain_FlushWorksThroughBothWrappers(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	inner := &streamHandler{body: []byte("data: hello\n\n")}
+	handler := RecoverMiddleware(logger, false, inner)
+	handler = AccessLogMiddleware(logger, handler)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/v1/messages", nil))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status: got %d, want 200", rec.Code)
+	}
+	if !rec.Flushed {
+		t.Error("expected response to be flushed")
+	}
+}

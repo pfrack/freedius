@@ -35,12 +35,15 @@ func (a *AnthropicCompatibleAdapter) Handle(w http.ResponseWriter, r *http.Reque
 	}
 	r.Body = io.NopCloser(bytes.NewReader(body))
 	r.ContentLength = int64(len(body))
-	r.Header.Set("Authorization", "Bearer "+apiKey)
+	r.Header.Set("x-api-key", apiKey)
+	r.Header.Set("anthropic-version", "2023-06-01")
 	rp := &httputil.ReverseProxy{
 		Rewrite: func(pr *httputil.ProxyRequest) {
 			pr.SetURL(target)
 			pr.Out.Host = target.Host
-			pr.Out.Header.Set("Authorization", "Bearer "+apiKey)
+			pr.Out.Header.Set("x-api-key", apiKey)
+			pr.Out.Header.Set("anthropic-version", "2023-06-01")
+			pr.Out.Header.Del("Authorization")
 		},
 		ErrorHandler: freediusErrorHandler(a.logger),
 	}

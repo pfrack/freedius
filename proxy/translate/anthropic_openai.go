@@ -17,7 +17,11 @@ import (
 	"sync/atomic"
 )
 
-func TranslateRequest(anthropicBody []byte, targetModel string) ([]byte, error) {
+type TranslateOpts struct {
+	NoStreamUsage bool
+}
+
+func TranslateRequest(anthropicBody []byte, targetModel string, opts TranslateOpts) ([]byte, error) {
 	var req anthropicMessage
 	if err := json.Unmarshal(anthropicBody, &req); err != nil {
 		return nil, fmt.Errorf("translate: parse anthropic body: %w", err)
@@ -38,7 +42,7 @@ func TranslateRequest(anthropicBody []byte, targetModel string) ([]byte, error) 
 		StreamOptions: nil,
 	}
 
-	if req.Stream {
+	if req.Stream && !opts.NoStreamUsage {
 		out.StreamOptions = &openAIStreamOpts{IncludeUsage: true}
 	}
 
@@ -221,6 +225,9 @@ func convertOneMessage(m anthropicMsgItem) ([]openAIMessage, error) {
 
 		if str, ok := m.Content.(string); ok && str != "" {
 			textParts = append(textParts, str)
+			if om.ReasoningContent == "" && m.ReasoningContent != "" {
+				om.ReasoningContent = m.ReasoningContent
+			}
 		} else {
 			var blocks []map[string]any
 			if err := json.Unmarshal(raw, &blocks); err != nil {
@@ -233,6 +240,11 @@ func convertOneMessage(m anthropicMsgItem) ([]openAIMessage, error) {
 					t, _ := b["text"].(string)
 					if t != "" {
 						textParts = append(textParts, t)
+					}
+				case "thinking":
+					thinking, _ := b["thinking"].(string)
+					if thinking != "" {
+						om.ReasoningContent = thinking
 					}
 				case "tool_use":
 					id, _ := b["id"].(string)
@@ -257,6 +269,9 @@ func convertOneMessage(m anthropicMsgItem) ([]openAIMessage, error) {
 		}
 		if len(toolCalls) > 0 {
 			om.ToolCalls = toolCalls
+		}
+		if om.ReasoningContent == "" && m.ReasoningContent != "" {
+			om.ReasoningContent = m.ReasoningContent
 		}
 		return []openAIMessage{om}, nil
 	}
@@ -296,27 +311,27 @@ func stringifyContent(c any) string {
 	return string(raw)
 }
 
-func TranslateStream(upstream io.Reader, downstream io.Writer, flush func() error) error {
+func TranslateStream(upstream io.Reader, downstream io.Writer, flush func() error) (string, error) {
 	br := bufio.NewReaderSize(upstream, 64*1024)
 	em := newAnthropicEmitter()
 	for {
 		chunk, err := readSSEEvent(br)
 		if err != nil {
 			if errors.Is(err, io.EOF) {
-				return nil
+				return "", nil
 			}
-			return err
+			return "", err
 		}
 		events, err := em.consume(chunk)
 		if err != nil {
-			return err
+			return "", err
 		}
 		for _, ev := range events {
 			if _, err := downstream.Write(ev); err != nil {
-				return err
+				return "", err
 			}
 			if err := flush(); err != nil {
-				return err
+				return "", err
 			}
 		}
 	}
@@ -411,6 +426,13 @@ func (e *emitter) consume(payload []byte) ([][]byte, error) {
 	for _, ch := range chunk.Choices {
 		if ch.Delta.Role != "" && !e.roleSent {
 			ev, err := e.emitMessageStart()
+			if err != nil {
+				return nil, err
+			}
+			events = append(events, ev...)
+		}
+		if ch.Delta.ReasoningContent != "" {
+			ev, err := e.emitThinkingDelta(ch.Delta.ReasoningContent)
 			if err != nil {
 				return nil, err
 			}
@@ -523,6 +545,48 @@ func (e *emitter) emitText(text string) ([][]byte, error) {
 	return events, nil
 }
 
+func (e *emitter) emitThinkingDelta(thinking string) ([][]byte, error) {
+	var events [][]byte
+	if e.openBlock != "thinking" {
+		if e.openBlock != "" {
+			ev, err := e.emitBlockStop()
+			if err != nil {
+				return nil, err
+			}
+			events = append(events, ev...)
+		}
+		start := map[string]any{
+			"type":  "content_block_start",
+			"index": e.blockIndex,
+			"content_block": map[string]any{
+				"type":     "thinking",
+				"thinking": "",
+			},
+		}
+		ev, err := e.emit("content_block_start", start)
+		if err != nil {
+			return nil, err
+		}
+		events = append(events, ev...)
+		e.blockIndex++
+		e.openBlock = "thinking"
+	}
+	delta := map[string]any{
+		"type":  "content_block_delta",
+		"index": e.blockIndex - 1,
+		"delta": map[string]any{
+			"type":     "thinking_delta",
+			"thinking": thinking,
+		},
+	}
+	ev, err := e.emit("content_block_delta", delta)
+	if err != nil {
+		return nil, err
+	}
+	events = append(events, ev...)
+	return events, nil
+}
+
 func (e *emitter) emitToolCall(tc openAIToolCall) ([][]byte, error) {
 	if _, ok := e.toolToBlock[tc.Index]; !ok {
 		e.toolToBlock[tc.Index] = e.blockIndex
@@ -610,7 +674,7 @@ func (e *emitter) emitFinish(reason string) ([][]byte, error) {
 
 func (e *emitter) emitBlockStop() ([][]byte, error) {
 	idx := e.blockIndex
-	if e.openBlock == "text" || e.openBlock == "tool" {
+	if e.openBlock == "text" || e.openBlock == "tool" || e.openBlock == "thinking" {
 		idx--
 	}
 	payload := map[string]any{

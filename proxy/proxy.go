@@ -222,6 +222,16 @@ func (w *wroteHeaderResponseWriter) Write(b []byte) (int, error) {
 	return w.ResponseWriter.Write(b)
 }
 
+// Flush delegates to the underlying ResponseWriter if it implements http.Flusher.
+// Without this, http.NewResponseController(wrapper).Flush() returns "feature not
+// supported" because the wrapper hides Flusher behind the embedded interface.
+// See proxy.go and proxy/middleware_test.go for the regression test.
+func (w *wroteHeaderResponseWriter) Flush() {
+	if f, ok := w.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}
+
 func RecoverMiddleware(logger *slog.Logger, verboseErrors bool, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ww := &wroteHeaderResponseWriter{ResponseWriter: w}
