@@ -53,6 +53,7 @@ Five orthogonal fixes shipped in dependency order, plus a middleware fix:
 4. **MixAdapter NoStreamUsage** (Phase 4) — apply `NoStreamUsage: true` to MixAdapter's OpenAI path, mirroring the NIM fix in Phase 3.
 5. **Middleware Flush** (Phase 5) — fix `wroteHeaderResponseWriter` to expose `http.Flusher` so `http.NewResponseController(w).Flush()` works through the middleware chain.
 6. **Request thinking blocks** (Phase 6) — handle `thinking` content blocks in assistant message conversion so `reasoning_content` is passed back to providers like DeepSeek that require it.
+7. **Merge thinking into text** (Phase 7) — DeepSeek requires `reasoning_content` on ALL assistant messages when tool calls have occurred and thinking mode is enabled. Claude Code may strip thinking blocks from request history, making it impossible to reliably pass `reasoning_content` back. Instead of emitting separate thinking blocks, merge reasoning content into the text content delta during response translation. This avoids the DeepSeek requirement entirely at the cost of losing native thinking UI in Claude Code.
 
 ## Critical Implementation Details
 
@@ -492,7 +493,48 @@ case "thinking":
 
 ---
 
-## Testing Strategy
+## Phase 7: Merge Thinking into Text in Response Translation
+
+### Overview
+
+DeepSeek's API has a critical requirement when thinking mode is enabled and tool calls have occurred: `reasoning_content` must be present on ALL assistant messages in the conversation history. Phase 6 attempted to satisfy this by converting Anthropic `thinking` blocks back to `reasoning_content` on the request path. However, Claude Code may strip `thinking` blocks from conversation history before sending subsequent requests, making it impossible to reliably reconstruct `reasoning_content`.
+
+The DeepSeek docs confirm: "It is crucial to correctly pass back the `reasoning_content` in all subsequent requests for turns involving tool calls; failure to do so will result in a 400 error from the API." This requirement is permissive: once the API is in thinking mode, ALL assistant messages need the field.
+
+Rather than fighting this requirement, Phase 7 avoids it entirely by merging `reasoning_content` into the text `content` delta during response translation. Instead of emitting separate `thinking` content blocks (which Claude Code may or may not preserve in the next request), the reasoning text is prepended to the first content delta with a `\n\n` separator, or emitted as a text delta at the end of the stream if no content follows. Because the thinking is embedded in regular text, Claude Code always includes it in the next request as normal content. DeepSeek never sees missing `reasoning_content`.
+
+Trade-off: Claude Code loses native thinking UI. Reasoning text appears as regular text at the top of the response.
+
+### Changes Required
+
+#### 7.1 Buffer reasoning and merge into text
+
+**File**: `proxy/translate/anthropic_openai.go`
+
+**Intent**: In `consume()`, accumulate `reasoning_content` deltas into a `thinkingBuffer` string on the emitter instead of calling `emitThinkingDelta`. When content arrives, prepend the buffer with a `\n\n` separator. When tool calls arrive with a non-empty buffer, emit the buffer as a text block first. At stream end (`flushPending`), emit any remaining buffer as text.
+
+**Contract**:
+- Add `thinkingBuffer string` field to `emitter` struct
+- Replace `if ch.Delta.ReasoningContent != "" { e.emitThinkingDelta(...) }` with `e.thinkingBuffer += ch.Delta.ReasoningContent`
+- When `ch.Delta.Content != ""`, if `e.thinkingBuffer != ""`, prepend to content: `content = e.thinkingBuffer + "\n\n" + content`, clear buffer
+- When tool calls arrive with non-empty buffer, flush buffer via `emitText` before processing tool calls
+- In the finish-reason handler, flush buffer before `emitFinish` if non-empty
+- In `flushPending`, flush remaining buffer before the finish sequence
+
+#### 7.2 Update tests
+
+**File**: `proxy/translate/anthropic_openai_test.go`
+
+**Intent**: Update the 4 reasoning tests (Phase 2) to assert merged-into-text behavior instead of separate thinking blocks.
+
+### Success Criteria
+
+- `go build ./...` compiles cleanly
+- `go vet ./...` passes
+- `go test ./proxy/translate/... -run "SingleReasoning|MultipleReasoning|ReasoningThen|TextThenReasoning" -v` — all 4 updated tests pass
+- `go test ./proxy/...` — all existing tests pass
+
+---
 
 ### Unit Tests (Phase 1)
 
@@ -613,3 +655,16 @@ case "thinking":
 #### Manual
 
 - [ ] 6.5 Manual test: DeepSeek or other reasoning provider through freedius → no "reasoning_content must be passed back" error
+
+### Phase 7: Merge Thinking into Text in Response Translation
+
+#### Automated
+
+- [x] 7.1 `go build ./...` compiles cleanly — ad27029
+- [x] 7.2 `go vet ./...` passes — ad27029
+- [x] 7.3 `go test ./proxy/translate/... -run "SingleReasoning|MultipleReasoning|ReasoningThen|TextThenReasoning" -v` — all 4 updated tests pass — ad27029
+- [x] 7.4 `go test ./proxy/...` — all existing tests pass — ad27029
+
+#### Manual
+
+- [ ] 7.5 Manual test: DeepSeek through freedius → no "reasoning_content must be passed back" error on multi-turn conversation with tools

@@ -377,6 +377,7 @@ type emitter struct {
 	roleSent       bool
 	finished       bool
 	pendingFinish  string
+	thinkingBuffer string
 }
 
 func newAnthropicEmitter() *emitter {
@@ -426,18 +427,27 @@ func (e *emitter) consume(payload []byte) ([][]byte, error) {
 			events = append(events, ev...)
 		}
 		if ch.Delta.ReasoningContent != "" {
-			ev, err := e.emitThinkingDelta(ch.Delta.ReasoningContent)
+			e.thinkingBuffer += ch.Delta.ReasoningContent
+		}
+		if ch.Delta.Content != "" {
+			content := ch.Delta.Content
+			if e.thinkingBuffer != "" {
+				content = e.thinkingBuffer + "\n\n" + content
+				e.thinkingBuffer = ""
+			}
+			ev, err := e.emitText(content)
 			if err != nil {
 				return nil, err
 			}
 			events = append(events, ev...)
 		}
-		if ch.Delta.Content != "" {
-			ev, err := e.emitText(ch.Delta.Content)
+		if len(ch.Delta.ToolCalls) > 0 && e.thinkingBuffer != "" {
+			ev, err := e.emitText(e.thinkingBuffer)
 			if err != nil {
 				return nil, err
 			}
 			events = append(events, ev...)
+			e.thinkingBuffer = ""
 		}
 		for _, tc := range ch.Delta.ToolCalls {
 			ev, err := e.emitToolCall(tc)
@@ -448,6 +458,14 @@ func (e *emitter) consume(payload []byte) ([][]byte, error) {
 		}
 		if ch.FinishReason != nil {
 			e.pendingFinish = *ch.FinishReason
+			if e.thinkingBuffer != "" {
+				ev, err := e.emitText(e.thinkingBuffer)
+				if err != nil {
+					return nil, err
+				}
+				events = append(events, ev...)
+				e.thinkingBuffer = ""
+			}
 			if e.sawUsage {
 				ev, err := e.emitFinish(*ch.FinishReason)
 				if err != nil {
@@ -462,6 +480,14 @@ func (e *emitter) consume(payload []byte) ([][]byte, error) {
 
 func (e *emitter) flushPending() ([][]byte, error) {
 	var events [][]byte
+	if e.thinkingBuffer != "" {
+		ev, err := e.emitText(e.thinkingBuffer)
+		if err != nil {
+			return nil, err
+		}
+		events = append(events, ev...)
+		e.thinkingBuffer = ""
+	}
 	if e.pendingFinish != "" {
 		ev, err := e.emitFinish(e.pendingFinish)
 		if err != nil {
