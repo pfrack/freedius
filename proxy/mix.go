@@ -40,13 +40,21 @@ func NewMixAdapter(
 }
 
 // Handle dispatches the request to the Anthropic or OpenAI sub-adapter based
-// on the suffix of m.BaseURL's path.
+// on m.Protocol (if set) or the suffix of m.BaseURL's path.
 func (a *MixAdapter) Handle(
 	w http.ResponseWriter,
 	r *http.Request,
 	m config.Model,
 	body []byte,
 ) error {
+	switch m.Protocol {
+	case "anthropic":
+		a.logger.Debug("mix routing", "protocol", m.Protocol, "selected", "anthropic")
+		return a.anthropic.Handle(w, r, m, body)
+	case "openai":
+		a.logger.Debug("mix routing", "protocol", m.Protocol, "selected", "openai")
+		return a.openai.Handle(w, r, m, body)
+	}
 	parsedURL, err := url.Parse(m.BaseURL)
 	if err != nil {
 		return fmt.Errorf("%s adapter (mix): parse base_url: %w", originalOr(m), err)

@@ -209,7 +209,6 @@ func runServe(args []string) int {
 
 	registry := proxy.NewRegistry(map[string]proxy.Provider{
 		"nim":       proxy.NewNIMAdapter(logger, streamTimeout),
-		"custom":    proxy.NewCustomAdapter(logger, verboseErrors),
 		"openai":    proxy.NewOpenAICompatibleAdapterWithTimeout(logger, streamTimeout),
 		"anthropic": proxy.NewAnthropicCompatibleAdapter(logger, verboseErrors),
 		"mix":       proxy.NewMixAdapter(logger, verboseErrors, streamTimeout),

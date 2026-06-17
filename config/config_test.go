@@ -68,8 +68,8 @@ func TestLoad(t *testing.T) {
 				if !ok {
 					t.Fatal("missing claude-sonnet-4")
 				}
-				if sonnet.Provider != "anthropic" {
-					t.Errorf("custom should rewrite to anthropic, got %q", sonnet.Provider)
+				if sonnet.Provider != "mix" {
+					t.Errorf("custom should rewrite to mix, got %q", sonnet.Provider)
 				}
 			},
 		},
@@ -221,8 +221,8 @@ func TestLoad(t *testing.T) {
 				if !ok {
 					t.Fatal("missing my-shim")
 				}
-				if m.Provider != "anthropic" {
-					t.Errorf("custom should rewrite to anthropic, got %q", m.Provider)
+				if m.Provider != "mix" {
+					t.Errorf("custom should rewrite to mix, got %q", m.Provider)
 				}
 			},
 		},
@@ -396,6 +396,53 @@ func TestLoad(t *testing.T) {
 			yaml:      "mappings: {}\n",
 			wantErr:   true,
 			errSubstr: "contains no model mappings",
+		},
+		{
+			name: "valid protocol openai",
+			yaml: `models:
+  test:
+    provider: custom
+    model: x
+    base_url: https://example.com/v1/chat/completions
+    api_key_env: CUSTOM_KEY
+    protocol: openai
+`,
+			check: func(t *testing.T, cfg *Config) {
+				m := cfg.Models["test"]
+				if m.Protocol != "openai" {
+					t.Errorf("protocol: got %q, want openai", m.Protocol)
+				}
+			},
+		},
+		{
+			name: "valid protocol anthropic",
+			yaml: `models:
+  test:
+    provider: custom
+    model: x
+    base_url: https://example.com/v1/messages
+    api_key_env: CUSTOM_KEY
+    protocol: anthropic
+`,
+			check: func(t *testing.T, cfg *Config) {
+				m := cfg.Models["test"]
+				if m.Protocol != "anthropic" {
+					t.Errorf("protocol: got %q, want anthropic", m.Protocol)
+				}
+			},
+		},
+		{
+			name: "invalid protocol",
+			yaml: `models:
+  test:
+    provider: custom
+    model: x
+    base_url: https://example.com/v1/messages
+    api_key_env: CUSTOM_KEY
+    protocol: grpc
+`,
+			wantErr:   true,
+			errSubstr: `invalid protocol "grpc"`,
 		},
 	}
 

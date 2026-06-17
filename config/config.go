@@ -22,6 +22,7 @@ type Model struct {
 	BaseURL          string `yaml:"base_url,omitempty"`
 	APIKeyEnv        string `yaml:"api_key_env,omitempty"`
 	AnthropicVersion string `yaml:"anthropic_version,omitempty"`
+	Protocol         string `yaml:"protocol,omitempty"`
 	OriginalProvider string `yaml:"-"`
 }
 
@@ -166,6 +167,15 @@ func validateModel(path, kind, name string, m Model) error {
 			path,
 			kind,
 			name,
+		)
+	}
+	if m.Protocol != "" && m.Protocol != "anthropic" && m.Protocol != "openai" {
+		return fmt.Errorf(
+			"config: config file at %s: %s %q has invalid protocol %q (allowed: anthropic, openai)",
+			path,
+			kind,
+			name,
+			m.Protocol,
 		)
 	}
 	return nil

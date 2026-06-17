@@ -24,7 +24,7 @@ func TestApplyEntryDefaults_OriginalProviderSetBeforeRewrite(t *testing.T) {
 				APIKeyEnv: "CUSTOM_KEY",
 			},
 			wantOrig: "custom",
-			wantProv: "anthropic",
+			wantProv: "mix",
 		},
 		{
 			name:     "zen rewrites Provider but preserves OriginalProvider",
@@ -65,17 +65,17 @@ func TestApplyEntryDefaults_DoesNotOverwriteExistingOriginalProvider(t *testing.
 	first := applyEntryDefaults(
 		Model{Provider: "custom", Model: "x", BaseURL: "https://x", APIKeyEnv: "K"},
 	)
-	if first.OriginalProvider != "custom" || first.Provider != "anthropic" {
+	if first.OriginalProvider != "custom" || first.Provider != "mix" {
 		t.Fatalf(
-			"first pass: got orig=%q prov=%q, want orig=custom prov=anthropic",
+			"first pass: got orig=%q prov=%q, want orig=custom prov=mix",
 			first.OriginalProvider,
 			first.Provider,
 		)
 	}
 	second := applyEntryDefaults(first)
-	if second.OriginalProvider != "custom" || second.Provider != "anthropic" {
+	if second.OriginalProvider != "custom" || second.Provider != "mix" {
 		t.Errorf(
-			"second pass: got orig=%q prov=%q, want orig=custom prov=anthropic (stable)",
+			"second pass: got orig=%q prov=%q, want orig=custom prov=mix (stable)",
 			second.OriginalProvider,
 			second.Provider,
 		)
@@ -103,8 +103,8 @@ func TestLoad_SetsOriginalProviderThroughPipeline(t *testing.T) {
 	if opus.OriginalProvider != "custom" {
 		t.Errorf("opus OriginalProvider: got %q, want custom", opus.OriginalProvider)
 	}
-	if opus.Provider != "anthropic" {
-		t.Errorf("opus Provider: got %q, want anthropic (post-rewrite)", opus.Provider)
+	if opus.Provider != "mix" {
+		t.Errorf("opus Provider: got %q, want mix (post-rewrite)", opus.Provider)
 	}
 	haiku, ok := cfg.Models["haiku"]
 	if !ok {

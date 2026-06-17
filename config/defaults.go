@@ -52,7 +52,7 @@ func applyEntryDefaults(m Model) Model {
 		m.OriginalProvider = m.Provider
 	}
 	if m.Provider == "custom" {
-		m.Provider = "anthropic"
+		m.Provider = "mix"
 	}
 	d, ok := knownProviderDefaults[m.Provider]
 	if !ok {

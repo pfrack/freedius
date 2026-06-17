@@ -308,3 +308,84 @@ func TestMixAdapter_MissingBaseURL(t *testing.T) {
 		t.Fatal("expected error for missing base_url")
 	}
 }
+
+func TestMixAdapter_ProtocolAnthropicOverridesURL(t *testing.T) {
+	t.Setenv("MIX_API_KEY", "sk-test")
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("x-api-key") != "sk-test" {
+			t.Errorf("x-api-key: got %q, want sk-test", r.Header.Get("x-api-key"))
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	defer upstream.Close()
+
+	a := newMixAdapter(t)
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader([]byte(`{"model":"x"}`)))
+	err := a.Handle(rec, req, config.Model{
+		Provider:  "mix",
+		Model:     "x",
+		BaseURL:   upstream.URL + "/v1/chat/completions", // OpenAI-style URL
+		APIKeyEnv: "MIX_API_KEY",
+		Protocol:  "anthropic", // but protocol says anthropic
+	}, []byte(`{"model":"x"}`))
+	if err != nil {
+		t.Fatalf("Handle returned err: %v", err)
+	}
+	if rec.Code != http.StatusOK {
+		t.Errorf("status: got %d, want %d", rec.Code, http.StatusOK)
+	}
+}
+
+func TestMixAdapter_ProtocolOpenAIOverridesURL(t *testing.T) {
+	t.Setenv("MIX_API_KEY", "sk-test")
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer sk-test" {
+			t.Errorf("Authorization: got %q, want Bearer sk-test", r.Header.Get("Authorization"))
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(
+			[]byte(
+				"data: {\"id\":\"x\",\"object\":\"chat.completion.chunk\",\"created\":1,\"model\":\"x\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\"},\"finish_reason\":null}]}\n\n",
+			),
+		)
+		_, _ = w.Write(
+			[]byte(
+				"data: {\"id\":\"x\",\"object\":\"chat.completion.chunk\",\"created\":1,\"model\":\"x\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"hi\"},\"finish_reason\":null}]}\n\n",
+			),
+		)
+		_, _ = w.Write(
+			[]byte(
+				"data: {\"id\":\"x\",\"object\":\"chat.completion.chunk\",\"created\":1,\"model\":\"x\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}\n\n",
+			),
+		)
+		_, _ = w.Write([]byte("data: [DONE]\n\n"))
+	}))
+	defer upstream.Close()
+
+	a := newMixAdapter(t)
+	rec := httptest.NewRecorder()
+	body := []byte(
+		`{"model":"claude-opus-4","max_tokens":50,"messages":[{"role":"user","content":"hi"}],"stream":true}`,
+	)
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader(body))
+	err := a.Handle(rec, req, config.Model{
+		Provider:  "mix",
+		Model:     "x",
+		BaseURL:   upstream.URL + "/v1/messages", // Anthropic-style URL
+		APIKeyEnv: "MIX_API_KEY",
+		Protocol:  "openai", // but protocol says openai
+	}, body)
+	if err != nil {
+		t.Fatalf("Handle returned err: %v", err)
+	}
+	if rec.Code != http.StatusOK {
+		t.Errorf("status: got %d, want %d", rec.Code, http.StatusOK)
+	}
+	if !strings.Contains(rec.Body.String(), "event: message_start") {
+		t.Errorf("body should contain Anthropic SSE (translated from OpenAI), got %q", rec.Body.String())
+	}
+}
