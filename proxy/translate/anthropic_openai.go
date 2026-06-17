@@ -14,11 +14,48 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"sync"
 	"sync/atomic"
 )
 
 type TranslateOpts struct {
 	NoStreamUsage bool
+}
+
+// reasoningCache stores the last observed reasoning_content per model name.
+// Key: model string, Value: accumulated reasoning text.
+var reasoningCache sync.Map
+
+// CacheReasoning stores reasoning content for a model.
+func CacheReasoning(model, reasoning string) {
+	reasoningCache.Store(model, reasoning)
+}
+
+// LoadCachedReasoning retrieves cached reasoning content for a model.
+func LoadCachedReasoning(model string) string {
+	v, ok := reasoningCache.Load(model)
+	if !ok {
+		return ""
+	}
+	s, _ := v.(string)
+	return s
+}
+
+func InjectReasoningIntoOpenAI(body []byte, model string) ([]byte, error) {
+	reasoning := LoadCachedReasoning(model)
+	if reasoning == "" {
+		return body, nil
+	}
+	var req openAIRequest
+	if err := json.Unmarshal(body, &req); err != nil {
+		return nil, err
+	}
+	for i, msg := range req.Messages {
+		if msg.Role == "assistant" && msg.ReasoningContent == "" {
+			req.Messages[i].ReasoningContent = reasoning
+		}
+	}
+	return json.Marshal(req)
 }
 
 func TranslateRequest(anthropicBody []byte, targetModel string, opts TranslateOpts) ([]byte, error) {
@@ -305,27 +342,27 @@ func stringifyContent(c any) string {
 	return string(raw)
 }
 
-func TranslateStream(upstream io.Reader, downstream io.Writer, flush func() error) error {
+func TranslateStream(upstream io.Reader, downstream io.Writer, flush func() error) (string, error) {
 	br := bufio.NewReaderSize(upstream, 64*1024)
 	em := newAnthropicEmitter()
 	for {
 		chunk, err := readSSEEvent(br)
 		if err != nil {
 			if errors.Is(err, io.EOF) {
-				return nil
+				return em.thinkingBuffer, nil
 			}
-			return err
+			return "", err
 		}
 		events, err := em.consume(chunk)
 		if err != nil {
-			return err
+			return "", err
 		}
 		for _, ev := range events {
 			if _, err := downstream.Write(ev); err != nil {
-				return err
+				return "", err
 			}
 			if err := flush(); err != nil {
-				return err
+				return "", err
 			}
 		}
 	}

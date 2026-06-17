@@ -179,7 +179,7 @@ data: [DONE]
 	var downstream bytes.Buffer
 	flushes := 0
 	flush := func() error { flushes++; return nil }
-	if err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
+	if _, err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
 		t.Fatal(err)
 	}
 	out := downstream.String()
@@ -228,7 +228,7 @@ data: [DONE]
 `
 	var downstream bytes.Buffer
 	flush := func() error { return nil }
-	if err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
+	if _, err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
 		t.Fatal(err)
 	}
 	out := downstream.String()
@@ -256,7 +256,7 @@ data: [DONE]
 `
 	var downstream bytes.Buffer
 	flush := func() error { return nil }
-	if err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
+	if _, err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
 		t.Fatal(err)
 	}
 	out := downstream.String()
@@ -275,7 +275,7 @@ data: [DONE]
 `
 	var downstream bytes.Buffer
 	flush := func() error { return nil }
-	if err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
+	if _, err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
 		t.Fatal(err)
 	}
 	out := downstream.String()
@@ -296,7 +296,7 @@ data: [DONE]
 `
 	var downstream bytes.Buffer
 	flush := func() error { return nil }
-	if err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
+	if _, err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
 		t.Fatal(err)
 	}
 	out := downstream.String()
@@ -309,7 +309,7 @@ func TestTranslateStream_JustDone(t *testing.T) {
 	upstream := "data: [DONE]\n\n"
 	var downstream bytes.Buffer
 	flush := func() error { return nil }
-	if err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
+	if _, err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(downstream.String(), "event: message_stop") {
@@ -586,7 +586,7 @@ data: [DONE]
 `
 	var downstream bytes.Buffer
 	flush := func() error { return nil }
-	if err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
+	if _, err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
 		t.Fatal(err)
 	}
 	out := downstream.String()
@@ -604,7 +604,7 @@ func TestTranslateStream_CloseBeforeDone(t *testing.T) {
 `
 	var downstream bytes.Buffer
 	flush := func() error { return nil }
-	if err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
+	if _, err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
 		t.Errorf("unexpected error on clean EOF: %v", err)
 	}
 }
@@ -623,7 +623,7 @@ data: [DONE]
 `
 	var downstream bytes.Buffer
 	flush := func() error { return nil }
-	if err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
+	if _, err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
 		t.Fatal(err)
 	}
 	out := downstream.String()
@@ -685,7 +685,7 @@ data: [DONE]
 `
 	var downstream bytes.Buffer
 	flush := func() error { return nil }
-	if err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
+	if _, err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
 		t.Fatal(err)
 	}
 	out := downstream.String()
@@ -742,7 +742,7 @@ data: [DONE]
 `
 	w := &failingWriter{}
 	flush := func() error { return nil }
-	if err := TranslateStream(strings.NewReader(upstream), w, flush); err == nil {
+	if _, err := TranslateStream(strings.NewReader(upstream), w, flush); err == nil {
 		t.Fatal("expected error from failing writer")
 	}
 }
@@ -763,7 +763,7 @@ func TestTranslateStream_MultilineData(t *testing.T) {
 	upstream := "data: {\"a\":1}\n\ndata: {\"b\":2}\n\ndata: [DONE]\n\n"
 	var downstream bytes.Buffer
 	flush := func() error { return nil }
-	if err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
+	if _, err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(downstream.String(), "event: message_stop") {
@@ -775,7 +775,7 @@ func TestTranslateStream_EOFOnPartialData(t *testing.T) {
 	upstream := "data: {\"a\":1}\n"
 	var downstream bytes.Buffer
 	flush := func() error { return nil }
-	if err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
+	if _, err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
 		t.Errorf("unexpected error on partial EOF: %v", err)
 	}
 }
@@ -790,7 +790,7 @@ data: [DONE]
 `
 	var downstream bytes.Buffer
 	flush := func() error { return nil }
-	if err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
+	if _, err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
 		t.Fatal(err)
 	}
 	out := downstream.String()
@@ -813,7 +813,7 @@ data: [DONE]
 `
 	var downstream bytes.Buffer
 	flush := func() error { return nil }
-	if err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
+	if _, err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
 		t.Fatal(err)
 	}
 	out := downstream.String()
@@ -833,7 +833,7 @@ data: [DONE]
 `
 	var downstream bytes.Buffer
 	flush := func() error { return io.ErrShortWrite }
-	if err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err == nil {
+	if _, err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err == nil {
 		t.Fatal("expected error when flush fails")
 	}
 }
@@ -896,7 +896,7 @@ data: [DONE]
 `
 	var downstream bytes.Buffer
 	flush := func() error { return nil }
-	if err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
+	if _, err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
 		t.Fatal(err)
 	}
 	out := downstream.String()
@@ -925,7 +925,7 @@ data: [DONE]
 `
 	var downstream bytes.Buffer
 	flush := func() error { return nil }
-	if err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
+	if _, err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
 		t.Fatal(err)
 	}
 	out := downstream.String()
@@ -1042,7 +1042,7 @@ data: not-json
 `
 	var downstream bytes.Buffer
 	flush := func() error { return nil }
-	if err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err == nil {
+	if _, err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err == nil {
 		t.Fatal("expected error for malformed chunk")
 	}
 }
@@ -1057,7 +1057,7 @@ data: [DONE]
 `
 	var downstream bytes.Buffer
 	flush := func() error { return nil }
-	if err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
+	if _, err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
 		t.Fatal(err)
 	}
 	out := downstream.String()
@@ -1081,7 +1081,7 @@ data: [DONE]
 `
 	var downstream bytes.Buffer
 	flush := func() error { return nil }
-	if err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
+	if _, err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
 		t.Fatal(err)
 	}
 	out := downstream.String()
@@ -1107,7 +1107,7 @@ data: [DONE]
 `
 	var downstream bytes.Buffer
 	flush := func() error { return nil }
-	if err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
+	if _, err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
 		t.Fatal(err)
 	}
 	out := downstream.String()
@@ -1130,7 +1130,7 @@ data: [DONE]
 `
 	var downstream bytes.Buffer
 	flush := func() error { return nil }
-	if err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
+	if _, err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
 		t.Fatal(err)
 	}
 	out := downstream.String()
@@ -1159,7 +1159,7 @@ data: [DONE]
 `
 	var downstream bytes.Buffer
 	flush := func() error { return nil }
-	if err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
+	if _, err := TranslateStream(strings.NewReader(upstream), &downstream, flush); err != nil {
 		t.Fatal(err)
 	}
 	out := downstream.String()
