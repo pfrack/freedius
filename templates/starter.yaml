@@ -5,20 +5,20 @@
 #   opus, sonnet, haiku, auto, default
 # Provider options: nim, zen, go, custom, openai, anthropic, mix
 #
-# Export the env vars listed in api_key_env before running freedius
+# Export OPENCODE_API_KEY before running freedius:
+#   export OPENCODE_API_KEY=<your-key>
 # (freedius reads keys from environment, not from this file).
 
 mappings:
   # Opencode Go (OpenAI-format base_url)
-  opus:    { provider: go, model: deepseek-v4-pro,   base_url: https://opencode.ai/zen/go/v1/chat/completions }
+  opus:    { provider: go, model: deepseek-v4-pro,   base_url: https://opencode.ai/zen/go/v1/chat/completions, api_key_env: OPENCODE_API_KEY }
   # Opencode Go (Anthropic-format base_url)
-  sonnet:  { provider: go, model: minimax-m3,        base_url: https://opencode.ai/zen/go/v1/messages }
+  sonnet:  { provider: go, model: minimax-m3,        base_url: https://opencode.ai/zen/go/v1/messages, api_key_env: OPENCODE_API_KEY }
   # Opencode Zen (Anthropic-format base_url)
-  haiku:   { provider: zen, model: claude-sonnet-4-6, base_url: https://opencode.ai/zen/v1/messages }
-  # NVIDIA NIM (built-in defaults for base_url and api_key_env)
-  auto:    { provider: nim, model: step-3.5 }
-  # Catch-all for any Claude Code model not matched above
-  default: { provider: nim, model: step-3.5 }
+  haiku:   { provider: zen, model: claude-sonnet-4-6, base_url: https://opencode.ai/zen/v1/messages, api_key_env: OPENCODE_API_KEY }
+  # Catch-all for any Claude Code model not matched above (uses go/openai)
+  auto:    { provider: go, model: deepseek-v4-pro,   base_url: https://opencode.ai/zen/go/v1/chat/completions, api_key_env: OPENCODE_API_KEY }
+  default: { provider: go, model: deepseek-v4-pro,   base_url: https://opencode.ai/zen/go/v1/chat/completions, api_key_env: OPENCODE_API_KEY }
 
 # Exact-match entries override family-based mappings.
 # Uncomment and edit:
