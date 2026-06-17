@@ -949,15 +949,33 @@ func TestTranslateRequest_InvalidJSON(t *testing.T) {
 	}
 }
 
-func TestTranslateRequest_UnsupportedRole(t *testing.T) {
-	in := []byte(`{
-		"model":"x",
+func TestTranslateRequest_SystemRole(t *testing.T) {
+	in := json.RawMessage(`{
+		"model":"claude-opus-4-1",
 		"max_tokens":10,
 		"messages":[{"role":"system","content":"foo"}]
 	}`)
-	_, err := TranslateRequest(in, "x")
-	if err == nil {
-		t.Fatal("expected error for unsupported role")
+	out, err := TranslateRequest(in, "x")
+	if err != nil {
+		t.Fatalf("TranslateRequest with system role should succeed: %v", err)
+	}
+	var parsed struct {
+		Messages []struct {
+			Role    string `json:"role"`
+			Content string `json:"content"`
+		} `json:"messages"`
+	}
+	if err := json.Unmarshal(out, &parsed); err != nil {
+		t.Fatalf("unmarshal output: %v", err)
+	}
+	if len(parsed.Messages) != 1 {
+		t.Fatalf("expected 1 message, got %d", len(parsed.Messages))
+	}
+	if parsed.Messages[0].Role != "system" {
+		t.Errorf("expected role system, got %q", parsed.Messages[0].Role)
+	}
+	if parsed.Messages[0].Content != "foo" {
+		t.Errorf("expected content foo, got %q", parsed.Messages[0].Content)
 	}
 }
 
