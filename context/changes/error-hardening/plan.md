@@ -723,19 +723,19 @@ set -gx DISABLE_ERROR_REPORTING "1"
 
 #### Automated
 
-- [ ] 4.1 `EvalSnippet` contains all required env vars
-- [ ] 4.2 Settings.json merge preserves unknown top-level keys
-- [ ] 4.3 Settings.json creates new file when none exists
-- [ ] 4.4 Settings.json dry-run prints without writing
-- [ ] 4.5 Shell-rc appends marker block to zsh/bash/fish
-- [ ] 4.6 Shell-rc idempotent re-run returns "already installed"
-- [ ] 4.7 Shell-rc `--force` replaces existing marker block
-- [ ] 4.8 Shell-rc refuses unknown shell with clear error
-- [ ] 4.9 `freedius init` writes settings.json by default
-- [ ] 4.10 `freedius init --no-env` skips settings.json write
-- [ ] 4.11 `freedius init --shell-install` appends to detected rc file
-- [ ] 4.12 Startup eval-snippet emitted; suppressed by `--no-export-hint`
-- [ ] 4.13 `go vet ./...` passes; `go build ./...` passes; `go test ./...` passes
+- [x] 4.1 `EvalSnippet` contains all required env vars — fe56264
+- [x] 4.2 Settings.json merge preserves unknown top-level keys — fe56264
+- [x] 4.3 Settings.json creates new file when none exists — fe56264
+- [x] 4.4 Settings.json dry-run prints without writing — fe56264
+- [x] 4.5 Shell-rc appends marker block to zsh/bash/fish — fe56264
+- [x] 4.6 Shell-rc idempotent re-run returns "already installed" — fe56264
+- [x] 4.7 Shell-rc `--force` replaces existing marker block — fe56264
+- [x] 4.8 Shell-rc refuses unknown shell with clear error — fe56264
+- [x] 4.9 `freedius init` writes settings.json by default — fe56264
+- [x] 4.10 `freedius init --no-env` skips settings.json write — fe56264
+- [x] 4.11 `freedius init --shell-install` appends to detected rc file — fe56264
+- [x] 4.12 Startup eval-snippet emitted; suppressed by `--no-export-hint` — fe56264
+- [x] 4.13 `go vet ./...` passes; `go build ./...` passes; `go test ./...` passes — fe56264
 
 #### Manual
 
