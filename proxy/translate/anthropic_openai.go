@@ -238,6 +238,11 @@ func convertOneMessage(m anthropicMsgItem) ([]openAIMessage, error) {
 					if t != "" {
 						textParts = append(textParts, t)
 					}
+				case "thinking":
+					thinking, _ := b["thinking"].(string)
+					if thinking != "" {
+						om.ReasoningContent = thinking
+					}
 				case "tool_use":
 					id, _ := b["id"].(string)
 					name, _ := b["name"].(string)

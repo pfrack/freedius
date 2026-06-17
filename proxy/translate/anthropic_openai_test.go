@@ -517,6 +517,61 @@ func TestTranslateRequest_AssistantTextAndToolUse(t *testing.T) {
 	}
 }
 
+func TestTranslateRequest_AssistantThinkingBlock(t *testing.T) {
+	in := []byte(`{
+		"model":"x",
+		"max_tokens":10,
+		"messages":[
+			{"role":"user","content":"hi"},
+			{"role":"assistant","content":[
+				{"type":"thinking","thinking":"let me think..."},
+				{"type":"text","text":"the answer"}
+			]}
+		]
+	}`)
+	out, err := TranslateRequest(in, "x", TranslateOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got map[string]any
+	_ = json.Unmarshal(out, &got)
+	msgs := got["messages"].([]any)
+	assistant := msgs[1].(map[string]any)
+	if assistant["content"] != "the answer" {
+		t.Errorf("assistant content: got %v, want 'the answer'", assistant["content"])
+	}
+	if assistant["reasoning_content"] != "let me think..." {
+		t.Errorf("reasoning_content: got %v, want 'let me think...'", assistant["reasoning_content"])
+	}
+}
+
+func TestTranslateRequest_AssistantThinkingOnlyBlock(t *testing.T) {
+	in := []byte(`{
+		"model":"x",
+		"max_tokens":10,
+		"messages":[
+			{"role":"user","content":"hi"},
+			{"role":"assistant","content":[
+				{"type":"thinking","thinking":"just thinking"}
+			]}
+		]
+	}`)
+	out, err := TranslateRequest(in, "x", TranslateOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got map[string]any
+	_ = json.Unmarshal(out, &got)
+	msgs := got["messages"].([]any)
+	assistant := msgs[1].(map[string]any)
+	if assistant["reasoning_content"] != "just thinking" {
+		t.Errorf("reasoning_content: got %v, want 'just thinking'", assistant["reasoning_content"])
+	}
+	if _, ok := assistant["content"]; ok {
+		t.Errorf("assistant should not have content when only thinking block")
+	}
+}
+
 func TestTranslateStream_MultipleTextBlocks(t *testing.T) {
 	upstream := `data: {"id":"x","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}
 

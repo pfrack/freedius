@@ -2,7 +2,7 @@
 
 ## Overview
 
-Fix five root causes that prevent OpenCode Go models and NIM streaming from working through freedius: wrong auth headers causing 401, missing reasoning content in SSE causing empty responses, lack of provider-aware translation + NIM body sanitization, `stream_options.include_usage` injected via MixAdapter's OpenAI path, and middleware response-writer wrappers that hide `http.Flusher` from `http.NewResponseController`.
+Fix six root causes that prevent OpenCode Go models and NIM streaming from working through freedius: wrong auth headers causing 401, missing reasoning content in SSE causing empty responses, lack of provider-aware translation + NIM body sanitization, `stream_options.include_usage` injected via MixAdapter's OpenAI path, middleware response-writer wrappers that hide `http.Flusher`, and dropped `thinking` blocks in request translation causing provider rejection.
 
 ## Current State Analysis
 
@@ -45,13 +45,14 @@ After Phase 3: NIM requests with complex tool schemas (boolean `additionalProper
 
 ## Implementation Approach
 
-Five orthogonal fixes shipped in dependency order:
+Five orthogonal fixes shipped in dependency order, plus a middleware fix:
 
 1. **Auth** (Phase 1) — the simplest fix with the widest blast radius. Ships first so any regressions emerge before SSE/NIM changes layer on top.
 2. **SSE reasoning** (Phase 2) — additive emitter logic. Depends on stream not being broken (Phase 3 fixes `stream_options` for NIM), but unit-testable with mock SSE chunks independently.
 3. **stream_options + NIM sanitization** (Phase 3) — the largest change. Adds provider-awareness to `TranslateRequest` and a post-translation sanitization hook.
 4. **MixAdapter NoStreamUsage** (Phase 4) — apply `NoStreamUsage: true` to MixAdapter's OpenAI path, mirroring the NIM fix in Phase 3.
 5. **Middleware Flush** (Phase 5) — fix `wroteHeaderResponseWriter` to expose `http.Flusher` so `http.NewResponseController(w).Flush()` works through the middleware chain.
+6. **Request thinking blocks** (Phase 6) — handle `thinking` content blocks in assistant message conversion so `reasoning_content` is passed back to providers like DeepSeek that require it.
 
 ## Critical Implementation Details
 
@@ -442,6 +443,55 @@ func (w *wroteHeaderResponseWriter) Flush() {
 
 ---
 
+## Phase 6: Handle Thinking Blocks in Request Translation
+
+### Overview
+
+`convertOneMessage` in `proxy/translate/anthropic_openai.go` handles assistant messages with typed content blocks. The `switch` on block `type` only handles `"text"` and `"tool_use"` — `"thinking"` blocks (from the response translation in Phase 2) are silently dropped. When Claude Code sends a conversation history with assistant messages containing thinking blocks (e.g. follow-up prompts after a reasoning response), the translated OpenAI request has no `reasoning_content` field. Providers like DeepSeek require this field in request messages for continued reasoning, rejecting the request with "The `reasoning_content` in the thinking mode must be passed back to the API."
+
+### Changes Required
+
+#### 6.1 Add ReasoningContent to openAIMessage
+
+**File**: `proxy/translate/types.go`
+
+**Intent**: Support `reasoning_content` on request messages so providers like DeepSeek receive the assistant's prior reasoning.
+
+**Contract**: Add `ReasoningContent string \`json:"reasoning_content,omitempty"\`` to the `openAIMessage` struct.
+
+#### 6.2 Convert thinking blocks to reasoning_content
+
+**File**: `proxy/translate/anthropic_openai.go`
+
+**Intent**: When translating an assistant message with a `"thinking"` content block, extract the thinking text into `ReasoningContent` on the OpenAI message.
+
+**Contract**: In the `blocks` handler of the assistant role (line 233-256), add a `case "thinking"` after `case "text"` that reads `b["thinking"]` as a string and sets `om.ReasoningContent`. Do NOT include the thinking text in `textParts` (it should not be concatenated into `Content`).
+
+```go
+case "thinking":
+    thinking, _ := b["thinking"].(string)
+    if thinking != "" {
+        om.ReasoningContent = thinking
+    }
+```
+
+#### 6.3 Add tests
+
+**File**: `proxy/translate/anthropic_openai_test.go`
+
+**Contract**: Two new tests:
+1. `TestTranslateRequest_AssistantThinkingBlock` — assistant with `thinking` + `text` blocks → `reasoning_content` populated, `content` contains only text
+2. `TestTranslateRequest_AssistantThinkingOnlyBlock` — assistant with only a `thinking` block → `reasoning_content` populated, no `content` key present
+
+### Success Criteria
+
+- `go build ./...` compiles cleanly
+- `go vet ./...` passes
+- `go test ./proxy/translate/... -run "AssistantThinking" -v` — both new tests pass
+- `go test ./proxy/...` — all existing tests pass
+
+---
+
 ## Testing Strategy
 
 ### Unit Tests (Phase 1)
@@ -542,11 +592,24 @@ func (w *wroteHeaderResponseWriter) Flush() {
 
 #### Automated
 
-- [x] 5.1 `go build ./...` compiles cleanly — TBD
-- [x] 5.2 `go vet ./...` passes — TBD
-- [x] 5.3 `go test ./proxy/... -run "FlushWorksThrough|WroteHeader.*Flush" -v` — all 4 new tests pass — TBD
-- [x] 5.4 `go test ./proxy/...` — all existing tests pass — TBD
+- [x] 5.1 `go build ./...` compiles cleanly — d73cc8e
+- [x] 5.2 `go vet ./...` passes — d73cc8e
+- [x] 5.3 `go test ./proxy/... -run "FlushWorksThrough|WroteHeader.*Flush" -v` — all 4 new tests pass — d73cc8e
+- [x] 5.4 `go test ./proxy/...` — all existing tests pass — d73cc8e
 
 #### Manual
 
 - [ ] 5.5 Manual test: all streaming providers (NIM, Go, OpenAI, mix) → no "feature not supported" errors, streaming works end-to-end
+
+### Phase 6: Handle Thinking Blocks in Request Translation
+
+#### Automated
+
+- [x] 6.1 `go build ./...` compiles cleanly — 55ddda5
+- [x] 6.2 `go vet ./...` passes — 55ddda5
+- [x] 6.3 `go test ./proxy/translate/... -run "AssistantThinking" -v` — both new tests pass — 55ddda5
+- [x] 6.4 `go test ./proxy/...` — all existing tests pass — 55ddda5
+
+#### Manual
+
+- [ ] 6.5 Manual test: DeepSeek or other reasoning provider through freedius → no "reasoning_content must be passed back" error
