@@ -14,48 +14,11 @@ import (
 	"fmt"
 	"io"
 	"strings"
-	"sync"
 	"sync/atomic"
 )
 
 type TranslateOpts struct {
 	NoStreamUsage bool
-}
-
-// reasoningCache stores the last observed reasoning_content per model name.
-// Key: model string, Value: accumulated reasoning text.
-var reasoningCache sync.Map
-
-// CacheReasoning stores reasoning content for a model.
-func CacheReasoning(model, reasoning string) {
-	reasoningCache.Store(model, reasoning)
-}
-
-// LoadCachedReasoning retrieves cached reasoning content for a model.
-func LoadCachedReasoning(model string) string {
-	v, ok := reasoningCache.Load(model)
-	if !ok {
-		return ""
-	}
-	s, _ := v.(string)
-	return s
-}
-
-func InjectReasoningIntoOpenAI(body []byte, model string) ([]byte, error) {
-	reasoning := LoadCachedReasoning(model)
-	if reasoning == "" {
-		return body, nil
-	}
-	var req openAIRequest
-	if err := json.Unmarshal(body, &req); err != nil {
-		return nil, err
-	}
-	for i, msg := range req.Messages {
-		if msg.Role == "assistant" && msg.ReasoningContent == "" {
-			req.Messages[i].ReasoningContent = reasoning
-		}
-	}
-	return json.Marshal(req)
 }
 
 func TranslateRequest(anthropicBody []byte, targetModel string, opts TranslateOpts) ([]byte, error) {
@@ -262,6 +225,9 @@ func convertOneMessage(m anthropicMsgItem) ([]openAIMessage, error) {
 
 		if str, ok := m.Content.(string); ok && str != "" {
 			textParts = append(textParts, str)
+			if om.ReasoningContent == "" && m.ReasoningContent != "" {
+				om.ReasoningContent = m.ReasoningContent
+			}
 		} else {
 			var blocks []map[string]any
 			if err := json.Unmarshal(raw, &blocks); err != nil {
@@ -303,6 +269,9 @@ func convertOneMessage(m anthropicMsgItem) ([]openAIMessage, error) {
 		}
 		if len(toolCalls) > 0 {
 			om.ToolCalls = toolCalls
+		}
+		if om.ReasoningContent == "" && m.ReasoningContent != "" {
+			om.ReasoningContent = m.ReasoningContent
 		}
 		return []openAIMessage{om}, nil
 	}
@@ -349,7 +318,7 @@ func TranslateStream(upstream io.Reader, downstream io.Writer, flush func() erro
 		chunk, err := readSSEEvent(br)
 		if err != nil {
 			if errors.Is(err, io.EOF) {
-				return em.thinkingBuffer, nil
+				return "", nil
 			}
 			return "", err
 		}
@@ -414,7 +383,6 @@ type emitter struct {
 	roleSent       bool
 	finished       bool
 	pendingFinish  string
-	thinkingBuffer string
 }
 
 func newAnthropicEmitter() *emitter {
@@ -464,27 +432,18 @@ func (e *emitter) consume(payload []byte) ([][]byte, error) {
 			events = append(events, ev...)
 		}
 		if ch.Delta.ReasoningContent != "" {
-			e.thinkingBuffer += ch.Delta.ReasoningContent
+			ev, err := e.emitThinkingDelta(ch.Delta.ReasoningContent)
+			if err != nil {
+				return nil, err
+			}
+			events = append(events, ev...)
 		}
 		if ch.Delta.Content != "" {
-			content := ch.Delta.Content
-			if e.thinkingBuffer != "" {
-				content = e.thinkingBuffer + "\n\n" + content
-				e.thinkingBuffer = ""
-			}
-			ev, err := e.emitText(content)
+			ev, err := e.emitText(ch.Delta.Content)
 			if err != nil {
 				return nil, err
 			}
 			events = append(events, ev...)
-		}
-		if len(ch.Delta.ToolCalls) > 0 && e.thinkingBuffer != "" {
-			ev, err := e.emitText(e.thinkingBuffer)
-			if err != nil {
-				return nil, err
-			}
-			events = append(events, ev...)
-			e.thinkingBuffer = ""
 		}
 		for _, tc := range ch.Delta.ToolCalls {
 			ev, err := e.emitToolCall(tc)
@@ -495,14 +454,6 @@ func (e *emitter) consume(payload []byte) ([][]byte, error) {
 		}
 		if ch.FinishReason != nil {
 			e.pendingFinish = *ch.FinishReason
-			if e.thinkingBuffer != "" {
-				ev, err := e.emitText(e.thinkingBuffer)
-				if err != nil {
-					return nil, err
-				}
-				events = append(events, ev...)
-				e.thinkingBuffer = ""
-			}
 			if e.sawUsage {
 				ev, err := e.emitFinish(*ch.FinishReason)
 				if err != nil {
@@ -517,14 +468,6 @@ func (e *emitter) consume(payload []byte) ([][]byte, error) {
 
 func (e *emitter) flushPending() ([][]byte, error) {
 	var events [][]byte
-	if e.thinkingBuffer != "" {
-		ev, err := e.emitText(e.thinkingBuffer)
-		if err != nil {
-			return nil, err
-		}
-		events = append(events, ev...)
-		e.thinkingBuffer = ""
-	}
 	if e.pendingFinish != "" {
 		ev, err := e.emitFinish(e.pendingFinish)
 		if err != nil {

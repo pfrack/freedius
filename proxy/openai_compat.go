@@ -62,10 +62,6 @@ func (a *OpenAICompatibleAdapter) Handle(w http.ResponseWriter, r *http.Request,
 			return fmt.Errorf("%s adapter (openai-compat): sanitize body: %w", originalOr(m), err)
 		}
 	}
-	upstreamBody, err = translate.InjectReasoningIntoOpenAI(upstreamBody, m.Model)
-	if err != nil {
-		return fmt.Errorf("%s adapter (openai-compat): inject reasoning: %w", originalOr(m), err)
-	}
 	// Bound the upstream call so a hanging provider cannot pin the goroutine.
 	// Cancellation still propagates via r.Context() to the upstream request.
 	ctx, cancel := context.WithTimeout(r.Context(), a.streamTimeout)
@@ -95,13 +91,12 @@ func (a *OpenAICompatibleAdapter) Handle(w http.ResponseWriter, r *http.Request,
 	w.Header().Set("Connection", "keep-alive")
 	w.WriteHeader(http.StatusOK)
 	rc := http.NewResponseController(w)
-	reasoning, err := translate.TranslateStream(resp.Body, w, rc.Flush)
+	var reasoning string
+	reasoning, err = translate.TranslateStream(resp.Body, w, rc.Flush)
+	_ = reasoning
 	if err != nil {
 		// Response already started; log the error but do not return it
 		a.logger.Error("stream translation error", "err", err)
-	}
-	if reasoning != "" {
-		translate.CacheReasoning(m.Model, reasoning)
 	}
 	return nil
 }

@@ -63,8 +63,9 @@ type anthropicMessage struct {
 }
 
 type anthropicMsgItem struct {
-	Role    string `json:"role"`
-	Content any    `json:"content"`
+	Role             string `json:"role"`
+	Content          any    `json:"content"`
+	ReasoningContent string `json:"reasoning_content,omitempty"`
 }
 
 type anthropicTool struct {

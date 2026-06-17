@@ -572,6 +572,31 @@ func TestTranslateRequest_AssistantThinkingOnlyBlock(t *testing.T) {
 	}
 }
 
+func TestTranslateRequest_AssistantReasoningContentTopLevel(t *testing.T) {
+	in := []byte(`{
+		"model":"x",
+		"max_tokens":10,
+		"messages":[
+			{"role":"user","content":"hi"},
+			{"role":"assistant","content":"the answer","reasoning_content":"the thinking"}
+		]
+	}`)
+	out, err := TranslateRequest(in, "x", TranslateOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got map[string]any
+	_ = json.Unmarshal(out, &got)
+	msgs := got["messages"].([]any)
+	assistant := msgs[1].(map[string]any)
+	if assistant["content"] != "the answer" {
+		t.Errorf("assistant content: got %v, want 'the answer'", assistant["content"])
+	}
+	if assistant["reasoning_content"] != "the thinking" {
+		t.Errorf("reasoning_content: got %v, want 'the thinking'", assistant["reasoning_content"])
+	}
+}
+
 func TestTranslateStream_MultipleTextBlocks(t *testing.T) {
 	upstream := `data: {"id":"x","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}
 
@@ -1085,11 +1110,14 @@ data: [DONE]
 		t.Fatal(err)
 	}
 	out := downstream.String()
-	if !strings.Contains(out, `"type":"text"`) {
-		t.Errorf("expected text content_block, got: %q", out)
+	if !strings.Contains(out, `"type":"thinking"`) {
+		t.Errorf("expected thinking content_block, got: %q", out)
 	}
-	if !strings.Contains(out, `"text":"thinking hard"`) {
-		t.Errorf("expected reasoning merged into text content, got: %q", out)
+	if !strings.Contains(out, `"type":"thinking_delta"`) {
+		t.Errorf("expected thinking_delta event, got: %q", out)
+	}
+	if !strings.Contains(out, `"thinking":"thinking hard"`) {
+		t.Errorf("expected thinking content in delta, got: %q", out)
 	}
 }
 
@@ -1111,8 +1139,13 @@ data: [DONE]
 		t.Fatal(err)
 	}
 	out := downstream.String()
-	if !strings.Contains(out, `"text":"first second"`) {
-		t.Errorf("expected accumulated reasoning merged into text, got: %q", out)
+	startCount := strings.Count(out, `"type":"thinking"`)
+	if startCount != 1 {
+		t.Errorf("expected exactly 1 content_block_start(type=thinking), got %d in %q", startCount, out)
+	}
+	deltaCount := strings.Count(out, `"type":"thinking_delta"`)
+	if deltaCount != 2 {
+		t.Errorf("expected 2 thinking_delta events, got %d in %q", deltaCount, out)
 	}
 }
 
@@ -1134,14 +1167,16 @@ data: [DONE]
 		t.Fatal(err)
 	}
 	out := downstream.String()
-	if !strings.Contains(out, `"text":"thinking\n\nanswer"`) {
-		t.Errorf("expected reasoning prepended to text with newline separator, got: %q", out)
+	if !strings.Contains(out, `"type":"thinking"`) {
+		t.Errorf("expected thinking block, got: %q", out)
 	}
 	if !strings.Contains(out, `"type":"text"`) {
 		t.Errorf("expected text block, got: %q", out)
 	}
-	if strings.Contains(out, `"type":"thinking"`) {
-		t.Errorf("should NOT emit separate thinking blocks, got: %q", out)
+	// content_block_stop should appear at least twice (once for thinking, once for text)
+	stopCount := strings.Count(out, "content_block_stop")
+	if stopCount < 2 {
+		t.Errorf("expected at least 2 content_block_stop events (thinking close + text close), got %d in %q", stopCount, out)
 	}
 }
 
@@ -1163,14 +1198,15 @@ data: [DONE]
 		t.Fatal(err)
 	}
 	out := downstream.String()
-	if !strings.Contains(out, `"text":"hi"`) {
-		t.Errorf("expected original text content, got: %q", out)
+	if !strings.Contains(out, `"type":"text"`) {
+		t.Errorf("expected text block, got: %q", out)
 	}
-	if !strings.Contains(out, `"text":"thought"`) {
-		t.Errorf("expected reasoning merged as text delta in same block, got: %q", out)
+	if !strings.Contains(out, `"type":"thinking"`) {
+		t.Errorf("expected thinking block, got: %q", out)
 	}
-	if strings.Contains(out, `"type":"thinking"`) {
-		t.Errorf("should NOT emit separate thinking blocks, got: %q", out)
+	stopCount := strings.Count(out, "content_block_stop")
+	if stopCount < 2 {
+		t.Errorf("expected at least 2 content_block_stop events (text close + thinking close), got %d in %q", stopCount, out)
 	}
 }
 

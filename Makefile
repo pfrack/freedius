@@ -19,6 +19,10 @@ tidy:
 run:
 	go run . $(ARGS)
 
+verbose:
+	go run .  --verbose-errors
+
+
 lint-static:
 	@which staticcheck > /dev/null 2>&1 || (echo "Installing staticcheck..." && go install honnef.co/go/tools/cmd/staticcheck@latest)
 	staticcheck $(PKGS)
