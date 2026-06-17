@@ -1,6 +1,10 @@
 mappings:
-  opus:    { provider: go,  model: deepseek-v4-pro }
-  sonnet:  { provider: go,  model: deepseek-v4-flash }
-  haiku:   { provider: nim, model: step-3.5 }
+  # Opencode Go — OpenAI-format base_url (DeepSeek, GLM, Kimi, etc.)
+  opus:    { provider: go,  model: deepseek-v4-pro,   base_url: https://opencode.ai/zen/go/v1/chat/completions }
+  # Opencode Go — Anthropic-format base_url (MiniMax, Qwen, etc.)
+  sonnet:  { provider: go,  model: minimax-m3,        base_url: https://opencode.ai/zen/go/v1/messages }
+  # Opencode Zen — Anthropic-format base_url (Claude, Qwen, etc.)
+  haiku:   { provider: zen, model: claude-sonnet-4-6, base_url: https://opencode.ai/zen/v1/messages }
+  # NVIDIA NIM — uses built-in defaults
   auto:    { provider: nim, model: step-3.5 }
   default: { provider: nim, model: step-3.5 }

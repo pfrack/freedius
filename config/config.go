@@ -20,12 +20,13 @@ type Model struct {
 }
 
 var KnownProviders = map[string]struct{}{
-	"nim":      {},
-	"zen":      {},
-	"go":       {},
-	"custom":   {},
-	"openai":   {},
+	"nim":       {},
+	"zen":       {},
+	"go":        {},
+	"custom":    {},
+	"openai":    {},
 	"anthropic": {},
+	"mix":       {},
 }
 
 func Load(path string) (*Config, error) {
@@ -105,7 +106,7 @@ func validateModel(path, kind, name string, m Model) error {
 			return fmt.Errorf("config: config file at %s: %s %q has base_url with invalid scheme %q (allowed: http, https)", path, kind, name, u.Scheme)
 		}
 	}
-	if (m.Provider == "openai" || m.Provider == "anthropic") && m.BaseURL == "" {
+	if (m.Provider == "openai" || m.Provider == "anthropic" || m.Provider == "mix") && m.BaseURL == "" {
 		return fmt.Errorf("config: config file at %s: %s %q has provider=%s but no base_url", path, kind, name, m.Provider)
 	}
 	if m.APIKeyEnv != "" && strings.ContainsAny(m.APIKeyEnv, "\r\n=") {

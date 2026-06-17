@@ -56,6 +56,9 @@ func applyEntryDefaults(m Model) Model {
 	if m.APIKeyEnv == "" {
 		m.APIKeyEnv = d.APIKeyEnv
 	}
+	if m.Provider == "zen" || m.Provider == "go" {
+		m.Provider = "mix"
+	}
 	return m
 }
 
