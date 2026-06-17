@@ -2,42 +2,65 @@ package proxy
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/pfrack/freedius/config"
 	"github.com/pfrack/freedius/proxy/translate"
 )
 
 type OpenAICompatibleAdapter struct {
-	client *http.Client
-	logger *slog.Logger
+	client       *http.Client
+	logger       *slog.Logger
+	streamTimeout time.Duration
 }
 
 func NewOpenAICompatibleAdapter(logger *slog.Logger) *OpenAICompatibleAdapter {
+	return NewOpenAICompatibleAdapterWithTimeout(logger, 5*time.Minute)
+}
+
+func NewOpenAICompatibleAdapterWithTimeout(logger *slog.Logger, streamTimeout time.Duration) *OpenAICompatibleAdapter {
 	return &OpenAICompatibleAdapter{
-		client: &http.Client{},
-		logger: logger.With("component", "adapter.openai"),
+		client: &http.Client{
+			Timeout: 0, // bounded per-request via context.WithTimeout below
+			Transport: &http.Transport{
+				DisableKeepAlives: false,
+				Proxy:             http.ProxyFromEnvironment,
+				DialContext: (&net.Dialer{
+					Timeout:   30 * time.Second,
+					KeepAlive: 30 * time.Second,
+				}).DialContext,
+			},
+		},
+		logger:        logger.With("component", "adapter.openai"),
+		streamTimeout: streamTimeout,
 	}
 }
 
 func (a *OpenAICompatibleAdapter) Handle(w http.ResponseWriter, r *http.Request, m config.Model, body []byte) error {
 	if m.BaseURL == "" {
-		return fmt.Errorf("openai adapter: missing base_url")
+		return fmt.Errorf("%s adapter (openai-compat): missing base_url", originalOr(m))
 	}
 	apiKey := os.Getenv(m.APIKeyEnv)
 	if apiKey == "" {
-		return fmt.Errorf("openai adapter: env var %s is not set", m.APIKeyEnv)
+		return fmt.Errorf("%s adapter (openai-compat): env var %s is not set", originalOr(m), m.APIKeyEnv)
 	}
 	upstreamBody, err := translate.TranslateRequest(body, m.Model)
 	if err != nil {
-		return fmt.Errorf("openai adapter: translate request: %w", err)
+		return fmt.Errorf("%s adapter (openai-compat): translate request: %w", originalOr(m), err)
 	}
-	req, err := http.NewRequestWithContext(r.Context(), http.MethodPost, m.BaseURL, bytes.NewReader(upstreamBody))
+	// Bound the upstream call so a hanging provider cannot pin the goroutine.
+	// Cancellation still propagates via r.Context() to the upstream request.
+	ctx, cancel := context.WithTimeout(r.Context(), a.streamTimeout)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, m.BaseURL, bytes.NewReader(upstreamBody))
 	if err != nil {
-		return fmt.Errorf("openai adapter: build request: %w", err)
+		return fmt.Errorf("%s adapter (openai-compat): build request: %w", originalOr(m), err)
 	}
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 	req.Header.Set("Content-Type", "application/json")
@@ -45,7 +68,7 @@ func (a *OpenAICompatibleAdapter) Handle(w http.ResponseWriter, r *http.Request,
 
 	resp, err := a.client.Do(req)
 	if err != nil {
-		return fmt.Errorf("openai adapter: do request: %w", err)
+		return fmt.Errorf("%s adapter (openai-compat): do request: %w", originalOr(m), err)
 	}
 	defer resp.Body.Close()
 

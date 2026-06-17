@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"os"
+	"os/exec"
 	"strings"
 	"testing"
 
@@ -150,4 +152,70 @@ func TestNewLogger_InvalidFormat(t *testing.T) {
 	if !strings.Contains(err.Error(), "yaml") {
 		t.Errorf("error should mention invalid format: %v", err)
 	}
+}
+
+func TestCheckRequiredEnvVars_UsesOriginalProvider(t *testing.T) {
+	// `provider=zen` post-rewrites to `mix`, but the user wrote `zen` — the
+	// error must reflect the user's actual provider name.
+	t.Setenv("OPENCODE_API_KEY", "")
+	cfg := &config.Config{
+		Models: map[string]config.Model{
+			"haiku": {
+				Provider:         "mix",
+				OriginalProvider: "zen",
+				Model:            "x",
+				APIKeyEnv:        "OPENCODE_API_KEY",
+			},
+		},
+	}
+	err := checkRequiredEnvVars(cfg)
+	if err == nil {
+		t.Fatal("expected error for missing OPENCODE_API_KEY")
+	}
+	if !strings.Contains(err.Error(), "provider=zen") {
+		t.Errorf("error should reference the original provider name (zen), got: %v", err)
+	}
+	if strings.Contains(err.Error(), "provider=mix") {
+		t.Errorf("error must NOT reference the rewritten provider name (mix), got: %v", err)
+	}
+}
+
+func TestCheckRequiredEnvVars_FallsBackToProvider(t *testing.T) {
+	// Backwards compat: Model literals without OriginalProvider should still
+	// report the (post-rewrite) Provider name.
+	t.Setenv("MY_KEY", "")
+	cfg := &config.Config{
+		Models: map[string]config.Model{
+			"x": {Provider: "custom", Model: "x", APIKeyEnv: "MY_KEY"},
+		},
+	}
+	err := checkRequiredEnvVars(cfg)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	// OriginalProvider is empty here so the function should fall back to Provider.
+	if !strings.Contains(err.Error(), "provider=custom") {
+		t.Errorf("error should reference Provider when OriginalProvider empty, got: %v", err)
+	}
+}
+
+func TestRun_StartupBanner(t *testing.T) {
+	// Manual check 2.10: the "freedius starting" log line must appear before
+	// "listening on". Run via `go run` so we capture a fresh binary's stderr.
+	dir := t.TempDir()
+	cfgPath := dir + "/freedius.yaml"
+	if err := os.WriteFile(cfgPath, []byte("mappings: {}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := exec.Command("go", "run", ".", "--config", cfgPath, "--port", "0")
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	cmd.Dir = "."
+	cmd.Run() // expected to fail (port 0 on listener), but banner should be emitted
+	output := stderr.String()
+	if !strings.Contains(output, "freedius starting") {
+		t.Errorf("startup banner 'freedius starting' not found in stderr:\n%s", output)
+	}
+	// The "listening on" line may or may not appear (port 0 fails to bind).
 }

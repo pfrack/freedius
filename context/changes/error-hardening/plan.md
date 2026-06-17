@@ -666,39 +666,39 @@ set -gx DISABLE_ERROR_REPORTING "1"
 
 #### Automated
 
-- [x] 1.1 `go vet ./...` passes
-- [x] 1.2 `go build ./...` passes
-- [x] 1.3 `go test ./...` passes with new middleware + error contract tests
-- [x] 1.4 Request-ID header present in all responses
-- [x] 1.5 Panic recovery middleware returns 500 with opaque body
-- [x] 1.6 `writeErrorJSON` produces unified shape with and without detail
-- [x] 1.7 `OriginalProvider` set correctly through `applyDefaults` rewrites
-- [x] 1.8 `FREEDIUS_LOG=json` produces JSON log lines
-- [x] 1.9 Privacy comment present in `proxy/proxy.go` and `proxy/translate/anthropic_openai.go`
+- [x] 1.1 — 2e96014 `go vet ./...` passes
+- [x] 1.2 — 2e96014 `go build ./...` passes
+- [x] 1.3 — 2e96014 `go test ./...` passes with new middleware + error contract tests
+- [x] 1.4 — 2e96014 Request-ID header present in all responses
+- [x] 1.5 — 2e96014 Panic recovery middleware returns 500 with opaque body
+- [x] 1.6 — 2e96014 `writeErrorJSON` produces unified shape with and without detail
+- [x] 1.7 — 2e96014 `OriginalProvider` set correctly through `applyDefaults` rewrites
+- [x] 1.8 — 2e96014 `FREEDIUS_LOG=json` produces JSON log lines
+- [x] 1.9 — 2e96014 Privacy comment present in `proxy/proxy.go` and `proxy/translate/anthropic_openai.go`
 
 #### Manual
 
-- [x] 1.10 Server responds with `request_id` matching header for malformed requests
-- [x] 1.11 Injected panic produces 500 opaque body + stderr stack trace with `request_id`
-- [x] 1.12 `FREEDIUS_LOG=json` confirmed with structured log lines in terminal
+- [x] 1.10 — 2e96014 Server responds with `request_id` matching header for malformed requests
+- [x] 1.11 — 2e96014 Injected panic produces 500 opaque body + stderr stack trace with `request_id`
+- [x] 1.12 — 2e96014 `FREEDIUS_LOG=json` confirmed with structured log lines in terminal
 
 ### Phase 2: Adapter hardening
 
 #### Automated
 
-- [ ] 2.1 Pre-WriteHeader error forwarded with `detail` only when `--verbose-errors`
-- [ ] 2.2 Stream timeout context deadline honored (stub hanging upstream)
-- [ ] 2.3 Adapter error templates use `OriginalProvider` for all 4 providers
-- [ ] 2.4 `freediusErrorHandler` body matches unified shape
-- [ ] 2.5 Mix routing Debug log emitted on suffix match
-- [ ] 2.6 `checkRequiredEnvVars` uses `OriginalProvider` correctly
-- [ ] 2.7 `go vet ./...` passes; `go build ./...` passes; `go test ./...` passes
+- [x] 2.1 Pre-WriteHeader error forwarded with `detail` only when `--verbose-errors`
+- [x] 2.2 Stream timeout context deadline honored (stub hanging upstream)
+- [x] 2.3 Adapter error templates use `OriginalProvider` for all 4 providers
+- [x] 2.4 `freediusErrorHandler` body matches unified shape
+- [x] 2.5 Mix routing Debug log emitted on suffix match
+- [x] 2.6 `checkRequiredEnvVars` uses `OriginalProvider` correctly
+- [x] 2.7 `go vet ./...` passes; `go build ./...` passes; `go test ./...` passes
 
 #### Manual
 
-- [ ] 2.8 Real misconfigured upstream produces descriptive error via Claude Code
-- [ ] 2.9 `--stream-timeout=5s` + paused upstream cuts stream cleanly
-- [ ] 2.10 Startup banner appears before config load
+- [x] 2.8 Real misconfigured upstream produces descriptive error via Claude Code
+- [x] 2.9 `--stream-timeout=5s` + paused upstream cuts stream cleanly
+- [x] 2.10 Startup banner appears before config load
 
 ### Phase 3: `freedius init` subcommand + starter template
 

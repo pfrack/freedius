@@ -27,6 +27,7 @@ const (
 	readHeaderTimeout = 5 * time.Second
 	readTimeout       = 30 * time.Second
 	idleTimeout       = 120 * time.Second
+	defaultStreamTimeout = 5 * time.Minute
 )
 
 var allowedHosts = map[string]struct{}{
@@ -60,6 +61,7 @@ func run() int {
 	flagHost := flag.String("host", "", "host to bind (127.0.0.1 or 0.0.0.0; default 127.0.0.1)")
 	flagVerboseErrors := flag.Bool("verbose-errors", false, "include upstream error detail in error responses (or set FREEDIUS_VERBOSE_ERRORS=1)")
 	flagLogFormat := flag.String("log-format", "", "log output format: text, json (overrides FREEDIUS_LOG; default text)")
+	flagStreamTimeout := flag.Duration("stream-timeout", 0, "per-request upstream timeout (overrides FREEDIUS_STREAM_TIMEOUT; default 5m)")
 	flag.Parse()
 
 	setFlags := map[string]bool{}
@@ -80,6 +82,18 @@ func run() int {
 	}
 	slog.SetDefault(baseLogger)
 	logger := baseLogger
+
+	// Startup banner — before config load so slow loads don't look frozen.
+	logger.Info("freedius starting")
+
+	streamTimeout := defaultStreamTimeout
+	if *flagStreamTimeout != 0 {
+		streamTimeout = *flagStreamTimeout
+	} else if v := os.Getenv("FREEDIUS_STREAM_TIMEOUT"); v != "" {
+		if d, err := time.ParseDuration(v); err == nil && d > 0 {
+			streamTimeout = d
+		}
+	}
 
 	port := resolveInt(*flagPort, setFlags["port"], "FREEDIUS_PORT", defaultPort)
 	if port < 1 || port > 65535 {
@@ -117,7 +131,7 @@ func run() int {
 	registry := proxy.NewRegistry(map[string]proxy.Provider{
 		"nim":       proxy.NewNIMAdapter(logger),
 		"custom":    proxy.NewCustomAdapter(logger),
-		"openai":    proxy.NewOpenAICompatibleAdapter(logger),
+		"openai":    proxy.NewOpenAICompatibleAdapterWithTimeout(logger, streamTimeout),
 		"anthropic": proxy.NewAnthropicCompatibleAdapter(logger),
 		"mix":       proxy.NewMixAdapter(logger),
 	})
@@ -176,26 +190,27 @@ func failf(format string, args ...any) int {
 }
 
 func checkRequiredEnvVars(cfg *config.Config) error {
-	for _, name := range []string{"nim", "zen", "go"} {
-		envVar := config.ProviderEnvVar(name)
-		if envVar == "" {
-			continue
-		}
-		if cfg.UsesProvider(name) && os.Getenv(envVar) == "" {
-			return fmt.Errorf("%s env var required (config references provider=%s)", envVar, name)
-		}
-	}
 	for name, m := range cfg.Models {
 		if m.APIKeyEnv != "" && os.Getenv(m.APIKeyEnv) == "" {
-			return fmt.Errorf("%s env var required (config model %q references it)", m.APIKeyEnv, name)
+			return fmt.Errorf("%s env var required (config model %q references it; provider=%s)", m.APIKeyEnv, name, originalProviderName(m))
 		}
 	}
 	for name, m := range cfg.Mappings {
 		if m.APIKeyEnv != "" && os.Getenv(m.APIKeyEnv) == "" {
-			return fmt.Errorf("%s env var required (config mapping %q references it)", m.APIKeyEnv, name)
+			return fmt.Errorf("%s env var required (config mapping %q references it; provider=%s)", m.APIKeyEnv, name, originalProviderName(m))
 		}
 	}
 	return nil
+}
+
+// originalProviderName returns the user-facing provider name for error
+// messages. Falls back to Provider when OriginalProvider wasn't recorded
+// (e.g., for Model literals constructed in tests).
+func originalProviderName(m config.Model) string {
+	if m.OriginalProvider != "" {
+		return m.OriginalProvider
+	}
+	return m.Provider
 }
 
 func resolveInt(flagVal int, flagSet bool, envKey string, def int) int {
