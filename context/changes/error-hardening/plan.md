@@ -704,15 +704,15 @@ set -gx DISABLE_ERROR_REPORTING "1"
 
 #### Automated
 
-- [x] 3.1 `freedius init` writes file when none exists; exits 0
-- [x] 3.2 `freedius init` refuses when target exists; exits 1 with `--force` hint
-- [x] 3.3 `freedius init --force` backs up to `.bak` and overwrites
-- [x] 3.4 `freedius init --dry-run` prints to stdout without writing
-- [x] 3.5 `freedius init --output <path>` writes to custom path; creates parent
-- [x] 3.6 Template output parses with `config.Load` (round-trip)
-- [x] 3.7 `freedius version` prints version and exits 0
-- [x] 3.8 Default invocation (no subcommand) runs serve (regression)
-- [x] 3.9 `go vet ./...` passes; `go build ./...` passes; `go test ./...` passes
+- [x] 3.1 `freedius init` writes file when none exists; exits 0 — 1d82761
+- [x] 3.2 `freedius init` refuses when target exists; exits 1 with `--force` hint — 1d82761
+- [x] 3.3 `freedius init --force` backs up to `.bak` and overwrites — 1d82761
+- [x] 3.4 `freedius init --dry-run` prints to stdout without writing — 1d82761
+- [x] 3.5 `freedius init --output <path>` writes to custom path; creates parent — 1d82761
+- [x] 3.6 Template output parses with `config.Load` (round-trip) — 1d82761
+- [x] 3.7 `freedius version` prints version and exits 0 — 1d82761
+- [x] 3.8 Default invocation (no subcommand) runs serve (regression) — 1d82761
+- [x] 3.9 `go vet ./...` passes; `go build ./...` passes; `go test ./...` passes — 1d82761
 
 #### Manual
 

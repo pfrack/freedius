@@ -396,3 +396,156 @@ func TestStarterTemplate_ValidYAML(t *testing.T) {
 		t.Errorf("starter template should define at least one mapping")
 	}
 }
+
+// --- Phase 4: env auto-injection wiring ---
+
+func TestRunInit_WritesSettingsJSON(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+	cwd, _ := os.Getwd()
+	defer os.Chdir(cwd)
+	os.Chdir(dir)
+
+	code := runInit([]string{})
+	if code != 0 {
+		t.Fatalf("expected 0, got %d", code)
+	}
+	// Check ~/.claude/settings.json was written.
+	settingsPath := dir + "/.claude/settings.json"
+	if _, err := os.Stat(settingsPath); err != nil {
+		t.Fatalf("settings.json not written: %v", err)
+	}
+}
+
+func TestRunInit_SkipsSettingsJSONWithNoEnv(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+	cwd, _ := os.Getwd()
+	defer os.Chdir(cwd)
+	os.Chdir(dir)
+
+	code := runInit([]string{"--no-env"})
+	if code != 0 {
+		t.Fatalf("expected 0, got %d", code)
+	}
+	settingsPath := dir + "/.claude/settings.json"
+	if _, err := os.Stat(settingsPath); err == nil {
+		t.Errorf("settings.json should not be written with --no-env")
+	}
+}
+
+func TestRunInit_ShellInstallWritesRC(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+	t.Setenv("SHELL", "/bin/zsh")
+	cwd, _ := os.Getwd()
+	defer os.Chdir(cwd)
+	os.Chdir(dir)
+
+	code := runInit([]string{"--shell-install"})
+	if code != 0 {
+		t.Fatalf("expected 0, got %d", code)
+	}
+	rcPath := dir + "/.zshrc"
+	if _, err := os.Stat(rcPath); err != nil {
+		t.Fatalf(".zshrc not written: %v", err)
+	}
+}
+
+func TestRunInit_ShellInstallIdempotent(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+	t.Setenv("SHELL", "/bin/zsh")
+	cwd, _ := os.Getwd()
+	defer os.Chdir(cwd)
+	os.Chdir(dir)
+
+	code := runInit([]string{"--shell-install", "--output", "cfg1.yaml"})
+	if code != 0 {
+		t.Fatalf("first install: expected 0, got %d", code)
+	}
+
+	var stderr bytes.Buffer
+	r, w, _ := os.Pipe()
+	old := os.Stderr
+	os.Stderr = w
+
+	code = runInit([]string{"--shell-install", "--output", "cfg2.yaml"})
+	w.Close()
+	os.Stderr = old
+	_, _ = io.Copy(&stderr, r)
+
+	if code != 1 {
+		t.Errorf("second install: expected 1, got %d", code)
+	}
+	if !strings.Contains(stderr.String(), "already installed") {
+		t.Errorf("stderr should mention 'already installed', got: %s", stderr.String())
+	}
+}
+
+func TestRunInit_ShellInstallRefusesUnknownShell(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+	t.Setenv("SHELL", "/usr/bin/tcsh")
+	cwd, _ := os.Getwd()
+	defer os.Chdir(cwd)
+	os.Chdir(dir)
+
+	var stderr bytes.Buffer
+	r, w, _ := os.Pipe()
+	old := os.Stderr
+	os.Stderr = w
+
+	code := runInit([]string{"--shell-install"})
+	w.Close()
+	os.Stderr = old
+	_, _ = io.Copy(&stderr, r)
+
+	if code != 1 {
+		t.Errorf("expected 1 for unknown shell, got %d", code)
+	}
+	if !strings.Contains(stderr.String(), "unsupported shell") {
+		t.Errorf("stderr should mention unsupported shell, got: %s", stderr.String())
+	}
+}
+
+func TestRunServe_EvalSnippetAppears(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := dir + "/freedius.yaml"
+	if err := os.WriteFile(cfgPath, []byte("mappings:\n  opus: {provider: nim, model: test}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("NIM_API_KEY", "test-key")
+
+	cmd := exec.Command("go", "run", ".", "--config", cfgPath, "--port", "1")
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	cmd.Dir = "."
+	cmd.Run()
+	output := stderr.String()
+	if !strings.Contains(output, "ANTHROPIC_BASE_URL") {
+		t.Errorf("eval snippet should appear in stderr, got:\n%s", output)
+	}
+	if !strings.Contains(output, "--no-export-hint") {
+		t.Errorf("snippet should mention --no-export-hint")
+	}
+}
+
+func TestRunServe_EvalSnippetSuppressed(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := dir + "/freedius.yaml"
+	if err := os.WriteFile(cfgPath, []byte("mappings:\n  opus: {provider: nim, model: test}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("NIM_API_KEY", "test-key")
+
+	cmd := exec.Command("go", "run", ".", "--config", cfgPath, "--port", "1", "--no-export-hint")
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	cmd.Dir = "."
+	cmd.Run()
+	output := stderr.String()
+	if strings.Contains(output, "ANTHROPIC_BASE_URL") {
+		t.Errorf("eval snippet should be suppressed with --no-export-hint, got:\n%s", output)
+	}
+}

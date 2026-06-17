@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/pfrack/freedius/internal/envinject"
 )
 
 //go:embed templates/starter.yaml
@@ -66,11 +68,31 @@ func runInit(args []string) int {
 	}
 	fmt.Printf("wrote %s\n", output)
 
-	// Env injection (Phase 4) will wire settings.json and shell-rc here.
-	_ = *flagNoEnv
-	_ = *flagShellInstall
-	_ = *flagHost
-	_ = *flagPort
+	host := *flagHost
+	port := *flagPort
+
+	if !*flagNoEnv {
+		if err := envinject.WriteSettingsJSON("", host, port, false); err != nil {
+			fmt.Fprintf(os.Stderr, "freedius: %v\n", err)
+		} else {
+			fmt.Println("wrote ~/.claude/settings.json")
+		}
+	}
+
+	if *flagShellInstall {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "freedius: cannot determine home directory: %v\n", err)
+			return 1
+		}
+		shell := os.Getenv("SHELL")
+		rcPath, err := envinject.WriteShellRC(home, shell, host, port, *flagForce, false)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "freedius: %v\n", err)
+			return 1
+		}
+		fmt.Printf("wrote %s\n", rcPath)
+	}
 
 	return 0
 }

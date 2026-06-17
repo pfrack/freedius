@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/pfrack/freedius/config"
+	"github.com/pfrack/freedius/internal/envinject"
 	"github.com/pfrack/freedius/proxy"
 )
 
@@ -89,6 +90,7 @@ func runServe(args []string) int {
 	flagVerboseErrors := fs.Bool("verbose-errors", false, "include upstream error detail in error responses (or set FREEDIUS_VERBOSE_ERRORS=1)")
 	flagLogFormat := fs.String("log-format", "", "log output format: text, json (overrides FREEDIUS_LOG; default text)")
 	flagStreamTimeout := fs.Duration("stream-timeout", 0, "per-request upstream timeout (overrides FREEDIUS_STREAM_TIMEOUT; default 5m)")
+	flagNoExportHint := fs.Bool("no-export-hint", false, "suppress the env-export hint on startup")
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: freedius serve [flags]\n\nFlags:\n")
 		fs.PrintDefaults()
@@ -162,6 +164,11 @@ func runServe(args []string) int {
 
 	serverLogger := logger.With("component", "server")
 	serverLogger.Info(fmt.Sprintf("freedius listening on http://%s", net.JoinHostPort(host, strconv.Itoa(port))), "host", host, "port", port)
+
+	if !*flagNoExportHint {
+		fmt.Fprintln(os.Stderr, envinject.Snippet(host, port))
+	}
+
 
 	registry := proxy.NewRegistry(map[string]proxy.Provider{
 		"nim":       proxy.NewNIMAdapter(logger),
