@@ -53,7 +53,8 @@ Five orthogonal fixes shipped in dependency order, plus a middleware fix:
 4. **MixAdapter NoStreamUsage** (Phase 4) — apply `NoStreamUsage: true` to MixAdapter's OpenAI path, mirroring the NIM fix in Phase 3.
 5. **Middleware Flush** (Phase 5) — fix `wroteHeaderResponseWriter` to expose `http.Flusher` so `http.NewResponseController(w).Flush()` works through the middleware chain.
 6. **Request thinking blocks** (Phase 6) — handle `thinking` content blocks in assistant message conversion so `reasoning_content` is passed back to providers like DeepSeek that require it.
-7. **Merge thinking into text** (Phase 7) — DeepSeek requires `reasoning_content` on ALL assistant messages when tool calls have occurred and thinking mode is enabled. Claude Code may strip thinking blocks from request history, making it impossible to reliably pass `reasoning_content` back. Instead of emitting separate thinking blocks, merge reasoning content into the text content delta during response translation. This avoids the DeepSeek requirement entirely at the cost of losing native thinking UI in Claude Code.
+7. **Merge thinking into text** (Phase 7) — instead of emitting separate thinking blocks, merge reasoning content into text content during response translation. Claude Code preserves text content across turns, avoiding the dependency on thinking block preservation. Does NOT fix the field-level requirement.
+8. **Reasoning cache** (Phase 8) — store `reasoning_content` from each response in a per-model in-memory cache. In the request path, inject cached reasoning into assistant messages that lack `reasoning_content`. This ensures the `reasoning_content` field is always present on assistant messages when the upstream is a thinking-mode provider, regardless of whether Claude Code preserved thinking blocks.
 
 ## Critical Implementation Details
 
@@ -536,6 +537,52 @@ Trade-off: Claude Code loses native thinking UI. Reasoning text appears as regul
 
 ---
 
+## Phase 8: Reasoning Cache — Inject cached reasoning_content into requests
+
+### Overview
+
+Phase 7 merged thinking into text on the response side, ensuring Claude Code preserves the content. However, DeepSeek's thinking mode requires the `reasoning_content` **field** on assistant messages — embedding the text in `content` is not sufficient; the field must be present. Once a tool call has occurred, ALL subsequent assistant messages need `reasoning_content`.
+
+Phase 8 adds a per-model in-memory reasoning cache. After each response stream completes, the accumulated `thinkingBuffer` (the reasoning text merged in Phase 7) is stored keyed by model name. On the next request for the same model, `InjectReasoningIntoOpenAI` scans the translated OpenAI body and injects the cached reasoning into assistant messages that lack `reasoning_content`.
+
+This works regardless of whether Claude Code preserves thinking blocks: if thinking blocks survived the round-trip, `TranslateRequest` already set `ReasoningContent` from them; if they didn't, the injection fills the gap. The cache is keyed by model name (`sync.Map`), so concurrent conversations using different models don't interfere.
+
+### Changes Required
+
+#### 8.1 Add reasoning cache to translate package
+
+**File**: `proxy/translate/anthropic_openai.go`
+
+**Intent**: Store reasoning text accumulated during response streaming and inject it into request assistant messages for the same model.
+
+**Contract**:
+- Add `var reasoningCache sync.Map` (package-level, key: model `string`, value: reasoning `string`)
+- Add `CacheReasoning(model, reasoning string)` — stores reasoning for a model
+- Add `LoadCachedReasoning(model string) string` — retrieves cached reasoning
+- Add `InjectReasoningIntoOpenAI(body []byte, model string) ([]byte, error)` — parses OpenAI body, for each assistant message with `ReasoningContent == ""`, sets it to the cached reasoning. Returns body unchanged if no reasoning is cached.
+- Modify `TranslateStream` to return `(string, error)` instead of `error` — returns the accumulated `thinkingBuffer` on clean EOF
+
+#### 8.2 Wire cache into OpenAICompatibleAdapter
+
+**File**: `proxy/openai_compat.go`
+
+**Intent**: Inject cached reasoning before sending upstream, and store it after the stream completes.
+
+**Contract**:
+- After `preSendHook` (or after `TranslateRequest` if no hook), call `translate.InjectReasoningIntoOpenAI`
+- After `TranslateStream` returns, call `translate.CacheReasoning(m.Model, reasoning)` with the returned reasoning string
+
+### Success Criteria
+
+- `go build ./...` compiles cleanly
+- `go vet ./...` passes
+- `go test ./proxy/...` — all tests pass
+- Manual test: DeepSeek multi-turn conversation with tools → no "reasoning_content must be passed back" error
+
+---
+
+## Testing Strategy
+
 ### Unit Tests (Phase 1)
 
 - `proxy/anthropic_compat_test.go` — verify `x-api-key` + `anthropic-version` headers on upstream request, verify `Authorization` is absent
@@ -668,3 +715,15 @@ Trade-off: Claude Code loses native thinking UI. Reasoning text appears as regul
 #### Manual
 
 - [ ] 7.5 Manual test: DeepSeek through freedius → no "reasoning_content must be passed back" error on multi-turn conversation with tools
+
+### Phase 8: Reasoning Cache
+
+#### Automated
+
+- [x] 8.1 `go build ./...` compiles cleanly — 8deca3d
+- [x] 8.2 `go vet ./...` passes — 8deca3d
+- [x] 8.3 `go test ./proxy/...` — all existing tests pass — 8deca3d
+
+#### Manual
+
+- [ ] 8.4 Manual test: DeepSeek multi-turn conversation with tools → no "reasoning_content must be passed back" error
