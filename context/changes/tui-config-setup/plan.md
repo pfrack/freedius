@@ -603,11 +603,11 @@ Verify the complete pipeline: error display + config editing + save + live proxy
 
 #### Automated
 
-- [x] 1.1 Unit tests: `go test ./proxy/ -run TestEventBus -race` — new fields serialize correctly
-- [x] 1.2 Unit tests: `go test ./proxy/ -run TestMiddleware` — headers set and read correctly
-- [x] 1.3 Unit tests: `go test ./proxy/tui/ -v` — new fields render in requests tab
-- [x] 1.4 Compiles: `go build ./...`
-- [x] 1.5 Linting: `go vet ./...`
+- [x] 1.1 Unit tests: `go test ./proxy/ -run TestEventBus -race` — new fields serialize correctly — b05756c
+- [x] 1.2 Unit tests: `go test ./proxy/ -run TestMiddleware` — headers set and read correctly — b05756c
+- [x] 1.3 Unit tests: `go test ./proxy/tui/ -v` — new fields render in requests tab — b05756c
+- [x] 1.4 Compiles: `go build ./...` — b05756c
+- [x] 1.5 Linting: `go vet ./...` — b05756c
 
 #### Manual
 
