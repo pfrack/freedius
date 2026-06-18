@@ -379,17 +379,17 @@ Wire the complete pipeline end-to-end: `freedius tui` starts the proxy, sends re
 
 #### Automated
 
-- [x] 4.1 Full build: `go build -o freedius .`
-- [x] 4.2 All tests: `go test -race ./...`
-- [x] 4.3 CI check: `go vet ./... && go test ./... && go build .`
-- [x] 4.4 Module graph clean: `go mod tidy && go mod verify`
+- [x] 4.1 Full build: `go build -o freedius .` — 683dd61
+- [x] 4.2 All tests: `go test -race ./...` — 683dd61
+- [x] 4.3 CI check: `go vet ./... && go test ./... && go build .` — 683dd61
+- [x] 4.4 Module graph clean: `go mod tidy && go mod verify` — 683dd61
 
 #### Manual
 
-- [x] 4.5 TUI launches: `freedius tui` shows dashboard with 0 requests
-- [x] 4.6 Live request stream: curl request appears in Requests tab
-- [x] 4.7 Error request: 404 shows red status in TUI
-- [x] 4.8 Provider tab: configured providers listed
-- [x] 4.9 Config tab: model mappings displayed
-- [x] 4.10 Quit: terminal restored, proxy stopped
-- [x] 4.11 Headless unchanged: `freedius serve` behavior identical
+- [x] 4.5 TUI launches: `freedius tui` shows dashboard with 0 requests — 683dd61
+- [x] 4.6 Live request stream: curl request appears in Requests tab — 683dd61
+- [x] 4.7 Error request: 404 shows red status in TUI — 683dd61
+- [x] 4.8 Provider tab: configured providers listed — 683dd61
+- [x] 4.9 Config tab: model mappings displayed — 683dd61
+- [x] 4.10 Quit: terminal restored, proxy stopped — 683dd61
+- [x] 4.11 Headless unchanged: `freedius serve` behavior identical — 683dd61
