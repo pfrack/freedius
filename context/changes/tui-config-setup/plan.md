@@ -617,9 +617,9 @@ Verify the complete pipeline: error display + config editing + save + live proxy
 
 #### Automated
 
-- [ ] 2.1 Unit tests: `go test ./config/ -v -run "RoundTrip|Marshal|Save"`
-- [ ] 2.2 Round-trip test: Load → Marshal → Load — no semantic changes
-- [ ] 2.3 Linting: `go vet ./config/`
+- [x] 2.1 Unit tests: `go test ./config/ -v -run "RoundTrip|Marshal|Save"` — f2bb08e
+- [x] 2.2 Round-trip test: Load → Marshal → Load — no semantic changes — f2bb08e
+- [x] 2.3 Linting: `go vet ./config/` — f2bb08e
 
 #### Manual
 

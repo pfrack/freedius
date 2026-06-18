@@ -57,6 +57,30 @@ func Load(path string) (*Config, error) {
 	return &cfg, nil
 }
 
+// ProviderInfo returns metadata for a given provider name: its behavior class,
+// default API key env var (or ""), default base URL (or ""), and whether it
+// requires an explicit base_url. Falls back to empty values for unknown providers.
+func ProviderInfo(name string) (behavior, apiKeyEnv, baseURL string, requiresBaseURL bool) {
+	switch name {
+	case "nim":
+		return "openai", "NVIDIA_NIM_API_KEY", "https://integrate.api.nvidia.com/v1/chat/completions", false
+	case "openai":
+		return "openai", "", "", true
+	case "anthropic":
+		return "anthropic", "ANTHROPIC_API_KEY", "", true
+	case "mix":
+		return "mix", "", "", true
+	case "zen":
+		return "mix", "OPENCODE_API_KEY", "", true
+	case "go":
+		return "mix", "OPENCODE_API_KEY", "", true
+	case "custom":
+		return "mix", "", "", true
+	default:
+		return "", "", "", false
+	}
+}
+
 // UsesProvider reports whether any model or mapping references the given provider name.
 func (c *Config) UsesProvider(name string) bool {
 	for _, m := range c.Models {
