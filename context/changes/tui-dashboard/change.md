@@ -1,9 +1,9 @@
 ---
 change_id: tui-dashboard
 title: "TUI Dashboard for freedius"
-status: preparing
+status: planned
 created: 2026-06-18
-updated: 2026-06-18
+updated: 2026-06-19
 ---
 
 ## Summary

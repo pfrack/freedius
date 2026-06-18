@@ -451,13 +451,13 @@ The `govulncheck` step is the new addition beyond the prior change set — it mu
 
 #### Automated
 
-- [x] 4.1 `make ci` (or equivalent: `go test ./...` + `go vet ./...` + `go build -o freedius .` + `gofumpt -l ...` + `govulncheck ./...` + `go mod tidy`) exits 0
-- [x] 4.2 `go test -cover ./...` — coverage of `proxy/translate/count.go` ≥ 80% — 85.0%
-- [x] 4.3 `go test -cover ./...` — coverage of `proxy/count_tokens_local.go` ≥ 70% — 77.8%
-- [x] 4.4 `git status` clean after `go mod tidy` and `gofumpt -w`
+- [x] 4.1 `make ci` (or equivalent: `go test ./...` + `go vet ./...` + `go build -o freedius .` + `gofumpt -l ...` + `govulncheck ./...` + `go mod tidy`) exits 0 — 29fe6f2
+- [x] 4.2 `go test -cover ./...` — coverage of `proxy/translate/count.go` ≥ 80% — 29fe6f2 (85.0%)
+- [x] 4.3 `go test -cover ./...` — coverage of `proxy/count_tokens_local.go` ≥ 70% — 29fe6f2 (77.8%)
+- [x] 4.4 `git status` clean after `go mod tidy` and `gofumpt -w` — 29fe6f2
 
 #### Manual
 
-- [x] 4.5 `make ci` passes on a clean checkout
-- [x] 4.6 The 2 inverted sub-cases of TestServeHTTPCountTokens pass
-- [x] 4.7 `git log --oneline` shows a clean conventional-commit-prefixed history
+- [x] 4.5 `make ci` passes on a clean checkout — 29fe6f2
+- [x] 4.6 The 2 inverted sub-cases of TestServeHTTPCountTokens pass — 29fe6f2
+- [x] 4.7 `git log --oneline` shows a clean conventional-commit-prefixed history — 29fe6f2

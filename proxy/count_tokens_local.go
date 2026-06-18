@@ -57,5 +57,11 @@ func (d *Dispatcher) serveLocalCountTokens(
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(resp)
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		d.Logger.Error(
+			"count_tokens: response encode failed",
+			"request_id", RequestIDFromContext(r.Context()),
+			"err", err,
+		)
+	}
 }

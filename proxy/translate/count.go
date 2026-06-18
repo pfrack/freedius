@@ -45,22 +45,16 @@ type encoderCache struct {
 	err  error
 }
 
-var (
-	countEncMu  sync.Mutex
-	countEncChx = map[string]*encoderCache{
-		cl100kBase: {},
-		o200kBase:  {},
-	}
-)
+var countEncChx = map[string]*encoderCache{
+	cl100kBase: {},
+	o200kBase:  {},
+}
 
 func getEncoder(encodingName string) (*tiktoken.Tiktoken, error) {
-	countEncMu.Lock()
 	chx, ok := countEncChx[encodingName]
 	if !ok {
-		countEncMu.Unlock()
 		return nil, fmt.Errorf("unsupported encoding %q", encodingName)
 	}
-	countEncMu.Unlock()
 	chx.once.Do(func() {
 		chx.enc, chx.err = tiktoken.GetEncoding(encodingName)
 	})
@@ -111,7 +105,7 @@ func CountInputTokens(body []byte) (int, error) {
 	if err := json.Unmarshal(body, &req); err != nil {
 		n, lerr := countLenient(body)
 		if lerr != nil {
-			return 0, fmt.Errorf("unmarshal anthropic request: %w", lerr)
+			return 0, fmt.Errorf("translate: strict %w; lenient %w", err, lerr)
 		}
 		return n, nil
 	}
@@ -133,7 +127,6 @@ func CountInputTokens(body []byte) (int, error) {
 // for malformed bodies.
 func countLenient(body []byte) (int, error) {
 	dec := json.NewDecoder(bytes.NewReader(body))
-	dec.UseNumber()
 	var m map[string]any
 	if err := dec.Decode(&m); err != nil {
 		return 0, err
