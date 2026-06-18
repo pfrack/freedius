@@ -185,6 +185,16 @@ func (d *Dispatcher) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"target_model",
 		m.Model,
 	)
+	if isCountTokensPath(r.URL.Path) && !supportsCountTokens(m) {
+		d.writeErrorJSON(
+			w,
+			r,
+			http.StatusNotImplemented,
+			"not_supported",
+			fmt.Sprintf("/v1/messages/count_tokens is not supported for provider %q", originalOr(m)),
+		)
+		return
+	}
 	w.Header().Set("X-Freedius-Matched-Provider", originalOr(m))
 	w.Header().Set("X-Freedius-Matched-Model", m.Model)
 

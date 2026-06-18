@@ -467,3 +467,176 @@ func (r *recordingProvider) Handle(
 	_, _ = w.Write([]byte(`{"ok":true}`))
 	return nil
 }
+
+// TestServeHTTPCountTokens exercises the path-aware capability check that
+// gates /v1/messages/count_tokens. Success cases verify the dispatcher does
+// NOT reject (the actual adapter behavior is covered by anthropic_compat_test
+// and mix_test); rejection cases verify the freedius error envelope shape.
+func TestServeHTTPCountTokens(t *testing.T) {
+	const (
+		anthropicProvider = "anthropic"
+		nimProvider       = "nim"
+		mixProvider       = "mix"
+	)
+	mockOK := &mockProvider{status: http.StatusOK, body: `{"input_tokens":1}`}
+	mockOKMix := &mockProvider{status: http.StatusOK, body: `{"input_tokens":1}`}
+
+	tests := []struct {
+		name            string
+		path            string
+		model           config.Model
+		registeredMocks map[string]Provider
+		wantStatus      int
+		wantBodyHas     []string
+		wantBodyLacks   []string
+		wantHeader      map[string]string
+		wantHeaderMiss  []string
+	}{
+		{
+			name:  "anthropic provider + count_tokens path -> success (pass-through)",
+			path:  "/v1/messages/count_tokens",
+			model: config.Model{Provider: anthropicProvider, Model: "claude-opus-4"},
+			registeredMocks: map[string]Provider{
+				anthropicProvider: mockOK,
+			},
+			wantStatus: http.StatusOK,
+			wantBodyHas: []string{
+				`"input_tokens":1`,
+			},
+			wantHeader: map[string]string{
+				"X-Freedius-Matched-Provider": anthropicProvider,
+				"X-Freedius-Matched-Model":    "claude-opus-4",
+			},
+		},
+		{
+			name:  "nim provider + count_tokens path -> 501 not_supported",
+			path:  "/v1/messages/count_tokens",
+			model: config.Model{Provider: nimProvider, Model: "x"},
+			registeredMocks: map[string]Provider{
+				nimProvider: mockOK, // adapter should NEVER be invoked
+			},
+			wantStatus: http.StatusNotImplemented,
+			wantBodyHas: []string{
+				`"error":"not_supported"`,
+				`/v1/messages/count_tokens is not supported for provider \"nim\"`,
+			},
+			wantHeaderMiss: []string{
+				"X-Freedius-Matched-Provider",
+				"X-Freedius-Matched-Model",
+			},
+		},
+		{
+			name:  "mix + Protocol anthropic + count_tokens -> success",
+			path:  "/v1/messages/count_tokens",
+			model: config.Model{Provider: mixProvider, Protocol: "anthropic", Model: "x"},
+			registeredMocks: map[string]Provider{
+				mixProvider: mockOKMix, // mix→anthropic delegation covered by mix_test
+			},
+			wantStatus: http.StatusOK,
+			wantHeader: map[string]string{
+				"X-Freedius-Matched-Provider": mixProvider,
+				"X-Freedius-Matched-Model":    "x",
+			},
+		},
+		{
+			name:  "mix + Protocol openai + count_tokens -> 501 not_supported",
+			path:  "/v1/messages/count_tokens",
+			model: config.Model{Provider: mixProvider, Protocol: "openai", Model: "x"},
+			registeredMocks: map[string]Provider{
+				mixProvider: mockOK,
+			},
+			wantStatus: http.StatusNotImplemented,
+			wantBodyHas: []string{
+				`"error":"not_supported"`,
+				`/v1/messages/count_tokens is not supported`,
+				`\"mix\"`,
+			},
+			wantHeaderMiss: []string{
+				"X-Freedius-Matched-Provider",
+				"X-Freedius-Matched-Model",
+			},
+		},
+		{
+			name: "mix + no protocol + /v1/messages BaseURL + count_tokens -> success (URL sniff)",
+			path: "/v1/messages/count_tokens",
+			model: config.Model{
+				Provider: mixProvider,
+				Model:    "x",
+				BaseURL:  "https://api.minimax.io/anthropic/v1/messages",
+			},
+			registeredMocks: map[string]Provider{
+				mixProvider: mockOKMix,
+			},
+			wantStatus: http.StatusOK,
+			wantHeader: map[string]string{
+				"X-Freedius-Matched-Provider": mixProvider,
+				"X-Freedius-Matched-Model":    "x",
+			},
+		},
+		{
+			name:  "regular /v1/messages + nim -> success (regression)",
+			path:  "/v1/messages",
+			model: config.Model{Provider: nimProvider, Model: "x"},
+			registeredMocks: map[string]Provider{
+				nimProvider: mockOK,
+			},
+			wantStatus: http.StatusOK,
+			wantHeader: map[string]string{
+				"X-Freedius-Matched-Provider": nimProvider,
+				"X-Freedius-Matched-Model":    "x",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &config.Config{
+				Models: map[string]config.Model{
+					"claude-opus-4": tt.model,
+				},
+			}
+			d := newTestDispatcherWithAdapter(t, cfg, tt.registeredMocks)
+
+			req := httptest.NewRequest(
+				http.MethodPost,
+				tt.path,
+				strings.NewReader(`{"model":"claude-opus-4"}`),
+			)
+			req.Header.Set("Content-Type", "application/json")
+			rec := httptest.NewRecorder()
+			d.ServeHTTP(rec, req)
+
+			if rec.Code != tt.wantStatus {
+				t.Errorf(
+					"status: got %d, want %d (body: %s)",
+					rec.Code,
+					tt.wantStatus,
+					rec.Body.String(),
+				)
+			}
+
+			for k, v := range tt.wantHeader {
+				if got := rec.Header().Get(k); got != v {
+					t.Errorf("header %s: got %q, want %q", k, got, v)
+				}
+			}
+			for _, k := range tt.wantHeaderMiss {
+				if got := rec.Header().Get(k); got != "" {
+					t.Errorf("header %s: got %q, want missing", k, got)
+				}
+			}
+
+			body := rec.Body.String()
+			for _, s := range tt.wantBodyHas {
+				if !strings.Contains(body, s) {
+					t.Errorf("body %q does not contain %q", body, s)
+				}
+			}
+			for _, s := range tt.wantBodyLacks {
+				if strings.Contains(body, s) {
+					t.Errorf("body %q should not contain %q", body, s)
+				}
+			}
+		})
+	}
+}
