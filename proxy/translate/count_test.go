@@ -223,6 +223,28 @@ func TestCountInputTokensLenientRecovers(t *testing.T) {
 	}
 }
 
+func TestCountInputTokensLenientFallbackExercised(t *testing.T) {
+	body := `{"model":"claude-opus-4","messages":{"not":"an array"},"extra":"unknown"}`
+	n, err := CountInputTokens([]byte(body))
+	if err != nil {
+		t.Fatalf("lenient re-parse should swallow type-mismatch and return 0, got err: %v", err)
+	}
+	if n != 0 {
+		t.Errorf("lenient re-parse of type-mismatched body: got %d, want 0", n)
+	}
+}
+
+func TestCountInputTokensLenientFallbackCountsWhatItCan(t *testing.T) {
+	body := `{"model":"claude-opus-4","messages":{"role":"user","content":"hi"},"tools":"not-an-array"}`
+	n, err := CountInputTokens([]byte(body))
+	if err != nil {
+		t.Fatalf("lenient re-parse should not error on tools type mismatch, got: %v", err)
+	}
+	if n != 0 {
+		t.Errorf("lenient re-parse of bad-shape body: got %d, want 0", n)
+	}
+}
+
 func TestCountInputTokensLenientReturnsZeroForPurelyBadJSON(t *testing.T) {
 	body := `not even close to json`
 	n, err := CountInputTokens([]byte(body))

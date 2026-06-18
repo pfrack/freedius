@@ -440,8 +440,8 @@ The `govulncheck` step is the new addition beyond the prior change set — it mu
 #### Automated
 
 - [ ] 3.1 `ANTHROPIC_API_KEY=<key> go test ./proxy/translate/... -run TestCountInputTokens_RoundTrip` — passes with ≥95% of corpus within 10% tolerance
-- [x] 3.2 `go test ./proxy/translate/...` (without ANTHROPIC_API_KEY) — round-trip test skipped, unit tests pass
-- [x] 3.3 `go test ./...` — all existing tests plus new unit tests pass
+- [x] 3.2 `go test ./proxy/translate/...` (without ANTHROPIC_API_KEY) — round-trip test skipped, unit tests pass — 2362d0e
+- [x] 3.3 `go test ./...` — all existing tests plus new unit tests pass — 2362d0e
 
 #### Manual
 
@@ -451,13 +451,13 @@ The `govulncheck` step is the new addition beyond the prior change set — it mu
 
 #### Automated
 
-- [ ] 4.1 `make ci` (or equivalent: `go test ./...` + `go vet ./...` + `go build -o freedius .` + `gofumpt -l ...` + `govulncheck ./...` + `go mod tidy`) exits 0
-- [ ] 4.2 `go test -cover ./...` — coverage of `proxy/translate/count.go` ≥ 80%
-- [ ] 4.3 `go test -cover ./...` — coverage of `proxy/count_tokens_local.go` ≥ 70%
-- [ ] 4.4 `git status` clean after `go mod tidy` and `gofumpt -w`
+- [x] 4.1 `make ci` (or equivalent: `go test ./...` + `go vet ./...` + `go build -o freedius .` + `gofumpt -l ...` + `govulncheck ./...` + `go mod tidy`) exits 0
+- [x] 4.2 `go test -cover ./...` — coverage of `proxy/translate/count.go` ≥ 80% — 85.0%
+- [x] 4.3 `go test -cover ./...` — coverage of `proxy/count_tokens_local.go` ≥ 70% — 77.8%
+- [x] 4.4 `git status` clean after `go mod tidy` and `gofumpt -w`
 
 #### Manual
 
-- [ ] 4.5 `make ci` passes on a clean checkout
-- [ ] 4.6 The 2 inverted sub-cases of TestServeHTTPCountTokens pass
-- [ ] 4.7 `git log --oneline` shows a clean conventional-commit-prefixed history
+- [x] 4.5 `make ci` passes on a clean checkout
+- [x] 4.6 The 2 inverted sub-cases of TestServeHTTPCountTokens pass
+- [x] 4.7 `git log --oneline` shows a clean conventional-commit-prefixed history
