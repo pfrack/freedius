@@ -7,16 +7,12 @@ import (
 	"github.com/pfrack/freedius/config"
 )
 
-// countTokensPath is the exact URL path Claude Code uses for the Anthropic
-// /v1/messages/count_tokens probe. Exact match (not suffix) avoids false
-// positives against hypothetical future paths like /v2/.../count_tokens.
-const countTokensPath = "/v1/messages/count_tokens"
-
 // isCountTokensPath reports whether p is the Anthropic count_tokens endpoint.
-// Query strings live in r.URL.RawQuery, not r.URL.Path, so they do not affect
-// the match.
+// Exact match (not suffix) avoids false positives against hypothetical future
+// paths like /v2/.../count_tokens. Query strings live in r.URL.RawQuery, not
+// r.URL.Path, so they do not affect the match.
 func isCountTokensPath(p string) bool {
-	return p == countTokensPath
+	return p == "/v1/messages/count_tokens"
 }
 
 // supportsCountTokens reports whether m routes to an Anthropic-protocol
