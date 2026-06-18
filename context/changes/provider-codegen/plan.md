@@ -8,23 +8,24 @@ Replace hand-maintained provider boilerplate with a `go:generate`-based code gen
 
 Adding a provider today touches 5+ locations:
 
-1. `config/config.go:22-30` — `KnownProviders` map (7 entries)
-2. `config/defaults.go:15-27` — `knownProviderDefaults` map (3 entries with BaseURL/APIKeyEnv)
-3. `config/defaults.go:45-62` — `applyEntryDefaults` rewrite rules (`custom→anthropic`, `zen→mix`, `go→mix`)
-4. `config/config.go:108-110` — base_url requirement condition (`openai || anthropic || mix`)
-5. `proxy/nim.go`, `proxy/custom.go` — thin wrapper adapter files (pure delegation)
-6. `main.go:95-101` — registry construction with all 5 adapter entries
-7. `main.go:136-156` — `checkRequiredEnvVars` preset provider list (`nim`, `zen`, `go`)
+1. `config/config.go:30-38` — `KnownProviders` map (7 entries)
+2. `config/defaults.go:15-29` — `knownProviderDefaults` map (4 entries: nim, zen, go, anthropic)
+3. `config/defaults.go:50-71` — `applyEntryDefaults` rewrite rules (`custom→mix` first, `zen→mix` and `go→mix` after defaults)
+4. `config/config.go:154-155` — base_url requirement condition (`openai || anthropic || mix`)
+5. `proxy/nim.go` — thin wrapper adapter (NIMAdapter, pure delegation to OpenAICompatibleAdapter)
+6. `main.go:210-215` — registry construction with 4 adapter entries
+7. `main.go:277-299` — `checkRequiredEnvVars` iterates `cfg.Models`/`cfg.Mappings` directly; uses `OriginalProvider` in error messages
 
 All of this is deterministic boilerplate derivable from provider metadata.
 
 ### Key Discoveries:
 
-- `applyEntryDefaults` applies rewrites BEFORE `knownProviderDefaults` lookup — so `custom→anthropic` runs first, then defaults for `anthropic` are NOT found (no entry). The `zen`/`go` rewrite happens AFTER defaults are applied. Order matters.
-- `checkRequiredEnvVars` checks preset providers by ORIGINAL name via `cfg.UsesProvider()` (which scans pre-rewrite config? No — `Load()` calls `applyDefaults()` before returning, so `UsesProvider` sees post-rewrite names). Actually: the preset check uses `config.ProviderEnvVar(name)` which looks up by original name in `knownProviderDefaults`. The per-model loop catches the rest generically.
+- `applyEntryDefaults` executes rewrites in two phases: `custom→mix` runs BEFORE the `knownProviderDefaults` lookup (because `custom` has no defaults entry), while `zen→mix` and `go→mix` run AFTER defaults are applied (so they inherit `OPENCODE_API_KEY`). Order matters — see `context/archive/custom-to-mix-protocol/plan.md:68`.
+- `checkRequiredEnvVars` no longer uses a hardcoded preset list. It iterates `cfg.Models` and `cfg.Mappings` directly, checking each model's `APIKeyEnv`. Error messages use `OriginalProvider` (when set) with fallback to `Provider`.
 - No existing `//go:generate` directives in the codebase — this will be the first.
-- Thin wrappers (`nim.go`, `custom.go`) are 20 lines each with zero logic beyond delegation.
+- Thin wrapper (`nim.go`) is 38 lines with zero logic beyond delegation to `OpenAICompatibleAdapter`. The former `proxy/custom.go` was deleted in S-06; `custom` now rewrites to `mix` and uses `MixAdapter`.
 - `TestKnownProviders` asserts exactly 7 entries by name — generated code must produce the same set.
+- `proxy/phase2_test.go:120-219` enforces critical error-message format contract: `"%s adapter (%s): %s"` using `originalOr(m)` for the provider name.
 
 ## Desired End State
 
@@ -86,7 +87,7 @@ For `config` package, emits one file containing:
 - `PresetProviders()` function returning provider names that have a `default_api_key_env` (for `checkRequiredEnvVars`)
 
 For `proxy` package, emits one file containing:
-- Thin adapter structs + constructors + Handle methods for non-manual providers that have a `rewrite_to` or are aliases (currently: `nim`, `custom`)
+- Thin adapter structs + constructors + Handle methods for non-manual providers (currently: `nim`)
 - `NewDefaultRegistry(logger, overrides map[string]Provider) *Registry` function that wires all adapters
 
 #### 3. Go generate directives
@@ -133,33 +134,33 @@ Delete the hand-written maps, rewrite function, thin wrappers, and registry cons
 
 **File**: `config/config.go`
 
-**Intent**: Remove `KnownProviders` variable declaration (now generated). Replace the hardcoded `base_url` requirement condition with a lookup into the generated `requireBaseURL` set.
+**Intent**: Remove `KnownProviders` variable declaration (now generated — same name is shadowed). Replace the hardcoded `base_url` requirement condition with a lookup into the generated `requireBaseURL` set. Add `PresetProviders()` to the config package's exported API (used by `main.go` in Phase 2).
 
-**Contract**: `validateModel` calls `requireBaseURL[m.Provider]` instead of `m.Provider == "openai" || m.Provider == "anthropic" || m.Provider == "mix"`. The `KnownProviders` var is removed from this file (lives in generated file now).
+**Contract**: `validateModel` calls `requireBaseURL[m.Provider]` instead of `m.Provider == "openai" || m.Provider == "anthropic" || m.Provider == "mix"`. The `KnownProviders` var is removed from this file (lives in generated file now). The generated file emits `knownProviderDefaults` (same name — clean shadow on delete).
 
 #### 2. Remove hand-written defaults boilerplate
 
 **File**: `config/defaults.go`
 
-**Intent**: Remove `knownProviderDefaults` map and `applyEntryDefaults` function (now generated). Keep `modelDefaults` type, `readConfigFile`, `yamlUnmarshalStrict`, and `ProviderEnvVar` (which will reference the generated map).
+**Intent**: Remove `knownProviderDefaults` map (generated version shadows the same name) and `applyEntryDefaults` function (now generated). Keep `modelDefaults` type, `readConfigFile`, `yamlUnmarshalStrict`, and `ProviderEnvVar` (which references the generated map).
 
-**Contract**: `ProviderEnvVar` stays hand-written but references the generated `knownProviderDefaults` map. The `applyDefaults` method on `Config` stays (it just calls `applyEntryDefaults` per entry — that function is now generated).
+**Contract**: `ProviderEnvVar` stays hand-written but references the generated `knownProviderDefaults` map (same name — no rename needed). The `applyDefaults` method on `Config` stays (it just calls `applyEntryDefaults` per entry — that function is now generated).
 
-#### 3. Remove thin wrapper adapter files
+#### 3. Remove thin wrapper adapter file
 
-**Files**: `proxy/nim.go`, `proxy/custom.go`
+**File**: `proxy/nim.go`
 
-**Intent**: Delete these files — their equivalents are now in the generated proxy file.
+**Intent**: Delete this file — its equivalent is now in the generated proxy file.
 
-**Contract**: `NIMAdapter` and `CustomAdapter` types with identical signatures exist in the generated file instead.
+**Contract**: `NIMAdapter` type with identical signature exists in the generated file instead.
 
-#### 4. Replace registry construction in main.go
+#### 4. Replace registry construction and env-var check in main.go
 
 **File**: `main.go`
 
-**Intent**: Replace the hand-written `proxy.NewRegistry(map[string]Provider{...})` with `proxy.NewDefaultRegistry(logger, nil)`. Replace the hardcoded preset list in `checkRequiredEnvVars` with `config.PresetProviders()`.
+**Intent**: Replace the hand-written `proxy.NewRegistry(map[string]Provider{...})` with `proxy.NewDefaultRegistry(logger, nil)`. Update `checkRequiredEnvVars` to use `config.PresetProviders()` as the authoritative lookup for which provider names have preset env vars, replacing the implicit `APIKeyEnv != ""` guard. The per-model iteration contract (only check providers actually in config) is preserved.
 
-**Contract**: `main.go` calls `proxy.NewDefaultRegistry(logger, nil)` (no overrides needed currently). `checkRequiredEnvVars` iterates `config.PresetProviders()` instead of a hardcoded `[]string{"nim", "zen", "go"}`.
+**Contract**: `main.go` calls `proxy.NewDefaultRegistry(logger, nil)`. `checkRequiredEnvVars` still iterates `cfg.Models`/`cfg.Mappings` but calls `slices.Contains(config.PresetProviders(), m.OriginalProvider)` to decide which providers need env-var checks, instead of relying on `m.APIKeyEnv != ""`. The `originalProviderName(m)` helper stays. Error messages must still use `OriginalProvider` where set, with fallback to `Provider`.
 
 ### Success Criteria:
 
@@ -188,11 +189,11 @@ Add a Makefile target that ensures generated files stay in sync with `providers.
 
 #### 1. Add generate-check target
 
-**File**: `Makefile`
+**File**: `Makefile` and `.github/workflows/ci.yml`
 
-**Intent**: Add a `generate-check` target that runs `go generate ./...` and asserts no diff. Add it to the `ci` target.
+**Intent**: Add a `generate-check` target that runs `go generate ./...` and asserts no diff. Wire it into both the local `make ci` target and the GitHub Actions CI workflow so stale generated files are caught on every push.
 
-**Contract**: `generate-check` runs `go generate ./...` then `git diff --exit-code -- '*.go'`. The `ci` target becomes `ci: vet generate-check test build`.
+**Contract**: `generate-check` runs `go generate ./...` then `git diff --exit-code -- '*.go'`. The `ci` target becomes `ci: vet generate-check test build`. CI workflow (`.github/workflows/ci.yml`) gets a new step after `go build` that runs `go generate ./...` then `git diff --exit-code`.
 
 #### 2. Remove dead test assertions if any
 
@@ -216,7 +217,7 @@ Add a Makefile target that ensures generated files stay in sync with `providers.
 
 - `make ci` passes (now includes `generate-check`)
 - `make generate-check` passes on clean checkout
-- Modifying `providers.yaml` without re-running generate causes `make generate-check` to fail
+- Modifying `providers.yaml` without re-running generate causes `make generate-check` (and CI workflow) to fail
 
 #### Manual Verification:
 
@@ -231,7 +232,7 @@ Add a Makefile target that ensures generated files stay in sync with `providers.
 - Existing `TestKnownProviders` validates the generated map has correct entries
 - Existing `TestLoad` cases validate rewrite and validation behavior
 - Existing `TestCheckRequiredEnvVars_*` cases validate env var checking
-- Existing `proxy/nim_test.go`, `proxy/custom_test.go` validate adapter behavior (they instantiate by type name — generated types have same names)
+- Existing `proxy/nim_test.go` validates adapter behavior (it instantiates by type name — generated type has same name)
 
 ### Integration Tests:
 
@@ -250,10 +251,12 @@ None — code generation happens at development time only. Runtime behavior is i
 
 ## References
 
-- Research: `context/changes/provider-codegen/research.md` (from prior session)
+- Research: `context/changes/provider-codegen/research.md`
 - Prior art: `proxy/nim.go` (thin wrapper pattern to replicate)
 - Prior art: `config/defaults.go` (rewrite + defaults pattern to replicate)
-- S-03 plan: `context/changes/zen-go-adapters/plan.md` (introduced mix adapter)
+- S-03 plan: `context/archive/zen-go-adapters/plan.md` (introduced mix adapter)
+- S-06 plan: `context/archive/custom-to-mix-protocol/plan.md` (custom→mix rewrite, Protocol field)
+- Error format contract: `proxy/phase2_test.go:120-219`
 
 ## Progress
 
@@ -263,11 +266,11 @@ None — code generation happens at development time only. Runtime behavior is i
 
 #### Automated
 
-- [ ] 1.1 Generator builds: `go build ./internal/genproviders`
-- [ ] 1.2 Generator runs without error: `go generate ./config/ ./proxy/`
-- [ ] 1.3 Generated files compile: `go build ./...`
-- [ ] 1.4 Generated `KnownProviders` matches current 7-entry set
-- [ ] 1.5 Generated `applyEntryDefaults` produces same rewrite behavior
+- [x] 1.1 Generator builds: `go build ./internal/genproviders`
+- [x] 1.2 Generator runs without error: `go generate ./config/ ./proxy/`
+- [x] 1.3 Generated files compile: `go build ./...`
+- [x] 1.4 Generated `KnownProviders` matches current 7-entry set
+- [x] 1.5 Generated `applyEntryDefaults` produces same rewrite behavior
 
 #### Manual
 
@@ -287,7 +290,7 @@ None — code generation happens at development time only. Runtime behavior is i
 
 - [ ] 3.1 `make ci` passes (includes generate-check)
 - [ ] 3.2 `make generate-check` passes on clean checkout
-- [ ] 3.3 Modifying providers.yaml without re-running generate causes failure
+- [ ] 3.3 Modifying providers.yaml without re-running generate causes `make generate-check` (and CI) to fail
 
 #### Manual
 

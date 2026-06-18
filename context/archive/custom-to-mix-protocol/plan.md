@@ -65,7 +65,7 @@ Add `Protocol` field to `config.Model`, validate its value, change `custom` rewr
 
 **Intent**: Change the `custom` rewrite from `→ anthropic` to `→ mix`, aligning it with the `zen`/`go` pattern.
 
-**Contract**: The line `m.Provider = "anthropic"` in the `if m.Provider == "custom"` block becomes `m.Provider = "mix"`. Move the `custom` check to be adjacent to the `zen`/`go` check (after defaults are applied, before the `zen`/`go` rewrite, so `custom` also rewrites to `mix`).
+**Contract**: The line `m.Provider = "anthropic"` in the `if m.Provider == "custom"` block becomes `m.Provider = "mix"`. The `custom → mix` rewrite stays at the top of `applyEntryDefaults` (adjacent to the `OriginalProvider` capture), **before** the `knownProviderDefaults` lookup — not adjacent to the `zen`/`go` rewrite at the bottom. The placement is constrained: `knownProviderDefaults` has no `"custom"` entry, so if the rewrite were moved to the bottom of the function (after the defaults lookup at line 57), the lookup would return `ok=false` for `Provider=="custom"` and the function would return early at line 59 before reaching the rewrite. The top-of-function placement is the only one that makes the `custom → mix` rewrite work.
 
 #### 3. Add base_url requirement for custom (post-rewrite)
 
