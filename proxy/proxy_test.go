@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"bytes"
+	"encoding/json"
 	"io"
 	"log/slog"
 	"net/http"
@@ -471,7 +472,8 @@ func (r *recordingProvider) Handle(
 // TestServeHTTPCountTokens exercises the path-aware capability check that
 // gates /v1/messages/count_tokens. Success cases verify the dispatcher does
 // NOT reject (the actual adapter behavior is covered by anthropic_compat_test
-// and mix_test); rejection cases verify the freedius error envelope shape.
+// and mix_test); the OpenAI-protocol local-counter cases verify the
+// dispatcher computes the count locally and does NOT invoke the adapter.
 func TestServeHTTPCountTokens(t *testing.T) {
 	const (
 		anthropicProvider = "anthropic"
@@ -482,15 +484,17 @@ func TestServeHTTPCountTokens(t *testing.T) {
 	mockOKMix := &mockProvider{status: http.StatusOK, body: `{"input_tokens":1}`}
 
 	tests := []struct {
-		name            string
-		path            string
-		model           config.Model
-		registeredMocks map[string]Provider
-		wantStatus      int
-		wantBodyHas     []string
-		wantBodyLacks   []string
-		wantHeader      map[string]string
-		wantHeaderMiss  []string
+		name                  string
+		path                  string
+		model                 config.Model
+		registeredMocks       map[string]Provider
+		wantStatus            int
+		wantBodyHas           []string
+		wantBodyLacks         []string
+		wantHeader            map[string]string
+		wantHeaderMiss        []string
+		wantAdapterNotCalled  bool
+		wantInputTokensGTZero bool
 	}{
 		{
 			name:  "anthropic provider + count_tokens path -> success (pass-through)",
@@ -509,21 +513,24 @@ func TestServeHTTPCountTokens(t *testing.T) {
 			},
 		},
 		{
-			name:  "nim provider + count_tokens path -> 501 not_supported",
+			name:  "nim provider + count_tokens path -> local counter (200)",
 			path:  "/v1/messages/count_tokens",
 			model: config.Model{Provider: nimProvider, Model: "x"},
 			registeredMocks: map[string]Provider{
-				nimProvider: mockOK, // adapter should NEVER be invoked
+				nimProvider: &recordingProvider{},
 			},
-			wantStatus: http.StatusNotImplemented,
+			wantStatus: http.StatusOK,
 			wantBodyHas: []string{
-				`"error":"not_supported"`,
-				`/v1/messages/count_tokens is not supported for provider \"nim\"`,
+				`"input_tokens":`,
+				`"context_management":`,
+				`"original_input_tokens":`,
 			},
-			wantHeaderMiss: []string{
-				"X-Freedius-Matched-Provider",
-				"X-Freedius-Matched-Model",
+			wantHeader: map[string]string{
+				"X-Freedius-Matched-Provider": nimProvider,
+				"X-Freedius-Matched-Model":    "x",
 			},
+			wantAdapterNotCalled:  true,
+			wantInputTokensGTZero: true,
 		},
 		{
 			name:  "mix + Protocol anthropic + count_tokens -> success",
@@ -539,22 +546,24 @@ func TestServeHTTPCountTokens(t *testing.T) {
 			},
 		},
 		{
-			name:  "mix + Protocol openai + count_tokens -> 501 not_supported",
+			name:  "mix + Protocol openai + count_tokens -> local counter (200)",
 			path:  "/v1/messages/count_tokens",
 			model: config.Model{Provider: mixProvider, Protocol: "openai", Model: "x"},
 			registeredMocks: map[string]Provider{
-				mixProvider: mockOK,
+				mixProvider: &recordingProvider{},
 			},
-			wantStatus: http.StatusNotImplemented,
+			wantStatus: http.StatusOK,
 			wantBodyHas: []string{
-				`"error":"not_supported"`,
-				`/v1/messages/count_tokens is not supported`,
-				`\"mix\"`,
+				`"input_tokens":`,
+				`"context_management":`,
+				`"original_input_tokens":`,
 			},
-			wantHeaderMiss: []string{
-				"X-Freedius-Matched-Provider",
-				"X-Freedius-Matched-Model",
+			wantHeader: map[string]string{
+				"X-Freedius-Matched-Provider": mixProvider,
+				"X-Freedius-Matched-Model":    "x",
 			},
+			wantAdapterNotCalled:  true,
+			wantInputTokensGTZero: true,
 		},
 		{
 			name: "mix + no protocol + /v1/messages BaseURL + count_tokens -> success (URL sniff)",
@@ -597,10 +606,11 @@ func TestServeHTTPCountTokens(t *testing.T) {
 			}
 			d := newTestDispatcherWithAdapter(t, cfg, tt.registeredMocks)
 
+			body := `{"model":"claude-opus-4","messages":[{"role":"user","content":"hello world"}]}`
 			req := httptest.NewRequest(
 				http.MethodPost,
 				tt.path,
-				strings.NewReader(`{"model":"claude-opus-4"}`),
+				strings.NewReader(body),
 			)
 			req.Header.Set("Content-Type", "application/json")
 			rec := httptest.NewRecorder()
@@ -626,15 +636,35 @@ func TestServeHTTPCountTokens(t *testing.T) {
 				}
 			}
 
-			body := rec.Body.String()
+			respBody := rec.Body.String()
 			for _, s := range tt.wantBodyHas {
-				if !strings.Contains(body, s) {
-					t.Errorf("body %q does not contain %q", body, s)
+				if !strings.Contains(respBody, s) {
+					t.Errorf("body %q does not contain %q", respBody, s)
 				}
 			}
 			for _, s := range tt.wantBodyLacks {
-				if strings.Contains(body, s) {
-					t.Errorf("body %q should not contain %q", body, s)
+				if strings.Contains(respBody, s) {
+					t.Errorf("body %q should not contain %q", respBody, s)
+				}
+			}
+
+			if tt.wantInputTokensGTZero {
+				var resp struct {
+					InputTokens int `json:"input_tokens"`
+				}
+				if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+					t.Errorf("parse count_tokens response: %v (body: %s)", err, respBody)
+				}
+				if resp.InputTokens <= 0 {
+					t.Errorf("input_tokens: got %d, want > 0", resp.InputTokens)
+				}
+			}
+
+			if tt.wantAdapterNotCalled {
+				for providerName, p := range tt.registeredMocks {
+					if rp, ok := p.(*recordingProvider); ok && rp.called {
+						t.Errorf("adapter %q was invoked; the local counter must short-circuit dispatch", providerName)
+					}
 				}
 			}
 		})

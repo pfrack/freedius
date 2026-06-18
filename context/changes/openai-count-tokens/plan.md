@@ -408,32 +408,32 @@ The `govulncheck` step is the new addition beyond the prior change set — it mu
 
 #### Automated
 
-- [x] 1.1 `go build ./...` — entire module compiles
-- [x] 1.2 `go test ./proxy/translate/...` — all count_test.go cases pass
-- [x] 1.3 `go vet ./...` — clean
-- [x] 1.4 `gofumpt -l proxy/translate/` — no formatting issues
-- [x] 1.5 `go mod tidy` — no missing or unused entries
-- [x] 1.6 `go test -cover ./proxy/translate/...` — coverage of count.go ≥ 80%
+- [x] 1.1 `go build ./...` — entire module compiles — 25f3da8
+- [x] 1.2 `go test ./proxy/translate/...` — all count_test.go cases pass — 25f3da8
+- [x] 1.3 `go vet ./...` — clean — 25f3da8
+- [x] 1.4 `gofumpt -l proxy/translate/` — no formatting issues — 25f3da8
+- [x] 1.5 `go mod tidy` — no missing or unused entries — 25f3da8
+- [x] 1.6 `go test -cover ./proxy/translate/...` — coverage of count.go ≥ 80% — 25f3da8
 
 #### Manual
 
-- [x] 1.7 (none — pure library code, fully covered by unit tests)
+- [x] 1.7 (none — pure library code, fully covered by unit tests) — 25f3da8
 
 ### Phase 2: Dispatcher integration
 
 #### Automated
 
-- [ ] 2.1 `go test ./...` — all existing tests pass plus the 2 inverted sub-cases
-- [ ] 2.2 `go test ./proxy/...` — TestServeHTTPCountTokens passes with 6 sub-cases
-- [ ] 2.3 `go vet ./...` — clean
-- [ ] 2.4 `gofumpt -l proxy/` — no formatting issues
-- [ ] 2.5 `go build -o freedius .` — static binary builds
+- [x] 2.1 `go test ./...` — all existing tests pass plus the 2 inverted sub-cases
+- [x] 2.2 `go test ./proxy/...` — TestServeHTTPCountTokens passes with 6 sub-cases
+- [x] 2.3 `go vet ./...` — clean
+- [x] 2.4 `gofumpt -l proxy/` — no formatting issues
+- [x] 2.5 `go build -o freedius .` — static binary builds
 
 #### Manual
 
-- [ ] 2.6 NIM count_tokens → 200 with input_tokens populated (not 501)
-- [ ] 2.7 Anthropic count_tokens → 200 with upstream's exact count (passthrough)
-- [ ] 2.8 mix+openai count_tokens → 200 with local estimate
+- [x] 2.6 NIM count_tokens → 200 with input_tokens populated (not 501)
+- [x] 2.7 Anthropic count_tokens → 200 with upstream's exact count (passthrough)
+- [x] 2.8 mix+openai count_tokens → 200 with local estimate
 
 ### Phase 3: Accuracy verification
 
