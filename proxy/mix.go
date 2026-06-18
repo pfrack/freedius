@@ -54,6 +54,8 @@ func (a *MixAdapter) Handle(
 	case "openai":
 		a.logger.Debug("mix routing", "protocol", m.Protocol, "selected", "openai")
 		return a.openai.Handle(w, r, m, body)
+	default:
+		a.logger.Warn("mix: unknown protocol, falling back to URL sniffing", "protocol", m.Protocol)
 	}
 	parsedURL, err := url.Parse(m.BaseURL)
 	if err != nil {

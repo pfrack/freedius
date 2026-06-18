@@ -21,6 +21,19 @@ func newMixAdapter(t *testing.T) *MixAdapter {
 	return NewMixAdapter(logger, false, 5*time.Minute)
 }
 
+type failingRecorder struct {
+	*httptest.ResponseRecorder
+	failed bool
+}
+
+func (fr *failingRecorder) Write(data []byte) (int, error) {
+	if !fr.failed {
+		fr.failed = true
+		return 0, io.ErrShortWrite
+	}
+	return fr.ResponseRecorder.Write(data)
+}
+
 func TestMixAdapter_AnthropicPassthrough(t *testing.T) {
 	t.Setenv("MIX_API_KEY", "sk-test")
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -387,5 +400,38 @@ func TestMixAdapter_ProtocolOpenAIOverridesURL(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), "event: message_start") {
 		t.Errorf("body should contain Anthropic SSE (translated from OpenAI), got %q", rec.Body.String())
+	}
+}
+
+func TestMixAdapter_ProtocolAnthropic_ClientDisconnect(t *testing.T) {
+	t.Setenv("MIX_API_KEY", "sk-test")
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	defer upstream.Close()
+
+	rec := &failingRecorder{ResponseRecorder: httptest.NewRecorder(), failed: false}
+
+	a := newMixAdapter(t)
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/v1/messages",
+		bytes.NewReader([]byte(`{"model":"x"}`)),
+	)
+	err := a.Handle(
+		rec,
+		req,
+		config.Model{
+			Provider:  "mix",
+			Model:     "x",
+			BaseURL:   upstream.URL,
+			APIKeyEnv: "MIX_API_KEY",
+			Protocol:  "anthropic",
+		},
+		[]byte(`{"model":"x"}`),
+	)
+	if err != nil {
+		t.Fatalf("Handle returned %v, want nil", err)
 	}
 }

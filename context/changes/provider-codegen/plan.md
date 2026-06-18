@@ -266,11 +266,11 @@ None — code generation happens at development time only. Runtime behavior is i
 
 #### Automated
 
-- [x] 1.1 Generator builds: `go build ./internal/genproviders`
-- [x] 1.2 Generator runs without error: `go generate ./config/ ./proxy/`
-- [x] 1.3 Generated files compile: `go build ./...`
-- [x] 1.4 Generated `KnownProviders` matches current 7-entry set
-- [x] 1.5 Generated `applyEntryDefaults` produces same rewrite behavior
+- [x] 1.1 Generator builds: `go build ./internal/genproviders` — d165f18
+- [x] 1.2 Generator runs without error: `go generate ./config/ ./proxy/` — d165f18
+- [x] 1.3 Generated files compile: `go build ./...` — d165f18
+- [x] 1.4 Generated `KnownProviders` matches current 7-entry set — d165f18
+- [x] 1.5 Generated `applyEntryDefaults` produces same rewrite behavior — d165f18
 
 #### Manual
 
@@ -280,9 +280,9 @@ None — code generation happens at development time only. Runtime behavior is i
 
 #### Automated
 
-- [ ] 2.1 Full CI passes: `make ci`
-- [ ] 2.2 All existing tests pass unchanged
-- [ ] 2.3 `go vet ./...` clean
+- [x] 2.1 Full CI passes: `make ci`
+- [x] 2.2 All existing tests pass unchanged
+- [x] 2.3 `go vet ./...` clean
 
 ### Phase 3: CI golden-file check + cleanup
 

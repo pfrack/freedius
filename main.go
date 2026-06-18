@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -207,12 +208,7 @@ func runServe(args []string) int {
 		fmt.Fprintln(os.Stderr, envinject.Snippet(host, port))
 	}
 
-	registry := proxy.NewRegistry(map[string]proxy.Provider{
-		"nim":       proxy.NewNIMAdapter(logger, streamTimeout),
-		"openai":    proxy.NewOpenAICompatibleAdapterWithTimeout(logger, streamTimeout),
-		"anthropic": proxy.NewAnthropicCompatibleAdapter(logger, verboseErrors),
-		"mix":       proxy.NewMixAdapter(logger, verboseErrors, streamTimeout),
-	})
+	registry := proxy.NewDefaultRegistry(logger, streamTimeout, verboseErrors, nil)
 	dispatcher := proxy.NewDispatcher(cfg, registry, logger, verboseErrors)
 	mux := http.NewServeMux()
 
@@ -275,8 +271,10 @@ func failf(format string, args ...any) int {
 }
 
 func checkRequiredEnvVars(cfg *config.Config) error {
+	presets := config.PresetProviders()
 	for name, m := range cfg.Models {
-		if m.APIKeyEnv != "" && os.Getenv(m.APIKeyEnv) == "" {
+		if m.APIKeyEnv != "" && slices.Contains(presets, originalProviderName(m)) &&
+			os.Getenv(m.APIKeyEnv) == "" {
 			return fmt.Errorf(
 				"%s env var required (config model %q references it; provider=%s)",
 				m.APIKeyEnv,
@@ -286,7 +284,8 @@ func checkRequiredEnvVars(cfg *config.Config) error {
 		}
 	}
 	for name, m := range cfg.Mappings {
-		if m.APIKeyEnv != "" && os.Getenv(m.APIKeyEnv) == "" {
+		if m.APIKeyEnv != "" && slices.Contains(presets, originalProviderName(m)) &&
+			os.Getenv(m.APIKeyEnv) == "" {
 			return fmt.Errorf(
 				"%s env var required (config mapping %q references it; provider=%s)",
 				m.APIKeyEnv,

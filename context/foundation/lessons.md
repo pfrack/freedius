@@ -12,9 +12,9 @@
 
 **Source**: `proxy/translate/anthropic_openai.go` — `readSSEEvent` uses `ReadBytes('\n')`. See S-01 research.
 
-## `custom` → `anthropic` Rewrite in `applyDefaults`
+## `custom` → `mix` Rewrite in `applyDefaults`
 
-The `custom` provider alias is rewritten to `anthropic` in `applyDefaults()` (`config/defaults.go`), which runs before validation. This means error messages about `custom` entries reference `anthropic` as the provider name. Tests must use the post-rewrite name in expected error substrings.
+The `custom` provider alias is rewritten to `mix` in `applyEntryDefaults()` (`config/defaults.go`), which runs before validation. This means error messages about `custom` entries reference `mix` as the provider name. Tests must use the post-rewrite name in expected error substrings.
 
 **Source**: `config/config.go` — per-entry validation runs after `applyDefaults`.
 

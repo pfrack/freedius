@@ -26,17 +26,6 @@ type Model struct {
 	OriginalProvider string `yaml:"-"`
 }
 
-// KnownProviders lists the provider names accepted by the validator.
-var KnownProviders = map[string]struct{}{
-	"nim":       {},
-	"zen":       {},
-	"go":        {},
-	"custom":    {},
-	"openai":    {},
-	"anthropic": {},
-	"mix":       {},
-}
-
 // Load reads, parses, and validates the freedius configuration at path.
 func Load(path string) (*Config, error) {
 	data, err := readConfigFile(path)
@@ -151,8 +140,7 @@ func validateModel(path, kind, name string, m Model) error {
 			)
 		}
 	}
-	if (m.Provider == "openai" || m.Provider == "anthropic" || m.Provider == "mix") &&
-		m.BaseURL == "" {
+	if _, ok := requireBaseURL[m.Provider]; ok && m.BaseURL == "" {
 		return fmt.Errorf(
 			"config: config file at %s: %s %q has provider=%s but no base_url",
 			path,
