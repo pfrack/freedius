@@ -403,19 +403,19 @@ The existing `TestDispatcher_AdapterError_TranslatedAsAnthropicOverloaded` (plai
 
 #### Automated
 
-- [ ] 1.1 `go test ./proxy/...` — `TestOpenAICompat_MissingBaseURL_UsesOriginalProvider` passes
-- [ ] 1.2 `go test ./proxy/...` — `TestAnthropicCompat_MissingBaseURL_UsesOriginalProvider` passes
-- [ ] 1.3 `go test ./proxy/...` — `TestAdapter_ErrorTemplate_UsesOriginalProvider` passes
-- [ ] 1.4 `go vet ./...` — clean
-- [ ] 1.5 `gofumpt -l proxy/` — no formatting issues
+- [x] 1.1 `go test ./proxy/...` — `TestOpenAICompat_MissingBaseURL_UsesOriginalProvider` passes — 8aadd62
+- [x] 1.2 `go test ./proxy/...` — `TestAnthropicCompat_MissingBaseURL_UsesOriginalProvider` passes — 8aadd62
+- [x] 1.3 `go test ./proxy/...` — `TestAdapter_ErrorTemplate_UsesOriginalProvider` passes — 8aadd62
+- [x] 1.4 `go vet ./...` — clean — 8aadd62
+- [x] 1.5 `gofumpt -l proxy/` — no formatting issues — 8aadd62
 
 ### Phase 2: Dispatcher Classification + Log Level
 
 #### Automated
 
-- [ ] 2.1 `go test ./proxy/...` — `TestDispatcher_AdapterError_TranslatedAsAnthropicOverloaded` passes (transport → 529)
+- [x] 2.1 `go test ./proxy/...` — `TestDispatcher_AdapterError_TranslatedAsAnthropicOverloaded` passes (transport → 529)
 - [ ] 2.2 `go test ./proxy/...` — new `TestDispatcher_ConfigError_Returns500` passes (from Phase 5)
-- [ ] 2.3 `go vet ./...` — clean
+- [x] 2.3 `go vet ./...` — clean
 
 ### Phase 3: `translateUpstreamError` Default Pass-Through
 
