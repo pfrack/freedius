@@ -108,6 +108,7 @@ func freediusErrorHandler(
 	logger *slog.Logger,
 	verboseErrors bool,
 ) func(http.ResponseWriter, *http.Request, error) {
+	_ = verboseErrors // reserved for future structured logging gating
 	return func(w http.ResponseWriter, r *http.Request, err error) {
 		if errors.Is(err, context.Canceled) {
 			logger.Debug(

@@ -60,7 +60,7 @@ func TestOpenAICompat_Timeout_ReturnsAnthropicOverloaded(t *testing.T) {
 	// Bounded wait so the handler returns within a fixed budget even if
 	// client-side cancellation never propagates — keeps httptest.Server.Close()
 	// from blocking on an active connection.
-	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 		select {
 		case <-r.Context().Done():
 		case <-time.After(500 * time.Millisecond):

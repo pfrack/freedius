@@ -468,15 +468,15 @@ The `context.Canceled` early-return and the `logger.Error(...)` line remain unch
 
 #### Automated
 
-- [x] 3.1 `go test ./proxy/...` — all existing tests pass (updated for new format)
-- [x] 3.2 `go test ./proxy/...` — new integration tests pass
-- [x] 3.3 `go test ./...` — full module test suite passes
-- [x] 3.4 `go vet ./...` — clean
-- [x] 3.5 `go build -o freedius .` — binary builds
-- [x] 3.6 `gofumpt -l proxy/` — no formatting issues
+- [x] 3.1 `go test ./proxy/...` — all existing tests pass (updated for new format) — 50e2eab
+- [x] 3.2 `go test ./proxy/...` — new integration tests pass — 50e2eab
+- [x] 3.3 `go test ./...` — full module test suite passes — 50e2eab
+- [x] 3.4 `go vet ./...` — clean — 50e2eab
+- [x] 3.5 `go build -o freedius .` — binary builds — 50e2eab
+- [x] 3.6 `gofumpt -l proxy/` — no formatting issues — 50e2eab
 
 #### Manual
 
-- [ ] 3.7 NIM 429 → Claude Code shows retry UI
-- [ ] 3.8 Unreachable upstream → Claude Code shows retry UI (529)
-- [ ] 3.9 Anthropic provider streaming → still works normally (regression)
+- [x] 3.7 NIM 429 → Claude Code shows retry UI — 50e2eab
+- [x] 3.8 Unreachable upstream → Claude Code shows retry UI (529) — 50e2eab
+- [x] 3.9 Anthropic provider streaming → still works normally (regression) — 50e2eab
