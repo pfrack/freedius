@@ -654,12 +654,12 @@ Verify the complete pipeline: error display + config editing + save + live proxy
 
 #### Automated
 
-- [ ] 5.1 Unit tests: save config, verify file contents
-- [ ] 5.2 Unit tests: delete removes entry from in-memory maps
-- [ ] 5.3 Unit tests: add inserts entry into correct map
-- [ ] 5.4 All existing tests pass: `go test ./proxy/tui/ -v`
-- [ ] 5.5 Compiles: `go build ./...`
-- [ ] 5.6 Linting: `go vet ./...`
+- [x] 5.1 Unit tests: save config, verify file contents — 21a3341
+- [x] 5.2 Unit tests: delete removes entry from in-memory maps — 21a3341
+- [x] 5.3 Unit tests: add inserts entry into correct map — 21a3341
+- [x] 5.4 All existing tests pass: `go test ./proxy/tui/ -v` — 21a3341
+- [x] 5.5 Compiles: `go build ./...` — 21a3341
+- [x] 5.6 Linting: `go vet ./...` — 21a3341
 
 #### Manual
 
