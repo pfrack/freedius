@@ -4,11 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
+	"unicode"
 )
 
 func forwardUpstreamError(w http.ResponseWriter, resp *http.Response) error {
@@ -43,12 +44,18 @@ func writeAnthropicError(w http.ResponseWriter, statusCode int, errType, message
 
 // translateUpstreamError maps a non-Anthropic upstream error response to an
 // Anthropic-format error and writes it to w. Reads up to 256 bytes of the
-// upstream body for the message. Does NOT close resp.Body.
+// upstream body for the message, then drains up to 4 KiB more so the
+// http.Transport can reuse the keep-alive connection. Does NOT close
+// resp.Body.
 func translateUpstreamError(w http.ResponseWriter, resp *http.Response) {
 	// Read a snippet of the upstream body for the message.
 	snippet := make([]byte, 256)
 	n, _ := io.ReadAtLeast(resp.Body, snippet, 1)
 	msg := sanitizePrintable(snippet[:n])
+
+	// Drain remaining body (capped) so the http.Transport can reuse the
+	// keep-alive connection. Caller still owns resp.Body.Close() via defer.
+	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4*1024))
 
 	var status int
 	var errType string
@@ -79,7 +86,7 @@ func translateUpstreamError(w http.ResponseWriter, resp *http.Response) {
 		retryAfter = 15
 	}
 
-	writeAnthropicError(w, status, errType, fmt.Sprintf("upstream: %s", msg), retryAfter)
+	writeAnthropicError(w, status, errType, msg, retryAfter)
 }
 
 func parseRetryAfter(header string, fallback int) int {
@@ -90,25 +97,26 @@ func parseRetryAfter(header string, fallback int) int {
 }
 
 func sanitizePrintable(b []byte) string {
-	out := make([]byte, 0, len(b))
-	for _, c := range b {
-		if c >= 0x20 && c <= 0x7e {
-			out = append(out, c)
+	var out strings.Builder
+	out.Grow(len(b))
+	for _, r := range string(b) {
+		if unicode.IsPrint(r) {
+			out.WriteRune(r)
 		}
 	}
-	return string(out)
+	return out.String()
 }
 
 // freediusErrorHandler returns a transport-error handler for httputil.ReverseProxy
-// that emits the unified error JSON shape (`error` / `message` / `detail` /
-// `request_id`). Client cancellations are still logged at Debug and produce
-// no response body — the connection simply closes. The `detail` field is
-// gated on verboseErrors, matching writeErrorJSON (proxy.go:165).
+// that emits the Anthropic error envelope on transport failures. Client
+// cancellations are still logged at Debug and produce no response body — the
+// connection simply closes. The `verboseErrors` flag gates a Debug-level
+// log line that includes the full upstream error string for local debugging
+// (the Anthropic envelope has no `detail` field, so this is server-side only).
 func freediusErrorHandler(
 	logger *slog.Logger,
 	verboseErrors bool,
 ) func(http.ResponseWriter, *http.Request, error) {
-	_ = verboseErrors // reserved for future structured logging gating
 	return func(w http.ResponseWriter, r *http.Request, err error) {
 		if errors.Is(err, context.Canceled) {
 			logger.Debug(
@@ -126,6 +134,14 @@ func freediusErrorHandler(
 			"path", r.URL.Path,
 			"err", err,
 		)
+		if verboseErrors {
+			logger.Debug(
+				"upstream transport error detail (verbose)",
+				"request_id", RequestIDFromContext(r.Context()),
+				"path", r.URL.Path,
+				"err", err.Error(),
+			)
+		}
 		writeAnthropicError(w, 529, "overloaded_error",
 			"upstream not reachable", 15)
 	}

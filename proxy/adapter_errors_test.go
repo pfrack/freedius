@@ -32,7 +32,7 @@ func (s *preWriteHeaderErrProvider) Handle(
 	return s.err
 }
 
-func TestDispatcher_AdapterError_ForwardedAsUpstreamError(t *testing.T) {
+func TestDispatcher_AdapterError_TranslatedAsAnthropicOverloaded(t *testing.T) {
 	cfg := &config.Config{
 		Models: map[string]config.Model{
 			"claude-opus-4": {Provider: "nim", Model: "x"},
@@ -100,7 +100,7 @@ func TestDispatcher_AdapterError_ForwardedAsUpstreamError(t *testing.T) {
 	})
 }
 
-func TestFreediusErrorHandler_UnifiedShape(t *testing.T) {
+func TestFreediusErrorHandler_AnthropicFormat(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	handler := freediusErrorHandler(logger, true)
 	rec := httptest.NewRecorder()

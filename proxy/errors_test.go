@@ -199,3 +199,29 @@ func TestTranslateUpstreamError(t *testing.T) {
 		})
 	}
 }
+
+func TestTranslateUpstreamError_EmptyBody(t *testing.T) {
+	resp := &http.Response{
+		StatusCode: 429,
+		Header:     http.Header{},
+		Body:       io.NopCloser(strings.NewReader("")),
+	}
+	rec := httptest.NewRecorder()
+	translateUpstreamError(rec, resp)
+
+	if rec.Code != 429 {
+		t.Errorf("status: got %d, want 429", rec.Code)
+	}
+	var body map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	inner := body["error"].(map[string]any)
+	if inner["type"] != "rate_limit_error" {
+		t.Errorf("error.type: got %v, want rate_limit_error", inner["type"])
+	}
+	// Empty body must produce empty message, not a trailing-space artifact.
+	if msg := inner["message"].(string); msg != "" {
+		t.Errorf("message: got %q, want empty string", msg)
+	}
+}

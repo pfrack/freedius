@@ -76,7 +76,13 @@ func TestOpenAICompat_Timeout_ReturnsAnthropicOverloaded(t *testing.T) {
 	body := []byte(`{"model":"x","max_tokens":10,"messages":[{"role":"user","content":"hi"}]}`)
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 
-	// The timeout causes a "do request" error returned to dispatcher.
+	// The timeout causes a "do request" error returned to the dispatcher,
+	// which translates it to writeAnthropicError(w, 529, "overloaded_error", ...).
+	// Coverage for the dispatcher wiring lives in
+	// TestDispatcher_AdapterError_TranslatedAsAnthropicOverloaded (phase2_test.go);
+	// coverage for writeAnthropicError itself lives in TestWriteAnthropicError
+	// (errors_test.go). This test only proves the adapter times out and
+	// surfaces the error to the caller.
 	err := a.Handle(rec, req, config.Model{
 		Provider: "nim", Model: "x",
 		BaseURL: upstream.URL, APIKeyEnv: "TEST_API_KEY",
@@ -86,15 +92,6 @@ func TestOpenAICompat_Timeout_ReturnsAnthropicOverloaded(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "do request") {
 		t.Errorf("error should mention do request, got: %v", err)
-	}
-	// The dispatcher would call writeAnthropicError — verify that path:
-	rec2 := httptest.NewRecorder()
-	writeAnthropicError(rec2, 529, "overloaded_error", "upstream provider not reachable", 15)
-	if rec2.Code != 529 {
-		t.Fatalf("status: got %d, want 529", rec2.Code)
-	}
-	if got := rec2.Header().Get("x-should-retry"); got != "true" {
-		t.Errorf("x-should-retry: got %q, want true", got)
 	}
 }
 

@@ -68,11 +68,6 @@ func NewDispatcher(
 }
 
 func (d *Dispatcher) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodHead || (r.Method == http.MethodGet && r.URL.Path == "/health") {
-		w.WriteHeader(http.StatusOK)
-		return
-	}
-
 	if r.Method != http.MethodPost {
 		w.Header().Set("Allow", http.MethodPost)
 		d.writeErrorJSON(
