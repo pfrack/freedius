@@ -12,19 +12,8 @@ type modelDefaults struct {
 	APIKeyEnv string
 }
 
-var knownProviderDefaults = map[string]modelDefaults{
-	"nim": {
-		BaseURL:   "https://integrate.api.nvidia.com/v1/chat/completions",
-		APIKeyEnv: "NVIDIA_NIM_API_KEY",
-	},
-	"zen": {
-		APIKeyEnv: "OPENCODE_API_KEY",
-	},
-	"go": {
-		APIKeyEnv: "OPENCODE_API_KEY",
-	},
-}
-
+// ProviderEnvVar returns the conventional environment-variable name that holds
+// the API key for the given provider, or "" if the provider has no known default.
 func ProviderEnvVar(name string) string {
 	d, ok := knownProviderDefaults[name]
 	if !ok {
@@ -42,30 +31,8 @@ func (c *Config) applyDefaults() {
 	}
 }
 
-func applyEntryDefaults(m Model) Model {
-	if m.OriginalProvider == "" {
-		m.OriginalProvider = m.Provider
-	}
-	if m.Provider == "custom" {
-		m.Provider = "anthropic"
-	}
-	d, ok := knownProviderDefaults[m.Provider]
-	if !ok {
-		return m
-	}
-	if m.BaseURL == "" {
-		m.BaseURL = d.BaseURL
-	}
-	if m.APIKeyEnv == "" {
-		m.APIKeyEnv = d.APIKeyEnv
-	}
-	if m.Provider == "zen" || m.Provider == "go" {
-		m.Provider = "mix"
-	}
-	return m
-}
-
 func readConfigFile(path string) ([]byte, error) {
+	// #nosec G304 -- path is supplied by the operator (flag/config) and not attacker-controlled
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {

@@ -1,3 +1,5 @@
+// Package config loads, validates, and exposes the freedius YAML configuration
+// (provider defaults, model mappings, and per-model overrides).
 package config
 
 import (
@@ -7,29 +9,24 @@ import (
 	"strings"
 )
 
+// Config is the top-level configuration loaded from a freedius.yaml file.
 type Config struct {
 	Models   map[string]Model `yaml:"models"`
 	Mappings map[string]Model `yaml:"mappings,omitempty"`
 }
 
+// Model describes a single upstream LLM endpoint and its identity inside freedius.
 type Model struct {
 	Provider         string `yaml:"provider"`
 	Model            string `yaml:"model"`
 	BaseURL          string `yaml:"base_url,omitempty"`
 	APIKeyEnv        string `yaml:"api_key_env,omitempty"`
+	AnthropicVersion string `yaml:"anthropic_version,omitempty"`
+	Protocol         string `yaml:"protocol,omitempty"`
 	OriginalProvider string `yaml:"-"`
 }
 
-var KnownProviders = map[string]struct{}{
-	"nim":       {},
-	"zen":       {},
-	"go":        {},
-	"custom":    {},
-	"openai":    {},
-	"anthropic": {},
-	"mix":       {},
-}
-
+// Load reads, parses, and validates the freedius configuration at path.
 func Load(path string) (*Config, error) {
 	data, err := readConfigFile(path)
 	if err != nil {
@@ -57,6 +54,7 @@ func Load(path string) (*Config, error) {
 	return &cfg, nil
 }
 
+// UsesProvider reports whether any model or mapping references the given provider name.
 func (c *Config) UsesProvider(name string) bool {
 	for _, m := range c.Models {
 		if m.Provider == name {
@@ -87,31 +85,86 @@ func (c *Config) validate(path string) error {
 
 func validateModel(path, kind, name string, m Model) error {
 	if m.Model == "" {
-		return fmt.Errorf("config: config file at %s: %s %q has no \"model\" field", path, kind, name)
+		return fmt.Errorf(
+			"config: config file at %s: %s %q has no \"model\" field",
+			path,
+			kind,
+			name,
+		)
 	}
 	if m.Provider == "" {
-		return fmt.Errorf("config: config file at %s: %s %q has no \"provider\" field", path, kind, name)
+		return fmt.Errorf(
+			"config: config file at %s: %s %q has no \"provider\" field",
+			path,
+			kind,
+			name,
+		)
 	}
 	if _, ok := KnownProviders[m.Provider]; !ok {
-		return fmt.Errorf("config: config file at %s: %s %q uses unknown provider %q (known: %s)", path, kind, name, m.Provider, strings.Join(sortedKnownProviders(), ", "))
+		return fmt.Errorf(
+			"config: config file at %s: %s %q uses unknown provider %q (known: %s)",
+			path,
+			kind,
+			name,
+			m.Provider,
+			strings.Join(sortedKnownProviders(), ", "),
+		)
 	}
 	if strings.ContainsAny(m.Model, "\r\n:") {
-		return fmt.Errorf("config: config file at %s: %s %q has unsafe \"model\" value (must not contain CR, LF, or colon)", path, kind, name)
+		return fmt.Errorf(
+			"config: config file at %s: %s %q has unsafe \"model\" value (must not contain CR, LF, or colon)",
+			path,
+			kind,
+			name,
+		)
 	}
 	if m.BaseURL != "" {
 		u, err := url.Parse(m.BaseURL)
 		if err != nil {
-			return fmt.Errorf("config: config file at %s: %s %q has invalid base_url %q: %v", path, kind, name, m.BaseURL, err)
+			return fmt.Errorf(
+				"config: config file at %s: %s %q has invalid base_url %q: %v",
+				path,
+				kind,
+				name,
+				m.BaseURL,
+				err,
+			)
 		}
 		if u.Scheme != "http" && u.Scheme != "https" {
-			return fmt.Errorf("config: config file at %s: %s %q has base_url with invalid scheme %q (allowed: http, https)", path, kind, name, u.Scheme)
+			return fmt.Errorf(
+				"config: config file at %s: %s %q has base_url with invalid scheme %q (allowed: http, https)",
+				path,
+				kind,
+				name,
+				u.Scheme,
+			)
 		}
 	}
-	if (m.Provider == "openai" || m.Provider == "anthropic" || m.Provider == "mix") && m.BaseURL == "" {
-		return fmt.Errorf("config: config file at %s: %s %q has provider=%s but no base_url", path, kind, name, m.Provider)
+	if _, ok := requireBaseURL[m.Provider]; ok && m.BaseURL == "" {
+		return fmt.Errorf(
+			"config: config file at %s: %s %q has provider=%s but no base_url",
+			path,
+			kind,
+			name,
+			m.Provider,
+		)
 	}
 	if m.APIKeyEnv != "" && strings.ContainsAny(m.APIKeyEnv, "\r\n=") {
-		return fmt.Errorf("config: config file at %s: %s %q has api_key_env with invalid characters (must not contain CR, LF, or =)", path, kind, name)
+		return fmt.Errorf(
+			"config: config file at %s: %s %q has api_key_env with invalid characters (must not contain CR, LF, or =)",
+			path,
+			kind,
+			name,
+		)
+	}
+	if m.Protocol != "" && m.Protocol != "anthropic" && m.Protocol != "openai" {
+		return fmt.Errorf(
+			"config: config file at %s: %s %q has invalid protocol %q (allowed: anthropic, openai)",
+			path,
+			kind,
+			name,
+			m.Protocol,
+		)
 	}
 	return nil
 }

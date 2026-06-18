@@ -164,7 +164,7 @@ func (r *Registry) Lookup(name string) (Provider, bool) {
 
 **Contract**:
 - `Dispatcher` struct gains a `Registry *Registry` field.
-- `NewDispatcher(cfg, registry, logger)` becomes the 3-arg constructor (was 2-arg). Add a nil check on `registry` (defensive, per F-01 review F7 pattern).
+- `NewDispatcher(cfg, registry, logger, verboseErrors)` becomes the 4-arg constructor (was 2-arg). Add a nil check on `registry` (defensive, per F-01 review F7 pattern). The `verboseErrors` flag gates `detail` in the error JSON body (see F-01 hardening, F-09).
 - The replacement for lines 86-90 is roughly:
   ```go
   w.Header().Set("X-Freedius-Matched-Provider", m.Provider)
@@ -389,8 +389,8 @@ This is the largest phase (~60% of the slice effort) and the north-star work. It
 **Intent**: Pure functions that translate between Anthropic and OpenAI request/response shapes. No I/O, no `http.ResponseWriter`, no `*http.Client`. Just bytes in, bytes out.
 
 **Contract**: Three top-level functions plus supporting types:
-- `TranslateRequest(anthropicBody []byte, targetModel string) ([]byte, error)` — translates the Anthropic request body to OpenAI format. Returns the rewritten JSON body ready to POST to NIM.
-- `TranslateStream(upstream io.Reader, downstream io.Writer, flush func() error) error` — reads OpenAI SSE chunks from `upstream`, writes Anthropic SSE chunks to `downstream`. Calls `flush` after every Anthropic event. Returns `nil` on clean `[DONE]`, an error on upstream failure or protocol violation.
+- `TranslateRequest(anthropicBody []byte, targetModel string, opts TranslateOpts) ([]byte, error)` — translates the Anthropic request body to OpenAI format. Returns the rewritten JSON body ready to POST to NIM. The `opts` parameter carries per-call flags (e.g. `NoStreamUsage` for NIM).
+- `TranslateStream(upstream io.Reader, downstream io.Writer, flush func() error) (string, error)` — reads OpenAI SSE chunks from `upstream`, writes Anthropic SSE chunks to `downstream`. Calls `flush` after every Anthropic event. Returns `("", nil)` on clean `[DONE]`, an error on upstream failure or protocol violation. The returned string is the `reasoning` content (currently unused by the adapter).
 - An internal `anthropicEmitter` type (state machine for the SSE translation). Constructed with `newAnthropicEmitter()`; exposes `consumeOpenAILine(line []byte) ([][]byte, error)` returning 0+ Anthropic event bytes to emit.
 
 The full translation rules and edge cases are documented in `research.md:3.3` (request side) and `research.md:3.4` (response side). The implementer reads those sections before writing the code; the plan does not duplicate the rules here.
@@ -572,6 +572,52 @@ Each phase has a per-phase Manual Verification section that lists the specific `
 - **NFR-Resource-footprint (sub-50MB idle, negligible CPU)**: the adapters add maybe 1KB of static memory each. The `bufio.Reader` allocated per request is freed when `Handle` returns. The `httputil.ReverseProxy` per-request construction in `CustomAdapter.Handle` (see Phase 2 design note) is intentional — a `*ReverseProxy` is ~100 bytes, freed when the goroutine returns.
 - **NFR-Privacy (no body logging)**: existing F-01 behavior carries over. The NIM adapter does not log request or response bodies. The custom adapter does not log anything beyond the standard dispatcher Debug line.
 - **NFR-Error-handling (provider errors forwarded visibly)**: research `research.md:5` confirms verbatim upstream passthrough. The dispatcher adds 502 only for transport-level failures (when the upstream is unreachable), not for upstream 4xx/5xx.
+
+## S-01 Epilogue: refactor notes (post-implementation, 2026-06-17)
+
+The implementation refactored the per-adapter code into shared
+"shape" adapters before this plan was finalized as the source of
+truth. The dispatcher's `Registry` still exposes `custom` and `nim`
+as the public provider names, but the actual logic now lives in:
+
+- `proxy/anthropic_compat.go` — `AnthropicCompatibleAdapter`.
+  Used by `custom` and `anthropic` registry entries. Sets
+  `x-api-key` + `anthropic-version: 2023-06-01` (Anthropic API
+  requirements, not Bearer). Per-call `httputil.ReverseProxy` with
+  `Rewrite`. Body re-injection, content-length, and
+  `freediusErrorHandler` integration all live here.
+- `proxy/openai_compat.go` — `OpenAICompatibleAdapter`. Used by
+  `nim` (via `proxy/nim.go`), `openai`, and `mix` (for non-Anthropic
+  paths). Per-request `context.WithTimeout(r.Context(), streamTimeout)`
+  (--stream-timeout flag, default 5m). Calls
+  `translate.TranslateRequest` then `translate.TranslateStream`.
+- `proxy/mix.go` — `MixAdapter` (zen/go routing). Inspects the
+  upstream path; routes `/v1/messages` to `AnthropicCompatibleAdapter`
+  and everything else to `OpenAICompatibleAdapter`.
+- `proxy/families.go` — `extractFamily` + `Mappings[family]`
+  dispatcher lookup. The dispatcher (proxy/proxy.go) consults
+  `cfg.Models[name]` first, then `cfg.Mappings[family]`, then 404.
+- `config/defaults.go` — `applyDefaults` rewrites
+  `provider: custom` → `anthropic` and `provider: zen`/`go` → `mix`
+  before validation, and sets `BaseURL`/`APIKeyEnv` from
+  `knownProviderDefaults` when missing. The rewrite is what
+  makes the registry-lookup keys stable.
+
+The thin wrappers `proxy/custom.go` and `proxy/nim.go` exist
+because the public provider names (`custom`, `nim`) need
+adapter-specific configuration (e.g. `nim` sets
+`translateOpts.NoStreamUsage = true` and `preSendHook =
+sanitizeNIMBody`). The wrapper pattern is what allows the same
+underlying adapter to be configured differently per provider
+without leaking NIM-specific knowledge into the OpenAI-compatible
+adapter.
+
+The `Provider` interface (`proxy/provider.go`) and `Registry`
+mechanism (plan §Phase 1 §3) shipped unchanged. The dispatcher's
+"lookup adapter, call Handle" path is exactly as planned; only
+the per-adapter internals moved.
+
+---
 
 ## References
 

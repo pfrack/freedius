@@ -4,6 +4,9 @@
 // provider, status code) is acceptable; message content, tool arguments,
 // tool results, and API responses are not.
 
+// Package translate converts between Anthropic Messages API and OpenAI
+// Chat Completions API request/response shapes. Translation is the only
+// responsibility of this package: the HTTP plumbing lives in proxy.
 package translate
 
 import (
@@ -17,11 +20,20 @@ import (
 	"sync/atomic"
 )
 
-type TranslateOpts struct {
+// Opts tunes the request translation. Currently used to suppress the
+// OpenAI stream_options.include_usage field for providers that don't support it.
+type Opts struct {
 	NoStreamUsage bool
 }
 
-func TranslateRequest(anthropicBody []byte, targetModel string, opts TranslateOpts) ([]byte, error) {
+// Request converts an Anthropic-format request body into the
+// equivalent OpenAI Chat Completions request body, rewriting the model name
+// to targetModel and honoring opts.
+func Request(
+	anthropicBody []byte,
+	targetModel string,
+	opts Opts,
+) ([]byte, error) {
 	var req anthropicMessage
 	if err := json.Unmarshal(anthropicBody, &req); err != nil {
 		return nil, fmt.Errorf("translate: parse anthropic body: %w", err)
@@ -31,14 +43,14 @@ func TranslateRequest(anthropicBody []byte, targetModel string, opts TranslateOp
 	}
 
 	out := openAIRequest{
-		Model:       req.Model,
-		MaxTokens:   intPtrOrNil(req.MaxTokens),
-		Temperature: req.Temperature,
-		TopP:        req.TopP,
-		Stream:      req.Stream,
-		Tools:       convertTools(req.Tools),
-		ToolChoice:  convertToolChoice(req.ToolChoice),
-		Stop:        convertStop(req.StopSequences),
+		Model:         req.Model,
+		MaxTokens:     intPtrOrNil(req.MaxTokens),
+		Temperature:   req.Temperature,
+		TopP:          req.TopP,
+		Stream:        req.Stream,
+		Tools:         convertTools(req.Tools),
+		ToolChoice:    convertToolChoice(req.ToolChoice),
+		Stop:          convertStop(req.StopSequences),
 		StreamOptions: nil,
 	}
 
@@ -110,7 +122,7 @@ func convertToolChoice(tc any) any {
 	}
 	raw, err := json.Marshal(tc)
 	if err != nil {
-		return nil
+		return tc
 	}
 	var probe struct {
 		Type string `json:"type"`
@@ -166,7 +178,8 @@ func convertMessages(system any, msgs []anthropicMsgItem) ([]openAIMessage, erro
 	}
 	if hasReasoning {
 		for i := range out {
-			if out[i].Role == "assistant" && len(out[i].ToolCalls) > 0 && out[i].ReasoningContent == nil {
+			if out[i].Role == "assistant" && len(out[i].ToolCalls) > 0 &&
+				out[i].ReasoningContent == nil {
 				out[i].ReasoningContent = strPtr(" ")
 			}
 		}
@@ -179,8 +192,7 @@ func extractSystemText(system any) string {
 	if system == nil {
 		return ""
 	}
-	switch s := system.(type) {
-	case string:
+	if s, ok := system.(string); ok {
 		return s
 	}
 	raw, err := json.Marshal(system)
@@ -208,120 +220,160 @@ func convertOneMessage(m anthropicMsgItem) ([]openAIMessage, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	if m.Role == "user" {
-		if str, ok := m.Content.(string); ok {
-			return []openAIMessage{{Role: "user", Content: str}}, nil
-		}
-		var blocks []map[string]any
-		if err := json.Unmarshal(raw, &blocks); err != nil {
-			return nil, fmt.Errorf("translate: parse user content: %w", err)
-		}
-		var out []openAIMessage
-		for _, b := range blocks {
-			btype, _ := b["type"].(string)
-			switch btype {
-			case "text":
-				t, _ := b["text"].(string)
-				if t != "" {
-					out = append(out, openAIMessage{Role: "user", Content: t})
-				}
-			case "tool_result":
-				content := stringifyContent(b["content"])
-				toolID, _ := b["tool_use_id"].(string)
-				out = append(out, openAIMessage{
-					Role:       "tool",
-					Content:    content,
-					ToolCallID: toolID,
-				})
-			}
-		}
-		return out, nil
+	switch m.Role {
+	case "user":
+		return convertUserMessage(raw, m.Content)
+	case "assistant":
+		return convertAssistantMessage(raw, m.Content, m.ReasoningContent)
+	case "system":
+		return convertSystemMessage(raw, m.Content)
+	default:
+		return nil, fmt.Errorf("translate: unsupported message role %q", m.Role)
 	}
+}
 
-	if m.Role == "assistant" {
-		om := openAIMessage{Role: "assistant"}
-		var textParts []string
-		var toolCalls []openAIToolCall
-		var thinkingParts []string
+func convertUserMessage(raw []byte, content any) ([]openAIMessage, error) {
+	if str, ok := content.(string); ok {
+		return []openAIMessage{{Role: "user", Content: str}}, nil
+	}
+	blocks, err := decodeContentBlocks(raw)
+	if err != nil {
+		return nil, err
+	}
+	var out []openAIMessage
+	for _, b := range blocks {
+		if msg, ok := userBlockToMessage(b); ok {
+			out = append(out, msg)
+		}
+	}
+	return out, nil
+}
 
-		if str, ok := m.Content.(string); ok && str != "" {
-			textParts = append(textParts, str)
-		} else {
-			var blocks []map[string]any
-			if err := json.Unmarshal(raw, &blocks); err != nil {
-				return nil, fmt.Errorf("translate: parse assistant content: %w", err)
-			}
-			for _, b := range blocks {
-				btype, _ := b["type"].(string)
-				switch btype {
-				case "text":
-					t, _ := b["text"].(string)
-					if t != "" {
-						textParts = append(textParts, t)
-					}
-				case "thinking":
-					thinking, _ := b["thinking"].(string)
-					thinkingParts = append(thinkingParts, thinking)
-				case "tool_use":
-					id, _ := b["id"].(string)
-					name, _ := b["name"].(string)
-					inputRaw, _ := json.Marshal(b["input"])
-					tc := openAIToolCall{
-						Index: 0,
-						ID:    id,
-						Type:  "function",
-						Function: openAIToolCallFunc{
-							Name:      name,
-							Arguments: string(inputRaw),
-						},
-					}
-					toolCalls = append(toolCalls, tc)
-				}
-			}
+func userBlockToMessage(b map[string]any) (openAIMessage, bool) {
+	switch b["type"].(string) {
+	case "text":
+		t, _ := b["text"].(string)
+		if t == "" {
+			return openAIMessage{}, false
 		}
+		return openAIMessage{Role: "user", Content: t}, true
+	case "tool_result":
+		toolID, _ := b["tool_use_id"].(string)
+		return openAIMessage{
+			Role:       "tool",
+			Content:    stringifyContent(b["content"]),
+			ToolCallID: toolID,
+		}, true
+	}
+	return openAIMessage{}, false
+}
 
-		if len(thinkingParts) > 0 {
-			joined := strings.Join(thinkingParts, "\n")
-			if strings.TrimSpace(joined) == "" {
-				joined = " "
-			}
-			om.ReasoningContent = strPtr(joined)
-		}
-		if len(textParts) > 0 {
-			om.Content = strings.Join(textParts, "")
-		}
-		if len(toolCalls) > 0 {
-			om.ToolCalls = toolCalls
-		}
-		if om.ReasoningContent == nil && m.ReasoningContent != "" {
-			om.ReasoningContent = strPtr(m.ReasoningContent)
-		}
+func convertAssistantMessage(raw []byte, content any, topLevelReasoning string) ([]openAIMessage, error) {
+	om := openAIMessage{Role: "assistant"}
+
+	if str, ok := content.(string); ok && str != "" {
+		om.Content = str
+		om.ReasoningContent = assistantReasoning(topLevelReasoning, nil)
 		return []openAIMessage{om}, nil
 	}
 
-	if m.Role == "system" {
-		content := ""
-		if str, ok := m.Content.(string); ok {
-			content = str
-		} else {
-			var blocks []map[string]any
-			if err := json.Unmarshal(raw, &blocks); err == nil {
-				var parts []string
-				for _, b := range blocks {
-					if btype, _ := b["type"].(string); btype == "text" {
-						if t, _ := b["text"].(string); t != "" {
-							parts = append(parts, t)
-						}
-					}
-				}
-				content = strings.Join(parts, "\n")
-			}
-		}
-		return []openAIMessage{{Role: "system", Content: content}}, nil
+	blocks, err := decodeContentBlocks(raw)
+	if err != nil {
+		return nil, err
+	}
+	var textParts, thinkingParts []string
+	var toolCalls []openAIToolCall
+	for _, b := range blocks {
+		applyAssistantBlock(b, &textParts, &thinkingParts, &toolCalls)
 	}
 
-	return nil, fmt.Errorf("translate: unsupported message role %q", m.Role)
+	om.ReasoningContent = assistantReasoning(topLevelReasoning, thinkingParts)
+	if len(textParts) > 0 {
+		om.Content = strings.Join(textParts, "")
+	}
+	if len(toolCalls) > 0 {
+		om.ToolCalls = toolCalls
+	}
+	return []openAIMessage{om}, nil
+}
+
+func applyAssistantBlock(
+	b map[string]any,
+	textParts *[]string,
+	thinkingParts *[]string,
+	toolCalls *[]openAIToolCall,
+) {
+	switch b["type"].(string) {
+	case "text":
+		if t, _ := b["text"].(string); t != "" {
+			*textParts = append(*textParts, t)
+		}
+	case "thinking":
+		thinking, _ := b["thinking"].(string)
+		*thinkingParts = append(*thinkingParts, thinking)
+	case "tool_use":
+		*toolCalls = append(*toolCalls, toolUseToToolCall(b))
+	}
+}
+
+func assistantReasoning(topLevel string, blocks []string) *string {
+	if len(blocks) > 0 {
+		joined := strings.Join(blocks, "\n")
+		if strings.TrimSpace(joined) == "" {
+			joined = " "
+		}
+		return strPtr(joined)
+	}
+	if topLevel != "" {
+		return strPtr(topLevel)
+	}
+	return nil
+}
+
+func toolUseToToolCall(b map[string]any) openAIToolCall {
+	id, _ := b["id"].(string)
+	name, _ := b["name"].(string)
+	input := b["input"]
+	if input == nil {
+		input = map[string]any{}
+	}
+	inputRaw, _ := json.Marshal(input)
+	return openAIToolCall{
+		Index: 0,
+		ID:    id,
+		Type:  "function",
+		Function: openAIToolCallFunc{
+			Name:      name,
+			Arguments: string(inputRaw),
+		},
+	}
+}
+
+func convertSystemMessage(raw []byte, content any) ([]openAIMessage, error) {
+	if str, ok := content.(string); ok {
+		return []openAIMessage{{Role: "system", Content: str}}, nil
+	}
+	blocks, err := decodeContentBlocks(raw)
+	if err != nil {
+		return nil, err
+	}
+	var parts []string
+	for _, b := range blocks {
+		if b["type"].(string) == "text" {
+			if t, _ := b["text"].(string); t != "" {
+				parts = append(parts, t)
+			}
+		}
+	}
+	return []openAIMessage{{Role: "system", Content: strings.Join(parts, "\n")}}, nil
+}
+
+func decodeContentBlocks(raw []byte) ([]map[string]any, error) {
+	var blocks []map[string]any
+	if err := json.Unmarshal(raw, &blocks); err != nil {
+		return nil, fmt.Errorf("translate: parse message content: %w", err)
+	}
+	return blocks, nil
 }
 
 func stringifyContent(c any) string {
@@ -335,7 +387,12 @@ func stringifyContent(c any) string {
 	return string(raw)
 }
 
-func TranslateStream(upstream io.Reader, downstream io.Writer, flush func() error) (string, error) {
+// Stream reads OpenAI-format SSE chunks from upstream, translates
+// them into Anthropic-format SSE events, writes them to downstream, and
+// flushes after each event using the provided flush callback. The returned
+// string is the assistant text used as input_reasoning (if any) and a
+// non-nil error indicates the stream ended abnormally.
+func Stream(upstream io.Reader, downstream io.Writer, flush func() error) (string, error) {
 	br := bufio.NewReaderSize(upstream, 64*1024)
 	em := newAnthropicEmitter()
 	for {
@@ -394,19 +451,19 @@ func readSSEEvent(br *bufio.Reader) ([]byte, error) {
 }
 
 type emitter struct {
-	messageID      string
-	model          string
-	blockIndex     int
-	openBlock      string
-	toolToBlock    map[int]int
-	toolNames      map[int]string
-	toolIDs        map[int]string
-	inputTokens    int
-	outputTokens   int
-	sawUsage       bool
-	roleSent       bool
-	finished       bool
-	pendingFinish  string
+	messageID     string
+	model         string
+	blockIndex    int
+	openBlock     string
+	toolToBlock   map[int]int
+	toolNames     map[int]string
+	toolIDs       map[int]string
+	inputTokens   int
+	outputTokens  int
+	sawUsage      bool
+	roleSent      bool
+	finished      bool
+	pendingFinish string
 }
 
 func newAnthropicEmitter() *emitter {
@@ -512,12 +569,12 @@ func (e *emitter) emitMessageStart() ([][]byte, error) {
 	payload := map[string]any{
 		"type": "message_start",
 		"message": map[string]any{
-			"id":      e.messageID,
-			"type":    "message",
-			"role":    "assistant",
-			"model":   e.model,
-			"content": []any{},
-			"stop_reason": nil,
+			"id":            e.messageID,
+			"type":          "message",
+			"role":          "assistant",
+			"model":         e.model,
+			"content":       []any{},
+			"stop_reason":   nil,
 			"stop_sequence": nil,
 			"usage": map[string]int{
 				"input_tokens":  e.inputTokens,
@@ -551,11 +608,12 @@ func (e *emitter) emitText(text string) ([][]byte, error) {
 			return nil, err
 		}
 		events = append(events, ev...)
+		e.blockIndex++
 		e.openBlock = "text"
 	}
 	delta := map[string]any{
 		"type":  "content_block_delta",
-		"index": e.blockIndex,
+		"index": e.blockIndex - 1,
 		"delta": map[string]any{
 			"type": "text_delta",
 			"text": text,
@@ -613,6 +671,14 @@ func (e *emitter) emitThinkingDelta(thinking string) ([][]byte, error) {
 
 func (e *emitter) emitToolCall(tc openAIToolCall) ([][]byte, error) {
 	if _, ok := e.toolToBlock[tc.Index]; !ok {
+		var events [][]byte
+		if e.openBlock != "" {
+			ev, err := e.emitBlockStop()
+			if err != nil {
+				return nil, err
+			}
+			events = append(events, ev...)
+		}
 		e.toolToBlock[tc.Index] = e.blockIndex
 		if tc.ID != "" {
 			e.toolIDs[tc.Index] = tc.ID
@@ -636,8 +702,9 @@ func (e *emitter) emitToolCall(tc openAIToolCall) ([][]byte, error) {
 		if err != nil {
 			return nil, err
 		}
+		events = append(events, startEv...)
 		if tc.Function.Arguments == "" {
-			return startEv, nil
+			return events, nil
 		}
 		delta := map[string]any{
 			"type":  "content_block_delta",
@@ -651,7 +718,8 @@ func (e *emitter) emitToolCall(tc openAIToolCall) ([][]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-		return append(startEv, deltaEv...), nil
+		events = append(events, deltaEv...)
+		return events, nil
 	}
 	if tc.Function.Arguments == "" {
 		return nil, nil

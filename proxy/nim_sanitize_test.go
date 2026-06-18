@@ -30,7 +30,9 @@ func TestSanitizeNIMBody_NoTools(t *testing.T) {
 }
 
 func TestSanitizeNIMBody_StripsBooleanAdditionalPropertiesTrue(t *testing.T) {
-	in := []byte(`{"model":"x","messages":[],"tools":[{"type":"function","function":{"name":"f","parameters":{"type":"object","properties":{"x":{"type":"string"}},"additionalProperties":true}}}]}`)
+	in := []byte(
+		`{"model":"x","messages":[],"tools":[{"type":"function","function":{"name":"f","parameters":{"type":"object","properties":{"x":{"type":"string"}},"additionalProperties":true}}}]}`,
+	)
 	out, err := sanitizeNIMBody(in)
 	if err != nil {
 		t.Fatal(err)
@@ -47,7 +49,9 @@ func TestSanitizeNIMBody_StripsBooleanAdditionalPropertiesTrue(t *testing.T) {
 }
 
 func TestSanitizeNIMBody_StripsBooleanAdditionalPropertiesFalse(t *testing.T) {
-	in := []byte(`{"model":"x","messages":[],"tools":[{"type":"function","function":{"name":"f","parameters":{"type":"object","additionalProperties":false}}}]}`)
+	in := []byte(
+		`{"model":"x","messages":[],"tools":[{"type":"function","function":{"name":"f","parameters":{"type":"object","additionalProperties":false}}}]}`,
+	)
 	out, err := sanitizeNIMBody(in)
 	if err != nil {
 		t.Fatal(err)
@@ -64,7 +68,9 @@ func TestSanitizeNIMBody_StripsBooleanAdditionalPropertiesFalse(t *testing.T) {
 }
 
 func TestSanitizeNIMBody_PreservesObjectAdditionalProperties(t *testing.T) {
-	in := []byte(`{"model":"x","messages":[],"tools":[{"type":"function","function":{"name":"f","parameters":{"type":"object","additionalProperties":{"type":"string"}}}}]}`)
+	in := []byte(
+		`{"model":"x","messages":[],"tools":[{"type":"function","function":{"name":"f","parameters":{"type":"object","additionalProperties":{"type":"string"}}}}]}`,
+	)
 	out, err := sanitizeNIMBody(in)
 	if err != nil {
 		t.Fatal(err)
@@ -77,7 +83,10 @@ func TestSanitizeNIMBody_PreservesObjectAdditionalProperties(t *testing.T) {
 	params := tools[0].(map[string]any)["function"].(map[string]any)["parameters"].(map[string]any)
 	ap, ok := params["additionalProperties"].(map[string]any)
 	if !ok {
-		t.Fatalf("expected object additionalProperties preserved, got %T", params["additionalProperties"])
+		t.Fatalf(
+			"expected object additionalProperties preserved, got %T",
+			params["additionalProperties"],
+		)
 	}
 	if ap["type"] != "string" {
 		t.Errorf("expected type=string, got %v", ap["type"])
@@ -85,7 +94,9 @@ func TestSanitizeNIMBody_PreservesObjectAdditionalProperties(t *testing.T) {
 }
 
 func TestSanitizeNIMBody_RenamesTypeParam(t *testing.T) {
-	in := []byte(`{"model":"x","messages":[],"tools":[{"type":"function","function":{"name":"f","parameters":{"type":"object","properties":{"type":{"type":"string"}}}}}]}`)
+	in := []byte(
+		`{"model":"x","messages":[],"tools":[{"type":"function","function":{"name":"f","parameters":{"type":"object","properties":{"type":{"type":"string"}}}}}]}`,
+	)
 	out, err := sanitizeNIMBody(in)
 	if err != nil {
 		t.Fatal(err)
@@ -99,7 +110,9 @@ func TestSanitizeNIMBody_RenamesTypeParam(t *testing.T) {
 }
 
 func TestSanitizeNIMBody_RenamesNestedTypeParams(t *testing.T) {
-	in := []byte(`{"model":"x","messages":[],"tools":[{"type":"function","function":{"name":"f","parameters":{"type":"object","properties":{"outer":{"type":"object","properties":{"type":{"type":"string"}}}}}}}]}`)
+	in := []byte(
+		`{"model":"x","messages":[],"tools":[{"type":"function","function":{"name":"f","parameters":{"type":"object","properties":{"outer":{"type":"object","properties":{"type":{"type":"string"}}}}}}}]}`,
+	)
 	out, err := sanitizeNIMBody(in)
 	if err != nil {
 		t.Fatal(err)
@@ -110,7 +123,9 @@ func TestSanitizeNIMBody_RenamesNestedTypeParams(t *testing.T) {
 }
 
 func TestSanitizeNIMBody_PreservesTypeJSONSchemaKey(t *testing.T) {
-	in := []byte(`{"model":"x","messages":[],"tools":[{"type":"function","function":{"name":"f","parameters":{"type":"object","properties":{"x":{"type":"string"}}}}}]}`)
+	in := []byte(
+		`{"model":"x","messages":[],"tools":[{"type":"function","function":{"name":"f","parameters":{"type":"object","properties":{"x":{"type":"string"}}}}}]}`,
+	)
 	out, err := sanitizeNIMBody(in)
 	if err != nil {
 		t.Fatal(err)

@@ -20,7 +20,7 @@ func newOpenAICompatibleAdapter(t *testing.T) *OpenAICompatibleAdapter {
 
 func TestOpenAICompat_Upstream401(t *testing.T) {
 	t.Setenv("OPENAI_API_KEY", "sk-test")
-	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 		_, _ = w.Write([]byte(`{"error":"bad"}`))
 	}))
@@ -29,7 +29,17 @@ func TestOpenAICompat_Upstream401(t *testing.T) {
 	a := newOpenAICompatibleAdapter(t)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader([]byte(`{}`)))
-	err := a.Handle(rec, req, config.Model{Provider: "openai", Model: "gpt-4", BaseURL: upstream.URL, APIKeyEnv: "OPENAI_API_KEY"}, []byte(`{}`))
+	err := a.Handle(
+		rec,
+		req,
+		config.Model{
+			Provider:  "openai",
+			Model:     "gpt-4",
+			BaseURL:   upstream.URL,
+			APIKeyEnv: "OPENAI_API_KEY",
+		},
+		[]byte(`{}`),
+	)
 	if err != nil {
 		t.Fatalf("Handle returned err: %v", err)
 	}
@@ -43,7 +53,17 @@ func TestOpenAICompat_MissingEnvVar(t *testing.T) {
 	a := newOpenAICompatibleAdapter(t)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader([]byte(`{}`)))
-	err := a.Handle(rec, req, config.Model{Provider: "openai", Model: "gpt-4", BaseURL: "https://x", APIKeyEnv: "OPENAI_API_KEY"}, []byte(`{}`))
+	err := a.Handle(
+		rec,
+		req,
+		config.Model{
+			Provider:  "openai",
+			Model:     "gpt-4",
+			BaseURL:   "https://x",
+			APIKeyEnv: "OPENAI_API_KEY",
+		},
+		[]byte(`{}`),
+	)
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -60,16 +80,32 @@ func TestOpenAICompat_TranslationIncludesStream(t *testing.T) {
 		}
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("data: {\"id\":\"x\",\"object\":\"chat.completion.chunk\",\"created\":1,\"model\":\"gpt-4\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\"},\"finish_reason\":null}]}\n\n"))
+		_, _ = w.Write(
+			[]byte(
+				"data: {\"id\":\"x\",\"object\":\"chat.completion.chunk\",\"created\":1,\"model\":\"gpt-4\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\"},\"finish_reason\":null}]}\n\n",
+			),
+		)
 		_, _ = w.Write([]byte("data: [DONE]\n\n"))
 	}))
 	defer upstream.Close()
 
 	a := newOpenAICompatibleAdapter(t)
 	rec := httptest.NewRecorder()
-	body := []byte(`{"model":"x","max_tokens":10,"stream":true,"messages":[{"role":"user","content":"hi"}]}`)
+	body := []byte(
+		`{"model":"x","max_tokens":10,"stream":true,"messages":[{"role":"user","content":"hi"}]}`,
+	)
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader(body))
-	err := a.Handle(rec, req, config.Model{Provider: "openai", Model: "gpt-4", BaseURL: upstream.URL, APIKeyEnv: "OPENAI_API_KEY"}, body)
+	err := a.Handle(
+		rec,
+		req,
+		config.Model{
+			Provider:  "openai",
+			Model:     "gpt-4",
+			BaseURL:   upstream.URL,
+			APIKeyEnv: "OPENAI_API_KEY",
+		},
+		body,
+	)
 	if err != nil {
 		t.Fatalf("Handle returned err: %v", err)
 	}

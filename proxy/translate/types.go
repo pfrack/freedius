@@ -1,16 +1,16 @@
 package translate
 
 type openAIRequest struct {
-	Model          string             `json:"model"`
-	Messages       []openAIMessage    `json:"messages"`
-	MaxTokens      *int               `json:"max_tokens,omitempty"`
-	Temperature    *float64           `json:"temperature,omitempty"`
-	TopP           *float64           `json:"top_p,omitempty"`
-	Stop           any                `json:"stop,omitempty"`
-	Stream         bool               `json:"stream,omitempty"`
-	StreamOptions  *openAIStreamOpts  `json:"stream_options,omitempty"`
-	Tools          []openAITool       `json:"tools,omitempty"`
-	ToolChoice     any                `json:"tool_choice,omitempty"`
+	Model         string            `json:"model"`
+	Messages      []openAIMessage   `json:"messages"`
+	MaxTokens     *int              `json:"max_tokens,omitempty"`
+	Temperature   *float64          `json:"temperature,omitempty"`
+	TopP          *float64          `json:"top_p,omitempty"`
+	Stop          any               `json:"stop,omitempty"`
+	Stream        bool              `json:"stream,omitempty"`
+	StreamOptions *openAIStreamOpts `json:"stream_options,omitempty"`
+	Tools         []openAITool      `json:"tools,omitempty"`
+	ToolChoice    any               `json:"tool_choice,omitempty"`
 }
 
 type openAIStreamOpts struct {
@@ -38,10 +38,10 @@ type openAIToolFunction struct {
 }
 
 type openAIToolCall struct {
-	Index    int                   `json:"index"`
-	ID       string                `json:"id,omitempty"`
-	Type     string                `json:"type,omitempty"`
-	Function openAIToolCallFunc    `json:"function"`
+	Index    int                `json:"index"`
+	ID       string             `json:"id,omitempty"`
+	Type     string             `json:"type,omitempty"`
+	Function openAIToolCallFunc `json:"function"`
 }
 
 type openAIToolCallFunc struct {
@@ -50,16 +50,16 @@ type openAIToolCallFunc struct {
 }
 
 type anthropicMessage struct {
-	Model     string             `json:"model"`
-	MaxTokens int                `json:"max_tokens"`
-	Messages  []anthropicMsgItem `json:"messages"`
-	System    any                `json:"system,omitempty"`
-	Stream    bool               `json:"stream,omitempty"`
-	Tools     []anthropicTool    `json:"tools,omitempty"`
-	ToolChoice any               `json:"tool_choice,omitempty"`
-	Temperature *float64         `json:"temperature,omitempty"`
-	TopP     *float64            `json:"top_p,omitempty"`
-	StopSequences []string        `json:"stop_sequences,omitempty"`
+	Model         string             `json:"model"`
+	MaxTokens     int                `json:"max_tokens"`
+	Messages      []anthropicMsgItem `json:"messages"`
+	System        any                `json:"system,omitempty"`
+	Stream        bool               `json:"stream,omitempty"`
+	Tools         []anthropicTool    `json:"tools,omitempty"`
+	ToolChoice    any                `json:"tool_choice,omitempty"`
+	Temperature   *float64           `json:"temperature,omitempty"`
+	TopP          *float64           `json:"top_p,omitempty"`
+	StopSequences []string           `json:"stop_sequences,omitempty"`
 }
 
 type anthropicMsgItem struct {
@@ -90,9 +90,9 @@ type openAIChoice struct {
 }
 
 type openAIDelta struct {
-	Role             string          `json:"role,omitempty"`
-	Content          string          `json:"content,omitempty"`
-	ReasoningContent string          `json:"reasoning_content,omitempty"`
+	Role             string           `json:"role,omitempty"`
+	Content          string           `json:"content,omitempty"`
+	ReasoningContent string           `json:"reasoning_content,omitempty"`
 	ToolCalls        []openAIToolCall `json:"tool_calls,omitempty"`
 }
 

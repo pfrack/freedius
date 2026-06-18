@@ -23,24 +23,30 @@ func TestCheckRequiredEnvVars_PresetEnvVarMissing(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for missing NVIDIA_NIM_API_KEY")
 	}
-	if !strings.Contains(err.Error(), "NVIDIA_NIM_API_KEY") || !strings.Contains(err.Error(), "nim") {
+	if !strings.Contains(err.Error(), "NVIDIA_NIM_API_KEY") ||
+		!strings.Contains(err.Error(), "nim") {
 		t.Errorf("error should mention env var and provider: %v", err)
 	}
 }
 
 func TestCheckRequiredEnvVars_PerModelOverrideMissing(t *testing.T) {
 	t.Setenv("NVIDIA_NIM_API_KEY", "set")
-	t.Setenv("OPENAI_API_KEY", "")
+	t.Setenv("OPENCODE_API_KEY", "")
 	cfg := &config.Config{
 		Models: map[string]config.Model{
-			"a": {Provider: "openai", Model: "gpt-4", APIKeyEnv: "OPENAI_API_KEY"},
+			"haiku": {
+				Provider:         "mix",
+				OriginalProvider: "zen",
+				Model:            "x",
+				APIKeyEnv:        "OPENCODE_API_KEY",
+			},
 		},
 	}
 	err := checkRequiredEnvVars(cfg)
 	if err == nil {
-		t.Fatal("expected error for missing OPENAI_API_KEY")
+		t.Fatal("expected error for missing OPENCODE_API_KEY")
 	}
-	if !strings.Contains(err.Error(), "OPENAI_API_KEY") {
+	if !strings.Contains(err.Error(), "OPENCODE_API_KEY") {
 		t.Errorf("error should mention env var: %v", err)
 	}
 }
@@ -77,7 +83,12 @@ func TestCheckRequiredEnvVars_ProviderNotReferenced(t *testing.T) {
 	t.Setenv("OPENAI_API_KEY", "k2")
 	cfg := &config.Config{
 		Models: map[string]config.Model{
-			"a": {Provider: "openai", Model: "gpt-4", BaseURL: "https://x", APIKeyEnv: "OPENAI_API_KEY"},
+			"a": {
+				Provider:  "openai",
+				Model:     "gpt-4",
+				BaseURL:   "https://x",
+				APIKeyEnv: "OPENAI_API_KEY",
+			},
 		},
 	}
 	if err := checkRequiredEnvVars(cfg); err != nil {
@@ -87,18 +98,23 @@ func TestCheckRequiredEnvVars_ProviderNotReferenced(t *testing.T) {
 
 func TestCheckRequiredEnvVars_MappingMissingEnv(t *testing.T) {
 	t.Setenv("NVIDIA_NIM_API_KEY", "k1")
-	t.Setenv("MY_MAPPING_KEY", "")
+	t.Setenv("OPENCODE_API_KEY", "")
 	cfg := &config.Config{
 		Models: map[string]config.Model{},
 		Mappings: map[string]config.Model{
-			"opus": {Provider: "openai", Model: "gpt-4", APIKeyEnv: "MY_MAPPING_KEY"},
+			"haiku": {
+				Provider:         "mix",
+				OriginalProvider: "zen",
+				Model:            "x",
+				APIKeyEnv:        "OPENCODE_API_KEY",
+			},
 		},
 	}
 	err := checkRequiredEnvVars(cfg)
 	if err == nil {
 		t.Fatal("expected error for missing mapping env")
 	}
-	if !strings.Contains(err.Error(), "MY_MAPPING_KEY") {
+	if !strings.Contains(err.Error(), "OPENCODE_API_KEY") {
 		t.Errorf("error should mention mapping env: %v", err)
 	}
 }
@@ -183,18 +199,17 @@ func TestCheckRequiredEnvVars_UsesOriginalProvider(t *testing.T) {
 func TestCheckRequiredEnvVars_FallsBackToProvider(t *testing.T) {
 	// Backwards compat: Model literals without OriginalProvider should still
 	// report the (post-rewrite) Provider name.
-	t.Setenv("MY_KEY", "")
+	t.Setenv("NVIDIA_NIM_API_KEY", "")
 	cfg := &config.Config{
 		Models: map[string]config.Model{
-			"x": {Provider: "custom", Model: "x", APIKeyEnv: "MY_KEY"},
+			"a": {Provider: "nim", Model: "x", APIKeyEnv: "NVIDIA_NIM_API_KEY"},
 		},
 	}
 	err := checkRequiredEnvVars(cfg)
 	if err == nil {
 		t.Fatal("expected error")
 	}
-	// OriginalProvider is empty here so the function should fall back to Provider.
-	if !strings.Contains(err.Error(), "provider=custom") {
+	if !strings.Contains(err.Error(), "provider=nim") {
 		t.Errorf("error should reference Provider when OriginalProvider empty, got: %v", err)
 	}
 }

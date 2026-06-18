@@ -44,13 +44,6 @@ func stripBooleanSubschemas(node map[string]any) {
 			}
 		}
 	}
-	if props, ok := node["properties"].(map[string]any); ok {
-		for name, p := range props {
-			if child, ok := p.(map[string]any); ok {
-				props[name] = child
-			}
-		}
-	}
 }
 
 func aliasTypeParams(node map[string]any) {

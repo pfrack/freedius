@@ -2,7 +2,7 @@ PKGS := $(shell go list ./... 2>/dev/null)
 ARGS ?=
 HOOKS_DIR := .git/hooks
 
-.PHONY: test vet build ci tidy run lint lint-static lint-golangci manual-test install-hooks
+.PHONY: test vet build ci tidy run lint lint-static lint-golangci manual-test install-hooks format format-changed install-goimports install-golines install-gci generate-check
 
 test:
 	@if [ -n "$(PKGS)" ]; then go test -race -cover $(PKGS); else echo "no packages to test"; fi
@@ -12,6 +12,9 @@ vet:
 
 build:
 	go build -o freedius .
+
+generate-check:
+	go generate ./... && git diff --exit-code -- '*.go'
 
 tidy:
 	go mod tidy
@@ -33,7 +36,7 @@ lint-golangci:
 
 lint: vet lint-static lint-golangci
 
-ci: lint test build
+ci: vet generate-check test build
 
 manual-test:
 	./test-manual.sh
@@ -43,3 +46,36 @@ install-hooks:
 	@cp scripts/pre-commit $(HOOKS_DIR)/pre-commit
 	@chmod +x $(HOOKS_DIR)/pre-commit
 	@echo "Done. Hook installed at $(HOOKS_DIR)/pre-commit"
+
+GCI_SECTIONS := --skip-generated -s standard -s default -s "prefix(github.com/pfrack/freedius)" -s blank -s dot -s alias -s localmodule
+
+format: install-goimports install-golines install-gci
+	@find . -name "*.go" -exec sh -c '\
+		gofmt -w "$$1" && \
+		goimports -w -local github.com/pfrack/freedius "$$1" && \
+		golines -w "$$1" && \
+		gci write $(GCI_SECTIONS) "$$1"' sh {} \;
+
+CHANGED_GO_FILES := $(shell git diff --name-only --diff-filter=ACM HEAD 2>/dev/null | grep '\.go$$'; git ls-files --others --exclude-standard | grep '\.go$$')
+
+format-changed: install-goimports install-golines install-gci
+	@if [ -z "$(CHANGED_GO_FILES)" ]; then \
+		echo "No changed Go files."; \
+	else \
+		echo "Formatting:" $(CHANGED_GO_FILES); \
+		for f in $(CHANGED_GO_FILES); do \
+			gofmt -w "$$f" && \
+			goimports -w -local github.com/pfrack/freedius "$$f" && \
+			golines -w "$$f" && \
+			gci write $(GCI_SECTIONS) "$$f"; \
+		done; \
+	fi
+
+install-goimports:
+	@command -v goimports >/dev/null 2>&1 || go install golang.org/x/tools/cmd/goimports@latest
+
+install-golines:
+	@command -v golines >/dev/null 2>&1 || go install github.com/segmentio/golines@latest
+
+install-gci:
+	@command -v gci >/dev/null 2>&1 || go install github.com/daixiang0/gci@latest

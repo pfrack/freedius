@@ -23,12 +23,17 @@ import (
 	"github.com/pfrack/freedius/config"
 )
 
+// MaxBodyBytes is the upper bound on the size of a request body the dispatcher
+// will read into memory before returning 413.
 const MaxBodyBytes = 10 * 1024 * 1024
 
 type contextKey int
 
 const requestIDKey contextKey = iota
 
+// Dispatcher is the top-level HTTP handler that resolves a freedius request
+// to a configured model, looks up the right Provider in the Registry, and
+// forwards the request.
 type Dispatcher struct {
 	Cfg           *config.Config
 	Logger        *slog.Logger
@@ -36,7 +41,15 @@ type Dispatcher struct {
 	VerboseErrors bool
 }
 
-func NewDispatcher(cfg *config.Config, registry *Registry, logger *slog.Logger, verboseErrors bool) *Dispatcher {
+// NewDispatcher returns a Dispatcher wired to the given config, registry, and
+// logger. It panics on nil cfg or nil logger so configuration mistakes fail
+// loudly at startup.
+func NewDispatcher(
+	cfg *config.Config,
+	registry *Registry,
+	logger *slog.Logger,
+	verboseErrors bool,
+) *Dispatcher {
 	if cfg == nil {
 		panic("proxy: nil config")
 	}
@@ -57,26 +70,50 @@ func NewDispatcher(cfg *config.Config, registry *Registry, logger *slog.Logger, 
 func (d *Dispatcher) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		w.Header().Set("Allow", http.MethodPost)
-		d.writeErrorJSON(w, r, http.StatusMethodNotAllowed, "method_not_allowed", "method not allowed (only POST is accepted)")
+		d.writeErrorJSON(
+			w,
+			r,
+			http.StatusMethodNotAllowed,
+			"method_not_allowed",
+			"method not allowed (only POST is accepted)",
+		)
 		return
 	}
 
 	if ct := r.Header.Get("Content-Type"); ct != "" && !strings.HasPrefix(ct, "application/json") {
-		d.writeErrorJSON(w, r, http.StatusUnsupportedMediaType, "unsupported_content_type", "unsupported content type, expected application/json")
+		d.writeErrorJSON(
+			w,
+			r,
+			http.StatusUnsupportedMediaType,
+			"unsupported_content_type",
+			"unsupported content type, expected application/json",
+		)
 		return
 	}
 
 	r.Body = http.MaxBytesReader(w, r.Body, MaxBodyBytes)
-	defer r.Body.Close()
+	defer func() { _ = r.Body.Close() }()
 
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		var mbe *http.MaxBytesError
 		if errors.As(err, &mbe) {
-			d.writeErrorJSON(w, r, http.StatusRequestEntityTooLarge, "body_too_large", fmt.Sprintf("request body too large (limit: %d bytes)", mbe.Limit))
+			d.writeErrorJSON(
+				w,
+				r,
+				http.StatusRequestEntityTooLarge,
+				"body_too_large",
+				fmt.Sprintf("request body too large (limit: %d bytes)", mbe.Limit),
+			)
 			return
 		}
-		d.writeErrorJSON(w, r, http.StatusBadRequest, "body_unreadable", fmt.Sprintf("request body unreadable: %v", err))
+		d.writeErrorJSON(
+			w,
+			r,
+			http.StatusBadRequest,
+			"body_unreadable",
+			fmt.Sprintf("request body unreadable: %v", err),
+		)
 		return
 	}
 
@@ -89,12 +126,24 @@ func (d *Dispatcher) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Model string `json:"model"`
 	}
 	if err := json.Unmarshal(body, &req); err != nil {
-		d.writeErrorJSON(w, r, http.StatusBadRequest, "invalid_json", fmt.Sprintf("invalid request body: %v", err))
+		d.writeErrorJSON(
+			w,
+			r,
+			http.StatusBadRequest,
+			"invalid_json",
+			fmt.Sprintf("invalid request body: %v", err),
+		)
 		return
 	}
 
 	if req.Model == "" {
-		d.writeErrorJSON(w, r, http.StatusBadRequest, "missing_model", "invalid request body: missing or empty \"model\" field")
+		d.writeErrorJSON(
+			w,
+			r,
+			http.StatusBadRequest,
+			"missing_model",
+			"invalid request body: missing or empty \"model\" field",
+		)
 		return
 	}
 
@@ -108,28 +157,89 @@ func (d *Dispatcher) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if !ok {
-		d.Logger.Debug("no match for model", "request_id", RequestIDFromContext(r.Context()), "model", req.Model)
-		d.writeErrorJSON(w, r, http.StatusNotFound, "no_match", fmt.Sprintf("no configured mapping for model %q", req.Model))
+		d.Logger.Debug(
+			"no match for model",
+			"request_id",
+			RequestIDFromContext(r.Context()),
+			"model",
+			req.Model,
+		)
+		d.writeErrorJSON(
+			w,
+			r,
+			http.StatusNotFound,
+			"no_match",
+			fmt.Sprintf("no configured mapping for model %q", req.Model),
+		)
 		return
 	}
 
-	d.Logger.Debug("dispatch", "request_id", RequestIDFromContext(r.Context()), "model", req.Model, "provider", originalOr(m), "target_model", m.Model)
+	d.Logger.Debug(
+		"dispatch",
+		"request_id",
+		RequestIDFromContext(r.Context()),
+		"model",
+		req.Model,
+		"provider",
+		originalOr(m),
+		"target_model",
+		m.Model,
+	)
 	w.Header().Set("X-Freedius-Matched-Provider", originalOr(m))
 	w.Header().Set("X-Freedius-Matched-Model", m.Model)
 
 	adapter, ok := d.Registry.Lookup(m.Provider)
 	if !ok {
-		d.Logger.Error("provider not registered", "request_id", RequestIDFromContext(r.Context()), "provider", m.Provider)
-		d.writeErrorJSON(w, r, http.StatusInternalServerError, "provider_not_registered", fmt.Sprintf("provider %q is not registered in this freedius build", originalOr(m)))
+		d.Logger.Error(
+			"provider not registered",
+			"request_id",
+			RequestIDFromContext(r.Context()),
+			"provider",
+			m.Provider,
+		)
+		d.writeErrorJSON(
+			w,
+			r,
+			http.StatusInternalServerError,
+			"provider_not_registered",
+			fmt.Sprintf("provider %q is not registered in this freedius build", originalOr(m)),
+		)
 		return
 	}
-	if err := adapter.Handle(w, r, m, body); err != nil {
-		// Per Adapter Return Contract (lessons.md): pre-WriteHeader errors are returned by
-		// the adapter; post-WriteHeader errors are logged but the adapter returns nil.
-		// When we get here, headers have NOT been written yet (otherwise adapter would have
-		// returned nil). Forward the original error to the client, gated by --verbose-errors.
-		d.Logger.Error("adapter failed", "request_id", RequestIDFromContext(r.Context()), "provider", originalOr(m), "err", err)
-		d.writeErrorJSON(w, r, http.StatusBadGateway, "upstream_error", "request to upstream provider failed", WithDetail(err.Error()))
+	ww := &wroteHeaderResponseWriter{ResponseWriter: w}
+	if err := adapter.Handle(ww, r, m, body); err != nil {
+		if !ww.wroteHeader {
+			// Pre-WriteHeader error — safe to forward to the client.
+			d.Logger.Error(
+				"adapter failed",
+				"request_id",
+				RequestIDFromContext(r.Context()),
+				"provider",
+				originalOr(m),
+				"err",
+				err,
+			)
+			d.writeErrorJSON(
+				w,
+				r,
+				http.StatusBadGateway,
+				"upstream_error",
+				"request to upstream provider failed",
+				WithDetail(err.Error()),
+			)
+		} else {
+			// Post-WriteHeader error — adapter already sent a response.
+			// Log and discard to avoid "superfluous WriteHeader" panics.
+			d.Logger.Error(
+				"adapter returned error after writing response headers",
+				"request_id",
+				RequestIDFromContext(r.Context()),
+				"provider",
+				originalOr(m),
+				"err",
+				err,
+			)
+		}
 	}
 }
 
@@ -140,17 +250,26 @@ func originalOr(m config.Model) string {
 	return m.Provider
 }
 
+// ErrorOption mutates the internal errorJSON used by (*Dispatcher).writeErrorJSON.
 type ErrorOption func(*errorJSON)
 
 type errorJSON struct {
 	detail string
 }
 
+// WithDetail returns an ErrorOption that sets the optional "detail" field on
+// the JSON error envelope (included only when VerboseErrors is true).
 func WithDetail(detail string) ErrorOption {
 	return func(e *errorJSON) { e.detail = detail }
 }
 
-func (d *Dispatcher) writeErrorJSON(w http.ResponseWriter, r *http.Request, status int, code, message string, opts ...ErrorOption) {
+func (d *Dispatcher) writeErrorJSON(
+	w http.ResponseWriter,
+	r *http.Request,
+	status int,
+	code, message string,
+	opts ...ErrorOption,
+) {
 	e := &errorJSON{}
 	for _, opt := range opts {
 		opt(e)
@@ -168,7 +287,13 @@ func (d *Dispatcher) writeErrorJSON(w http.ResponseWriter, r *http.Request, stat
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	if err := json.NewEncoder(w).Encode(body); err != nil {
-		d.Logger.Error("response encode failed", "request_id", RequestIDFromContext(r.Context()), "err", err)
+		d.Logger.Error(
+			"response encode failed",
+			"request_id",
+			RequestIDFromContext(r.Context()),
+			"err",
+			err,
+		)
 	}
 }
 
@@ -182,6 +307,8 @@ func generateRequestID() string {
 	return hex.EncodeToString(b[:])
 }
 
+// RequestIDFromContext returns the request ID stored in ctx, or "" if none
+// was set (i.e. the request did not pass through RequestIDMiddleware).
 func RequestIDFromContext(ctx context.Context) string {
 	if id, ok := ctx.Value(requestIDKey).(string); ok {
 		return id
@@ -189,6 +316,9 @@ func RequestIDFromContext(ctx context.Context) string {
 	return ""
 }
 
+// RequestIDMiddleware assigns a fresh request ID to every incoming request,
+// propagates it via the X-Freedius-Request-ID response header and via
+// r.Context(), and then delegates to next.
 func RequestIDMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id := generateRequestID()
@@ -232,6 +362,9 @@ func (w *wroteHeaderResponseWriter) Flush() {
 	}
 }
 
+// RecoverMiddleware catches panics from downstream handlers, logs them with
+// the request's ID, and (if no response has been written yet) replaces the
+// in-flight response with a 500 JSON error envelope.
 func RecoverMiddleware(logger *slog.Logger, verboseErrors bool, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ww := &wroteHeaderResponseWriter{ResponseWriter: w}
@@ -240,9 +373,10 @@ func RecoverMiddleware(logger *slog.Logger, verboseErrors bool, next http.Handle
 			if rec == nil {
 				return
 			}
-			// RecoverMiddleware is wired outermost, so r.Context() does NOT carry
-			// the inner RequestIDMiddleware's ID. Read it from the response header
-			// that RequestIDMiddleware set on the wrapper (which forwards to w).
+			// RecoverMiddleware is wired one layer below RequestIDMiddleware, so
+			// r.Context() carries the request ID. We read from the response header
+			// as a deliberate robustness choice — it works regardless of middleware
+			// reordering.
 			id := ww.Header().Get("X-Freedius-Request-ID")
 			stack := debug.Stack()
 			logger.Error("panic recovered",
@@ -275,6 +409,9 @@ func writeInternalErrorResponse(w http.ResponseWriter, requestID string) {
 
 // --- Access log middleware ---
 
+// AccessLogMiddleware writes one structured log line per request with the
+// request ID, matched provider/model, status code, and duration. It does not
+// log request or response bodies (see the privacy note at the top of this file).
 func AccessLogMiddleware(logger *slog.Logger, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()

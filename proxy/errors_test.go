@@ -13,7 +13,7 @@ import (
 )
 
 func TestForwardUpstreamError(t *testing.T) {
-	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("X-Upstream", "yes")
 		w.WriteHeader(http.StatusUnauthorized)
 		_, _ = w.Write([]byte(`{"error":"bad key"}`))
@@ -43,29 +43,45 @@ func TestForwardUpstreamError(t *testing.T) {
 
 func TestFreediusErrorHandler_TransportError(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	handler := freediusErrorHandler(logger)
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
-	handler(rec, req, errors.New("connection refused"))
+	t.Run("verbose=false omits detail", func(t *testing.T) {
+		handler := freediusErrorHandler(logger, false)
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+		handler(rec, req, errors.New("connection refused"))
 
-	if rec.Code != http.StatusBadGateway {
-		t.Errorf("status: got %d, want %d", rec.Code, http.StatusBadGateway)
-	}
-	var body map[string]string
-	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
-		t.Fatalf("decode body: %v", err)
-	}
-	if body["error"] != "upstream_unreachable" {
-		t.Errorf("error: got %q, want upstream_unreachable", body["error"])
-	}
-	if body["detail"] != "connection refused" {
-		t.Errorf("detail: got %q, want connection refused", body["detail"])
-	}
+		if rec.Code != http.StatusBadGateway {
+			t.Errorf("status: got %d, want %d", rec.Code, http.StatusBadGateway)
+		}
+		var body map[string]string
+		if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+			t.Fatalf("decode body: %v", err)
+		}
+		if body["error"] != "upstream_unreachable" {
+			t.Errorf("error: got %q, want upstream_unreachable", body["error"])
+		}
+		if _, ok := body["detail"]; ok {
+			t.Errorf("detail must be omitted when verboseErrors=false; got %q", body["detail"])
+		}
+	})
+	t.Run("verbose=true includes detail", func(t *testing.T) {
+		handler := freediusErrorHandler(logger, true)
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+		handler(rec, req, errors.New("connection refused"))
+
+		var body map[string]string
+		if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+			t.Fatalf("decode body: %v", err)
+		}
+		if body["detail"] != "connection refused" {
+			t.Errorf("detail: got %q, want connection refused", body["detail"])
+		}
+	})
 }
 
 func TestFreediusErrorHandler_ClientCanceled(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	handler := freediusErrorHandler(logger)
+	handler := freediusErrorHandler(logger, false)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 	handler(rec, req, context.Canceled)

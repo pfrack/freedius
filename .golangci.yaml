@@ -30,12 +30,36 @@ linters:
 
     # Security
     - gosec          # common security issues
+  exclusions:
+    warn-unused: true
+    rules:
+      - path: _test\.go
+        linters:
+          - errcheck
+          - gosec
+          - bodyclose
+          - gocyclo
 
 formatters:
   default: none
   enable:
     - gofmt          # standard formatting
     - goimports      # import grouping & ordering
+    - gci            # import section ordering
+    - golines        # long line wrapping
+  settings:
+    gci:
+      sections:
+        - standard
+        - default
+        - prefix(github.com/pfrack/freedius)
+        - blank
+        - dot
+        - alias
+        - localmodule
+      skip-generated: true
+    golines:
+      max-len: 120
 
 linters-settings:
   gocyclo:
@@ -71,11 +95,3 @@ linters-settings:
       - fmt.Printf
       - fmt.Println
       - (io.Closer).Close
-
-exclusions:
-  rules:
-    - path: "_test\\.go"
-      linters:
-        - errcheck
-        - gosec
-        - bodyclose

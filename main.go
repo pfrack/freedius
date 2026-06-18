@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -23,12 +24,12 @@ import (
 )
 
 const (
-	defaultHost         = "127.0.0.1"
-	defaultPort         = 8082
-	shutdownTimeout     = 5 * time.Second
-	readHeaderTimeout   = 5 * time.Second
-	readTimeout         = 30 * time.Second
-	idleTimeout         = 120 * time.Second
+	defaultHost          = "127.0.0.1"
+	defaultPort          = 8082
+	shutdownTimeout      = 5 * time.Second
+	readHeaderTimeout    = 5 * time.Second
+	readTimeout          = 30 * time.Second
+	idleTimeout          = 120 * time.Second
 	defaultStreamTimeout = 5 * time.Minute
 )
 
@@ -77,7 +78,11 @@ func dispatch(argv []string) int {
 		printTopLevelHelp()
 		return 0
 	default:
-		fmt.Fprintf(os.Stderr, "freedius: unknown subcommand %q\nRun 'freedius help' for usage.\n", sub)
+		fmt.Fprintf(
+			os.Stderr,
+			"freedius: unknown subcommand %q\nRun 'freedius help' for usage.\n",
+			sub,
+		)
 		return 2
 	}
 }
@@ -87,9 +92,21 @@ func runServe(args []string) int {
 	flagConfig := fs.String("config", "", "path to config file (auto-resolved if empty)")
 	flagPort := fs.Int("port", 0, "port to listen on (overrides FREEDIUS_PORT; default 8080)")
 	flagHost := fs.String("host", "", "host to bind (127.0.0.1 or 0.0.0.0; default 127.0.0.1)")
-	flagVerboseErrors := fs.Bool("verbose-errors", false, "include upstream error detail in error responses (or set FREEDIUS_VERBOSE_ERRORS=1)")
-	flagLogFormat := fs.String("log-format", "", "log output format: text, json (overrides FREEDIUS_LOG; default text)")
-	flagStreamTimeout := fs.Duration("stream-timeout", 0, "per-request upstream timeout (overrides FREEDIUS_STREAM_TIMEOUT; default 5m)")
+	flagVerboseErrors := fs.Bool(
+		"verbose-errors",
+		false,
+		"include upstream error detail in error responses (or set FREEDIUS_VERBOSE_ERRORS=1)",
+	)
+	flagLogFormat := fs.String(
+		"log-format",
+		"",
+		"log output format: text, json (overrides FREEDIUS_LOG; default text)",
+	)
+	flagStreamTimeout := fs.Duration(
+		"stream-timeout",
+		0,
+		"per-request upstream timeout (overrides FREEDIUS_STREAM_TIMEOUT; default 5m)",
+	)
 	flagNoExportHint := fs.Bool("no-export-hint", false, "suppress the env-export hint on startup")
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: freedius serve [flags]\n\nFlags:\n")
@@ -155,10 +172,12 @@ func runServe(args []string) int {
 		if errors.Is(err, os.ErrNotExist) && *flagConfig == "" {
 			baseLogger.Info("no config found, writing default config", "path", cfgPath)
 			if parent := filepath.Dir(cfgPath); parent != "." {
+				// #nosec G301 -- user-owned config directory; group/other read keeps tools compatible
 				if err := os.MkdirAll(parent, 0o755); err != nil {
 					return failf("freedius: cannot create config directory %s: %v", parent, err)
 				}
 			}
+			// #nosec G306 -- starter config is non-sensitive and should be readable by tooling
 			if err := os.WriteFile(cfgPath, []byte(starterTemplate), 0o644); err != nil {
 				return failf("freedius: write default config %s: %v", cfgPath, err)
 			}
@@ -177,20 +196,19 @@ func runServe(args []string) int {
 	}
 
 	serverLogger := logger.With("component", "server")
-	serverLogger.Info(fmt.Sprintf("freedius listening on http://%s", net.JoinHostPort(host, strconv.Itoa(port))), "host", host, "port", port)
+	serverLogger.Info(
+		fmt.Sprintf("freedius listening on http://%s", net.JoinHostPort(host, strconv.Itoa(port))),
+		"host",
+		host,
+		"port",
+		port,
+	)
 
 	if !*flagNoExportHint {
 		fmt.Fprintln(os.Stderr, envinject.Snippet(host, port))
 	}
 
-
-	registry := proxy.NewRegistry(map[string]proxy.Provider{
-		"nim":       proxy.NewNIMAdapter(logger),
-		"custom":    proxy.NewCustomAdapter(logger),
-		"openai":    proxy.NewOpenAICompatibleAdapterWithTimeout(logger, streamTimeout),
-		"anthropic": proxy.NewAnthropicCompatibleAdapter(logger),
-		"mix":       proxy.NewMixAdapter(logger),
-	})
+	registry := proxy.NewDefaultRegistry(logger, streamTimeout, verboseErrors, nil)
 	dispatcher := proxy.NewDispatcher(cfg, registry, logger, verboseErrors)
 	mux := http.NewServeMux()
 
@@ -253,14 +271,27 @@ func failf(format string, args ...any) int {
 }
 
 func checkRequiredEnvVars(cfg *config.Config) error {
+	presets := config.PresetProviders()
 	for name, m := range cfg.Models {
-		if m.APIKeyEnv != "" && os.Getenv(m.APIKeyEnv) == "" {
-			return fmt.Errorf("%s env var required (config model %q references it; provider=%s)", m.APIKeyEnv, name, originalProviderName(m))
+		if m.APIKeyEnv != "" && slices.Contains(presets, originalProviderName(m)) &&
+			os.Getenv(m.APIKeyEnv) == "" {
+			return fmt.Errorf(
+				"%s env var required (config model %q references it; provider=%s)",
+				m.APIKeyEnv,
+				name,
+				originalProviderName(m),
+			)
 		}
 	}
 	for name, m := range cfg.Mappings {
-		if m.APIKeyEnv != "" && os.Getenv(m.APIKeyEnv) == "" {
-			return fmt.Errorf("%s env var required (config mapping %q references it; provider=%s)", m.APIKeyEnv, name, originalProviderName(m))
+		if m.APIKeyEnv != "" && slices.Contains(presets, originalProviderName(m)) &&
+			os.Getenv(m.APIKeyEnv) == "" {
+			return fmt.Errorf(
+				"%s env var required (config mapping %q references it; provider=%s)",
+				m.APIKeyEnv,
+				name,
+				originalProviderName(m),
+			)
 		}
 	}
 	return nil

@@ -59,7 +59,14 @@ func TestWriteErrorJSON_DetailOmittedWhenNotVerbose(t *testing.T) {
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/", nil)
 
-	d.writeErrorJSON(rec, req, http.StatusBadGateway, "upstream_error", "request failed", WithDetail("upstream connection refused"))
+	d.writeErrorJSON(
+		rec,
+		req,
+		http.StatusBadGateway,
+		"upstream_error",
+		"request failed",
+		WithDetail("upstream connection refused"),
+	)
 
 	body := decodeErrorBody(t, rec)
 	if _, has := body["detail"]; has {
@@ -72,7 +79,14 @@ func TestWriteErrorJSON_DetailIncludedWhenVerbose(t *testing.T) {
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/", nil)
 
-	d.writeErrorJSON(rec, req, http.StatusBadGateway, "upstream_error", "request failed", WithDetail("upstream connection refused"))
+	d.writeErrorJSON(
+		rec,
+		req,
+		http.StatusBadGateway,
+		"upstream_error",
+		"request failed",
+		WithDetail("upstream connection refused"),
+	)
 
 	body := decodeErrorBody(t, rec)
 	if body["detail"] != "upstream connection refused" {
