@@ -389,7 +389,8 @@ func RecoverMiddleware(logger *slog.Logger, verboseErrors bool, next http.Handle
 			// reordering.
 			id := ww.Header().Get("X-Freedius-Request-ID")
 			stack := debug.Stack()
-			logger.Error("panic recovered",
+			logger.Error(
+				"panic recovered",
 				"request_id", id,
 				"path", r.URL.Path,
 				"panic", fmt.Sprintf("%v", rec),
@@ -434,7 +435,8 @@ func AccessLogMiddleware(logger *slog.Logger, next http.Handler) http.Handler {
 		if status == 0 {
 			status = http.StatusOK
 		}
-		logger.Info("request complete",
+		logger.Info(
+			"request complete",
 			"request_id", id,
 			"method", r.Method,
 			"path", r.URL.Path,

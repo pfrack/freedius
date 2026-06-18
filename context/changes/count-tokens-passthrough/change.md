@@ -1,6 +1,6 @@
 ---
 change_id: count-tokens-passthrough
-title: "Support /v1/messages/count_tokens passthrough"
+title: "Support /v1/messages/count_tokens passthrough and Anthropic-format error propagation"
 status: implementing
 created: 2026-06-18
 updated: 2026-06-18
@@ -8,6 +8,8 @@ updated: 2026-06-18
 
 ## Summary
 
-Add path-aware routing to the proxy so `/v1/messages/count_tokens` requests are correctly passed through to Anthropic-compatible upstreams (and rejected with 501 for providers that don't support it). Currently the dispatcher ignores URL path entirely, which works by accident for `anthropic` provider but breaks for OpenAI-compatible providers.
+Two proxy correctness fixes so Claude Code works reliably through freedius:
 
-Phase 1 ships the pass-through + 501 behavior. Phase 2 (separate plan, deferred) will add local token counting so OpenAI-protocol providers also get a useful count_tokens response.
+1. **count_tokens passthrough** — Add path-aware routing so `/v1/messages/count_tokens` requests pass through to Anthropic-compatible upstreams and return 501 for providers that don't support it.
+
+2. **Anthropic-format error propagation** — When OpenAI-compatible upstreams (NIM, etc.) return errors or time out, translate those into Anthropic-shaped error responses with `x-should-retry` and `retry-after` headers so Claude Code can retry properly instead of getting broken connections or unrecognized error formats.
