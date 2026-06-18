@@ -448,10 +448,10 @@ The existing `TestDispatcher_AdapterError_TranslatedAsAnthropicOverloaded` (plai
 
 #### Manual
 
-- [ ] 5.6 missing API key → 500 `authentication_error`, no retry headers
-- [ ] 5.7 bad BaseURL → 500 `invalid_request_error`, no retry headers
-- [ ] 5.8 connection refused → 529 `overloaded_error`, retry headers
-- [ ] 5.9 DNS failure → 502 `api_error`, no retry headers
-- [ ] 5.10 upstream 502 response → 502 `api_error`, retry headers
-- [ ] 5.11 upstream 504 response → 504 `api_error`, retry headers
-- [ ] 5.12 all existing paths (messages, count_tokens, streaming) work without regression
+- [x] 5.6 missing API key → 500 `authentication_error`, no retry headers — f54170a
+- [x] 5.7 bad BaseURL → 500 `invalid_request_error`, no retry headers — f54170a
+- [x] 5.8 connection refused → 529 `overloaded_error`, retry headers — f54170a
+- [x] 5.9 DNS failure → 502 `api_error`, no retry headers — f54170a
+- [x] 5.10 upstream 502 response → 502 `api_error`, retry headers — f54170a
+- [x] 5.11 upstream 504 response → 504 `api_error`, retry headers — f54170a
+- [x] 5.12 all existing paths (messages, count_tokens, streaming) work without regression — f54170a

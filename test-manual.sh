@@ -12,6 +12,10 @@ TMPHOME=$(mktemp -d)
 ORIG_GOMODCACHE=$(go env GOMODCACHE)
 ORIG_GOCACHE=$(go env GOCACHE)
 export HOME="$TMPHOME"
+
+export FREEDIUS_PORT="${FREEDIUS_PORT:-8080}"
+PORT="$FREEDIUS_PORT"
+BASE_URL="http://127.0.0.1:$PORT"
 export XDG_CONFIG_HOME="$TMPHOME/.config"
 export GOMODCACHE="$ORIG_GOMODCACHE"
 export GOCACHE="$ORIG_GOCACHE"
@@ -53,7 +57,7 @@ start_server() {
 	"$BIN" > "$LOG" 2>&1 &
 	SERVER_PID=$!
 	for _ in 1 2 3 4 5 6 7 8 9 10; do
-		if curl -sS -o /dev/null http://127.0.0.1:8080/v1/messages 2>/dev/null; then
+		if curl -sS -o /dev/null "$BASE_URL/v1/messages" 2>/dev/null; then
 			return 0
 		fi
 		sleep 0.1
@@ -85,7 +89,7 @@ if ! start_server; then
 fi
 
 # 3.8a: family pattern — claude-opus-4-1 matches opus
-RESP=$(curl -sS -D - -o /dev/null -X POST http://127.0.0.1:8080/v1/messages \
+RESP=$(curl -sS -D - -o /dev/null -X POST "$BASE_URL"/v1/messages \
 	-H 'content-type: application/json' -d '{"model":"claude-opus-4-1"}')
 STATUS=$(printf '%s\n' "$RESP" | head -1 | awk '{print $2}')
 PROV=$(resp_header "$RESP" '^X-Freedius-Matched-Provider:')
@@ -95,19 +99,19 @@ if [[ "$PROV" == "nim" ]]; then pass "3.8a X-Freedius-Matched-Provider: nim"; el
 if [[ "$MODEL" == "opus-target" ]]; then pass "3.8a X-Freedius-Matched-Model: opus-target"; else fail "3.8a model (got $MODEL)"; fi
 
 # 3.8b: claude-sonnet-4-6 matches sonnet
-RESP=$(curl -sS -D - -o /dev/null -X POST http://127.0.0.1:8080/v1/messages \
+RESP=$(curl -sS -D - -o /dev/null -X POST "$BASE_URL"/v1/messages \
 	-H 'content-type: application/json' -d '{"model":"claude-sonnet-4-6"}')
 MODEL=$(resp_header "$RESP" '^X-Freedius-Matched-Model:')
 if [[ "$MODEL" == "sonnet-target" ]]; then pass "3.8b sonnet family dispatch"; else fail "3.8b model (got $MODEL)"; fi
 
 # 3.8c: claude-haiku-3-5 matches haiku
-RESP=$(curl -sS -D - -o /dev/null -X POST http://127.0.0.1:8080/v1/messages \
+RESP=$(curl -sS -D - -o /dev/null -X POST "$BASE_URL"/v1/messages \
 	-H 'content-type: application/json' -d '{"model":"claude-haiku-3-5"}')
 MODEL=$(resp_header "$RESP" '^X-Freedius-Matched-Model:')
 if [[ "$MODEL" == "haiku-target" ]]; then pass "3.8c haiku family dispatch"; else fail "3.8c model (got $MODEL)"; fi
 
 # 3.8d: "auto" matches auto
-RESP=$(curl -sS -D - -o /dev/null -X POST http://127.0.0.1:8080/v1/messages \
+RESP=$(curl -sS -D - -o /dev/null -X POST "$BASE_URL"/v1/messages \
 	-H 'content-type: application/json' -d '{"model":"auto"}')
 MODEL=$(resp_header "$RESP" '^X-Freedius-Matched-Model:')
 if [[ "$MODEL" == "auto-target" ]]; then pass "3.8d auto family dispatch"; else fail "3.8d model (got $MODEL)"; fi
@@ -127,7 +131,7 @@ if ! start_server; then
 	exit 1
 fi
 
-STATUS=$(curl -sS -o /dev/null -w "%{http_code}" -X POST http://127.0.0.1:8080/v1/messages \
+STATUS=$(curl -sS -o /dev/null -w "%{http_code}" -X POST "$BASE_URL"/v1/messages \
 	-H 'content-type: application/json' -d '{"model":"claude-future-2026"}')
 if [[ "$STATUS" == "404" ]]; then pass "3.9 no default returns 404"; else fail "3.9 status (got $STATUS)"; fi
 
@@ -149,13 +153,13 @@ if ! start_server; then
 fi
 
 # Exact match in models: should win
-RESP=$(curl -sS -D - -o /dev/null -X POST http://127.0.0.1:8080/v1/messages \
+RESP=$(curl -sS -D - -o /dev/null -X POST "$BASE_URL"/v1/messages \
 	-H 'content-type: application/json' -d '{"model":"claude-opus-4-1"}')
 MODEL=$(resp_header "$RESP" '^X-Freedius-Matched-Model:')
 if [[ "$MODEL" == "exact-opus" ]]; then pass "3.10 models: exact match wins"; else fail "3.10 model (got $MODEL)"; fi
 
 # A non-exact opus version should fall through to family mapping
-RESP=$(curl -sS -D - -o /dev/null -X POST http://127.0.0.1:8080/v1/messages \
+RESP=$(curl -sS -D - -o /dev/null -X POST "$BASE_URL"/v1/messages \
 	-H 'content-type: application/json' -d '{"model":"claude-opus-4-5"}')
 MODEL=$(resp_header "$RESP" '^X-Freedius-Matched-Model:')
 if [[ "$MODEL" == "family-opus" ]]; then pass "3.10 non-exact opus falls to family"; else fail "3.10 model (got $MODEL)"; fi
@@ -198,11 +202,11 @@ mappings:
 YAML
 if ! start_server; then echo "  server failed to start (no-default)"; exit 1; fi
 
-STATUS=$(curl -sS -o /dev/null -w "%{http_code}" -X POST http://127.0.0.1:8080/v1/messages \
+STATUS=$(curl -sS -o /dev/null -w "%{http_code}" -X POST "$BASE_URL"/v1/messages \
 	-H 'content-type: application/json' -d '{"model":"unknown"}')
 if [[ "$STATUS" == "404" ]]; then pass "4.6 unknown model status=404"; else fail "4.6 status (got $STATUS)"; fi
 
-BODY=$(curl -sS -X POST http://127.0.0.1:8080/v1/messages \
+BODY=$(curl -sS -X POST "$BASE_URL"/v1/messages \
 	-H 'content-type: application/json' -d '{"model":"unknown"}')
 if [[ "$BODY" == *'"error":"no_match"'* ]]; then pass "4.6 body has error:no_match"; else fail "4.6 body (got $BODY)"; fi
 
@@ -216,14 +220,14 @@ mappings:
 YAML
 if ! start_server; then echo "  server failed to start (known)"; exit 1; fi
 
-RESP=$(curl -sS -D - -o /dev/null -X POST http://127.0.0.1:8080/v1/messages \
+RESP=$(curl -sS -D - -o /dev/null -X POST "$BASE_URL"/v1/messages \
 	-H 'content-type: application/json' -d '{"model":"opus"}')
 STATUS=$(printf '%s\n' "$RESP" | head -1 | awk '{print $2}')
 HEADER=$(resp_header "$RESP" '^X-Freedius-Matched-Provider:')
 if [[ "$STATUS" =~ ^[0-9]+$ ]]; then pass "4.5 known mapping status=$STATUS"; else fail "4.5 status (got $STATUS)"; fi
 if [[ "$HEADER" == "nim" ]]; then pass "4.5 X-Freedius-Matched-Provider: nim"; else fail "4.5 header (got $HEADER)"; fi
 
-STATUS=$(curl -sS -o /dev/null -w "%{http_code}" -X POST http://127.0.0.1:8080/v1/messages \
+STATUS=$(curl -sS -o /dev/null -w "%{http_code}" -X POST "$BASE_URL"/v1/messages \
 	-H 'content-type: application/json' -d '{not json')
 if [[ "$STATUS" == "400" ]]; then pass "4.7 malformed body status=400"; else fail "4.7 status (got $STATUS)"; fi
 
@@ -462,18 +466,21 @@ stop_upstream
 kill -TERM "$SERVER_PID" 2>/dev/null; wait "$SERVER_PID" 2>/dev/null; SERVER_PID=""
 
 unset MISSING_FAKE_KEY 2>/dev/null || true
+# Use provider: openai (not in PresetProviders) so the server starts even
+# when MISSING_FAKE_KEY is unset. The adapter pre-flight check at runtime
+# returns configError "authentication_error" → 500.
 cat > "$CFG" <<'YAML'
 mappings:
-  test: { provider: anthropic, model: test, base_url: http://127.0.0.1:1, api_key_env: MISSING_FAKE_KEY }
+  test: { provider: openai, model: test, base_url: http://127.0.0.1:1/v1/chat/completions, api_key_env: MISSING_FAKE_KEY }
 YAML
 if ! start_server; then echo "  server failed to start (5.6)"; exit 1; fi
 
-RESP=$(curl -sS -D - -o /dev/null -X POST http://127.0.0.1:8080/v1/messages \
+RESP=$(curl -sS -D - -o /dev/null -X POST "$BASE_URL"/v1/messages \
 	-H 'content-type: application/json' -d '{"model":"test"}')
 STATUS=$(printf '%s\n' "$RESP" | head -1 | awk '{print $2}')
 RETRY=$(resp_header "$RESP" '^retry-after:')
 SHOULD_RETRY=$(resp_header "$RESP" '^x-should-retry:')
-BODY=$(resp_body_json -X POST http://127.0.0.1:8080/v1/messages \
+BODY=$(resp_body_json -X POST "$BASE_URL"/v1/messages \
 	-H 'content-type: application/json' -d '{"model":"test"}')
 ERR_TYPE=$(echo "$BODY" | jq -r '.error.type // empty' 2>/dev/null)
 
@@ -493,12 +500,12 @@ mappings:
 YAML
 if ! start_server; then echo "  server failed to start (5.8)"; exit 1; fi
 
-RESP=$(curl -sS -D - -o /dev/null -X POST http://127.0.0.1:8080/v1/messages \
+RESP=$(curl -sS -D - -o /dev/null -X POST "$BASE_URL"/v1/messages \
 	-H 'content-type: application/json' -d '{"model":"test"}')
 STATUS=$(printf '%s\n' "$RESP" | head -1 | awk '{print $2}')
 RETRY=$(resp_header "$RESP" '^retry-after:')
 SHOULD_RETRY=$(resp_header "$RESP" '^x-should-retry:')
-BODY=$(resp_body_json -X POST http://127.0.0.1:8080/v1/messages \
+BODY=$(resp_body_json -X POST "$BASE_URL"/v1/messages \
 	-H 'content-type: application/json' -d '{"model":"test"}')
 ERR_TYPE=$(echo "$BODY" | jq -r '.error.type // empty' 2>/dev/null)
 
@@ -516,12 +523,12 @@ mappings:
 YAML
 if ! start_server; then echo "  server failed to start (5.9)"; exit 1; fi
 
-RESP=$(curl -sS -D - -o /dev/null -X POST http://127.0.0.1:8080/v1/messages \
+RESP=$(curl -sS -D - -o /dev/null -X POST "$BASE_URL"/v1/messages \
 	-H 'content-type: application/json' -d '{"model":"test"}')
 STATUS=$(printf '%s\n' "$RESP" | head -1 | awk '{print $2}')
 RETRY=$(resp_header "$RESP" '^retry-after:')
 SHOULD_RETRY=$(resp_header "$RESP" '^x-should-retry:')
-BODY=$(resp_body_json -X POST http://127.0.0.1:8080/v1/messages \
+BODY=$(resp_body_json -X POST "$BASE_URL"/v1/messages \
 	-H 'content-type: application/json' -d '{"model":"test"}')
 ERR_TYPE=$(echo "$BODY" | jq -r '.error.type // empty' 2>/dev/null)
 
@@ -540,12 +547,12 @@ mappings:
 YAML
 if ! start_server; then echo "  server failed to start (5.10)"; exit 1; fi
 
-RESP=$(curl -sS -D - -o /dev/null -X POST http://127.0.0.1:8080/v1/messages \
+RESP=$(curl -sS -D - -o /dev/null -X POST "$BASE_URL"/v1/messages \
 	-H 'content-type: application/json' -d '{"model":"test"}')
 STATUS=$(printf '%s\n' "$RESP" | head -1 | awk '{print $2}')
 RETRY=$(resp_header "$RESP" '^retry-after:')
 SHOULD_RETRY=$(resp_header "$RESP" '^x-should-retry:')
-BODY=$(resp_body_json -X POST http://127.0.0.1:8080/v1/messages \
+BODY=$(resp_body_json -X POST "$BASE_URL"/v1/messages \
 	-H 'content-type: application/json' -d '{"model":"test"}')
 ERR_TYPE=$(echo "$BODY" | jq -r '.error.type // empty' 2>/dev/null)
 
@@ -565,12 +572,12 @@ mappings:
 YAML
 if ! start_server; then echo "  server failed to start (5.11)"; exit 1; fi
 
-RESP=$(curl -sS -D - -o /dev/null -X POST http://127.0.0.1:8080/v1/messages \
+RESP=$(curl -sS -D - -o /dev/null -X POST "$BASE_URL"/v1/messages \
 	-H 'content-type: application/json' -d '{"model":"test"}')
 STATUS=$(printf '%s\n' "$RESP" | head -1 | awk '{print $2}')
 RETRY=$(resp_header "$RESP" '^retry-after:')
 SHOULD_RETRY=$(resp_header "$RESP" '^x-should-retry:')
-BODY=$(resp_body_json -X POST http://127.0.0.1:8080/v1/messages \
+BODY=$(resp_body_json -X POST "$BASE_URL"/v1/messages \
 	-H 'content-type: application/json' -d '{"model":"test"}')
 ERR_TYPE=$(echo "$BODY" | jq -r '.error.type // empty' 2>/dev/null)
 
@@ -591,7 +598,7 @@ YAML
 if ! start_server; then echo "  server failed to start (5.12)"; exit 1; fi
 
 # Valid request dispatch
-RESP=$(curl -sS -D - -o /dev/null -X POST http://127.0.0.1:8080/v1/messages \
+RESP=$(curl -sS -D - -o /dev/null -X POST "$BASE_URL"/v1/messages \
 	-H 'content-type: application/json' -d '{"model":"opus"}')
 STATUS=$(printf '%s\n' "$RESP" | head -1 | awk '{print $2}')
 PROV=$(resp_header "$RESP" '^X-Freedius-Matched-Provider:')
@@ -601,17 +608,17 @@ if [[ "$PROV" == "nim" ]]; then pass "5.12 X-Freedius-Matched-Provider: nim"; el
 if [[ "$MODEL" == "smokes" ]]; then pass "5.12 X-Freedius-Matched-Model: smokes"; else fail "5.12 model (got $MODEL)"; fi
 
 # Unmatched model
-STATUS=$(curl -sS -o /dev/null -w "%{http_code}" -X POST http://127.0.0.1:8080/v1/messages \
+STATUS=$(curl -sS -o /dev/null -w "%{http_code}" -X POST "$BASE_URL"/v1/messages \
 	-H 'content-type: application/json' -d '{"model":"unknown"}')
 if [[ "$STATUS" == "404" ]]; then pass "5.12 unknown model → 404"; else fail "5.12 unknown (got $STATUS)"; fi
 
 # Malformed body
-STATUS=$(curl -sS -o /dev/null -w "%{http_code}" -X POST http://127.0.0.1:8080/v1/messages \
+STATUS=$(curl -sS -o /dev/null -w "%{http_code}" -X POST "$BASE_URL"/v1/messages \
 	-H 'content-type: application/json' -d '{not json')
 if [[ "$STATUS" == "400" ]]; then pass "5.12 malformed body → 400"; else fail "5.12 malformed (got $STATUS)"; fi
 
 # Empty body
-STATUS=$(curl -sS -o /dev/null -w "%{http_code}" -X POST http://127.0.0.1:8080/v1/messages \
+STATUS=$(curl -sS -o /dev/null -w "%{http_code}" -X POST "$BASE_URL"/v1/messages \
 	-H 'content-type: application/json' -d '')
 if [[ "$STATUS" == "400" ]]; then pass "5.12 empty body → 400"; else fail "5.12 empty (got $STATUS)"; fi
 
