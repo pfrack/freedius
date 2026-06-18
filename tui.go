@@ -144,7 +144,7 @@ func runTUI(args []string) int {
 		}
 	}()
 
-	model := tui.NewDashboard(bus.Subscribe(), cfg, registry)
+	model := tui.NewDashboard(bus.Subscribe(), cfg, registry, cfgPath)
 	prog := tea.NewProgram(model)
 	if _, err := prog.Run(); err != nil {
 		logger.Error("TUI program error", "err", err)

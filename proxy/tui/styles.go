@@ -57,3 +57,10 @@ const (
 	tabProviders = 1
 	tabConfig    = 2
 )
+
+const (
+	formNone          = 0
+	formEdit          = 1
+	formAdd           = 2
+	formDeleteConfirm = 3
+)

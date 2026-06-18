@@ -629,10 +629,10 @@ Verify the complete pipeline: error display + config editing + save + live proxy
 
 #### Automated
 
-- [ ] 3.1 Compiles with `charm.land/bubbles/v2`: `go build ./...`
-- [ ] 3.2 Unit tests: `TestProviderPicker_Selection`
-- [ ] 3.3 Unit tests: `TestProviderInfo` — returns correct metadata for all 7 providers
-- [ ] 3.4 Linting: `go vet ./proxy/tui/`
+- [x] 3.1 Compiles with `charm.land/bubbles/v2`: `go build ./...` — 78b0850
+- [x] 3.2 Unit tests: `TestProviderPicker_Selection` — 78b0850
+- [x] 3.3 Unit tests: `TestProviderInfo` — returns correct metadata for all 7 providers — 78b0850
+- [x] 3.4 Linting: `go vet ./proxy/tui/` — 78b0850
 
 ### Phase 4: Model/Mapping Editor Forms (Modal Overlay)
 

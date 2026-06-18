@@ -114,14 +114,18 @@ func renderProvidersTab(cfg *config.Config, width int) string {
 	return b.String()
 }
 
-func renderConfigTab(cfg *config.Config, width int) string {
+func renderConfigTab(cfg *config.Config, cursor, width int) string {
 	var b strings.Builder
 	b.WriteString(windowStyle.Render("Model Configuration") + "\n\n")
 	b.WriteString(separatorStyle.Render(strings.Repeat("─", max(width-4, 0))) + "\n")
 
 	all := collectAllModels(cfg)
-	for _, entry := range all {
-		label := configKeyStyle.Render(entry.name)
+	for i, entry := range all {
+		nameStyle := configKeyStyle
+		if i == cursor {
+			nameStyle = activeTabStyle
+		}
+		label := nameStyle.Render(entry.name)
 		fmt.Fprintf(&b, "%s (%s):\n", label, entry.kind)
 		fmt.Fprintf(&b, "  provider: %s\n", configValueStyle.Render(entry.model.Provider))
 		fmt.Fprintf(&b, "  model:    %s\n", configValueStyle.Render(entry.model.Model))
@@ -243,4 +247,55 @@ func truncate(s string, maxLen int) string {
 		return s
 	}
 	return s[:maxLen-1] + "…"
+}
+
+func renderForm(d *Dashboard, width, _ int) string {
+	if d.formMode == formDeleteConfirm {
+		return renderDeleteConfirm(d, width)
+	}
+
+	var b strings.Builder
+	b.WriteString(windowStyle.Render("Edit Configuration") + "\n\n")
+
+	fieldLabels := []string{
+		"name",
+		"provider",
+		"model",
+		"base_url",
+		"api_key_env",
+		"anthropic_version",
+		"protocol",
+	}
+
+	for i, label := range fieldLabels {
+		labelStr := configKeyStyle.Render(label + ":")
+		fieldView := d.formFields[i].View()
+
+		if d.showPicker && label == "provider" && d.picker != nil {
+			fieldView = d.picker.View()
+		}
+
+		fmt.Fprintf(&b, "  %s\n  %s\n", labelStr, fieldView)
+
+		if errMsg, ok := d.fieldErrors[i]; ok {
+			fmt.Fprintf(&b, "  %s\n", statusErrorStyle.Render(errMsg))
+		}
+	}
+
+	if d.formError != "" {
+		fmt.Fprintf(&b, "\n  %s\n", statusErrorStyle.Render(d.formError))
+	}
+
+	b.WriteString("\n")
+	footer := statusClientErrStyle.Render("Enter=Save  Esc=Cancel  Tab=Next Field  Ctrl+D=Delete")
+	b.WriteString("  " + footer)
+
+	content := b.String()
+	return windowStyle.Width(max(width-2, 0)).Render(content)
+}
+
+func renderDeleteConfirm(d *Dashboard, width int) string {
+	msg := fmt.Sprintf("Delete %s '%s'? [y/N]", d.formKind, d.formEntryName)
+	content := statusErrorStyle.Render(msg)
+	return windowStyle.Width(max(width-2, 0)).Render(content)
 }
