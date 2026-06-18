@@ -71,6 +71,8 @@ func dispatch(argv []string) int {
 		return runServe(args)
 	case "init":
 		return runInit(args)
+	case "tui":
+		return runTUI(args)
 	case "version":
 		fmt.Printf("freedius %s\n", version)
 		return 0
@@ -257,6 +259,7 @@ func printTopLevelHelp() {
 Usage: freedius [<subcommand>] [<flags>]
 
   serve     Start the proxy server (default)
+  tui       Launch the terminal dashboard
   init      Generate a starter config file
   version   Print the binary version
   help      Show this help

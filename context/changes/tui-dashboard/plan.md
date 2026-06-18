@@ -343,17 +343,17 @@ Wire the complete pipeline end-to-end: `freedius tui` starts the proxy, sends re
 
 #### Automated
 
-- [x] 1.1 Unit tests pass: `go test ./proxy/ -run TestEventBus -race`
-- [x] 1.2 No data races: `go test -race ./proxy/`
-- [x] 1.3 Linting passes: `go vet ./proxy/`
+- [x] 1.1 Unit tests pass: `go test ./proxy/ -run TestEventBus -race` — 626ae13
+- [x] 1.2 No data races: `go test -race ./proxy/` — 626ae13
+- [x] 1.3 Linting passes: `go vet ./proxy/` — 626ae13
 
 ### Phase 2: TUI Subcommand Wiring
 
 #### Automated
 
-- [ ] 2.1 Compiles: `go build -o freedius .`
-- [ ] 2.2 `freedius tui --help` prints usage
-- [ ] 2.3 Linting passes: `go vet ./...`
+- [x] 2.1 Compiles: `go build -o freedius .`
+- [x] 2.2 `freedius tui --help` prints usage
+- [x] 2.3 Linting passes: `go vet ./...`
 
 #### Manual
 
@@ -364,9 +364,9 @@ Wire the complete pipeline end-to-end: `freedius tui` starts the proxy, sends re
 
 #### Automated
 
-- [ ] 3.1 Unit tests pass: `go test ./proxy/tui/ -v`
-- [ ] 3.2 Compiles with Bubble Tea v2: `go build ./proxy/tui/`
-- [ ] 3.3 Linting passes: `go vet ./proxy/tui/`
+- [x] 3.1 Unit tests pass: `go test ./proxy/tui/ -v`
+- [x] 3.2 Compiles with Bubble Tea v2: `go build ./proxy/tui/`
+- [x] 3.3 Linting passes: `go vet ./proxy/tui/`
 
 #### Manual
 
