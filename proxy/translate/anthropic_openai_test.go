@@ -1247,6 +1247,13 @@ data: [DONE]
 			out,
 		)
 	}
+	// Regression: verify block indexes are consistent (start index matches stop index)
+	if !strings.Contains(out, `"index":0,"type":"content_block_stop"`) {
+		t.Errorf("expected thinking block stop at index 0, got: %q", out)
+	}
+	if !strings.Contains(out, `"index":1,"type":"content_block_stop"`) {
+		t.Errorf("expected text block stop at index 1, got: %q", out)
+	}
 }
 
 func TestStream_TextThenReasoningTransition(t *testing.T) {

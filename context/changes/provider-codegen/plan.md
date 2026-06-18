@@ -274,7 +274,7 @@ None — code generation happens at development time only. Runtime behavior is i
 
 #### Manual
 
-- [ ] 1.6 Generated files are readable and clearly marked DO NOT EDIT
+- [x] 1.6 Generated files are readable and clearly marked DO NOT EDIT — 2de7ce1
 
 ### Phase 2: Replace hand-written code with generated equivalents
 
@@ -288,10 +288,10 @@ None — code generation happens at development time only. Runtime behavior is i
 
 #### Automated
 
-- [x] 3.1 `make ci` passes (includes generate-check)
-- [x] 3.2 `make generate-check` passes on clean checkout
-- [x] 3.3 Modifying providers.yaml without re-running generate causes `make generate-check` (and CI) to fail
+- [x] 3.1 `make ci` passes (includes generate-check) — 2de7ce1
+- [x] 3.2 `make generate-check` passes on clean checkout — 2de7ce1
+- [x] 3.3 Modifying providers.yaml without re-running generate causes `make generate-check` (and CI) to fail — 2de7ce1
 
 #### Manual
 
-- [ ] 3.4 Adding a dummy provider to providers.yaml + running go generate produces correct files
+- [x] 3.4 Adding a dummy provider to providers.yaml + running go generate produces correct files — 2de7ce1

@@ -608,11 +608,12 @@ func (e *emitter) emitText(text string) ([][]byte, error) {
 			return nil, err
 		}
 		events = append(events, ev...)
+		e.blockIndex++
 		e.openBlock = "text"
 	}
 	delta := map[string]any{
 		"type":  "content_block_delta",
-		"index": e.blockIndex,
+		"index": e.blockIndex - 1,
 		"delta": map[string]any{
 			"type": "text_delta",
 			"text": text,
