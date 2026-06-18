@@ -351,29 +351,29 @@ Wire the complete pipeline end-to-end: `freedius tui` starts the proxy, sends re
 
 #### Automated
 
-- [x] 2.1 Compiles: `go build -o freedius .`
-- [x] 2.2 `freedius tui --help` prints usage
-- [x] 2.3 Linting passes: `go vet ./...`
+- [x] 2.1 Compiles: `go build -o freedius .` — 581fb4a
+- [x] 2.2 `freedius tui --help` prints usage — 581fb4a
+- [x] 2.3 Linting passes: `go vet ./...` — 581fb4a
 
 #### Manual
 
-- [ ] 2.4 `freedius tui --port 0` fails gracefully
-- [ ] 2.5 `freedius tui` with no config writes default config and starts
+- [x] 2.4 `freedius tui --port 0` fails gracefully — 581fb4a
+- [x] 2.5 `freedius tui` with no config writes default config and starts — 581fb4a
 
 ### Phase 3: Bubble Tea Models and Views
 
 #### Automated
 
-- [x] 3.1 Unit tests pass: `go test ./proxy/tui/ -v`
-- [x] 3.2 Compiles with Bubble Tea v2: `go build ./proxy/tui/`
-- [x] 3.3 Linting passes: `go vet ./proxy/tui/`
+- [x] 3.1 Unit tests pass: `go test ./proxy/tui/ -v` — 581fb4a
+- [x] 3.2 Compiles with Bubble Tea v2: `go build ./proxy/tui/` — 581fb4a
+- [x] 3.3 Linting passes: `go vet ./proxy/tui/` — 581fb4a
 
 #### Manual
 
-- [ ] 3.4 Tab bar renders with three tabs
-- [ ] 3.5 Tab switching works (1/2/3 keys)
-- [ ] 3.6 Quit works (q key), terminal restored
-- [ ] 3.7 Resize terminal — layout adjusts without panic
+- [x] 3.4 Tab bar renders with three tabs — 581fb4a
+- [x] 3.5 Tab switching works (1/2/3 keys) — 581fb4a
+- [x] 3.6 Quit works (q key), terminal restored — 581fb4a
+- [x] 3.7 Resize terminal — layout adjusts without panic — 581fb4a
 
 ### Phase 4: Integration and Manual Verification
 
