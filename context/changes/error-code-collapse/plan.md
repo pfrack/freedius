@@ -423,8 +423,8 @@ The existing `TestDispatcher_AdapterError_TranslatedAsAnthropicOverloaded` (plai
 
 - [ ] 3.1 `go test ./proxy/...` — `TestTranslateUpstreamError` "502" case passes (502→502)
 - [ ] 3.2 `go test ./proxy/...` — new "504" case passes (504→504)
-- [x] 3.3 `go test ./proxy/...` — all other `TestTranslateUpstreamError` cases pass unchanged
-- [x] 3.4 `go vet ./...` — clean
+- [x] 3.3 `go test ./proxy/...` — all other `TestTranslateUpstreamError` cases pass unchanged — ef0953c
+- [x] 3.4 `go vet ./...` — clean — ef0953c
 
 ### Phase 4: `freediusErrorHandler` DNS/TLS Detection
 
@@ -432,9 +432,9 @@ The existing `TestDispatcher_AdapterError_TranslatedAsAnthropicOverloaded` (plai
 
 - [ ] 4.1 `go test ./proxy/...` — `TestFreediusErrorHandler_DNSError_Returns502` passes
 - [ ] 4.2 `go test ./proxy/...` — `TestFreediusErrorHandler_ConnectionRefused_Returns529` passes
-- [ ] 4.3 `go test ./proxy/...` — existing `TestFreediusErrorHandler_TransportError` passes (plain → 529)
-- [ ] 4.4 `go test ./proxy/...` — existing `TestFreediusErrorHandler_ClientCanceled` passes
-- [ ] 4.5 `go vet ./...` — clean
+- [x] 4.3 `go test ./proxy/...` — existing `TestFreediusErrorHandler_TransportError` passes (plain → 529)
+- [x] 4.4 `go test ./proxy/...` — existing `TestFreediusErrorHandler_ClientCanceled` passes
+- [x] 4.5 `go vet ./...` — clean
 
 ### Phase 5: Tests
 
