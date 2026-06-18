@@ -59,7 +59,10 @@ func (a *MixAdapter) Handle(
 	}
 	parsedURL, err := url.Parse(m.BaseURL)
 	if err != nil {
-		return fmt.Errorf("%s adapter (mix): parse base_url: %w", originalOr(m), err)
+		return &configError{
+			err:     fmt.Errorf("%s adapter (mix): parse base_url: %w", originalOr(m), err),
+			errType: "invalid_request_error",
+		}
 	}
 	if strings.HasSuffix(parsedURL.Path, "/v1/messages") {
 		a.logger.Debug("mix routing", "path", parsedURL.Path, "selected", "anthropic")

@@ -12,6 +12,17 @@ import (
 	"unicode"
 )
 
+// configError wraps an adapter pre-flight configuration error with an
+// Anthropic error.type string so the dispatcher can return 500 with the
+// correct error type instead of collapsing to 529 overloaded_error.
+type configError struct {
+	err     error
+	errType string
+}
+
+func (e *configError) Error() string { return e.err.Error() }
+func (e *configError) Unwrap() error { return e.err }
+
 func forwardUpstreamError(w http.ResponseWriter, resp *http.Response) error {
 	for k, vv := range resp.Header {
 		for _, v := range vv {

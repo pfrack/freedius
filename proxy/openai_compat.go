@@ -63,24 +63,36 @@ func (a *OpenAICompatibleAdapter) Handle(
 	body []byte,
 ) error {
 	if m.BaseURL == "" {
-		return fmt.Errorf("%s adapter (openai-compat): missing base_url", originalOr(m))
+		return &configError{
+			err:     fmt.Errorf("%s adapter (openai-compat): missing base_url", originalOr(m)),
+			errType: "invalid_request_error",
+		}
 	}
 	apiKey := os.Getenv(m.APIKeyEnv)
 	if apiKey == "" {
-		return fmt.Errorf(
-			"%s adapter (openai-compat): env var %s is not set",
-			originalOr(m),
-			m.APIKeyEnv,
-		)
+		return &configError{
+			err: fmt.Errorf(
+				"%s adapter (openai-compat): env var %s is not set",
+				originalOr(m),
+				m.APIKeyEnv,
+			),
+			errType: "authentication_error",
+		}
 	}
 	upstreamBody, err := translate.Request(body, m.Model, a.translateOpts)
 	if err != nil {
-		return fmt.Errorf("%s adapter (openai-compat): translate request: %w", originalOr(m), err)
+		return &configError{
+			err:     fmt.Errorf("%s adapter (openai-compat): translate request: %w", originalOr(m), err),
+			errType: "invalid_request_error",
+		}
 	}
 	if a.preSendHook != nil {
 		upstreamBody, err = a.preSendHook(upstreamBody)
 		if err != nil {
-			return fmt.Errorf("%s adapter (openai-compat): sanitize body: %w", originalOr(m), err)
+			return &configError{
+				err:     fmt.Errorf("%s adapter (openai-compat): sanitize body: %w", originalOr(m), err),
+				errType: "invalid_request_error",
+			}
 		}
 	}
 	// Bound the upstream call so a hanging provider cannot pin the goroutine.
@@ -94,7 +106,10 @@ func (a *OpenAICompatibleAdapter) Handle(
 		bytes.NewReader(upstreamBody),
 	)
 	if err != nil {
-		return fmt.Errorf("%s adapter (openai-compat): build request: %w", originalOr(m), err)
+		return &configError{
+			err:     fmt.Errorf("%s adapter (openai-compat): build request: %w", originalOr(m), err),
+			errType: "invalid_request_error",
+		}
 	}
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 	req.Header.Set("Content-Type", "application/json")
