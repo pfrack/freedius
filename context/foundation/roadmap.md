@@ -3,7 +3,7 @@ project: freedius
 version: 1
 status: draft
 created: 2026-06-16
-updated: 2026-06-17
+updated: 2026-06-18
 prd_version: 1
 main_goal: speed
 top_blocker: time
@@ -35,6 +35,7 @@ A developer using Claude Code wants to route LLM calls to cheaper or free provid
 | S-05 | opencode-nim-fixes | route calls to OpenCode Go Anthropic-format models (MiniMax, Qwen on `/v1/messages`) without 401; NIM streaming delivers reasoning content instead of empty/malformed SSE responses | S-03          | FR-006, FR-007, FR-008, NFR-Error-handling       | proposed |
 | S-06 | custom-to-mix-protocol | use `provider: custom` with any endpoint — freedius auto-detects protocol from URL or user sets explicit `protocol: openai\|anthropic` field | S-03          | FR-003, FR-009                                   | proposed |
 | S-07 | provider-codegen   | add a new provider by adding one entry to `providers.yaml` and running `go generate` — all boilerplate (adapters, config maps, registry, validation) is generated | S-05, S-06    | FR-003, FR-004                                   | proposed |
+| S-08 | openai-count-tokens | `POST /v1/messages/count_tokens` returns a useful `input_tokens` estimate when routed to OpenAI-protocol upstreams (NIM, OpenCode Go, custom OpenAI-compat) — no more 501 for these providers | S-01, count-tokens-passthrough | (new capability — local token counting)        | proposed |
 
 ## Baseline
 
@@ -154,6 +155,21 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Risk:** Low — this is a pure internal refactor with no user-facing behavior change. The generated code is deterministic and reviewable. Risk is over-abstracting: the template must stay simple enough that reading a generated file is trivial.
 - **Status:** proposed
 
+### S-08: Local token counting for OpenAI-protocol upstreams
+
+- **Outcome:** Claude Code's `/v1/messages/count_tokens` probe returns a useful `input_tokens` estimate when the request is routed to OpenAI-protocol upstreams (NIM, OpenCode Go, custom OpenAI-compatible endpoints like DeepSeek via opencode-go). The user no longer sees 501 for these providers. Implementation: a local counter (character-based heuristic or `github.com/pkoukk/tiktoken-go` with `cl100k_base` encoding) runs in the dispatcher before the 501 rejection path; on success the response shape is identical to Anthropic's upstream `{"input_tokens": N, ...}`.
+- **Change ID:** openai-count-tokens
+- **PRD refs:** (new capability — local token counting extends FR-001 / FR-006 / FR-007 / FR-008 by making `count_tokens` usable across all provider protocols)
+- **Prerequisites:** S-01 (first-call-routed — proves the routing/dispatch path is stable enough to add a non-trivial branch), count-tokens-passthrough (the routing logic that currently emits 501 for OpenAI-protocol upstreams; the new counter replaces the rejection with a useful response)
+- **Parallel with:** —
+- **Blockers:** —
+- **Unknowns:**
+  - **Counter approach: tiktoken-go vs character-based heuristic.** Owner: user. Block: no. tiktoken-go is more accurate (~within a few percent of upstream tokenizers) but adds a dependency; character heuristic has zero new deps but is coarser (~within 20% of upstream). Both satisfy the use case (pre-flight estimation, prompt trimming) per the reference pattern in `free-claude-code` (`core/anthropic/tokens.py`).
+  - **Does the local counter need to match the upstream's tokenizer exactly?** Block: no. count_tokens is for estimation only; Anthropic's own docs describe it as a "best effort" estimate. As long as the count is in the right ballpark, Claude Code's pre-flight behavior is preserved.
+  - **What encoding for tiktoken?** Likely `cl100k_base` (matches GPT-4 / most OpenAI-style tokenizers and the `free-claude-code` reference). Owner: user. Block: no.
+- **Risk:** Medium — adds a new dependency (tiktoken-go) if we go that route; char-heuristic has zero new deps. The token count will not match the upstream's count exactly, but Claude Code uses it for pre-flight estimation only, so accuracy within ~10–20% is fine. The dispatcher-level integration follows the same pattern as the existing count_tokens 501 check (single capability branch in `proxy/capabilities.go`), keeping the change small.
+- **Status:** proposed
+
 ## Backlog Handoff
 
 | Roadmap ID | Change ID          | Suggested issue title                      | Ready for `/10x-plan` | Notes |
@@ -166,6 +182,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 | S-05       | opencode-nim-fixes | OpenCode Go Anthropic-format 401 fix + NIM SSE reasoning fixes | no                    | Needs S-03. Auth change (x-api-key) applies universally to all Anthropic-compat providers. |
 | S-06       | custom-to-mix-protocol | Custom → mix + protocol field — remove CustomAdapter, add protocol config field | no                    | Needs S-03. Runs parallel with S-05. Small refactor following existing zen/go pattern. |
 | S-07       | provider-codegen   | Provider codegen — go:generate boilerplate from providers.yaml | no                    | Needs S-05, S-06. Auth scheme, SSE patterns, and protocol field must be stable before codegen extraction. |
+| S-08       | openai-count-tokens | Local token counting for OpenAI-protocol upstreams (tiktoken-go or char-heuristic) | no                    | Needs S-01 + count-tokens-passthrough. Replaces the 501 path with a useful `input_tokens` estimate. Counter approach (tiktoken vs char-heuristic) is an open question for the planner. |
 
 ## Open Roadmap Questions
 
