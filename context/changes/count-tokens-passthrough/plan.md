@@ -458,22 +458,22 @@ The `context.Canceled` early-return and the `logger.Error(...)` line remain unch
 
 #### Automated
 
-- [x] 2.1 `go test ./proxy/...` — all existing tests still pass
-- [x] 2.2 `go test ./proxy/...` — `TestWriteAnthropicError` passes
-- [x] 2.3 `go test ./proxy/...` — `TestTranslateUpstreamError` passes
-- [x] 2.4 `go vet ./...` — clean
-- [x] 2.5 `gofumpt -l proxy/` — no formatting issues
+- [x] 2.1 `go test ./proxy/...` — all existing tests still pass — ed5a02d
+- [x] 2.2 `go test ./proxy/...` — `TestWriteAnthropicError` passes — ed5a02d
+- [x] 2.3 `go test ./proxy/...` — `TestTranslateUpstreamError` passes — ed5a02d
+- [x] 2.4 `go vet ./...` — clean — ed5a02d
+- [x] 2.5 `gofumpt -l proxy/` — no formatting issues — ed5a02d
 
 ### Phase 3: Wire Anthropic errors into all error paths
 
 #### Automated
 
-- [ ] 3.1 `go test ./proxy/...` — all existing tests pass (updated for new format)
-- [ ] 3.2 `go test ./proxy/...` — new integration tests pass
-- [ ] 3.3 `go test ./...` — full module test suite passes
-- [ ] 3.4 `go vet ./...` — clean
-- [ ] 3.5 `go build -o freedius .` — binary builds
-- [ ] 3.6 `gofumpt -l proxy/` — no formatting issues
+- [x] 3.1 `go test ./proxy/...` — all existing tests pass (updated for new format)
+- [x] 3.2 `go test ./proxy/...` — new integration tests pass
+- [x] 3.3 `go test ./...` — full module test suite passes
+- [x] 3.4 `go vet ./...` — clean
+- [x] 3.5 `go build -o freedius .` — binary builds
+- [x] 3.6 `gofumpt -l proxy/` — no formatting issues
 
 #### Manual
 

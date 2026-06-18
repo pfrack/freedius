@@ -52,22 +52,29 @@ func TestDispatcher_AdapterError_ForwardedAsUpstreamError(t *testing.T) {
 		req.Header.Set("Content-Type", "application/json")
 		handler.ServeHTTP(rec, req)
 
-		if rec.Code != http.StatusBadGateway {
-			t.Fatalf("status: got %d, want 502", rec.Code)
+		if rec.Code != 529 {
+			t.Fatalf("status: got %d, want 529", rec.Code)
 		}
-		body := decodeErrorBody(t, rec)
-		if body["error"] != "upstream_error" {
-			t.Errorf("error code: got %q, want upstream_error", body["error"])
+		var body map[string]any
+		if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+			t.Fatal(err)
 		}
-		if body["message"] == "" {
-			t.Error("expected message")
+		if body["type"] != "error" {
+			t.Errorf("type: got %v, want error", body["type"])
 		}
-		if _, has := body["detail"]; has {
-			t.Errorf("detail must be omitted when verboseErrors=false; body=%v", body)
+		inner := body["error"].(map[string]any)
+		if inner["type"] != "overloaded_error" {
+			t.Errorf("error.type: got %v, want overloaded_error", inner["type"])
+		}
+		if got := rec.Header().Get("retry-after"); got != "15" {
+			t.Errorf("retry-after: got %q, want 15", got)
+		}
+		if got := rec.Header().Get("x-should-retry"); got != "true" {
+			t.Errorf("x-should-retry: got %q, want true", got)
 		}
 	})
 
-	t.Run("with verbose-errors detail is included", func(t *testing.T) {
+	t.Run("with verbose-errors same Anthropic shape", func(t *testing.T) {
 		registry := NewRegistry(map[string]Provider{
 			"nim": &preWriteHeaderErrProvider{err: errors.New("upstream connection refused")},
 		})
@@ -79,12 +86,16 @@ func TestDispatcher_AdapterError_ForwardedAsUpstreamError(t *testing.T) {
 		req.Header.Set("Content-Type", "application/json")
 		handler.ServeHTTP(rec, req)
 
-		if rec.Code != http.StatusBadGateway {
-			t.Fatalf("status: got %d, want 502", rec.Code)
+		if rec.Code != 529 {
+			t.Fatalf("status: got %d, want 529", rec.Code)
 		}
-		body := decodeErrorBody(t, rec)
-		if body["detail"] != "upstream connection refused" {
-			t.Errorf("detail: got %q, want upstream connection refused", body["detail"])
+		var body map[string]any
+		if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+			t.Fatal(err)
+		}
+		inner := body["error"].(map[string]any)
+		if inner["type"] != "overloaded_error" {
+			t.Errorf("error.type: got %v, want overloaded_error", inner["type"])
 		}
 	})
 }
@@ -95,25 +106,29 @@ func TestFreediusErrorHandler_UnifiedShape(t *testing.T) {
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 
-	// Inject a request_id so we can verify the body field is populated.
+	// Inject a request_id so we can verify context is handled.
 	ctx := context.WithValue(req.Context(), requestIDKey, "abc123")
 	handler(rec, req.WithContext(ctx), errors.New("dial tcp: connection refused"))
 
-	if rec.Code != http.StatusBadGateway {
-		t.Fatalf("status: got %d, want 502", rec.Code)
+	if rec.Code != 529 {
+		t.Fatalf("status: got %d, want 529", rec.Code)
 	}
-	body := decodeErrorBody(t, rec)
-	if body["error"] != "upstream_unreachable" {
-		t.Errorf("error: got %q, want upstream_unreachable", body["error"])
+	var body map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatal(err)
 	}
-	if body["message"] != "upstream not reachable" {
-		t.Errorf("message: got %q, want upstream not reachable", body["message"])
+	if body["type"] != "error" {
+		t.Errorf("type: got %v, want error", body["type"])
 	}
-	if body["detail"] != "dial tcp: connection refused" {
-		t.Errorf("detail: got %q, want dial tcp: connection refused", body["detail"])
+	inner := body["error"].(map[string]any)
+	if inner["type"] != "overloaded_error" {
+		t.Errorf("error.type: got %v, want overloaded_error", inner["type"])
 	}
-	if body["request_id"] != "abc123" {
-		t.Errorf("request_id: got %q, want abc123", body["request_id"])
+	if inner["message"] != "upstream not reachable" {
+		t.Errorf("error.message: got %v, want upstream not reachable", inner["message"])
+	}
+	if got := rec.Header().Get("retry-after"); got != "15" {
+		t.Errorf("retry-after: got %q, want 15", got)
 	}
 }
 

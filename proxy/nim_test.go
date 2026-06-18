@@ -163,7 +163,7 @@ func TestNIMAdapter_OmitsStreamOptionsAndStripsBooleanSchema(t *testing.T) {
 	}
 }
 
-func TestNIMAdapter_Upstream401_ForwardsVerbatim(t *testing.T) {
+func TestNIMAdapter_Upstream401_ReturnsAnthropicFormat(t *testing.T) {
 	t.Setenv("NVIDIA_NIM_API_KEY", "sk-test")
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -195,15 +195,37 @@ func TestNIMAdapter_Upstream401_ForwardsVerbatim(t *testing.T) {
 	if rec.Code != http.StatusUnauthorized {
 		t.Errorf("status: got %d, want %d", rec.Code, http.StatusUnauthorized)
 	}
-	if !strings.Contains(rec.Body.String(), "invalid api key") {
-		t.Errorf("body should contain upstream error verbatim, got %q", rec.Body.String())
+	if got := rec.Header().Get("Content-Type"); got != "application/json" {
+		t.Errorf("Content-Type: got %q, want application/json", got)
+	}
+	if got := rec.Header().Get("retry-after"); got != "" {
+		t.Errorf("retry-after should be absent for 401, got %q", got)
+	}
+	if got := rec.Header().Get("x-should-retry"); got != "" {
+		t.Errorf("x-should-retry should be absent for 401, got %q", got)
+	}
+	raw := rec.Body.String()
+	var resp map[string]any
+	if err := json.Unmarshal([]byte(raw), &resp); err != nil {
+		t.Fatalf("decode body: %v\nraw: %q", err, raw)
+	}
+	if resp["type"] != "error" {
+		t.Errorf("type: got %v, want error", resp["type"])
+	}
+	inner := resp["error"].(map[string]any)
+	if inner["type"] != "authentication_error" {
+		t.Errorf("error.type: got %v, want authentication_error", inner["type"])
+	}
+	if !strings.Contains(raw, "invalid api key") {
+		t.Errorf("body should include upstream snippet in message, got %q", raw)
 	}
 }
 
-func TestNIMAdapter_Upstream429_ForwardsVerbatim(t *testing.T) {
+func TestNIMAdapter_Upstream429_ReturnsAnthropicFormat(t *testing.T) {
 	t.Setenv("NVIDIA_NIM_API_KEY", "sk-test")
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("retry-after", "30")
 		w.WriteHeader(http.StatusTooManyRequests)
 		_, _ = w.Write([]byte(`{"error":"rate limited"}`))
 	}))
@@ -231,6 +253,27 @@ func TestNIMAdapter_Upstream429_ForwardsVerbatim(t *testing.T) {
 	}
 	if rec.Code != http.StatusTooManyRequests {
 		t.Errorf("status: got %d, want %d", rec.Code, http.StatusTooManyRequests)
+	}
+	if got := rec.Header().Get("Content-Type"); got != "application/json" {
+		t.Errorf("Content-Type: got %q, want application/json", got)
+	}
+	if got := rec.Header().Get("retry-after"); got != "30" {
+		t.Errorf("retry-after: got %q, want 30 (from upstream)", got)
+	}
+	if got := rec.Header().Get("x-should-retry"); got != "true" {
+		t.Errorf("x-should-retry: got %q, want true", got)
+	}
+	raw := rec.Body.String()
+	var resp map[string]any
+	if err := json.Unmarshal([]byte(raw), &resp); err != nil {
+		t.Fatalf("decode body: %v\nraw: %q", err, raw)
+	}
+	if resp["type"] != "error" {
+		t.Errorf("type: got %v, want error", resp["type"])
+	}
+	inner := resp["error"].(map[string]any)
+	if inner["type"] != "rate_limit_error" {
+		t.Errorf("error.type: got %v, want rate_limit_error", inner["type"])
 	}
 }
 

@@ -1,89 +1,59 @@
-# /v1/messages/count_tokens Passthrough — Plan Brief
+# count_tokens Passthrough + Anthropic Error Propagation — Plan Brief
 
 > Full plan: `context/changes/count-tokens-passthrough/plan.md`
 > Research: `context/changes/count-tokens-passthrough/research.md`
 
 ## What & Why
 
-freedius's dispatcher currently ignores `r.URL.Path`, so Claude Code's `/v1/messages/count_tokens` probe flows through `httputil.ReverseProxy` to Anthropic-protocol upstreams (works by accident) and silently breaks on OpenAI-protocol upstreams (wrong endpoint, wrong response shape, no translation). This change adds path-aware routing so Anthropic-protocol providers keep working and OpenAI-protocol providers correctly return `501 Not Implemented` instead of corrupting the request.
+Two proxy correctness fixes so Claude Code works reliably through freedius: (1) Route `/v1/messages/count_tokens` correctly (done ✓), and (2) translate upstream errors from non-Anthropic providers into Anthropic-format responses so Claude Code's retry logic triggers properly instead of seeing garbled JSON or hard failures.
 
 ## Starting Point
 
-`Dispatcher.ServeHTTP` (`proxy/proxy.go:70-244`) validates method + content type, reads body, parses the `"model"` field, resolves it to a `config.Model`, looks up the provider in the `Registry`, and forwards — never inspecting the path. `AnthropicCompatibleAdapter` (`proxy/anthropic_compat.go:39-84`) uses `httputil.ReverseProxy` which preserves the original path, so `count_tokens` reaches upstream Anthropic correctly. `OpenAICompatibleAdapter` (`proxy/openai_compat.go:90-127`) builds a hardcoded request to `m.BaseURL` and runs `translate.Stream`, which expects OpenAI SSE chunks and returns garbage on count_tokens. `MixAdapter` (`proxy/mix.go:44-69`) already routes to anthropic/openai sub-adapters based on `m.Protocol` or URL sniff (`strings.HasSuffix(parsedURL.Path, "/v1/messages")`).
+Phase 1 (count_tokens routing) is complete. For error propagation: `forwardUpstreamError` copies upstream error responses verbatim (status + headers + body). When the upstream is NIM/OpenAI, the body shape is OpenAI format — Claude Code doesn't parse it for retry decisions. Transport errors (timeouts, DNS failures) produce a freedius-format 502 with no `x-should-retry` header, so Claude Code doesn't retry at all.
 
 ## Desired End State
 
-`POST /v1/messages/count_tokens` against an Anthropic-protocol provider passes through to upstream and returns Anthropic's `{"input_tokens":N,...}` response. `POST /v1/messages/count_tokens` against an OpenAI-protocol provider returns `501 Not Implemented` with the freedius error envelope `{"error":"not_supported","message":"...provider \"<name>\"..."}` — no upstream call. Regular `/v1/messages` requests are unaffected.
+Every error from every adapter produces an Anthropic-format JSON response with `retry-after` and `x-should-retry: true` headers (for retryable conditions). Claude Code shows "Retrying in X seconds…" when NIM is overloaded or unreachable, instead of a hard failure.
 
 ## Key Decisions Made
 
-| Decision                                | Choice                                                                                                       | Why (1 sentence)                                                                       | Source        |
-| --------------------------------------- | ------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------- | ------------- |
-| Where capability knowledge lives        | Helper function in `proxy/capabilities.go` (NOT on `Provider` interface)                                     | Smallest surface for one endpoint; matches research's proposed sketch; no interface change. | Plan          |
-| How mix's sub-routing is determined     | Dispatcher peeks at `m.Protocol` + URL sniff (duplicating mix's logic in ~5 lines)                           | No behavior change to MixAdapter; synchronous check before adapter dispatch; unit test catches drift. | Plan          |
-| Error response shape                    | `writeErrorJSON` (freedius envelope: `error`, `message`, `request_id`)                                       | Consistent with every other dispatcher error (no_match, missing_model, etc.).         | Plan          |
-| Test coverage                           | Focused matrix (~6 cases) + `supportsCountTokens` unit test                                                  | Covers the bug + the routing matrix + the regression in one file; mirrors existing `TestServeHTTP` table pattern. | Plan          |
-| Generalization                          | Endpoint-specific; repeat pattern for future Anthropic-protocol endpoints                                    | Smallest possible change; no speculation about future endpoints.                      | Plan          |
-| OpenAI-protocol support for count_tokens | Deferred to follow-up plan (Phase 2); implementation choice (char-based heuristic vs `tiktoken-go`) TBD     | Your DeepSeek-via-OpenCode-Go scenario needs it, but it's a feature addition not a correctness fix. | Plan          |
+| Decision | Choice | Why (1 sentence) | Source |
+|---|---|---|---|
+| Translate anthropic adapter transport errors too | Yes — all paths | Consistent retry behavior regardless of which adapter/failure mode. | Plan |
+| Default retry-after when upstream doesn't provide | 15 seconds | Moderate — gives upstream breathing room without killing CC's retry budget. | Plan |
+| Which statuses get x-should-retry | 429, 503, 529, timeouts (not auth failures) | Matches real Anthropic API behavior. | Research |
+| freedius's own errors (404, 405) | Keep freedius-format | Clear separation — proxy errors shouldn't be retried. | Plan |
 
 ## Scope
 
-**In scope:**
-- `proxy/capabilities.go` (new) with `isCountTokensPath` + `supportsCountTokens` helpers
-- `proxy/proxy.go` — insert capability check between model resolution and adapter dispatch
-- `proxy/capabilities_test.go` (new) — unit tests for both helpers
-- `proxy/proxy_test.go` — 6-case table-driven integration test for the routing matrix
+**In scope:** `writeAnthropicError` + `translateUpstreamError` functions; wiring into OpenAI-compat error path, dispatcher 502 path, and `freediusErrorHandler`; updating existing NIM tests to expect new format; integration tests.
 
-**Out of scope:**
-- Local token counting for OpenAI-protocol upstreams (deferred to follow-up)
-- HEAD/OPTIONS probe handling for count_tokens (Claude Code doesn't probe this endpoint)
-- Translation layer changes
-- New config flags
-- Provider-interface capability methods
-- Telemetry beyond what `AccessLogMiddleware` already emits
+**Out of scope:** Mid-stream SSE error events (response already started); freedius-level retry/failover logic; local rate limiting.
 
 ## Architecture / Approach
 
-```
-Claude Code ─POST /v1/messages/count_tokens─▶ Dispatcher.ServeHTTP
-                                                    │
-                                                    ├─ method/content-type/body checks (existing)
-                                                    ├─ model resolution (existing)
-                                                    ▼
-                                  isCountTokensPath(r.URL.Path)?
-                                                    │
-                                              ┌─────┴─────┐
-                                              │yes        │no
-                                              ▼           ▼
-                                  supportsCountTokens(m)?  fall through to adapter dispatch
-                                              │                  (existing /v1/messages path)
-                                        ┌─────┴─────┐
-                                        │yes        │no
-                                        ▼           ▼
-                                  adapter.Handle  writeErrorJSON(501, "not_supported")
-                                  (pass-through)  return
-```
-
-The capability check is ~5 lines in the dispatcher plus the two helpers in `proxy/capabilities.go`. `supportsCountTokens` encodes four rules: `provider == "anthropic"` → true; `provider == "mix"` with `protocol == "anthropic"` → true; `provider == "mix"` with no protocol and `BaseURL` path ending in `/v1/messages` → true (URL sniff mirrors `MixAdapter.Handle` line 64); everything else → false.
+A single `writeAnthropicError(w, status, errType, message, retryAfter)` function emits the Anthropic envelope + headers. `translateUpstreamError(w, resp)` maps upstream status codes to the right Anthropic error type. Three call sites are updated: OpenAI-compat adapter's `StatusCode >= 400` branch, dispatcher's adapter-error branch, and `freediusErrorHandler`.
 
 ## Phases at a Glance
 
-| Phase | What it delivers                                                       | Key risk                                                                  |
-| ----- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| 1     | Path-aware count_tokens routing — pass-through for Anthropic-protocol, 501 for OpenAI-protocol, with focused test matrix. | Mix routing rule duplication drift between `MixAdapter.Handle` and `supportsCountTokens` (mitigated by unit test + cross-reference comment). |
+| Phase | What it delivers | Key risk |
+|---|---|---|
+| 1. count_tokens routing ✓ | Correct 501/passthrough for all provider types | Done |
+| 2. Anthropic error writer | `writeAnthropicError` + `translateUpstreamError` with tests | Low — pure functions, no wiring yet |
+| 3. Wire into error paths | All errors reach Claude Code as retryable Anthropic-format | Existing NIM tests must be updated to new format |
 
-**Prerequisites:** None — S-01 (first-call-routed) and S-02 (provider-and-mapping) are done; this change modifies the dispatcher that they already produced.
-**Estimated effort:** ~1 session, single phase, ~70 LOC + ~150 LOC tests.
+**Prerequisites:** Phase 1 complete (✓).
+**Estimated effort:** ~1-2 sessions across 2 phases.
 
 ## Open Risks & Assumptions
 
-- **Mix routing rule duplication**: `supportsCountTokens` duplicates `MixAdapter.Handle`'s protocol-and-URL-sniff rule (`proxy/mix.go:50-69`). If mix's rule changes (e.g. a third protocol), both must update. Mitigated by a doc comment pointing to `MixAdapter.Handle` and `TestSupportsCountTokens` covering each branch.
-- **Phase 2 (local token counting) is filed separately** — your DeepSeek-via-OpenCode-Go scenario still gets `501 not_supported` for count_tokens until that lands. Not a regression (today it silently corrupts the request), but not a fix either.
-- **Exact path match (`r.URL.Path == "/v1/messages/count_tokens"`) assumes Anthropic's API surface won't grow a path-prefixed variant**. If you need prefix support later, this becomes a 2-line change in `isCountTokensPath`.
+- Existing NIM 429/401 tests assert verbatim passthrough — they need updating to assert Anthropic format (behavior intentionally changes).
+- Mid-stream failures (timeout after 200 OK + SSE headers) are NOT fixable without SSE error events — left out of scope. Claude Code handles truncated SSE as a hard fail.
+- `retry-after: 15` default may be too conservative or too aggressive depending on provider — tunable later via config if needed.
 
 ## Success Criteria (Summary)
 
-- `POST /v1/messages/count_tokens` to an Anthropic-protocol provider returns the upstream's token count response (verified by integration test + manual curl).
-- `POST /v1/messages/count_tokens` to an OpenAI-protocol provider returns `501 Not Implemented` with `{"error":"not_supported",...}` and the provider name in the message (verified by integration test + manual curl).
-- `POST /v1/messages` continues to work identically for every provider (regression test covers one case; existing test suite covers the rest).
+- Claude Code shows "Retrying in X seconds…" when NIM returns 429 or times out (instead of hard failure or garbled error).
+- Anthropic adapter transport errors (unreachable upstream) also trigger Claude Code retry.
+- Normal streaming responses are unaffected across all providers.
 - `go test ./...`, `go vet ./...`, `go build`, `gofumpt` all clean.

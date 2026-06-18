@@ -43,38 +43,31 @@ func TestForwardUpstreamError(t *testing.T) {
 
 func TestFreediusErrorHandler_TransportError(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	t.Run("verbose=false omits detail", func(t *testing.T) {
+	t.Run("emits Anthropic-format 529", func(t *testing.T) {
 		handler := freediusErrorHandler(logger, false)
 		rec := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 		handler(rec, req, errors.New("connection refused"))
 
-		if rec.Code != http.StatusBadGateway {
-			t.Errorf("status: got %d, want %d", rec.Code, http.StatusBadGateway)
+		if rec.Code != 529 {
+			t.Errorf("status: got %d, want 529", rec.Code)
 		}
-		var body map[string]string
+		var body map[string]any
 		if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
 			t.Fatalf("decode body: %v", err)
 		}
-		if body["error"] != "upstream_unreachable" {
-			t.Errorf("error: got %q, want upstream_unreachable", body["error"])
+		if body["type"] != "error" {
+			t.Errorf("type: got %v, want error", body["type"])
 		}
-		if _, ok := body["detail"]; ok {
-			t.Errorf("detail must be omitted when verboseErrors=false; got %q", body["detail"])
+		inner := body["error"].(map[string]any)
+		if inner["type"] != "overloaded_error" {
+			t.Errorf("error.type: got %v, want overloaded_error", inner["type"])
 		}
-	})
-	t.Run("verbose=true includes detail", func(t *testing.T) {
-		handler := freediusErrorHandler(logger, true)
-		rec := httptest.NewRecorder()
-		req := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
-		handler(rec, req, errors.New("connection refused"))
-
-		var body map[string]string
-		if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
-			t.Fatalf("decode body: %v", err)
+		if got := rec.Header().Get("retry-after"); got != "15" {
+			t.Errorf("retry-after: got %q, want 15", got)
 		}
-		if body["detail"] != "connection refused" {
-			t.Errorf("detail: got %q, want connection refused", body["detail"])
+		if got := rec.Header().Get("x-should-retry"); got != "true" {
+			t.Errorf("x-should-retry: got %q, want true", got)
 		}
 	})
 }

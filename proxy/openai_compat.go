@@ -107,8 +107,7 @@ func (a *OpenAICompatibleAdapter) Handle(
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode >= 400 {
-		// Forward the error; any copy error is ignored because response is already in flight
-		_ = forwardUpstreamError(w, resp)
+		translateUpstreamError(w, resp)
 		return nil
 	}
 

@@ -125,18 +125,7 @@ func freediusErrorHandler(
 			"path", r.URL.Path,
 			"err", err,
 		)
-		body := map[string]string{
-			"error":   "upstream_unreachable",
-			"message": "upstream not reachable",
-		}
-		if verboseErrors {
-			body["detail"] = err.Error()
-		}
-		if id := RequestIDFromContext(r.Context()); id != "" {
-			body["request_id"] = id
-		}
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusBadGateway)
-		_ = json.NewEncoder(w).Encode(body)
+		writeAnthropicError(w, 529, "overloaded_error",
+			"upstream not reachable", 15)
 	}
 }

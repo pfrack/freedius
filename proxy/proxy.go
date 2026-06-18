@@ -68,6 +68,11 @@ func NewDispatcher(
 }
 
 func (d *Dispatcher) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodHead || (r.Method == http.MethodGet && r.URL.Path == "/health") {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
 	if r.Method != http.MethodPost {
 		w.Header().Set("Allow", http.MethodPost)
 		d.writeErrorJSON(
@@ -229,14 +234,8 @@ func (d *Dispatcher) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				"err",
 				err,
 			)
-			d.writeErrorJSON(
-				w,
-				r,
-				http.StatusBadGateway,
-				"upstream_error",
-				"request to upstream provider failed",
-				WithDetail(err.Error()),
-			)
+			writeAnthropicError(w, 529, "overloaded_error",
+				"upstream provider not reachable", 15)
 		} else {
 			// Post-WriteHeader error — adapter already sent a response.
 			// Log and discard to avoid "superfluous WriteHeader" panics.
