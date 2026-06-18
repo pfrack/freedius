@@ -280,17 +280,17 @@ None — code generation happens at development time only. Runtime behavior is i
 
 #### Automated
 
-- [x] 2.1 Full CI passes: `make ci`
-- [x] 2.2 All existing tests pass unchanged
-- [x] 2.3 `go vet ./...` clean
+- [x] 2.1 Full CI passes: `make ci` — e440ac6
+- [x] 2.2 All existing tests pass unchanged — e440ac6
+- [x] 2.3 `go vet ./...` clean — e440ac6
 
 ### Phase 3: CI golden-file check + cleanup
 
 #### Automated
 
-- [ ] 3.1 `make ci` passes (includes generate-check)
-- [ ] 3.2 `make generate-check` passes on clean checkout
-- [ ] 3.3 Modifying providers.yaml without re-running generate causes `make generate-check` (and CI) to fail
+- [x] 3.1 `make ci` passes (includes generate-check)
+- [x] 3.2 `make generate-check` passes on clean checkout
+- [x] 3.3 Modifying providers.yaml without re-running generate causes `make generate-check` (and CI) to fail
 
 #### Manual
 

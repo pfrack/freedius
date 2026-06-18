@@ -1,3 +1,4 @@
+# Supported providers are defined in providers.yaml
 mappings:
   # Opencode Go — OpenAI-format base_url (DeepSeek, GLM, Kimi, etc.)
   opus:    { provider: go,  model: deepseek-v4-pro,   base_url: https://opencode.ai/zen/go/v1/chat/completions }
