@@ -343,53 +343,53 @@ Wire the complete pipeline end-to-end: `freedius tui` starts the proxy, sends re
 
 #### Automated
 
-- [ ] 1.1 Unit tests pass: `go test ./proxy/ -run TestEventBus -race`
-- [ ] 1.2 No data races: `go test -race ./proxy/`
-- [ ] 1.3 Linting passes: `go vet ./proxy/`
+- [x] 1.1 Unit tests pass: `go test ./proxy/ -run TestEventBus -race` — 626ae13
+- [x] 1.2 No data races: `go test -race ./proxy/` — 626ae13
+- [x] 1.3 Linting passes: `go vet ./proxy/` — 626ae13
 
 ### Phase 2: TUI Subcommand Wiring
 
 #### Automated
 
-- [ ] 2.1 Compiles: `go build -o freedius .`
-- [ ] 2.2 `freedius tui --help` prints usage
-- [ ] 2.3 Linting passes: `go vet ./...`
+- [x] 2.1 Compiles: `go build -o freedius .` — 581fb4a
+- [x] 2.2 `freedius tui --help` prints usage — 581fb4a
+- [x] 2.3 Linting passes: `go vet ./...` — 581fb4a
 
 #### Manual
 
-- [ ] 2.4 `freedius tui --port 0` fails gracefully
-- [ ] 2.5 `freedius tui` with no config writes default config and starts
+- [x] 2.4 `freedius tui --port 0` fails gracefully — 581fb4a
+- [x] 2.5 `freedius tui` with no config writes default config and starts — 581fb4a
 
 ### Phase 3: Bubble Tea Models and Views
 
 #### Automated
 
-- [ ] 3.1 Unit tests pass: `go test ./proxy/tui/ -v`
-- [ ] 3.2 Compiles with Bubble Tea v2: `go build ./proxy/tui/`
-- [ ] 3.3 Linting passes: `go vet ./proxy/tui/`
+- [x] 3.1 Unit tests pass: `go test ./proxy/tui/ -v` — 581fb4a
+- [x] 3.2 Compiles with Bubble Tea v2: `go build ./proxy/tui/` — 581fb4a
+- [x] 3.3 Linting passes: `go vet ./proxy/tui/` — 581fb4a
 
 #### Manual
 
-- [ ] 3.4 Tab bar renders with three tabs
-- [ ] 3.5 Tab switching works (1/2/3 keys)
-- [ ] 3.6 Quit works (q key), terminal restored
-- [ ] 3.7 Resize terminal — layout adjusts without panic
+- [x] 3.4 Tab bar renders with three tabs — 581fb4a
+- [x] 3.5 Tab switching works (1/2/3 keys) — 581fb4a
+- [x] 3.6 Quit works (q key), terminal restored — 581fb4a
+- [x] 3.7 Resize terminal — layout adjusts without panic — 581fb4a
 
 ### Phase 4: Integration and Manual Verification
 
 #### Automated
 
-- [ ] 4.1 Full build: `go build -o freedius .`
-- [ ] 4.2 All tests: `go test -race ./...`
-- [ ] 4.3 CI check: `go vet ./... && go test ./... && go build .`
-- [ ] 4.4 Module graph clean: `go mod tidy && go mod verify`
+- [x] 4.1 Full build: `go build -o freedius .` — 683dd61
+- [x] 4.2 All tests: `go test -race ./...` — 683dd61
+- [x] 4.3 CI check: `go vet ./... && go test ./... && go build .` — 683dd61
+- [x] 4.4 Module graph clean: `go mod tidy && go mod verify` — 683dd61
 
 #### Manual
 
-- [ ] 4.5 TUI launches: `freedius tui` shows dashboard with 0 requests
-- [ ] 4.6 Live request stream: curl request appears in Requests tab
-- [ ] 4.7 Error request: 404 shows red status in TUI
-- [ ] 4.8 Provider tab: configured providers listed
-- [ ] 4.9 Config tab: model mappings displayed
-- [ ] 4.10 Quit: terminal restored, proxy stopped
-- [ ] 4.11 Headless unchanged: `freedius serve` behavior identical
+- [x] 4.5 TUI launches: `freedius tui` shows dashboard with 0 requests — 683dd61
+- [x] 4.6 Live request stream: curl request appears in Requests tab — 683dd61
+- [x] 4.7 Error request: 404 shows red status in TUI — 683dd61
+- [x] 4.8 Provider tab: configured providers listed — 683dd61
+- [x] 4.9 Config tab: model mappings displayed — 683dd61
+- [x] 4.10 Quit: terminal restored, proxy stopped — 683dd61
+- [x] 4.11 Headless unchanged: `freedius serve` behavior identical — 683dd61

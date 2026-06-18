@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/goccy/go-yaml"
 )
 
 func TestLoad(t *testing.T) {
@@ -553,5 +555,254 @@ func TestUsesProvider(t *testing.T) {
 				t.Errorf("UsesProvider(%q) = %v, want %v", tt.in, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestConfig_MarshalBasic(t *testing.T) {
+	cfg := &Config{
+		Models: map[string]Model{
+			"opus": {Provider: "nim", Model: "meta/llama-3.1-70b-instruct"},
+		},
+	}
+	data, err := cfg.Marshal()
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+
+	var parsed Config
+	if err := yaml.Unmarshal(data, &parsed); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+	m, ok := parsed.Models["opus"]
+	if !ok {
+		t.Fatal("missing opus model after round-trip")
+	}
+	if m.Provider != "nim" {
+		t.Errorf("provider = %q, want nim", m.Provider)
+	}
+	if m.Model != "meta/llama-3.1-70b-instruct" {
+		t.Errorf("model = %q, want meta/llama-3.1-70b-instruct", m.Model)
+	}
+}
+
+func TestConfig_MarshalOriginalProvider(t *testing.T) {
+	cfg := &Config{
+		Models: map[string]Model{
+			"zen-model": {
+				Provider:         "mix",
+				Model:            "test",
+				BaseURL:          "https://example.com",
+				OriginalProvider: "zen",
+			},
+			"go-model": {
+				Provider:         "mix",
+				Model:            "test",
+				BaseURL:          "https://example.com",
+				OriginalProvider: "go",
+			},
+			"custom-model": {
+				Provider:         "mix",
+				Model:            "test",
+				BaseURL:          "https://example.com",
+				OriginalProvider: "custom",
+			},
+		},
+	}
+
+	data, err := cfg.Marshal()
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+
+	yamlStr := string(data)
+	if !strings.Contains(yamlStr, "provider: zen") {
+		t.Errorf("expected 'provider: zen' in marshaled YAML, got:\n%s", yamlStr)
+	}
+	if !strings.Contains(yamlStr, "provider: go") {
+		t.Errorf("expected 'provider: go' in marshaled YAML, got:\n%s", yamlStr)
+	}
+	if !strings.Contains(yamlStr, "provider: custom") {
+		t.Errorf("expected 'provider: custom' in marshaled YAML, got:\n%s", yamlStr)
+	}
+}
+
+func TestConfig_MarshalOmitEmpty(t *testing.T) {
+	cfg := &Config{
+		Models: map[string]Model{
+			"test": {
+				Provider: "nim",
+				Model:    "test-model",
+			},
+		},
+	}
+
+	data, err := cfg.Marshal()
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+
+	yamlStr := string(data)
+	if strings.Contains(yamlStr, "base_url") {
+		t.Errorf("expected no base_url in output (empty, omitempty), got:\n%s", yamlStr)
+	}
+	if strings.Contains(yamlStr, "api_key_env") {
+		t.Errorf("expected no api_key_env in output (empty, omitempty), got:\n%s", yamlStr)
+	}
+}
+
+func TestConfig_SaveBackup(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "freedius.yaml")
+
+	initial := `models:
+  opus:
+    provider: nim
+    model: meta/llama-3.1-70b-instruct
+`
+	if err := os.WriteFile(path, []byte(initial), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	cfg.Models["opus"] = Model{
+		Provider: "nim",
+		Model:    "meta/llama-4",
+	}
+
+	if err := cfg.Save(path); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	// Verify backup file exists and contains original content.
+	bakData, err := os.ReadFile(path + ".bak")
+	if err != nil {
+		t.Fatalf("read backup: %v", err)
+	}
+	if !strings.Contains(string(bakData), "meta/llama-3.1-70b-instruct") {
+		t.Errorf("backup should contain original model, got:\n%s", string(bakData))
+	}
+
+	// Verify saved file contains new content.
+	savedData, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read saved: %v", err)
+	}
+	if !strings.Contains(string(savedData), "meta/llama-4") {
+		t.Errorf("saved file should contain new model, got:\n%s", string(savedData))
+	}
+}
+
+func TestConfig_SaveRollbackOnWriteFailure(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "freedius.yaml")
+
+	initial := `models:
+  opus:
+    provider: nim
+    model: meta/llama-3.1-70b-instruct
+`
+	if err := os.WriteFile(path, []byte(initial), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	cfg.Models["opus"] = Model{
+		Provider: "nim",
+		Model:    "meta/llama-4",
+	}
+
+	// Try saving to a non-writable location to trigger rollback.
+	roPath := filepath.Join(dir, "readonly", "freedius.yaml")
+	if err := cfg.Save(roPath); err == nil {
+		t.Fatal("expected error saving to non-existent directory")
+	}
+
+	// Original file must remain intact.
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), "meta/llama-3.1-70b-instruct") {
+		t.Errorf("original file should remain unchanged after failed save, got:\n%s", string(data))
+	}
+}
+
+func TestConfig_RoundTripLoadMarshalLoad(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "freedius.yaml")
+
+	input := `models:
+  claude-opus-4:
+    provider: nim
+    model: meta/llama-3.1-70b-instruct
+  claude-sonnet-4:
+    provider: custom
+    model: my-sonnet-shim
+    base_url: https://example.com/v1/messages
+    api_key_env: CUSTOM_API_KEY
+  gpt-4:
+    provider: openai
+    model: gpt-4
+    base_url: https://api.openai.com/v1/chat/completions
+    api_key_env: OPENAI_API_KEY
+mappings:
+  opus:
+    provider: nim
+    model: meta/llama-4
+  deepseek:
+    provider: zen
+    model: deepseek-v4-pro
+    base_url: https://zen.example.com/v1/messages
+`
+	if err := os.WriteFile(path, []byte(input), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("first Load: %v", err)
+	}
+
+	data, err := cfg.Marshal()
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+
+	roundTripPath := filepath.Join(dir, "roundtrip.yaml")
+	if err := os.WriteFile(roundTripPath, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg2, err := Load(roundTripPath)
+	if err != nil {
+		t.Fatalf("second Load: %v\nmarshaled YAML:\n%s", err, string(data))
+	}
+
+	// Verify key properties survived the round-trip.
+	if len(cfg2.Models) != len(cfg.Models) {
+		t.Errorf("model count: %d, want %d", len(cfg2.Models), len(cfg.Models))
+	}
+	if len(cfg2.Mappings) != len(cfg.Mappings) {
+		t.Errorf("mapping count: %d, want %d", len(cfg2.Mappings), len(cfg.Mappings))
+	}
+
+	// Verify alias providers survived.
+	if m, ok := cfg2.Mappings["deepseek"]; ok {
+		if m.OriginalProvider != "zen" {
+			t.Errorf("deepseek OriginalProvider = %q, want zen", m.OriginalProvider)
+		}
+	}
+	if m, ok := cfg2.Models["claude-sonnet-4"]; ok {
+		if m.OriginalProvider != "custom" {
+			t.Errorf("claude-sonnet-4 OriginalProvider = %q, want custom", m.OriginalProvider)
+		}
 	}
 }

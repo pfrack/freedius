@@ -2,7 +2,7 @@ PKGS := $(shell go list ./... 2>/dev/null)
 ARGS ?=
 HOOKS_DIR := .git/hooks
 
-.PHONY: test vet build ci tidy run lint lint-static lint-golangci manual-test install-hooks format format-changed install-goimports install-golines install-gci generate-check
+.PHONY: test vet build ci tidy run run-tui verbose lint lint-static lint-golangci manual-test install-hooks format format-changed install-goimports install-golines install-gci generate-check
 
 test:
 	@if [ -n "$(PKGS)" ]; then go test -race -cover $(PKGS); else echo "no packages to test"; fi
@@ -21,6 +21,9 @@ tidy:
 
 run:
 	go run . $(ARGS)
+
+run-tui:
+	go run . tui $(ARGS)
 
 verbose:
 	go run .  --verbose-errors

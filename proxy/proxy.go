@@ -7,6 +7,7 @@
 package proxy
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
@@ -286,6 +287,8 @@ func (d *Dispatcher) writeErrorJSON(
 	if e.detail != "" && d.VerboseErrors {
 		body["detail"] = e.detail
 	}
+	w.Header().Set("X-Freedius-Error-Type", code)
+	w.Header().Set("X-Freedius-Error-Message", message)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	if err := json.NewEncoder(w).Encode(body); err != nil {
@@ -438,4 +441,65 @@ func AccessLogMiddleware(logger *slog.Logger, next http.Handler) http.Handler {
 			"matched_model", matchedModel,
 		)
 	})
+}
+
+// --- Event bus middleware ---
+
+// EventBusMiddleware emits a RequestEvent to the optional event bus after each
+// request completes. When bus is nil, it passes through as a no-op.
+func EventBusMiddleware(bus *EventBus, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if bus == nil {
+			next.ServeHTTP(w, r)
+			return
+		}
+		start := time.Now()
+		modelName := extractModelFromBody(r)
+		ww := &wroteHeaderResponseWriter{ResponseWriter: w}
+		next.ServeHTTP(ww, r)
+		id := RequestIDFromContext(r.Context())
+		matchedProvider := ww.Header().Get("X-Freedius-Matched-Provider")
+		matchedModel := ww.Header().Get("X-Freedius-Matched-Model")
+		status := ww.code
+		if status == 0 {
+			status = http.StatusOK
+		}
+		ev := RequestEvent{
+			RequestID:       id,
+			Model:           modelName,
+			Provider:        matchedProvider,
+			Status:          status,
+			Latency:         time.Since(start),
+			MatchedProvider: matchedProvider,
+			MatchedModel:    matchedModel,
+		}
+		if status >= 400 {
+			ev.ErrorType = ww.Header().Get("X-Freedius-Error-Type")
+			ev.ErrorMessage = ww.Header().Get("X-Freedius-Error-Message")
+		}
+		bus.Emit(ev)
+	})
+}
+
+// extractModelFromBody reads the request body, extracts the "model" field from
+// the JSON payload, and recreates the body for downstream handlers. On any
+// error, it returns an empty string and the body is recreated for the caller.
+func extractModelFromBody(r *http.Request) string {
+	if r.Body == nil {
+		return ""
+	}
+	bodyBytes, err := io.ReadAll(r.Body)
+	_ = r.Body.Close()
+	if err != nil {
+		r.Body = http.NoBody
+		return ""
+	}
+	r.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+	var body struct {
+		Model string `json:"model"`
+	}
+	if err := json.Unmarshal(bodyBytes, &body); err != nil {
+		return ""
+	}
+	return body.Model
 }

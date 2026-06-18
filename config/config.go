@@ -5,8 +5,11 @@ package config
 import (
 	"fmt"
 	"net/url"
+	"os"
 	"sort"
 	"strings"
+
+	"github.com/goccy/go-yaml"
 )
 
 // Config is the top-level configuration loaded from a freedius.yaml file.
@@ -52,6 +55,30 @@ func Load(path string) (*Config, error) {
 	}
 
 	return &cfg, nil
+}
+
+// ProviderInfo returns metadata for a given provider name: its behavior class,
+// default API key env var (or ""), default base URL (or ""), and whether it
+// requires an explicit base_url. Falls back to empty values for unknown providers.
+func ProviderInfo(name string) (behavior, apiKeyEnv, baseURL string, requiresBaseURL bool) {
+	switch name {
+	case "nim":
+		return "openai", "NVIDIA_NIM_API_KEY", "https://integrate.api.nvidia.com/v1/chat/completions", false
+	case "openai":
+		return "openai", "", "", true
+	case "anthropic":
+		return "anthropic", "ANTHROPIC_API_KEY", "", true
+	case "mix":
+		return "mix", "", "", true
+	case "zen":
+		return "mix", "OPENCODE_API_KEY", "", true
+	case "go":
+		return "mix", "OPENCODE_API_KEY", "", true
+	case "custom":
+		return "mix", "", "", true
+	default:
+		return "", "", "", false
+	}
 }
 
 // UsesProvider reports whether any model or mapping references the given provider name.
@@ -176,4 +203,56 @@ func sortedKnownProviders() []string {
 	}
 	sort.Strings(keys)
 	return keys
+}
+
+// Marshal serializes the config to YAML bytes, recovering OriginalProvider
+// values for alias entries (zen, go, custom) so they survive the round-trip.
+func (c *Config) Marshal() ([]byte, error) {
+	clone := &Config{
+		Models:   make(map[string]Model, len(c.Models)),
+		Mappings: make(map[string]Model, len(c.Mappings)),
+	}
+	for name, m := range c.Models {
+		if m.OriginalProvider != "" && m.OriginalProvider != m.Provider {
+			m.Provider = m.OriginalProvider
+		}
+		m.OriginalProvider = ""
+		clone.Models[name] = m
+	}
+	for name, m := range c.Mappings {
+		if m.OriginalProvider != "" && m.OriginalProvider != m.Provider {
+			m.Provider = m.OriginalProvider
+		}
+		m.OriginalProvider = ""
+		clone.Mappings[name] = m
+	}
+	return yaml.Marshal(clone)
+}
+
+// Save validates, marshals, and writes the config to path. If path exists,
+// it is backed up as path+".bak" before writing. On write failure, the
+// backup is restored.
+func (c *Config) Save(path string) error {
+	if err := c.validate(path); err != nil {
+		return err
+	}
+
+	data, err := c.Marshal()
+	if err != nil {
+		return fmt.Errorf("config: marshal %s: %w", path, err)
+	}
+
+	if _, statErr := os.Stat(path); statErr == nil {
+		if err := os.Rename(path, path+".bak"); err != nil {
+			return fmt.Errorf("config: backup %s: %w", path, err)
+		}
+	}
+
+	// #nosec G306 -- same permissions as freedius init (init.go:70) and starter config
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		_ = os.Rename(path+".bak", path)
+		return fmt.Errorf("config: write %s: %w", path, err)
+	}
+
+	return nil
 }
