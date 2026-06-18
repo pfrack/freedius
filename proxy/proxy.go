@@ -287,6 +287,8 @@ func (d *Dispatcher) writeErrorJSON(
 	if e.detail != "" && d.VerboseErrors {
 		body["detail"] = e.detail
 	}
+	w.Header().Set("X-Freedius-Error-Type", code)
+	w.Header().Set("X-Freedius-Error-Message", message)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	if err := json.NewEncoder(w).Encode(body); err != nil {
@@ -462,7 +464,7 @@ func EventBusMiddleware(bus *EventBus, next http.Handler) http.Handler {
 		if status == 0 {
 			status = http.StatusOK
 		}
-		bus.Emit(RequestEvent{
+		ev := RequestEvent{
 			RequestID:       id,
 			Model:           modelName,
 			Provider:        matchedProvider,
@@ -470,7 +472,12 @@ func EventBusMiddleware(bus *EventBus, next http.Handler) http.Handler {
 			Latency:         time.Since(start),
 			MatchedProvider: matchedProvider,
 			MatchedModel:    matchedModel,
-		})
+		}
+		if status >= 400 {
+			ev.ErrorType = ww.Header().Get("X-Freedius-Error-Type")
+			ev.ErrorMessage = ww.Header().Get("X-Freedius-Error-Message")
+		}
+		bus.Emit(ev)
 	})
 }
 

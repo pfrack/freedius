@@ -46,6 +46,10 @@ var (
 
 	separatorStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("8"))
+
+	errorMessageStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("1")).
+				Faint(true)
 )
 
 const (

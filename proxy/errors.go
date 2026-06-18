@@ -31,6 +31,8 @@ func writeAnthropicError(w http.ResponseWriter, statusCode int, errType, message
 		w.Header().Set("retry-after", strconv.Itoa(retryAfter))
 		w.Header().Set("x-should-retry", "true")
 	}
+	w.Header().Set("X-Freedius-Error-Type", errType)
+	w.Header().Set("X-Freedius-Error-Message", message)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
 	_ = json.NewEncoder(w).Encode(map[string]any{

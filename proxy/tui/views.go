@@ -69,13 +69,18 @@ func renderRequestsTab(events []proxy.RequestEvent, _ int, height int) string {
 			provider = "-"
 		}
 		latency := roundLatency(e.Latency)
+		errMsg := ""
+		if e.Status >= 400 && e.ErrorMessage != "" {
+			errMsg = " " + errorMessageStyle.Render(truncate(e.ErrorMessage, 80))
+		}
 		line := fmt.Sprintf(
-			"%s  %s  %s  %s  %s",
+			"%s  %s  %s  %s  %s%s",
 			ts,
 			statusStyled,
 			truncate(model, 20),
 			truncate(provider, 14),
 			latency,
+			errMsg,
 		)
 		b.WriteString(line + "\n")
 	}

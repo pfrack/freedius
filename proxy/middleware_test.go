@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestRequestIDMiddleware_GeneratesAndPropagates(t *testing.T) {
@@ -307,6 +308,62 @@ func TestAccessLogMiddleware_FlushWorksThroughWrapper(t *testing.T) {
 	}
 	if !rec.Flushed {
 		t.Error("expected response to be flushed")
+	}
+}
+
+func TestEventBusMiddleware_PopulatesErrorFields(t *testing.T) {
+	bus := NewEventBus(10)
+	errHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("X-Freedius-Error-Type", "no_match")
+		w.Header().Set("X-Freedius-Error-Message", "no configured mapping for model \"gpt-4\"")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`{"error":"no_match","message":"no configured mapping for model \"gpt-4\""}`))
+	})
+	handler := EventBusMiddleware(bus, errHandler)
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	handler.ServeHTTP(rec, req)
+
+	select {
+	case ev := <-bus.Subscribe():
+		if ev.Status != http.StatusNotFound {
+			t.Errorf("Status = %d, want %d", ev.Status, http.StatusNotFound)
+		}
+		if ev.ErrorType != "no_match" {
+			t.Errorf("ErrorType = %q, want %q", ev.ErrorType, "no_match")
+		}
+		if ev.ErrorMessage != "no configured mapping for model \"gpt-4\"" {
+			t.Errorf("ErrorMessage = %q, want %q", ev.ErrorMessage, "no configured mapping for model \"gpt-4\"")
+		}
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("timed out waiting for event")
+	}
+}
+
+func TestEventBusMiddleware_SuccessHasNoErrorFields(t *testing.T) {
+	bus := NewEventBus(10)
+	okHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	handler := EventBusMiddleware(bus, okHandler)
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	handler.ServeHTTP(rec, req)
+
+	select {
+	case ev := <-bus.Subscribe():
+		if ev.Status != http.StatusOK {
+			t.Errorf("Status = %d, want %d", ev.Status, http.StatusOK)
+		}
+		if ev.ErrorType != "" {
+			t.Errorf("ErrorType for 200 = %q, want empty", ev.ErrorType)
+		}
+		if ev.ErrorMessage != "" {
+			t.Errorf("ErrorMessage for 200 = %q, want empty", ev.ErrorMessage)
+		}
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("timed out waiting for event")
 	}
 }
 

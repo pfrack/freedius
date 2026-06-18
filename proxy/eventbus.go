@@ -19,6 +19,8 @@ type RequestEvent struct {
 	MatchedProvider string
 	MatchedModel    string
 	Timestamp       time.Time
+	ErrorMessage    string
+	ErrorType       string
 }
 
 // EventBus provides a decoupled publish/subscribe channel for request metadata
