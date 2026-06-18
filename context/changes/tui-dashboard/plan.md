@@ -343,9 +343,9 @@ Wire the complete pipeline end-to-end: `freedius tui` starts the proxy, sends re
 
 #### Automated
 
-- [ ] 1.1 Unit tests pass: `go test ./proxy/ -run TestEventBus -race`
-- [ ] 1.2 No data races: `go test -race ./proxy/`
-- [ ] 1.3 Linting passes: `go vet ./proxy/`
+- [x] 1.1 Unit tests pass: `go test ./proxy/ -run TestEventBus -race`
+- [x] 1.2 No data races: `go test -race ./proxy/`
+- [x] 1.3 Linting passes: `go vet ./proxy/`
 
 ### Phase 2: TUI Subcommand Wiring
 
