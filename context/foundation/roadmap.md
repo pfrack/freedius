@@ -3,7 +3,7 @@ project: freedius
 version: 1
 status: draft
 created: 2026-06-16
-updated: 2026-06-18
+updated: 2026-06-19
 prd_version: 1
 main_goal: speed
 top_blocker: time
@@ -36,6 +36,7 @@ A developer using Claude Code wants to route LLM calls to cheaper or free provid
 | S-06 | custom-to-mix-protocol | use `provider: custom` with any endpoint — freedius auto-detects protocol from URL or user sets explicit `protocol: openai\|anthropic` field | S-03          | FR-003, FR-009                                   | proposed |
 | S-07 | provider-codegen   | add a new provider by adding one entry to `providers.yaml` and running `go generate` — all boilerplate (adapters, config maps, registry, validation) is generated | S-05, S-06    | FR-003, FR-004                                   | proposed |
 | S-08 | openai-count-tokens | `POST /v1/messages/count_tokens` returns a useful `input_tokens` estimate when routed to OpenAI-protocol upstreams (NIM, OpenCode Go, custom OpenAI-compat) — no more 501 for these providers | S-01, count-tokens-passthrough | (new capability — local token counting)        | proposed |
+| V-01 | tui-dashboard       | monitor live request stream, provider health, and usage stats from a terminal dashboard — no browser, no context switch | v1 complete (S-01–S-08) | v2 scope, research at `context/changes/tui-dashboard/research.md` | proposed |
 
 ## Baseline
 
@@ -170,6 +171,22 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Risk:** Medium — adds a new dependency (tiktoken-go) if we go that route; char-heuristic has zero new deps. The token count will not match the upstream's count exactly, but Claude Code uses it for pre-flight estimation only, so accuracy within ~10–20% is fine. The dispatcher-level integration follows the same pattern as the existing count_tokens 501 check (single capability branch in `proxy/capabilities.go`), keeping the change small.
 - **Status:** proposed
 
+### V-01: TUI dashboard — live monitoring terminal UI
+
+- **Outcome:** user runs `freedius tui` and gets a live terminal dashboard showing: request stream (model, provider, latency, token count), provider health (up/down, avg response time, error rate), active config summary (model mappings, endpoints), usage stats (requests/min, total tokens), and recent error log. Zero context switch from the terminal.
+- **Change ID:** tui-dashboard
+- **PRD refs:** v2 scope (PRD §Non-Goals: "no web UI in v1")
+- **Prerequisites:** v1 complete (S-01–S-08) — the proxy event flow, provider registry, and config model must be stable before adding a UI layer that observes them.
+- **Parallel with:** —
+- **Blockers:** —
+- **Unknowns:**
+  - **TUI scope for MVP:** Full dashboard or just a live log viewer? Owner: user. Block: no (either ships value; full dashboard is the recommended approach per research).
+  - **Event bus persistence:** In-memory ring buffer or file-backed store for historical view? Owner: user. Block: no (ring buffer is simpler; file store enables historical charts).
+  - **Subcommand vs flag:** `freedius tui` (separate command) vs `freedius --tui` (flag on main process)? Owner: user. Block: no (separate command is the Bubble Tea convention).
+  - **Web UI timing:** Add web dashboard (htmx+templ) in the same change or defer to V-02? Owner: user. Block: no (research recommends hybrid: TUI first, web later).
+- **Risk:** Low-medium. Bubble Tea is mature and well-proven in Go CLI tools (lazygit, k9s). The main risk is coupling the proxy core to a UI event bus — the design should use a decoupled subscriber pattern so the proxy functions identically with or without the TUI attached. Research at `context/changes/tui-dashboard/research.md` covers architecture patterns and dependency choices.
+- **Status:** proposed
+
 ## Backlog Handoff
 
 | Roadmap ID | Change ID          | Suggested issue title                      | Ready for `/10x-plan` | Notes |
@@ -183,6 +200,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 | S-06       | custom-to-mix-protocol | Custom → mix + protocol field — remove CustomAdapter, add protocol config field | no                    | Needs S-03. Runs parallel with S-05. Small refactor following existing zen/go pattern. |
 | S-07       | provider-codegen   | Provider codegen — go:generate boilerplate from providers.yaml | no                    | Needs S-05, S-06. Auth scheme, SSE patterns, and protocol field must be stable before codegen extraction. |
 | S-08       | openai-count-tokens | Local token counting for OpenAI-protocol upstreams (tiktoken-go or char-heuristic) | no                    | Needs S-01 + count-tokens-passthrough. Replaces the 501 path with a useful `input_tokens` estimate. Counter approach (tiktoken vs char-heuristic) is an open question for the planner. |
+| V-01       | tui-dashboard       | TUI dashboard — live terminal monitoring UI (Bubble Tea) | no                    | Needs v1 complete (S-01–S-08). Research done. Architecture: event bus decoupled from proxy core. |
 
 ## Open Roadmap Questions
 

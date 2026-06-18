@@ -423,25 +423,25 @@ The `govulncheck` step is the new addition beyond the prior change set — it mu
 
 #### Automated
 
-- [x] 2.1 `go test ./...` — all existing tests pass plus the 2 inverted sub-cases
-- [x] 2.2 `go test ./proxy/...` — TestServeHTTPCountTokens passes with 6 sub-cases
-- [x] 2.3 `go vet ./...` — clean
-- [x] 2.4 `gofumpt -l proxy/` — no formatting issues
-- [x] 2.5 `go build -o freedius .` — static binary builds
+- [x] 2.1 `go test ./...` — all existing tests pass plus the 2 inverted sub-cases — e08cdfb
+- [x] 2.2 `go test ./proxy/...` — TestServeHTTPCountTokens passes with 6 sub-cases — e08cdfb
+- [x] 2.3 `go vet ./...` — clean — e08cdfb
+- [x] 2.4 `gofumpt -l proxy/` — no formatting issues — e08cdfb
+- [x] 2.5 `go build -o freedius .` — static binary builds — e08cdfb
 
 #### Manual
 
-- [x] 2.6 NIM count_tokens → 200 with input_tokens populated (not 501)
-- [x] 2.7 Anthropic count_tokens → 200 with upstream's exact count (passthrough)
-- [x] 2.8 mix+openai count_tokens → 200 with local estimate
+- [x] 2.6 NIM count_tokens → 200 with input_tokens populated (not 501) — e08cdfb
+- [x] 2.7 Anthropic count_tokens → 200 with upstream's exact count (passthrough) — e08cdfb
+- [x] 2.8 mix+openai count_tokens → 200 with local estimate — e08cdfb
 
 ### Phase 3: Accuracy verification
 
 #### Automated
 
 - [ ] 3.1 `ANTHROPIC_API_KEY=<key> go test ./proxy/translate/... -run TestCountInputTokens_RoundTrip` — passes with ≥95% of corpus within 10% tolerance
-- [ ] 3.2 `go test ./proxy/translate/...` (without ANTHROPIC_API_KEY) — round-trip test skipped, unit tests pass
-- [ ] 3.3 `go test ./...` — all existing tests plus new unit tests pass
+- [x] 3.2 `go test ./proxy/translate/...` (without ANTHROPIC_API_KEY) — round-trip test skipped, unit tests pass
+- [x] 3.3 `go test ./...` — all existing tests plus new unit tests pass
 
 #### Manual
 
