@@ -672,10 +672,10 @@ Verify the complete pipeline: error display + config editing + save + live proxy
 
 #### Automated
 
-- [ ] 6.1 All tests pass: `go test -race ./...`
-- [ ] 6.2 Full build: `go build -o freedius .`
-- [ ] 6.3 CI check: `go vet ./... && go test ./... && go build .`
-- [ ] 6.4 Module graph clean: `go mod tidy && go mod verify`
+- [x] 6.1 All tests pass: `go test -race ./...` — ba9725e
+- [x] 6.2 Full build: `go build -o freedius .` — ba9725e
+- [x] 6.3 CI check: `go vet ./... && go test ./... && go build .` — ba9725e
+- [x] 6.4 Module graph clean: `go mod tidy && go mod verify` — ba9725e
 
 #### Manual
 

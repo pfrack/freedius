@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -353,6 +354,146 @@ func TestMixAdapter_RoutingDebugLog(t *testing.T) {
 			t.Errorf("expected 'selected=openai' log, got: %s", logBuf.String())
 		}
 	})
+}
+
+func TestDispatcher_ConfigError_Returns500(t *testing.T) {
+	cfg := &config.Config{
+		Models: map[string]config.Model{
+			"claude-opus-4": {Provider: "nim", Model: "x"},
+		},
+	}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	registry := NewRegistry(map[string]Provider{
+		"nim": &preWriteHeaderErrProvider{
+			err: &configError{err: errors.New("missing API key"), errType: "authentication_error"},
+		},
+	})
+	d := NewDispatcher(cfg, registry, logger, false)
+	handler := RequestIDMiddleware(d)
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages",
+		strings.NewReader(`{"model":"claude-opus-4"}`))
+	req.Header.Set("Content-Type", "application/json")
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != 500 {
+		t.Fatalf("status: got %d, want 500", rec.Code)
+	}
+	var body map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if body["type"] != "error" {
+		t.Errorf("type: got %v, want error", body["type"])
+	}
+	inner := body["error"].(map[string]any)
+	if inner["type"] != "authentication_error" {
+		t.Errorf("error.type: got %v, want authentication_error", inner["type"])
+	}
+	if !strings.Contains(inner["message"].(string), "missing API key") {
+		t.Errorf("message should contain 'missing API key', got %v", inner["message"])
+	}
+	if got := rec.Header().Get("retry-after"); got != "" {
+		t.Errorf("retry-after should be absent, got %q", got)
+	}
+	if got := rec.Header().Get("x-should-retry"); got != "" {
+		t.Errorf("x-should-retry should be absent, got %q", got)
+	}
+}
+
+func TestDispatcher_ConfigError_InvalidRequest(t *testing.T) {
+	cfg := &config.Config{
+		Models: map[string]config.Model{
+			"claude-opus-4": {Provider: "nim", Model: "x"},
+		},
+	}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	registry := NewRegistry(map[string]Provider{
+		"nim": &preWriteHeaderErrProvider{
+			err: &configError{err: errors.New("bad base_url"), errType: "invalid_request_error"},
+		},
+	})
+	d := NewDispatcher(cfg, registry, logger, false)
+	handler := RequestIDMiddleware(d)
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages",
+		strings.NewReader(`{"model":"claude-opus-4"}`))
+	req.Header.Set("Content-Type", "application/json")
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != 500 {
+		t.Fatalf("status: got %d, want 500", rec.Code)
+	}
+	var body map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	inner := body["error"].(map[string]any)
+	if inner["type"] != "invalid_request_error" {
+		t.Errorf("error.type: got %v, want invalid_request_error", inner["type"])
+	}
+	if got := rec.Header().Get("retry-after"); got != "" {
+		t.Errorf("retry-after should be absent, got %q", got)
+	}
+	if got := rec.Header().Get("x-should-retry"); got != "" {
+		t.Errorf("x-should-retry should be absent, got %q", got)
+	}
+}
+
+func TestFreediusErrorHandler_DNSError_Returns502(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	handler := freediusErrorHandler(logger, false)
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	dnsErr := &net.DNSError{Err: "no such host", Name: "nonexistent.example", IsNotFound: true}
+	handler(rec, req, dnsErr)
+
+	if rec.Code != 502 {
+		t.Fatalf("status: got %d, want 502", rec.Code)
+	}
+	var body map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if body["type"] != "error" {
+		t.Errorf("type: got %v, want error", body["type"])
+	}
+	inner := body["error"].(map[string]any)
+	if inner["type"] != "api_error" {
+		t.Errorf("error.type: got %v, want api_error", inner["type"])
+	}
+	if got := rec.Header().Get("retry-after"); got != "" {
+		t.Errorf("retry-after should be absent, got %q", got)
+	}
+	if got := rec.Header().Get("x-should-retry"); got != "" {
+		t.Errorf("x-should-retry should be absent, got %q", got)
+	}
+}
+
+func TestFreediusErrorHandler_ConnectionRefused_Returns529(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	handler := freediusErrorHandler(logger, false)
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	handler(rec, req, errors.New("dial tcp: connection refused"))
+
+	if rec.Code != 529 {
+		t.Fatalf("status: got %d, want 529", rec.Code)
+	}
+	var body map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	inner := body["error"].(map[string]any)
+	if inner["type"] != "overloaded_error" {
+		t.Errorf("error.type: got %v, want overloaded_error", inner["type"])
+	}
+	if got := rec.Header().Get("retry-after"); got != "15" {
+		t.Errorf("retry-after: got %q, want 15", got)
+	}
+	if got := rec.Header().Get("x-should-retry"); got != "true" {
+		t.Errorf("x-should-retry: got %q, want true", got)
+	}
 }
 
 // helper used by other tests in this file

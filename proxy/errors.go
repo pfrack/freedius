@@ -2,15 +2,29 @@ package proxy
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
 	"unicode"
 )
+
+// configError wraps an adapter pre-flight configuration error with an
+// Anthropic error.type string so the dispatcher can return 500 with the
+// correct error type instead of collapsing to 529 overloaded_error.
+type configError struct {
+	err     error
+	errType string
+}
+
+func (e *configError) Error() string { return e.err.Error() }
+func (e *configError) Unwrap() error { return e.err }
 
 func forwardUpstreamError(w http.ResponseWriter, resp *http.Response) error {
 	for k, vv := range resp.Header {
@@ -83,8 +97,8 @@ func translateUpstreamError(w http.ResponseWriter, resp *http.Response) {
 		status = resp.StatusCode
 		errType = "invalid_request_error"
 	default: // other 5xx
-		status = 529
-		errType = "overloaded_error"
+		status = resp.StatusCode
+		errType = "api_error"
 		retryAfter = 15
 	}
 
@@ -107,6 +121,31 @@ func sanitizePrintable(b []byte) string {
 		}
 	}
 	return out.String()
+}
+
+// isPermanentTransportError returns true when err is a permanent transport
+// failure (DNS resolution failure, TLS certificate/handshake error) that
+// should not be retried. Connection refused, connection reset, and I/O
+// timeout errors are considered transient and return false.
+func isPermanentTransportError(err error) bool {
+	var dnsErr *net.DNSError
+	if errors.As(err, &dnsErr) {
+		return true
+	}
+	var tlsErr *tls.CertificateVerificationError
+	if errors.As(err, &tlsErr) {
+		return true
+	}
+	var x509Err *x509.UnknownAuthorityError
+	if errors.As(err, &x509Err) {
+		return true
+	}
+	var x509HostnameErr *x509.HostnameError
+	if errors.As(err, &x509HostnameErr) {
+		return true
+	}
+	var x509InvalidErr *x509.CertificateInvalidError
+	return errors.As(err, &x509InvalidErr)
 }
 
 // freediusErrorHandler returns a transport-error handler for httputil.ReverseProxy
@@ -144,7 +183,12 @@ func freediusErrorHandler(
 				"err", err.Error(),
 			)
 		}
-		writeAnthropicError(w, 529, "overloaded_error",
-			"upstream not reachable", 15)
+		if isPermanentTransportError(err) {
+			writeAnthropicError(w, 502, "api_error",
+				"upstream not reachable", 0)
+		} else {
+			writeAnthropicError(w, 529, "overloaded_error",
+				"upstream not reachable", 15)
+		}
 	}
 }

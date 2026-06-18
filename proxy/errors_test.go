@@ -153,7 +153,8 @@ func TestTranslateUpstreamError(t *testing.T) {
 		{"401", 401, "", 401, "authentication_error", "", true},
 		{"403", 403, "", 401, "authentication_error", "", true},
 		{"404", 404, "", 404, "invalid_request_error", "", true},
-		{"502", 502, "", 529, "overloaded_error", "15", false},
+		{"502", 502, "", 502, "api_error", "15", false},
+		{"504", 504, "", 504, "api_error", "15", false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

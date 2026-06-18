@@ -43,24 +43,33 @@ func (a *AnthropicCompatibleAdapter) Handle(
 	body []byte,
 ) error {
 	if m.BaseURL == "" {
-		return fmt.Errorf("%s adapter (anthropic-compat): missing base_url", originalOr(m))
+		return &configError{
+			err:     fmt.Errorf("%s adapter (anthropic-compat): missing base_url", originalOr(m)),
+			errType: "invalid_request_error",
+		}
 	}
 	apiKey := os.Getenv(m.APIKeyEnv)
 	if apiKey == "" {
-		return fmt.Errorf(
-			"%s adapter (anthropic-compat): env var %s is not set",
-			originalOr(m),
-			m.APIKeyEnv,
-		)
+		return &configError{
+			err: fmt.Errorf(
+				"%s adapter (anthropic-compat): env var %s is not set",
+				originalOr(m),
+				m.APIKeyEnv,
+			),
+			errType: "authentication_error",
+		}
 	}
 	target, err := url.Parse(m.BaseURL)
 	if err != nil {
-		return fmt.Errorf(
-			"%s adapter (anthropic-compat): invalid base_url %q: %w",
-			originalOr(m),
-			m.BaseURL,
-			err,
-		)
+		return &configError{
+			err: fmt.Errorf(
+				"%s adapter (anthropic-compat): invalid base_url %q: %w",
+				originalOr(m),
+				m.BaseURL,
+				err,
+			),
+			errType: "invalid_request_error",
+		}
 	}
 	apiVersion := m.AnthropicVersion
 	if apiVersion == "" {

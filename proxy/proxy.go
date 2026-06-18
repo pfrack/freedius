@@ -219,17 +219,31 @@ func (d *Dispatcher) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err := adapter.Handle(ww, r, m, body); err != nil {
 		if !ww.wroteHeader {
 			// Pre-WriteHeader error — safe to forward to the client.
-			d.Logger.Error(
-				"adapter failed",
-				"request_id",
-				RequestIDFromContext(r.Context()),
-				"provider",
-				originalOr(m),
-				"err",
-				err,
-			)
-			writeAnthropicError(w, 529, "overloaded_error",
-				"upstream provider not reachable", 15)
+			var ce *configError
+			if errors.As(err, &ce) {
+				d.Logger.Warn(
+					"adapter config error",
+					"request_id",
+					RequestIDFromContext(r.Context()),
+					"provider",
+					originalOr(m),
+					"err",
+					err,
+				)
+				writeAnthropicError(w, 500, ce.errType, err.Error(), 0)
+			} else {
+				d.Logger.Error(
+					"adapter transport error",
+					"request_id",
+					RequestIDFromContext(r.Context()),
+					"provider",
+					originalOr(m),
+					"err",
+					err,
+				)
+				writeAnthropicError(w, 529, "overloaded_error",
+					"upstream provider not reachable", 15)
+			}
 		} else {
 			// Post-WriteHeader error — adapter already sent a response.
 			// Log and discard to avoid "superfluous WriteHeader" panics.
