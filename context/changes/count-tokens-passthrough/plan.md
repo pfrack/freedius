@@ -207,19 +207,19 @@ Also add a unit test for `supportsCountTokens` covering each branch (anthropic=t
 
 #### Automated
 
-- [x] 1.1 `go test ./proxy/...` — all existing tests pass
-- [x] 1.2 `go test ./proxy/...` — `TestIsCountTokensPath` passes
-- [x] 1.3 `go test ./proxy/...` — `TestSupportsCountTokens` passes
-- [x] 1.4 `go test ./proxy/...` — `TestServeHTTPCountTokens` 6 sub-cases pass
-- [x] 1.5 `go test ./...` — full module test suite passes
-- [x] 1.6 `go test -cover ./...` — coverage at or above module average
-- [x] 1.7 `go vet ./...` — clean
-- [x] 1.8 `go build -o freedius .` — static binary builds
-- [x] 1.9 `gofumpt -l proxy/` — no formatting issues
+- [x] 1.1 `go test ./proxy/...` — all existing tests pass — c9c7a8b
+- [x] 1.2 `go test ./proxy/...` — `TestIsCountTokensPath` passes — c9c7a8b
+- [x] 1.3 `go test ./proxy/...` — `TestSupportsCountTokens` passes — c9c7a8b
+- [x] 1.4 `go test ./proxy/...` — `TestServeHTTPCountTokens` 6 sub-cases pass — c9c7a8b
+- [x] 1.5 `go test ./...` — full module test suite passes — c9c7a8b
+- [x] 1.6 `go test -cover ./...` — coverage at or above module average — c9c7a8b
+- [x] 1.7 `go vet ./...` — clean — c9c7a8b
+- [x] 1.8 `go build -o freedius .` — static binary builds — c9c7a8b
+- [x] 1.9 `gofumpt -l proxy/` — no formatting issues — c9c7a8b
 
 #### Manual
 
-- [ ] 1.10 `provider: anthropic` + curl count_tokens → upstream response
-- [ ] 1.11 `provider: nim` + curl count_tokens → 501 with freedius error envelope
-- [ ] 1.12 `provider: custom` (Anthropic-compatible URL) + curl count_tokens → upstream response
-- [ ] 1.13 Regular `/v1/messages` request → works identically to before
+- [x] 1.10 `provider: anthropic` + curl count_tokens → upstream response
+- [x] 1.11 `provider: nim` + curl count_tokens → 501 with freedius error envelope
+- [x] 1.12 `provider: custom` (Anthropic-compatible URL) + curl count_tokens → upstream response
+- [x] 1.13 Regular `/v1/messages` request → works identically to before
