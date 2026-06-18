@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -9,13 +11,6 @@ import (
 	"github.com/pfrack/freedius/config"
 	"github.com/pfrack/freedius/proxy"
 )
-
-func init() {
-	// Ensure there's at least one known provider for form tests.
-	if _, ok := config.KnownProviders["nim"]; !ok {
-		panic("nim provider not in KnownProviders")
-	}
-}
 
 func TestDashboard_Update_KeyPress(t *testing.T) {
 	tests := []struct {
@@ -326,6 +321,87 @@ func TestDashboard_DeleteCancel(t *testing.T) {
 	}
 	if _, ok := d.config.Models["test"]; !ok {
 		t.Error("model 'test' should still exist after cancel")
+	}
+}
+
+func TestDashboard_SaveConfig(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := dir + "/freedius.yaml"
+
+	initial := `models:
+  opus:
+    provider: nim
+    model: meta/llama-3.1-70b-instruct
+    base_url: https://integrate.api.nvidia.com/v1/chat/completions
+    api_key_env: NVIDIA_NIM_API_KEY
+`
+	if err := os.WriteFile(cfgPath, []byte(initial), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := config.Load(cfgPath)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	d := NewDashboard(nil, cfg, nil, cfgPath)
+	d.activeTab = tabConfig
+	d.configCursor = 0
+
+	// Open edit form and modify the model field.
+	d.Update(tea.KeyPressMsg{Text: "e"})
+	d.formFields[2].SetValue("meta/llama-4")
+
+	// Simulate submit (validate then emit formSubmittedMsg).
+	d.fieldErrors = d.validateForm()
+	if len(d.fieldErrors) > 0 {
+		t.Fatalf("unexpected validation errors: %v", d.fieldErrors)
+	}
+	d.Update(formSubmittedMsg{})
+
+	// Verify file was written with new model name.
+	data, err := os.ReadFile(cfgPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), "meta/llama-4") {
+		t.Errorf("saved file should contain new model name, got:\n%s", string(data))
+	}
+	if !strings.Contains(string(data), "meta/llama-3.1-70b-instruct") {
+		t.Logf("old model name may still exist (edit modifies in-place, not append): %s", string(data))
+	}
+}
+
+func TestDashboard_AddInsert(t *testing.T) {
+	d := NewDashboard(nil, &config.Config{Models: map[string]config.Model{}}, nil, "")
+	d.activeTab = tabConfig
+
+	// Open add form.
+	d.Update(tea.KeyPressMsg{Text: "a"})
+
+	// Fill in the fields.
+	d.formFields[0].SetValue("new-model")
+	d.formFields[1].SetValue("nim")
+	d.formFields[2].SetValue("test-model")
+	d.formFields[3].SetValue("https://example.com")
+
+	// Submit.
+	d.fieldErrors = d.validateForm()
+	if len(d.fieldErrors) > 0 {
+		t.Fatalf("unexpected validation errors: %v", d.fieldErrors)
+	}
+	d.Update(formSubmittedMsg{})
+
+	// Verify entry was added to models map.
+	m, ok := d.config.Models["new-model"]
+	if !ok {
+		t.Fatal("new-model should exist in Models after add")
+	}
+	if m.Provider != "nim" {
+		t.Errorf("provider = %q, want nim", m.Provider)
+	}
+	if m.Model != "test-model" {
+		t.Errorf("model = %q, want test-model", m.Model)
 	}
 }
 

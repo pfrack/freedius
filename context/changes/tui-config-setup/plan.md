@@ -638,10 +638,10 @@ Verify the complete pipeline: error display + config editing + save + live proxy
 
 #### Automated
 
-- [ ] 4.1 Unit tests: `go test ./proxy/tui/ -v -run "Form"`
-- [ ] 4.2 Unit tests: form lifecycle — open, edit, submit valid/invalid, cancel, delete confirm
-- [ ] 4.3 Compiles: `go build ./proxy/tui/`
-- [ ] 4.4 Linting: `go vet ./proxy/tui/`
+- [x] 4.1 Unit tests: `go test ./proxy/tui/ -v -run "Form"` — e881cbf
+- [x] 4.2 Unit tests: form lifecycle — open, edit, submit valid/invalid, cancel, delete confirm — e881cbf
+- [x] 4.3 Compiles: `go build ./proxy/tui/` — e881cbf
+- [x] 4.4 Linting: `go vet ./proxy/tui/` — e881cbf
 
 #### Manual
 
