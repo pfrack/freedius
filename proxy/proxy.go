@@ -185,6 +185,14 @@ func (d *Dispatcher) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"target_model",
 		m.Model,
 	)
+	if isCountTokensPath(r.URL.Path) {
+		w.Header().Set("X-Freedius-Matched-Provider", originalOr(m))
+		w.Header().Set("X-Freedius-Matched-Model", m.Model)
+		if !supportsCountTokens(m) {
+			d.serveLocalCountTokens(w, r, m, body)
+			return
+		}
+	}
 	w.Header().Set("X-Freedius-Matched-Provider", originalOr(m))
 	w.Header().Set("X-Freedius-Matched-Model", m.Model)
 
@@ -219,14 +227,8 @@ func (d *Dispatcher) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				"err",
 				err,
 			)
-			d.writeErrorJSON(
-				w,
-				r,
-				http.StatusBadGateway,
-				"upstream_error",
-				"request to upstream provider failed",
-				WithDetail(err.Error()),
-			)
+			writeAnthropicError(w, 529, "overloaded_error",
+				"upstream provider not reachable", 15)
 		} else {
 			// Post-WriteHeader error — adapter already sent a response.
 			// Log and discard to avoid "superfluous WriteHeader" panics.
@@ -379,7 +381,8 @@ func RecoverMiddleware(logger *slog.Logger, verboseErrors bool, next http.Handle
 			// reordering.
 			id := ww.Header().Get("X-Freedius-Request-ID")
 			stack := debug.Stack()
-			logger.Error("panic recovered",
+			logger.Error(
+				"panic recovered",
 				"request_id", id,
 				"path", r.URL.Path,
 				"panic", fmt.Sprintf("%v", rec),
@@ -424,7 +427,8 @@ func AccessLogMiddleware(logger *slog.Logger, next http.Handler) http.Handler {
 		if status == 0 {
 			status = http.StatusOK
 		}
-		logger.Info("request complete",
+		logger.Info(
+			"request complete",
 			"request_id", id,
 			"method", r.Method,
 			"path", r.URL.Path,

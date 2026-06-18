@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"bytes"
+	"encoding/json"
 	"io"
 	"log/slog"
 	"net/http"
@@ -466,4 +467,206 @@ func (r *recordingProvider) Handle(
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(`{"ok":true}`))
 	return nil
+}
+
+// TestServeHTTPCountTokens exercises the path-aware capability check that
+// gates /v1/messages/count_tokens. Success cases verify the dispatcher does
+// NOT reject (the actual adapter behavior is covered by anthropic_compat_test
+// and mix_test); the OpenAI-protocol local-counter cases verify the
+// dispatcher computes the count locally and does NOT invoke the adapter.
+func TestServeHTTPCountTokens(t *testing.T) {
+	const (
+		anthropicProvider = "anthropic"
+		nimProvider       = "nim"
+		mixProvider       = "mix"
+	)
+	mockOK := &mockProvider{status: http.StatusOK, body: `{"input_tokens":1}`}
+	mockOKMix := &mockProvider{status: http.StatusOK, body: `{"input_tokens":1}`}
+
+	tests := []struct {
+		name                  string
+		path                  string
+		model                 config.Model
+		registeredMocks       map[string]Provider
+		wantStatus            int
+		wantBodyHas           []string
+		wantBodyLacks         []string
+		wantHeader            map[string]string
+		wantHeaderMiss        []string
+		wantAdapterNotCalled  bool
+		wantInputTokensGTZero bool
+	}{
+		{
+			name:  "anthropic provider + count_tokens path -> success (pass-through)",
+			path:  "/v1/messages/count_tokens",
+			model: config.Model{Provider: anthropicProvider, Model: "claude-opus-4"},
+			registeredMocks: map[string]Provider{
+				anthropicProvider: mockOK,
+			},
+			wantStatus: http.StatusOK,
+			wantBodyHas: []string{
+				`"input_tokens":1`,
+			},
+			wantHeader: map[string]string{
+				"X-Freedius-Matched-Provider": anthropicProvider,
+				"X-Freedius-Matched-Model":    "claude-opus-4",
+			},
+		},
+		{
+			name:  "nim provider + count_tokens path -> local counter (200)",
+			path:  "/v1/messages/count_tokens",
+			model: config.Model{Provider: nimProvider, Model: "x"},
+			registeredMocks: map[string]Provider{
+				nimProvider: &recordingProvider{},
+			},
+			wantStatus: http.StatusOK,
+			wantBodyHas: []string{
+				`"input_tokens":`,
+				`"context_management":`,
+				`"original_input_tokens":`,
+			},
+			wantHeader: map[string]string{
+				"X-Freedius-Matched-Provider": nimProvider,
+				"X-Freedius-Matched-Model":    "x",
+			},
+			wantAdapterNotCalled:  true,
+			wantInputTokensGTZero: true,
+		},
+		{
+			name:  "mix + Protocol anthropic + count_tokens -> success",
+			path:  "/v1/messages/count_tokens",
+			model: config.Model{Provider: mixProvider, Protocol: "anthropic", Model: "x"},
+			registeredMocks: map[string]Provider{
+				mixProvider: mockOKMix, // mix→anthropic delegation covered by mix_test
+			},
+			wantStatus: http.StatusOK,
+			wantHeader: map[string]string{
+				"X-Freedius-Matched-Provider": mixProvider,
+				"X-Freedius-Matched-Model":    "x",
+			},
+		},
+		{
+			name:  "mix + Protocol openai + count_tokens -> local counter (200)",
+			path:  "/v1/messages/count_tokens",
+			model: config.Model{Provider: mixProvider, Protocol: "openai", Model: "x"},
+			registeredMocks: map[string]Provider{
+				mixProvider: &recordingProvider{},
+			},
+			wantStatus: http.StatusOK,
+			wantBodyHas: []string{
+				`"input_tokens":`,
+				`"context_management":`,
+				`"original_input_tokens":`,
+			},
+			wantHeader: map[string]string{
+				"X-Freedius-Matched-Provider": mixProvider,
+				"X-Freedius-Matched-Model":    "x",
+			},
+			wantAdapterNotCalled:  true,
+			wantInputTokensGTZero: true,
+		},
+		{
+			name: "mix + no protocol + /v1/messages BaseURL + count_tokens -> success (URL sniff)",
+			path: "/v1/messages/count_tokens",
+			model: config.Model{
+				Provider: mixProvider,
+				Model:    "x",
+				BaseURL:  "https://api.minimax.io/anthropic/v1/messages",
+			},
+			registeredMocks: map[string]Provider{
+				mixProvider: mockOKMix,
+			},
+			wantStatus: http.StatusOK,
+			wantHeader: map[string]string{
+				"X-Freedius-Matched-Provider": mixProvider,
+				"X-Freedius-Matched-Model":    "x",
+			},
+		},
+		{
+			name:  "regular /v1/messages + nim -> success (regression)",
+			path:  "/v1/messages",
+			model: config.Model{Provider: nimProvider, Model: "x"},
+			registeredMocks: map[string]Provider{
+				nimProvider: mockOK,
+			},
+			wantStatus: http.StatusOK,
+			wantHeader: map[string]string{
+				"X-Freedius-Matched-Provider": nimProvider,
+				"X-Freedius-Matched-Model":    "x",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &config.Config{
+				Models: map[string]config.Model{
+					"claude-opus-4": tt.model,
+				},
+			}
+			d := newTestDispatcherWithAdapter(t, cfg, tt.registeredMocks)
+
+			body := `{"model":"claude-opus-4","messages":[{"role":"user","content":"hello world"}]}`
+			req := httptest.NewRequest(
+				http.MethodPost,
+				tt.path,
+				strings.NewReader(body),
+			)
+			req.Header.Set("Content-Type", "application/json")
+			rec := httptest.NewRecorder()
+			d.ServeHTTP(rec, req)
+
+			if rec.Code != tt.wantStatus {
+				t.Errorf(
+					"status: got %d, want %d (body: %s)",
+					rec.Code,
+					tt.wantStatus,
+					rec.Body.String(),
+				)
+			}
+
+			for k, v := range tt.wantHeader {
+				if got := rec.Header().Get(k); got != v {
+					t.Errorf("header %s: got %q, want %q", k, got, v)
+				}
+			}
+			for _, k := range tt.wantHeaderMiss {
+				if got := rec.Header().Get(k); got != "" {
+					t.Errorf("header %s: got %q, want missing", k, got)
+				}
+			}
+
+			respBody := rec.Body.String()
+			for _, s := range tt.wantBodyHas {
+				if !strings.Contains(respBody, s) {
+					t.Errorf("body %q does not contain %q", respBody, s)
+				}
+			}
+			for _, s := range tt.wantBodyLacks {
+				if strings.Contains(respBody, s) {
+					t.Errorf("body %q should not contain %q", respBody, s)
+				}
+			}
+
+			if tt.wantInputTokensGTZero {
+				var resp struct {
+					InputTokens int `json:"input_tokens"`
+				}
+				if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+					t.Errorf("parse count_tokens response: %v (body: %s)", err, respBody)
+				}
+				if resp.InputTokens <= 0 {
+					t.Errorf("input_tokens: got %d, want > 0", resp.InputTokens)
+				}
+			}
+
+			if tt.wantAdapterNotCalled {
+				for providerName, p := range tt.registeredMocks {
+					if rp, ok := p.(*recordingProvider); ok && rp.called {
+						t.Errorf("adapter %q was invoked; the local counter must short-circuit dispatch", providerName)
+					}
+				}
+			}
+		})
+	}
 }
