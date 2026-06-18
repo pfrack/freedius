@@ -414,15 +414,15 @@ The existing `TestDispatcher_AdapterError_TranslatedAsAnthropicOverloaded` (plai
 #### Automated
 
 - [x] 2.1 `go test ./proxy/...` — `TestDispatcher_AdapterError_TranslatedAsAnthropicOverloaded` passes (transport → 529) — 2fe4f9f
-- [ ] 2.2 `go test ./proxy/...` — new `TestDispatcher_ConfigError_Returns500` passes (from Phase 5)
+- [x] 2.2 `go test ./proxy/...` — new `TestDispatcher_ConfigError_Returns500` passes (from Phase 5)
 - [x] 2.3 `go vet ./...` — clean — 2fe4f9f
 
 ### Phase 3: `translateUpstreamError` Default Pass-Through
 
 #### Automated
 
-- [ ] 3.1 `go test ./proxy/...` — `TestTranslateUpstreamError` "502" case passes (502→502)
-- [ ] 3.2 `go test ./proxy/...` — new "504" case passes (504→504)
+- [x] 3.1 `go test ./proxy/...` — `TestTranslateUpstreamError` "502" case passes (502→502)
+- [x] 3.2 `go test ./proxy/...` — new "504" case passes (504→504)
 - [x] 3.3 `go test ./proxy/...` — all other `TestTranslateUpstreamError` cases pass unchanged — ef0953c
 - [x] 3.4 `go vet ./...` — clean — ef0953c
 
@@ -430,21 +430,21 @@ The existing `TestDispatcher_AdapterError_TranslatedAsAnthropicOverloaded` (plai
 
 #### Automated
 
-- [ ] 4.1 `go test ./proxy/...` — `TestFreediusErrorHandler_DNSError_Returns502` passes
-- [ ] 4.2 `go test ./proxy/...` — `TestFreediusErrorHandler_ConnectionRefused_Returns529` passes
-- [x] 4.3 `go test ./proxy/...` — existing `TestFreediusErrorHandler_TransportError` passes (plain → 529)
-- [x] 4.4 `go test ./proxy/...` — existing `TestFreediusErrorHandler_ClientCanceled` passes
-- [x] 4.5 `go vet ./...` — clean
+- [x] 4.1 `go test ./proxy/...` — `TestFreediusErrorHandler_DNSError_Returns502` passes
+- [x] 4.2 `go test ./proxy/...` — `TestFreediusErrorHandler_ConnectionRefused_Returns529` passes
+- [x] 4.3 `go test ./proxy/...` — existing `TestFreediusErrorHandler_TransportError` passes (plain → 529) — 4f6be77
+- [x] 4.4 `go test ./proxy/...` — existing `TestFreediusErrorHandler_ClientCanceled` passes — 4f6be77
+- [x] 4.5 `go vet ./...` — clean — 4f6be77
 
 ### Phase 5: Tests
 
 #### Automated
 
 - [ ] 5.1 `go test ./...` — full module test suite passes
-- [ ] 5.2 `go test -cover ./proxy/...` — coverage maintained or improved
-- [ ] 5.3 `go vet ./...` — clean
-- [ ] 5.4 `go build -o freedius .` — binary builds
-- [ ] 5.5 `gofumpt -l proxy/` — no formatting issues
+- [x] 5.2 `go test -cover ./proxy/...` — coverage maintained or improved
+- [x] 5.3 `go vet ./...` — clean
+- [x] 5.4 `go build -o freedius .` — binary builds
+- [x] 5.5 `gofumpt -l proxy/` — no formatting issues
 
 #### Manual
 
