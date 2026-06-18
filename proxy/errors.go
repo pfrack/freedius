@@ -94,8 +94,8 @@ func translateUpstreamError(w http.ResponseWriter, resp *http.Response) {
 		status = resp.StatusCode
 		errType = "invalid_request_error"
 	default: // other 5xx
-		status = 529
-		errType = "overloaded_error"
+		status = resp.StatusCode
+		errType = "api_error"
 		retryAfter = 15
 	}
 

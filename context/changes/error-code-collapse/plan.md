@@ -413,9 +413,9 @@ The existing `TestDispatcher_AdapterError_TranslatedAsAnthropicOverloaded` (plai
 
 #### Automated
 
-- [x] 2.1 `go test ./proxy/...` — `TestDispatcher_AdapterError_TranslatedAsAnthropicOverloaded` passes (transport → 529)
+- [x] 2.1 `go test ./proxy/...` — `TestDispatcher_AdapterError_TranslatedAsAnthropicOverloaded` passes (transport → 529) — 2fe4f9f
 - [ ] 2.2 `go test ./proxy/...` — new `TestDispatcher_ConfigError_Returns500` passes (from Phase 5)
-- [x] 2.3 `go vet ./...` — clean
+- [x] 2.3 `go vet ./...` — clean — 2fe4f9f
 
 ### Phase 3: `translateUpstreamError` Default Pass-Through
 
@@ -423,8 +423,8 @@ The existing `TestDispatcher_AdapterError_TranslatedAsAnthropicOverloaded` (plai
 
 - [ ] 3.1 `go test ./proxy/...` — `TestTranslateUpstreamError` "502" case passes (502→502)
 - [ ] 3.2 `go test ./proxy/...` — new "504" case passes (504→504)
-- [ ] 3.3 `go test ./proxy/...` — all other `TestTranslateUpstreamError` cases pass unchanged
-- [ ] 3.4 `go vet ./...` — clean
+- [x] 3.3 `go test ./proxy/...` — all other `TestTranslateUpstreamError` cases pass unchanged
+- [x] 3.4 `go vet ./...` — clean
 
 ### Phase 4: `freediusErrorHandler` DNS/TLS Detection
 
