@@ -19,6 +19,7 @@ import (
 	"net/http"
 	"runtime/debug"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/pfrack/freedius/config"
@@ -35,11 +36,16 @@ const requestIDKey contextKey = iota
 // Dispatcher is the top-level HTTP handler that resolves a freedius request
 // to a configured model, looks up the right Provider in the Registry, and
 // forwards the request.
+//
+// VerboseErrors is read on HTTP handler goroutines (writeErrorJSON) and
+// toggled on the TUI goroutine (Ctrl+E in Phase 5). It is stored as
+// atomic.Bool so the toggle is race-detector clean without locking the
+// hot request path.
 type Dispatcher struct {
 	Cfg           *config.Config
 	Logger        *slog.Logger
 	Registry      *Registry
-	VerboseErrors bool
+	verboseErrors atomic.Bool
 }
 
 // NewDispatcher returns a Dispatcher wired to the given config, registry, and
@@ -60,13 +66,23 @@ func NewDispatcher(
 	if registry == nil {
 		panic("proxy: nil registry")
 	}
-	return &Dispatcher{
-		Cfg:           cfg,
-		Logger:        logger.With("component", "proxy"),
-		Registry:      registry,
-		VerboseErrors: verboseErrors,
+	d := &Dispatcher{
+		Cfg:      cfg,
+		Logger:   logger.With("component", "proxy"),
+		Registry: registry,
 	}
+	d.verboseErrors.Store(verboseErrors)
+	return d
 }
+
+// VerboseErrors reports the current verbose-errors flag value. Safe for
+// concurrent callers — uses an atomic load.
+func (d *Dispatcher) VerboseErrors() bool { return d.verboseErrors.Load() }
+
+// SetVerboseErrors toggles the verbose-errors flag atomically. Exposed as a
+// setter method (rather than a public field) so callers can't bypass the
+// atomic load/store.
+func (d *Dispatcher) SetVerboseErrors(v bool) { d.verboseErrors.Store(v) }
 
 // resolveMapping looks up the mapping and provider for the given model name,
 // holding the config read lock for the duration of both map accesses. Returns
@@ -325,7 +341,7 @@ func (d *Dispatcher) writeErrorJSON(
 	if id := RequestIDFromContext(r.Context()); id != "" {
 		body["request_id"] = id
 	}
-	if e.detail != "" && d.VerboseErrors {
+	if e.detail != "" && d.verboseErrors.Load() {
 		body["detail"] = e.detail
 	}
 	w.Header().Set("X-Freedius-Error-Type", code)

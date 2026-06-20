@@ -717,10 +717,11 @@ func TestDashboard_CtrlETogglesVerboseErrors(t *testing.T) {
 
 func TestDashboard_CtrlEUpdatesDispatcher(t *testing.T) {
 	d := NewDashboard(nil, nil, nil, nil, "", "127.0.0.1", 8082, false)
-	d.dispatcher = &proxy.Dispatcher{VerboseErrors: false}
+	d.dispatcher = &proxy.Dispatcher{}
+	d.dispatcher.SetVerboseErrors(false)
 
 	d.Update(tea.KeyPressMsg{Code: 'e', Mod: tea.ModCtrl})
-	if !d.dispatcher.VerboseErrors {
+	if !d.dispatcher.VerboseErrors() {
 		t.Error("dispatcher.VerboseErrors should be true after Ctrl+E")
 	}
 }

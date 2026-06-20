@@ -328,7 +328,7 @@ func (d *Dashboard) scrollDown() {
 func (d *Dashboard) toggleVerboseErrors() {
 	d.verboseErrors = !d.verboseErrors
 	if d.dispatcher != nil {
-		d.dispatcher.VerboseErrors = d.verboseErrors
+		d.dispatcher.SetVerboseErrors(d.verboseErrors)
 	}
 	if d.verboseErrors {
 		d.stats.message = "Verbose errors: ON"
