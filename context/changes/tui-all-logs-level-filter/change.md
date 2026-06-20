@@ -1,7 +1,7 @@
 ---
 change_id: tui-all-logs-level-filter
 title: "TUI Log Tab: all slog lines + cycle-level filter"
-status: implementing
+status: implemented
 created: 2026-06-20
 updated: 2026-06-20
 ---

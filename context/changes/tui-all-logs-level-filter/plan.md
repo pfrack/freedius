@@ -517,11 +517,11 @@ func (f LogFilter) Matches(level slog.Level) bool {
 
 #### Automated
 
-- [x] 3.1 `go build ./...` — compiles cleanly
-- [x] 3.2 `go vet ./...` — no new vet warnings
-- [x] 3.3 `go test ./...` — all tests pass
-- [x] 3.4 `go test -race ./...` — race detector clean
-- [x] 3.5 `gofumpt -l .` — no unformatted files
+- [x] 3.1 `go build ./...` — compiles cleanly — c754e45
+- [x] 3.2 `go vet ./...` — no new vet warnings — c754e45
+- [x] 3.3 `go test ./...` — all tests pass — c754e45
+- [x] 3.4 `go test -race ./...` — race detector clean — c754e45
+- [x] 3.5 `gofumpt -l .` — no unformatted files — c754e45
 
 #### Manual
 
