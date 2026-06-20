@@ -232,12 +232,12 @@ None — Mage compiles targets on first run (cached thereafter). Cold start adds
 
 #### Automated
 
-- [x] 2.1 `mage ci` passes
-- [x] 2.2 Makefile no longer exists
-- [x] 2.3 `scripts/pre-commit` contains `mage lint`
-- [x] 2.4 `make` fails (no Makefile)
+- [x] 2.1 `mage ci` passes — d361805
+- [x] 2.2 Makefile no longer exists — d361805
+- [x] 2.3 `scripts/pre-commit` contains `mage lint` — d361805
+- [x] 2.4 `make` fails (no Makefile) — d361805
 
 #### Manual
 
-- [x] 2.5 Pre-commit hook fires `mage lint` on commit
-- [x] 2.6 `mage -l` still works after Makefile deletion
+- [x] 2.5 Pre-commit hook fires `mage lint` on commit — d361805
+- [x] 2.6 `mage -l` still works after Makefile deletion — d361805
