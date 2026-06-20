@@ -312,9 +312,9 @@ If `cfg.Theme` is empty string, `resolveTheme("")` in `NewDashboard` returns `De
 
 #### Automated
 
-- [x] 1.1 `go vet ./proxy/tui/` passes
-- [x] 1.2 `go test ./proxy/tui/` passes
-- [x] 1.3 `go build ./...` succeeds
+- [x] 1.1 `go vet ./proxy/tui/` passes — 3fa8f70
+- [x] 1.2 `go test ./proxy/tui/` passes — 3fa8f70
+- [x] 1.3 `go build ./...` succeeds — 3fa8f70
 
 #### Manual
 
@@ -326,9 +326,9 @@ If `cfg.Theme` is empty string, `resolveTheme("")` in `NewDashboard` returns `De
 
 #### Automated
 
-- [ ] 2.1 `go vet ./proxy/tui/` passes
-- [ ] 2.2 `go test ./...` passes
-- [ ] 2.3 `go build ./...` succeeds
+- [x] 2.1 `go vet ./proxy/tui/` passes
+- [x] 2.2 `go test ./...` passes
+- [x] 2.3 `go build ./...` succeeds
 
 #### Manual
 

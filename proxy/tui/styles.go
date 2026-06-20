@@ -76,6 +76,42 @@ func DefaultTheme() Theme {
 
 var themeRegistry = []Theme{
 	DefaultTheme(),
+	{
+		Name: "zenburn",
+		Palette: Palette{
+			Error:      AdaptiveColor{Light: lipgloss.Color("#cc9393"), Dark: lipgloss.Color("#cc9393")},
+			Warning:    AdaptiveColor{Light: lipgloss.Color("#e0c989"), Dark: lipgloss.Color("#e0c989")},
+			Accent:     AdaptiveColor{Light: lipgloss.Color("#8cd0d3"), Dark: lipgloss.Color("#8cd0d3")},
+			KeyCap:     AdaptiveColor{Light: lipgloss.Color("#f0dfaf"), Dark: lipgloss.Color("#f0dfaf")},
+			Muted:      AdaptiveColor{Light: lipgloss.Color("#dcdccc"), Dark: lipgloss.Color("#dcdccc")},
+			Border:     AdaptiveColor{Light: lipgloss.Color("#7f9f7f"), Dark: lipgloss.Color("#7f9f7f")},
+			Background: AdaptiveColor{Light: lipgloss.Color("#3f3f3f"), Dark: lipgloss.Color("#3f3f3f")},
+		},
+	},
+	{
+		Name: "gruvbox-dark",
+		Palette: Palette{
+			Error:      AdaptiveColor{Light: lipgloss.Color("#fb4934"), Dark: lipgloss.Color("#fb4934")},
+			Warning:    AdaptiveColor{Light: lipgloss.Color("#fabd2f"), Dark: lipgloss.Color("#fabd2f")},
+			Accent:     AdaptiveColor{Light: lipgloss.Color("#83a598"), Dark: lipgloss.Color("#83a598")},
+			KeyCap:     AdaptiveColor{Light: lipgloss.Color("#b8bb26"), Dark: lipgloss.Color("#b8bb26")},
+			Muted:      AdaptiveColor{Light: lipgloss.Color("#ebdbb2"), Dark: lipgloss.Color("#ebdbb2")},
+			Border:     AdaptiveColor{Light: lipgloss.Color("#928374"), Dark: lipgloss.Color("#928374")},
+			Background: AdaptiveColor{Light: lipgloss.Color("#282828"), Dark: lipgloss.Color("#282828")},
+		},
+	},
+	{
+		Name: "catppuccin-mocha",
+		Palette: Palette{
+			Error:      AdaptiveColor{Light: lipgloss.Color("#f38ba8"), Dark: lipgloss.Color("#f38ba8")},
+			Warning:    AdaptiveColor{Light: lipgloss.Color("#fab387"), Dark: lipgloss.Color("#fab387")},
+			Accent:     AdaptiveColor{Light: lipgloss.Color("#89b4fa"), Dark: lipgloss.Color("#89b4fa")},
+			KeyCap:     AdaptiveColor{Light: lipgloss.Color("#a6e3a1"), Dark: lipgloss.Color("#a6e3a1")},
+			Muted:      AdaptiveColor{Light: lipgloss.Color("#cdd6f4"), Dark: lipgloss.Color("#cdd6f4")},
+			Border:     AdaptiveColor{Light: lipgloss.Color("#585b70"), Dark: lipgloss.Color("#585b70")},
+			Background: AdaptiveColor{Light: lipgloss.Color("#1e1e2e"), Dark: lipgloss.Color("#1e1e2e")},
+		},
+	},
 }
 
 // resolveTheme scans themeRegistry for a matching name. If not found it

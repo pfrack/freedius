@@ -339,6 +339,9 @@ func (d *Dashboard) handleTabModeKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.C
 		}
 		d.installShellRC()
 		return d, nil
+	case "ctrl+t":
+		d.cycleTheme()
+		return d, nil
 	}
 	return d, nil
 }
@@ -409,6 +412,22 @@ func (d *Dashboard) cycleLogLevel() {
 	// Fallback: start from All.
 	d.currentLogLevel = filterAll
 	d.logScroll = 0
+}
+
+// cycleTheme advances to the next theme in the registry and rebuilds styles.
+func (d *Dashboard) cycleTheme() {
+	for i, t := range themeRegistry {
+		if t.Name == d.currentTheme.Name {
+			next := (i + 1) % len(themeRegistry)
+			d.currentTheme = &themeRegistry[next]
+			d.styles = NewStyles(d.currentTheme.Palette, d.isDark)
+			d.stats.message = fmt.Sprintf("Theme: %s", d.currentTheme.Name)
+			return
+		}
+	}
+	d.currentTheme = &themeRegistry[0]
+	d.styles = NewStyles(d.currentTheme.Palette, d.isDark)
+	d.stats.message = fmt.Sprintf("Theme: %s", d.currentTheme.Name)
 }
 
 func (d *Dashboard) handleFormKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
