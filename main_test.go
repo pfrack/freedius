@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -350,6 +352,38 @@ func TestStarterTemplate_ValidConfig(t *testing.T) {
 	}
 	if len(cfg.Providers) == 0 && len(cfg.Mappings) == 0 {
 		t.Error("starter template should define at least one provider or mapping")
+	}
+}
+
+func TestRun_BindFailureSurfacesBeforeTUI(t *testing.T) {
+	// Regression for F3: when the bind fails (e.g., port already in use),
+	// the error must be surfaced immediately rather than hidden until the
+	// user quits the TUI. Use a port we hold from a side listener.
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	occupiedPort := ln.Addr().(*net.TCPAddr).Port
+
+	dir := t.TempDir()
+	cfgPath := dir + "/freedius.yaml"
+	if err := os.WriteFile(cfgPath, []byte(minimalConfigYAML), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("NVIDIA_NIM_API_KEY", "test-key")
+
+	cmd := exec.Command("go", "run", ".", "--config", cfgPath, "--port", strconv.Itoa(occupiedPort), "--no-export-hint")
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	cmd.Dir = "."
+	err = cmd.Run()
+	if err == nil {
+		t.Fatal("expected non-zero exit when port is occupied")
+	}
+	output := stderr.String()
+	if !strings.Contains(output, "bind") && !strings.Contains(output, "address already in use") {
+		t.Errorf("expected bind/address-already-in-use error in stderr, got:\n%s", output)
 	}
 }
 

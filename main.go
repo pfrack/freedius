@@ -153,16 +153,9 @@ func run(args []string) int {
 		logger.Error("config path resolution failed", "err", err)
 		return 1
 	}
-	cfg, err := config.Load(cfgPath)
+	cfg, err := loadConfig(cfgPath, *flagConfig)
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) && *flagConfig == "" {
-			cfg, err = config.LoadFromBytes([]byte(starterTemplate))
-			if err != nil {
-				return failf("freedius: embedded default config invalid: %v", err)
-			}
-		} else {
-			return failf("freedius: %s", err)
-		}
+		return failf("freedius: %s", err)
 	}
 
 	// In unified mode, missing env vars are surfaced to the user via the TUI
@@ -208,6 +201,10 @@ func run(args []string) int {
 		}
 	}()
 
+	if err := waitForBind(serverErr); err != nil {
+		return failf("freedius: %v", err)
+	}
+
 	model := tui.NewDashboard(bus.Subscribe(), cfg, registry, dispatcher, cfgPath, host, port, verboseErrors)
 	prog := tea.NewProgram(model)
 	if _, err := prog.Run(); err != nil {
@@ -252,6 +249,37 @@ Flags:
 	fs.Duration("stream-timeout", 0, "per-request upstream timeout (default 5m)")
 	fs.Bool("no-export-hint", false, "suppress the env-export hint on startup")
 	fs.PrintDefaults()
+}
+
+// waitForBind polls serverErr for up to 50ms looking for an immediate bind
+// failure (port in use, permission denied, etc.). Returns the error if one
+// arrives in that window, or nil if no error fires — at which point the bind
+// has succeeded (or at least has not produced a synchronous error) and the
+// caller can proceed to start the TUI.
+func waitForBind(serverErr <-chan error) error {
+	deadline := time.Now().Add(50 * time.Millisecond)
+	for time.Now().Before(deadline) {
+		select {
+		case err := <-serverErr:
+			return err
+		case <-time.After(5 * time.Millisecond):
+		}
+	}
+	return nil
+}
+
+// loadConfig loads the config from cfgPath, falling back to the embedded
+// starter template when the resolved path does not exist and no explicit
+// --config flag was passed (lazy startup).
+func loadConfig(cfgPath, explicitFlag string) (*config.Config, error) {
+	cfg, err := config.Load(cfgPath)
+	if err == nil {
+		return cfg, nil
+	}
+	if errors.Is(err, os.ErrNotExist) && explicitFlag == "" {
+		return config.LoadFromBytes([]byte(starterTemplate))
+	}
+	return nil, err
 }
 
 func failf(format string, args ...any) int {
