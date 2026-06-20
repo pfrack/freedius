@@ -435,6 +435,26 @@ func TestLoadFromBytes_DoesNotTouchFS(t *testing.T) {
 	}
 }
 
+func TestLoad_FilePathInYAMLError(t *testing.T) {
+	// Regression for F4: yamlUnmarshalStrict errors from file-based Load
+	// must include the actual file path, not the placeholder "<bytes>".
+	dir := t.TempDir()
+	path := filepath.Join(dir, "broken.yaml")
+	if err := os.WriteFile(path, []byte("providers:\n  nim:\n   foo: bar\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, err := Load(path)
+	if err == nil {
+		t.Fatal("expected YAML parse error")
+	}
+	if !strings.Contains(err.Error(), path) {
+		t.Errorf("error should mention file path %q, got: %v", path, err)
+	}
+	if strings.Contains(err.Error(), "<bytes>") {
+		t.Errorf("error should NOT mention <bytes>, got: %v", err)
+	}
+}
+
 func TestProviderDefaults(t *testing.T) {
 	expected := []string{"nim", "zen", "go", "custom", "openai", "anthropic", "mix"}
 	if len(providerDefaults) != len(expected) {
