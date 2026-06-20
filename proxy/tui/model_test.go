@@ -2,6 +2,7 @@ package tui
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -12,6 +13,22 @@ import (
 	"github.com/pfrack/freedius/proxy"
 )
 
+var (
+	emptyConfig     = &config.Config{}
+	emptyRegistry   = proxy.NewRegistry(nil)
+	emptyDispatcher = &proxy.Dispatcher{}
+)
+
+// newTestDashboard constructs a Dashboard with sensible defaults for the
+// required pointer args. Tests that don't care about cfg can pass nil and
+// get the empty default.
+func newTestDashboard(cfg *config.Config, host string, port int, verbose bool) *Dashboard {
+	if cfg == nil {
+		cfg = emptyConfig
+	}
+	return NewDashboard(nil, cfg, emptyRegistry, emptyDispatcher, "", host, port, verbose)
+}
+
 func TestDashboard_Update_KeyPress(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -19,7 +36,7 @@ func TestDashboard_Update_KeyPress(t *testing.T) {
 		wantTab  int
 		wantQuit bool
 	}{
-		{name: "press 1", key: tea.KeyPressMsg{Code: '1'}, wantTab: tabRequests},
+		{name: "press 1", key: tea.KeyPressMsg{Code: '1'}, wantTab: tabLog},
 		{name: "press 2", key: tea.KeyPressMsg{Code: '2'}, wantTab: tabProviders},
 		{name: "press 3", key: tea.KeyPressMsg{Code: '3'}, wantTab: tabConfig},
 		{name: "press q", key: tea.KeyPressMsg{Text: "q"}, wantQuit: true},
@@ -29,9 +46,9 @@ func TestDashboard_Update_KeyPress(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			d := NewDashboard(nil, nil, nil, "")
+			d := newTestDashboard(nil, "", 0, false)
 			// Start on tab 0
-			d.activeTab = tabRequests
+			d.activeTab = tabLog
 
 			_, cmd := d.Update(tt.key)
 			if tt.wantQuit {
@@ -58,7 +75,7 @@ func TestDashboard_Update_TabCycle(t *testing.T) {
 		{
 			name:    "tab from 0 to 1",
 			key:     tea.KeyPressMsg{Code: tea.KeyTab},
-			initial: tabRequests,
+			initial: tabLog,
 			want:    tabProviders,
 		},
 		{
@@ -71,12 +88,12 @@ func TestDashboard_Update_TabCycle(t *testing.T) {
 			name:    "tab from 2 wraps to 0",
 			key:     tea.KeyPressMsg{Code: tea.KeyTab},
 			initial: tabConfig,
-			want:    tabRequests,
+			want:    tabLog,
 		},
 		{
 			name:    "shift+tab from 0 wraps to 2",
 			key:     tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift},
-			initial: tabRequests,
+			initial: tabLog,
 			want:    tabConfig,
 		},
 		{
@@ -89,7 +106,7 @@ func TestDashboard_Update_TabCycle(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			d := NewDashboard(nil, nil, nil, "")
+			d := newTestDashboard(nil, "", 0, false)
 			d.activeTab = tt.initial
 			d.Update(tt.key)
 			if d.activeTab != tt.want {
@@ -100,7 +117,7 @@ func TestDashboard_Update_TabCycle(t *testing.T) {
 }
 
 func TestDashboard_Update_Resize(t *testing.T) {
-	d := NewDashboard(nil, nil, nil, "")
+	d := newTestDashboard(nil, "", 0, false)
 	d.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 
 	if d.width != 120 {
@@ -115,10 +132,12 @@ func TestDashboard_Update_EventMsg(t *testing.T) {
 	ch := make(chan proxy.RequestEvent, 1)
 	defer close(ch)
 
-	d := NewDashboard(ch, &config.Config{}, nil, "")
+	d := NewDashboard(ch, &config.Config{}, emptyRegistry, emptyDispatcher, "", "", 0, false)
 
 	ev := proxy.RequestEvent{
 		RequestID: "test-1",
+		Method:    "POST",
+		Path:      "/v1/messages",
 		Model:     "opus",
 		Provider:  "nim",
 		Status:    200,
@@ -146,10 +165,12 @@ func TestDashboard_Update_EventMsg(t *testing.T) {
 }
 
 func TestDashboard_Update_EventMsgErrorCount(t *testing.T) {
-	d := NewDashboard(nil, nil, nil, "")
+	d := newTestDashboard(nil, "", 0, false)
 
 	errEv := proxy.RequestEvent{
 		RequestID: "err-1",
+		Method:    "POST",
+		Path:      "/v1/messages",
 		Status:    500,
 	}
 	d.Update(requestEventMsg(errEv))
@@ -164,7 +185,7 @@ func TestDashboard_OpenEditProviderForm(t *testing.T) {
 			"nim": {Behavior: "openai"},
 		},
 	}
-	d := NewDashboard(nil, cfg, nil, "")
+	d := newTestDashboard(cfg, "", 0, false)
 	d.activeTab = tabConfig
 
 	// Cursor 0 = the only provider.
@@ -194,7 +215,7 @@ func TestDashboard_OpenEditMappingForm(t *testing.T) {
 			"opus": {ProviderName: "nim", ModelString: "meta-llama"},
 		},
 	}
-	d := NewDashboard(nil, cfg, nil, "")
+	d := newTestDashboard(cfg, "", 0, false)
 	d.activeTab = tabConfig
 
 	// collectAllEntries returns providers first, then mappings. With one
@@ -220,7 +241,7 @@ func TestDashboard_OpenEditMappingForm(t *testing.T) {
 }
 
 func TestDashboard_OpenAddProviderForm(t *testing.T) {
-	d := NewDashboard(nil, &config.Config{}, nil, "")
+	d := newTestDashboard(&config.Config{}, "", 0, false)
 	d.activeTab = tabConfig
 
 	d.Update(tea.KeyPressMsg{Text: "p"})
@@ -239,7 +260,7 @@ func TestDashboard_OpenAddProviderForm(t *testing.T) {
 }
 
 func TestDashboard_OpenAddMappingForm(t *testing.T) {
-	d := NewDashboard(nil, &config.Config{}, nil, "")
+	d := newTestDashboard(&config.Config{}, "", 0, false)
 	d.activeTab = tabConfig
 
 	d.Update(tea.KeyPressMsg{Text: "a"})
@@ -258,7 +279,7 @@ func TestDashboard_OpenAddMappingForm(t *testing.T) {
 }
 
 func TestDashboard_FormCancel(t *testing.T) {
-	d := NewDashboard(nil, &config.Config{}, nil, "")
+	d := newTestDashboard(&config.Config{}, "", 0, false)
 	d.activeTab = tabConfig
 	d.configCursor = 0
 
@@ -284,7 +305,7 @@ func TestDashboard_FormCancel(t *testing.T) {
 }
 
 func TestDashboard_FormFieldNavigation(t *testing.T) {
-	d := NewDashboard(nil, &config.Config{}, nil, "")
+	d := newTestDashboard(&config.Config{}, "", 0, false)
 	d.activeTab = tabConfig
 	d.config.Providers = map[string]config.Provider{"test": {Behavior: "openai"}}
 	d.configCursor = 0
@@ -308,7 +329,7 @@ func TestDashboard_FormFieldNavigation(t *testing.T) {
 }
 
 func TestDashboard_FormSubmitInvalidShowsErrors(t *testing.T) {
-	d := NewDashboard(nil, &config.Config{}, nil, "")
+	d := newTestDashboard(&config.Config{}, "", 0, false)
 	d.activeTab = tabConfig
 	d.config.Providers = map[string]config.Provider{
 		"test": {Behavior: "openai"},
@@ -340,7 +361,7 @@ func TestDashboard_FormSubmitInvalidShowsErrors(t *testing.T) {
 }
 
 func TestDashboard_FormSubmitProviderInvalidBehavior(t *testing.T) {
-	d := NewDashboard(nil, &config.Config{}, nil, "")
+	d := newTestDashboard(&config.Config{}, "", 0, false)
 	d.activeTab = tabConfig
 	d.config.Providers = map[string]config.Provider{
 		"test": {Behavior: "openai"},
@@ -366,7 +387,7 @@ func TestDashboard_FormSubmitProviderInvalidBehavior(t *testing.T) {
 }
 
 func TestDashboard_FormSubmitMappingUnknownProvider(t *testing.T) {
-	d := NewDashboard(nil, &config.Config{}, nil, "")
+	d := newTestDashboard(&config.Config{}, "", 0, false)
 	d.activeTab = tabConfig
 	d.config.Providers = map[string]config.Provider{
 		"nim": {Behavior: "openai"},
@@ -391,7 +412,7 @@ func TestDashboard_FormSubmitMappingUnknownProvider(t *testing.T) {
 }
 
 func TestDashboard_DeleteProvider(t *testing.T) {
-	d := NewDashboard(nil, &config.Config{}, nil, "")
+	d := newTestDashboard(&config.Config{}, "", 0, false)
 	d.activeTab = tabConfig
 	d.config.Providers = map[string]config.Provider{
 		"test": {Behavior: "openai"},
@@ -414,7 +435,7 @@ func TestDashboard_DeleteProvider(t *testing.T) {
 }
 
 func TestDashboard_DeleteMapping(t *testing.T) {
-	d := NewDashboard(nil, &config.Config{}, nil, "")
+	d := newTestDashboard(&config.Config{}, "", 0, false)
 	d.activeTab = tabConfig
 	d.config.Providers = map[string]config.Provider{
 		"nim": {Behavior: "openai"},
@@ -440,7 +461,7 @@ func TestDashboard_DeleteMapping(t *testing.T) {
 }
 
 func TestDashboard_DeleteCancel(t *testing.T) {
-	d := NewDashboard(nil, &config.Config{}, nil, "")
+	d := newTestDashboard(&config.Config{}, "", 0, false)
 	d.activeTab = tabConfig
 	d.config.Providers = map[string]config.Provider{
 		"test": {Behavior: "openai"},
@@ -481,7 +502,7 @@ mappings:
 		t.Fatalf("Load: %v", err)
 	}
 
-	d := NewDashboard(nil, cfg, nil, cfgPath)
+	d := NewDashboard(nil, cfg, emptyRegistry, emptyDispatcher, cfgPath, "", 0, false)
 	d.activeTab = tabConfig
 	d.configCursor = 1 // the mapping
 
@@ -505,7 +526,7 @@ mappings:
 }
 
 func TestDashboard_AddProviderInsert(t *testing.T) {
-	d := NewDashboard(nil, &config.Config{}, nil, "")
+	d := newTestDashboard(&config.Config{}, "", 0, false)
 	d.activeTab = tabConfig
 
 	// Open add provider form.
@@ -536,11 +557,11 @@ func TestDashboard_AddProviderInsert(t *testing.T) {
 }
 
 func TestDashboard_AddMappingInsert(t *testing.T) {
-	d := NewDashboard(nil, &config.Config{
+	d := newTestDashboard(&config.Config{
 		Providers: map[string]config.Provider{
 			"nim": {Behavior: "openai"},
 		},
-	}, nil, "")
+	}, "", 0, false)
 	d.activeTab = tabConfig
 
 	// Open add mapping form.
@@ -602,3 +623,312 @@ func TestRingBuffer(t *testing.T) {
 		}
 	}
 }
+
+func TestRenderLogTab_Format(t *testing.T) {
+	d := newTestDashboard(nil, "", 0, false)
+	d.eventLog.push(proxy.RequestEvent{
+		RequestID:       "abc123",
+		Method:          "POST",
+		Path:            "/v1/messages",
+		Model:           "opus",
+		Provider:        "nim",
+		Status:          200,
+		Latency:         42 * time.Millisecond,
+		MatchedProvider: "nim",
+		MatchedModel:    "step-3.5",
+		Timestamp:       time.Date(2026, 1, 1, 15, 4, 5, 0, time.UTC),
+	})
+	out := stripANSI(renderLogTab(d.eventLog.all(), 80, 24, 0))
+	for _, want := range []string{
+		"request_id=abc123",
+		"method=POST",
+		"path=/v1/messages",
+		"status=200",
+		"duration_ms=42",
+		"matched_provider=nim",
+		"matched_model=step-3.5",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("renderLogTab output missing %q\nfull output:\n%s", want, out)
+		}
+	}
+}
+
+func TestRenderLogTab_Empty(t *testing.T) {
+	out := stripANSI(renderLogTab(nil, 80, 24, 0))
+	if !strings.Contains(out, "No requests yet") {
+		t.Errorf("expected empty-state message, got: %s", out)
+	}
+}
+
+func TestRenderLogTab_ErrorSuffix(t *testing.T) {
+	d := newTestDashboard(nil, "", 0, false)
+	d.eventLog.push(proxy.RequestEvent{
+		RequestID:    "err-1",
+		Method:       "POST",
+		Path:         "/v1/messages",
+		Status:       500,
+		Latency:      100 * time.Millisecond,
+		ErrorMessage: "boom",
+		Timestamp:    time.Date(2026, 1, 1, 15, 4, 5, 0, time.UTC),
+	})
+	out := stripANSI(renderLogTab(d.eventLog.all(), 80, 24, 0))
+	if !strings.Contains(out, `error="boom"`) {
+		t.Errorf("expected error= suffix in output, got: %s", out)
+	}
+}
+
+func TestRenderTabs_LabelIsLog(t *testing.T) {
+	out := stripANSI(renderTabs(0, 80))
+	if !strings.Contains(out, "[1] Log") {
+		t.Errorf("expected '[1] Log' tab label, got: %s", out)
+	}
+	if strings.Contains(out, "[1] Requests") {
+		t.Errorf("should not contain '[1] Requests' label anymore, got: %s", out)
+	}
+}
+
+// stripANSI removes ANSI escape codes for test assertions.
+func stripANSI(s string) string {
+	var b strings.Builder
+	b.Grow(len(s))
+	inEscape := false
+	for _, r := range s {
+		switch {
+		case r == 0x1b:
+			inEscape = true
+		case inEscape:
+			if r == 'm' {
+				inEscape = false
+			}
+		default:
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
+}
+
+func TestDashboard_CtrlETogglesVerboseErrors(t *testing.T) {
+	d := newTestDashboard(nil, "127.0.0.1", 8082, false)
+	if d.verboseErrors {
+		t.Fatal("initial verboseErrors should be false")
+	}
+
+	d.Update(tea.KeyPressMsg{Code: 'e', Mod: tea.ModCtrl})
+	if !d.verboseErrors {
+		t.Error("expected verboseErrors=true after first Ctrl+E")
+	}
+	if d.stats.message != "Verbose errors: ON" {
+		t.Errorf("expected ON message, got %q", d.stats.message)
+	}
+
+	d.Update(tea.KeyPressMsg{Code: 'e', Mod: tea.ModCtrl})
+	if d.verboseErrors {
+		t.Error("expected verboseErrors=false after second Ctrl+E")
+	}
+	if d.stats.message != "Verbose errors: OFF" {
+		t.Errorf("expected OFF message, got %q", d.stats.message)
+	}
+}
+
+func TestDashboard_CtrlEUpdatesDispatcher(t *testing.T) {
+	d := newTestDashboard(nil, "127.0.0.1", 8082, false)
+	d.dispatcher = &proxy.Dispatcher{}
+	d.dispatcher.SetVerboseErrors(false)
+
+	d.Update(tea.KeyPressMsg{Code: 'e', Mod: tea.ModCtrl})
+	if !d.dispatcher.VerboseErrors() {
+		t.Error("dispatcher.VerboseErrors should be true after Ctrl+E")
+	}
+}
+
+func TestDashboard_CtrlSOutsideConfigNoOp(t *testing.T) {
+	d := newTestDashboard(nil, "127.0.0.1", 8082, false)
+	d.activeTab = tabLog
+	d.stats.message = "previous"
+
+	d.Update(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
+	if d.stats.message != "previous" {
+		t.Errorf("Ctrl+S outside Config tab should not change status message, got %q", d.stats.message)
+	}
+}
+
+func TestDashboard_CtrlSInConfigInstallsShellRC(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+	t.Setenv("SHELL", "/bin/zsh")
+
+	d := newTestDashboard(nil, "127.0.0.1", 8082, false)
+	d.activeTab = tabConfig
+	d.Update(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
+
+	if !strings.Contains(d.stats.message, "Shell RC updated") {
+		t.Errorf("expected success message, got %q", d.stats.message)
+	}
+	rcPath := filepath.Join(dir, ".zshrc")
+	if _, err := os.Stat(rcPath); err != nil {
+		t.Errorf(".zshrc should have been written, got: %v", err)
+	}
+}
+
+func TestDashboard_CtrlSAlreadyInstalledShowsSuccess(t *testing.T) {
+	// Regression for F7: WriteShellRC returns an error when the block is
+	// already installed, but that condition is a success/no-op, not a
+	// failure. The status bar should say "already installed ✓", not
+	// "Shell install failed".
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+	t.Setenv("SHELL", "/bin/zsh")
+
+	d := newTestDashboard(nil, "127.0.0.1", 8082, false)
+	d.activeTab = tabConfig
+	d.Update(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
+	// Second install: should be detected as already-installed, not failure.
+	d.Update(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
+
+	if strings.Contains(d.stats.message, "Shell install failed") {
+		t.Errorf("already-installed should NOT be reported as failure, got %q", d.stats.message)
+	}
+	if !strings.Contains(d.stats.message, "already installed") {
+		t.Errorf("expected already-installed message, got %q", d.stats.message)
+	}
+}
+
+func TestDashboard_RequestEventClearsStatusMessage(t *testing.T) {
+	d := newTestDashboard(nil, "127.0.0.1", 8082, false)
+	d.stats.message = "Shell RC updated ✓"
+
+	d.Update(requestEventMsg(proxy.RequestEvent{Status: 200}))
+	if d.stats.message != "" {
+		t.Errorf("status message should clear on next event, got %q", d.stats.message)
+	}
+}
+
+func viewContent(v tea.View) string {
+	return v.Content
+}
+
+func TestDashboard_ConfigTabEnterEdits(t *testing.T) {
+	// Enter on Tab 3 (Config) should open the edit form on the entry
+	// under the cursor — same as the legacy 'e' binding.
+	cfg := &config.Config{
+		Providers: map[string]config.Provider{
+			"nim": {Behavior: "openai"},
+		},
+	}
+	d := newTestDashboard(cfg, "", 0, false)
+	d.activeTab = tabConfig
+	d.configCursor = 0
+
+	d.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+
+	if d.formMode != formEditProvider {
+		t.Errorf("Enter should open edit form, got formMode=%d", d.formMode)
+	}
+	if d.formEntryName != "nim" {
+		t.Errorf("expected to edit nim, got %q", d.formEntryName)
+	}
+}
+
+func TestDashboard_ConfigTabScrollsToCursor(t *testing.T) {
+	// Build a config with many entries so the cursor scrolls past the visible
+	// window. After moving the cursor down, the rendered window must contain
+	// the cursor's entry name.
+	cfg := &config.Config{
+		Providers: map[string]config.Provider{
+			"nim":    {Behavior: "openai"},
+			"openai": {Behavior: "openai"},
+		},
+		Mappings: map[string]config.Mapping{
+			"opus":    {ProviderName: "nim", ModelString: "x"},
+			"sonnet":  {ProviderName: "nim", ModelString: "x"},
+			"haiku":   {ProviderName: "nim", ModelString: "x"},
+			"auto":    {ProviderName: "nim", ModelString: "x"},
+			"default": {ProviderName: "nim", ModelString: "x"},
+		},
+	}
+	d := newTestDashboard(cfg, "", 0, false)
+	d.activeTab = tabConfig
+	d.width = 80
+	d.height = 24
+
+	all := collectAllEntries(d.config)
+	if len(all) < 5 {
+		t.Fatalf("setup: need >= 5 entries, got %d", len(all))
+	}
+	// Move cursor to the last entry.
+	d.configCursor = len(all) - 1
+	d.Update(requestEventMsg(proxy.RequestEvent{Status: 200}))
+
+	out := stripANSI(viewContent(d.View()))
+	if !strings.Contains(out, all[len(all)-1].name) {
+		t.Errorf("last entry %q should be visible after cursor move, got:\n%s",
+			all[len(all)-1].name, out)
+	}
+}
+
+func TestDashboard_ProvidersTabScroll(t *testing.T) {
+	// Build a config with many providers so the table overflows the visible
+	// window. j/k should scroll the visible window back through history.
+	cfg := &config.Config{
+		Providers: map[string]config.Provider{
+			"nim":       {Behavior: "openai"},
+			"openai":    {Behavior: "openai"},
+			"anthropic": {Behavior: "anthropic"},
+			"zen":       {Behavior: "mix"},
+			"go":        {Behavior: "mix"},
+			"custom1":   {Behavior: "mix"},
+			"custom2":   {Behavior: "mix"},
+			"custom3":   {Behavior: "mix"},
+			"custom4":   {Behavior: "mix"},
+			"custom5":   {Behavior: "mix"},
+			"custom6":   {Behavior: "mix"},
+			"custom7":   {Behavior: "mix"},
+		},
+	}
+	d := newTestDashboard(cfg, "", 0, false)
+	d.activeTab = tabProviders
+	d.width = 80
+	// Small height forces overflow: 12 - 4 header lines = 8 visible rows.
+	d.height = 12
+
+	// First check the tail view shows the last providers.
+	out := stripANSI(viewContent(d.View()))
+	if !strings.Contains(out, "custom7") {
+		t.Errorf("tail view should show custom7, got:\n%s", out)
+	}
+	if !strings.Contains(out, "openai") {
+		t.Errorf("tail view should show openai (sorted after nim), got:\n%s", out)
+	}
+	if strings.Contains(out, "anthropic") {
+		t.Errorf("tail view should NOT show anthropic, got:\n%s", out)
+	}
+
+	// Scroll back (k = up = scroll older). Press k enough times to push
+	// custom7 off-screen: with 12 providers and ~5 visible rows, we need
+	// at least 7 presses to fully scroll to the top.
+	for i := 0; i < 7; i++ {
+		d.Update(tea.KeyPressMsg{Text: "k"})
+	}
+	if d.providerScroll == 0 {
+		t.Error("expected providerScroll to increment on k")
+	}
+	out = stripANSI(viewContent(d.View()))
+	if strings.Contains(out, "custom7") {
+		t.Errorf("after scroll back, custom7 should not be visible, got:\n%s", out)
+	}
+	if !strings.Contains(out, "anthropic") {
+		t.Errorf("after scroll back to top, anthropic should be visible, got:\n%s", out)
+	}
+
+	// Scroll forward (j = down = scroll newer) back to the tail.
+	for d.providerScroll > 0 {
+		d.Update(tea.KeyPressMsg{Text: "j"})
+	}
+	out = stripANSI(viewContent(d.View()))
+	if !strings.Contains(out, "custom7") {
+		t.Errorf("after scrolling forward, custom7 should be visible again, got:\n%s", out)
+	}
+}
+
+// TestConfig_SaveCreatesParentDir moved to config/config_test.go.

@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/goccy/go-yaml"
 )
@@ -18,7 +20,13 @@ import (
 // behavior class (openai / anthropic / mix), the base URL to contact, and the
 // env var that holds the API key. Mappings is the routing layer: each one
 // names a provider and the freetext model string that should be sent to it.
+//
+// Concurrent access is guarded by an internal RWMutex: the dispatcher holds
+// a read lock while resolving a request, while the TUI holds a write lock
+// when mutating the maps (submitForm, delete). Snapshot helpers below return
+// copies so renderers can iterate without holding the lock.
 type Config struct {
+	mu        sync.RWMutex
 	Providers map[string]Provider `yaml:"providers"`
 	Mappings  map[string]Mapping  `yaml:"mappings,omitempty"`
 }
@@ -54,28 +62,104 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("config: config file at %s contains no model mappings", path)
 	}
 
+	cfg, err := loadFromUnmarshaled(path, data)
+	if err != nil {
+		return nil, err
+	}
+	if err := cfg.validate(path); err != nil {
+		return nil, err
+	}
+	return cfg, nil
+}
+
+// LoadFromBytes parses, defaults, and validates a freedius configuration from
+// raw YAML bytes. It mirrors Load but skips the file-read step so the embedded
+// starter template can be used without writing to disk.
+func LoadFromBytes(data []byte) (*Config, error) {
+	if len(data) == 0 {
+		return nil, fmt.Errorf("config: empty config bytes")
+	}
+	cfg, err := loadFromUnmarshaled("<bytes>", data)
+	if err != nil {
+		return nil, err
+	}
+	if err := cfg.validate("<bytes>"); err != nil {
+		return nil, err
+	}
+	return cfg, nil
+}
+
+// loadFromUnmarshaled parses data, applies defaults, and asserts that the
+// result has at least one provider or mapping. The path argument is used
+// purely for error messages.
+func loadFromUnmarshaled(path string, data []byte) (*Config, error) {
 	var cfg Config
 	if err := yamlUnmarshalStrict(path, data, &cfg); err != nil {
 		return nil, err
 	}
 
 	if len(cfg.Providers) == 0 && len(cfg.Mappings) == 0 {
-		return nil, fmt.Errorf("config: config file at %s contains no model mappings", path)
+		return nil, fmt.Errorf("config: input contains no model mappings")
 	}
 
 	cfg.applyDefaults()
-
-	if err := cfg.validate(path); err != nil {
-		return nil, err
-	}
-
 	return &cfg, nil
+}
+
+// Lock acquires the writer mutex for the underlying Providers and Mappings
+// maps. It must be paired with a matching Unlock. The TUI uses this when
+// mutating the maps (submitForm, handleDeleteConfirmKeyPress). Dispatcher
+// request handlers should use RLock/RUnlock instead.
+func (c *Config) Lock() { c.mu.Lock() }
+
+// Unlock releases the writer mutex.
+func (c *Config) Unlock() { c.mu.Unlock() }
+
+// RLock acquires the reader mutex for safe concurrent map reads.
+func (c *Config) RLock() { c.mu.RLock() }
+
+// RUnlock releases the reader mutex.
+func (c *Config) RUnlock() { c.mu.RUnlock() }
+
+// ProvidersSnapshot returns a copy of the providers map safe for the caller
+// to iterate without holding the lock. Useful for rendering loops.
+func (c *Config) ProvidersSnapshot() map[string]Provider {
+	c.RLock()
+	defer c.RUnlock()
+	out := make(map[string]Provider, len(c.Providers))
+	for k, v := range c.Providers {
+		out[k] = v
+	}
+	return out
+}
+
+// MappingsSnapshot returns a copy of the mappings map safe for the caller
+// to iterate without holding the lock.
+func (c *Config) MappingsSnapshot() map[string]Mapping {
+	c.RLock()
+	defer c.RUnlock()
+	out := make(map[string]Mapping, len(c.Mappings))
+	for k, v := range c.Mappings {
+		out[k] = v
+	}
+	return out
+}
+
+// HasProvider reports whether the named provider exists. Safe for concurrent
+// callers; uses a read lock internally.
+func (c *Config) HasProvider(name string) bool {
+	c.RLock()
+	defer c.RUnlock()
+	_, ok := c.Providers[name]
+	return ok
 }
 
 // UsesProvider reports whether any provider entry or mapping references the
 // given provider name. It checks the providers map directly and walks the
-// mappings to find ProviderName references.
+// mappings to find ProviderName references. Safe for concurrent callers.
 func (c *Config) UsesProvider(name string) bool {
+	c.RLock()
+	defer c.RUnlock()
 	if _, ok := c.Providers[name]; ok {
 		return true
 	}
@@ -200,9 +284,18 @@ func (c *Config) Marshal() ([]byte, error) {
 	return yaml.Marshal(c)
 }
 
-// Save validates, marshals, and writes the config to path. If path exists,
-// it is backed up as path+".bak" before writing. On write failure, the
-// backup is restored.
+// Save validates, marshals, and writes the config to path atomically.
+//
+// The write is performed by writing to a sibling temp file (path+".tmp") and
+// then renaming it over path. The rename is atomic on POSIX file systems, so
+// a concurrent reader sees either the old or new content — never a half-
+// written file. If path exists before the write, it is first copied to
+// path+".bak" so the user can manually recover if the new content is bad.
+//
+// On write failure, the rename to path is not attempted, so the original
+// (and its .bak copy) remain untouched. If the temp-file write itself fails
+// midway, the .tmp file may be left behind; the next Save attempt overwrites
+// it.
 func (c *Config) Save(path string) error {
 	if err := c.validate(path); err != nil {
 		return err
@@ -213,16 +306,45 @@ func (c *Config) Save(path string) error {
 		return fmt.Errorf("config: marshal %s: %w", path, err)
 	}
 
+	existed := false
 	if _, statErr := os.Stat(path); statErr == nil {
+		existed = true
 		if err := os.Rename(path, path+".bak"); err != nil {
 			return fmt.Errorf("config: backup %s: %w", path, err)
 		}
 	}
 
-	// #nosec G306 -- same permissions as freedius init (init.go:70) and starter config
-	if err := os.WriteFile(path, data, 0o644); err != nil {
-		_ = os.Rename(path+".bak", path)
+	if parent := filepath.Dir(path); parent != "." && parent != "" {
+		// #nosec G301 -- user-owned config directory; group/other read keeps tools (e.g. Claude Code) compatible
+		if err := os.MkdirAll(parent, 0o755); err != nil {
+			return fmt.Errorf("config: create parent dir %s: %w", parent, err)
+		}
+	}
+
+	tmpPath := path + ".tmp"
+	// #nosec G306 -- starter config is non-sensitive and should be readable by tooling
+	if err := os.WriteFile(tmpPath, data, 0o644); err != nil {
+		// Best-effort cleanup of half-written temp file.
+		_ = os.Remove(tmpPath)
+		// If the original existed and was backed up, restore from .bak.
+		if existed {
+			if rerr := os.Rename(path+".bak", path); rerr != nil {
+				return fmt.Errorf("config: write %s failed (%v); backup restore from %s also failed: %w",
+					path, err, path+".bak", rerr)
+			}
+		}
 		return fmt.Errorf("config: write %s: %w", path, err)
+	}
+
+	if err := os.Rename(tmpPath, path); err != nil {
+		_ = os.Remove(tmpPath)
+		if existed {
+			if rerr := os.Rename(path+".bak", path); rerr != nil {
+				return fmt.Errorf("config: rename %s -> %s failed (%v); backup restore also failed: %w",
+					tmpPath, path, err, rerr)
+			}
+		}
+		return fmt.Errorf("config: rename %s -> %s: %w", tmpPath, path, err)
 	}
 
 	return nil

@@ -12,6 +12,8 @@ import (
 // by the TUI dashboard (or any other subscriber) via the EventBus channel.
 type RequestEvent struct {
 	RequestID       string
+	Method          string
+	Path            string
 	Model           string
 	Provider        string
 	Status          int

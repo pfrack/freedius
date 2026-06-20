@@ -19,6 +19,7 @@ import (
 	"net/http"
 	"runtime/debug"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/pfrack/freedius/config"
@@ -35,11 +36,16 @@ const requestIDKey contextKey = iota
 // Dispatcher is the top-level HTTP handler that resolves a freedius request
 // to a configured model, looks up the right Provider in the Registry, and
 // forwards the request.
+//
+// VerboseErrors is read on HTTP handler goroutines (writeErrorJSON) and
+// toggled on the TUI goroutine (Ctrl+E in Phase 5). It is stored as
+// atomic.Bool so the toggle is race-detector clean without locking the
+// hot request path.
 type Dispatcher struct {
 	Cfg           *config.Config
 	Logger        *slog.Logger
 	Registry      *Registry
-	VerboseErrors bool
+	verboseErrors atomic.Bool
 }
 
 // NewDispatcher returns a Dispatcher wired to the given config, registry, and
@@ -60,12 +66,48 @@ func NewDispatcher(
 	if registry == nil {
 		panic("proxy: nil registry")
 	}
-	return &Dispatcher{
-		Cfg:           cfg,
-		Logger:        logger.With("component", "proxy"),
-		Registry:      registry,
-		VerboseErrors: verboseErrors,
+	d := &Dispatcher{
+		Cfg:      cfg,
+		Logger:   logger.With("component", "proxy"),
+		Registry: registry,
 	}
+	d.verboseErrors.Store(verboseErrors)
+	return d
+}
+
+// VerboseErrors reports the current verbose-errors flag value. Safe for
+// concurrent callers — uses an atomic load.
+func (d *Dispatcher) VerboseErrors() bool { return d.verboseErrors.Load() }
+
+// SetVerboseErrors toggles the verbose-errors flag atomically. Exposed as a
+// setter method (rather than a public field) so callers can't bypass the
+// atomic load/store.
+func (d *Dispatcher) SetVerboseErrors(v bool) { d.verboseErrors.Store(v) }
+
+// resolveMapping looks up the mapping and provider for the given model name,
+// holding the config read lock for the duration of both map accesses. Returns
+// (mapping, provider, true) on hit; on miss returns zero-valued mapping, nil
+// provider, false. The returned Provider pointer is a copy of the map entry —
+// it remains valid even after the lock is released since Go maps store values
+// by value, but mutating fields on the returned Provider would race with
+// other writers; treat it as read-only.
+func (d *Dispatcher) resolveMapping(model string) (config.Mapping, *config.Provider, bool) {
+	d.Cfg.RLock()
+	defer d.Cfg.RUnlock()
+	mapping, ok := d.Cfg.Mappings[model]
+	if !ok {
+		if family, found := extractFamily(model); found {
+			mapping, ok = d.Cfg.Mappings[family]
+		}
+	}
+	if !ok {
+		return config.Mapping{}, nil, false
+	}
+	provider, ok := d.Cfg.Providers[mapping.ProviderName]
+	if !ok {
+		return mapping, nil, true
+	}
+	return mapping, &provider, true
 }
 
 func (d *Dispatcher) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -148,12 +190,7 @@ func (d *Dispatcher) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	mapping, ok := d.Cfg.Mappings[req.Model]
-	if !ok {
-		if family, found := extractFamily(req.Model); found {
-			mapping, ok = d.Cfg.Mappings[family]
-		}
-	}
+	mapping, provider, ok := d.resolveMapping(req.Model)
 	if !ok {
 		d.Logger.Debug(
 			"no match for model",
@@ -171,9 +208,7 @@ func (d *Dispatcher) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		)
 		return
 	}
-
-	provider, ok := d.Cfg.Providers[mapping.ProviderName]
-	if !ok {
+	if provider == nil {
 		d.Logger.Error(
 			"provider not registered",
 			"request_id",
@@ -231,7 +266,7 @@ func (d *Dispatcher) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ww := &wroteHeaderResponseWriter{ResponseWriter: w}
-	if err := adapter.Handle(ww, r, provider, mapping, body); err != nil {
+	if err := adapter.Handle(ww, r, *provider, mapping, body); err != nil {
 		if !ww.wroteHeader {
 			// Pre-WriteHeader error — safe to forward to the client.
 			var ce *configError
@@ -306,7 +341,7 @@ func (d *Dispatcher) writeErrorJSON(
 	if id := RequestIDFromContext(r.Context()); id != "" {
 		body["request_id"] = id
 	}
-	if e.detail != "" && d.VerboseErrors {
+	if e.detail != "" && d.verboseErrors.Load() {
 		body["detail"] = e.detail
 	}
 	w.Header().Set("X-Freedius-Error-Type", code)
@@ -488,6 +523,8 @@ func EventBusMiddleware(bus *EventBus, next http.Handler) http.Handler {
 		}
 		ev := RequestEvent{
 			RequestID:       id,
+			Method:          r.Method,
+			Path:            r.URL.Path,
 			Model:           modelName,
 			Provider:        matchedProvider,
 			Status:          status,
@@ -504,8 +541,11 @@ func EventBusMiddleware(bus *EventBus, next http.Handler) http.Handler {
 }
 
 // extractModelFromBody reads the request body, extracts the "model" field from
-// the JSON payload, and recreates the body for downstream handlers. On any
-// error, it returns an empty string and the body is recreated for the caller.
+// the JSON payload, and recreates the body for downstream handlers. On a
+// read error, the body is left in its post-error state (closed, not re-seated)
+// so the dispatcher's own io.ReadAll returns the original error and produces
+// a "body_unreadable" 400 — the previous behavior set r.Body = http.NoBody
+// which masked the real failure as a misleading "empty body" error.
 func extractModelFromBody(r *http.Request) string {
 	if r.Body == nil {
 		return ""
@@ -513,7 +553,8 @@ func extractModelFromBody(r *http.Request) string {
 	bodyBytes, err := io.ReadAll(io.LimitReader(r.Body, MaxBodyBytes))
 	_ = r.Body.Close()
 	if err != nil {
-		r.Body = http.NoBody
+		// Don't re-seat the body; the dispatcher's read will return the
+		// same error and surface it correctly.
 		return ""
 	}
 	r.Body = io.NopCloser(bytes.NewReader(bodyBytes))

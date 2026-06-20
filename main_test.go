@@ -4,8 +4,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"net"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -223,308 +226,71 @@ func TestRun_StartupBanner(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cmd := exec.Command("go", "run", ".", "--config", cfgPath, "--port", "0")
+	cmd := exec.Command("go", "run", ".", "--config", cfgPath, "--port", "1", "--no-export-hint")
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	cmd.Dir = "."
-	cmd.Run() // expected to fail (port 0 on listener), but banner should be emitted
+	cmd.Run() // expected to fail (port 1 is privileged), but banner should be emitted
 	output := stderr.String()
-	if !strings.Contains(output, "freedius starting") {
-		t.Errorf("startup banner 'freedius starting' not found in stderr:\n%s", output)
-	}
-	// The "listening on" line may or may not appear (port 0 fails to bind).
-}
-
-// --- Phase 3: init subcommand + subcommand dispatch ---
-
-func TestDispatch_HelpSubcommand(t *testing.T) {
-	code := dispatch([]string{"freedius", "help"})
-	if code != 0 {
-		t.Errorf("expected exit 0, got %d", code)
+	if !strings.Contains(output, "freedius listening on") {
+		t.Errorf("startup banner 'freedius listening on' not found in stderr:\n%s", output)
 	}
 }
 
-func TestDispatch_VersionSubcommand(t *testing.T) {
-	code := dispatch([]string{"freedius", "version"})
-	if code != 0 {
-		t.Errorf("expected exit 0, got %d", code)
-	}
-}
-
-func TestDispatch_UnknownSubcommand(t *testing.T) {
-	var stderr bytes.Buffer
-	r, w, _ := os.Pipe()
-	old := os.Stderr
-	os.Stderr = w
-
-	code := dispatch([]string{"freedius", "nonexistent_sub"})
-	w.Close()
-	os.Stderr = old
-	_, _ = io.Copy(&stderr, r)
-
-	if code != 2 {
-		t.Errorf("expected exit 2, got %d", code)
-	}
-	if !strings.Contains(stderr.String(), "nonexistent_sub") {
-		t.Errorf("stderr should mention unknown subcommand")
-	}
-}
-
-func TestDispatch_NoSubcommandRoutesToServe(t *testing.T) {
-	// Regression: freedius with no subcommand or flags starting with "-"
-	// routes to serve, not help/version or unknown.
-	code := dispatch([]string{"freedius", "--help"})
-	if code != 0 {
-		t.Errorf("expected 0 for --help via serve, got %d", code)
-	}
-	code = dispatch([]string{"freedius", "-h"})
-	if code != 0 {
-		t.Errorf("expected 0 for -h via serve, got %d", code)
-	}
-}
-
-func TestRunInit_WritesDefaultOutput(t *testing.T) {
-	dir := t.TempDir()
-	cwd, _ := os.Getwd()
-	defer os.Chdir(cwd)
-	os.Chdir(dir)
-
-	code := runInit([]string{})
-	if code != 0 {
-		t.Fatalf("expected 0, got %d", code)
-	}
-	if _, err := os.Stat("freedius.yaml"); err != nil {
-		t.Fatalf("freedius.yaml not written: %v", err)
-	}
-	data, _ := os.ReadFile("freedius.yaml")
-	if !strings.Contains(string(data), "mappings:") {
-		t.Errorf("template should contain mappings: section")
-	}
-}
-
-func TestRunInit_DryRunPrintsToStdout(t *testing.T) {
+func TestRun_VersionFlag(t *testing.T) {
+	cmd := exec.Command("go", "run", ".", "--version")
 	var stdout bytes.Buffer
-	r, w, _ := os.Pipe()
-	old := os.Stdout
-	os.Stdout = w
-
-	code := runInit([]string{"--dry-run"})
-	w.Close()
-	os.Stdout = old
-	_, _ = io.Copy(&stdout, r)
-
-	if code != 0 {
-		t.Fatalf("expected 0, got %d", code)
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stdout
+	cmd.Dir = "."
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("run --version: %v (output: %s)", err, stdout.String())
 	}
-	if !strings.Contains(stdout.String(), "mappings:") {
-		t.Errorf("dry-run stdout should contain template content")
+	out := stdout.String()
+	if !strings.Contains(out, "freedius ") {
+		t.Errorf("expected version line, got: %s", out)
 	}
 }
 
-func TestRunInit_CustomOutputPath(t *testing.T) {
-	dir := t.TempDir()
-	out := dir + "/custom_config.yaml"
-
-	code := runInit([]string{"--output", out})
-	if code != 0 {
-		t.Fatalf("expected 0, got %d", code)
+func TestRun_HelpFlag(t *testing.T) {
+	cmd := exec.Command("go", "run", ".", "--help")
+	var stdout bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stdout
+	cmd.Dir = "."
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("run --help: %v (output: %s)", err, stdout.String())
 	}
-	if _, err := os.Stat(out); err != nil {
-		t.Fatalf("output not written: %v", err)
-	}
-}
-
-func TestRunInit_CustomOutputCreatesParentDir(t *testing.T) {
-	dir := t.TempDir()
-	out := dir + "/subdir/nested/config.yaml"
-
-	code := runInit([]string{"--output", out})
-	if code != 0 {
-		t.Fatalf("expected 0, got %d", code)
-	}
-	if _, err := os.Stat(out); err != nil {
-		t.Fatalf("output not written: %v", err)
+	out := stdout.String()
+	for _, want := range []string{"Usage: freedius", "config", "port", "verbose-errors", "-c"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("--help output missing %q\nfull output:\n%s", want, out)
+		}
 	}
 }
 
-func TestRunInit_ExistingFileFailsWithoutForce(t *testing.T) {
-	dir := t.TempDir()
-	cwd, _ := os.Getwd()
-	defer os.Chdir(cwd)
-	os.Chdir(dir)
-	os.WriteFile("freedius.yaml", []byte("existing"), 0o644)
-
-	var stderr bytes.Buffer
-	r, w, _ := os.Pipe()
-	old := os.Stderr
-	os.Stderr = w
-
-	code := runInit([]string{})
-	w.Close()
-	os.Stderr = old
-	_, _ = io.Copy(&stderr, r)
-
-	if code != 1 {
-		t.Errorf("expected exit 1, got %d", code)
-	}
-	if !strings.Contains(stderr.String(), "already exists") {
-		t.Errorf("stderr should mention file exists, got: %s", stderr.String())
-	}
-}
-
-func TestRunInit_ForceOverwritesAndBacksUp(t *testing.T) {
-	dir := t.TempDir()
-	cwd, _ := os.Getwd()
-	defer os.Chdir(cwd)
-	os.Chdir(dir)
-	os.WriteFile("freedius.yaml", []byte("old content"), 0o644)
-
-	code := runInit([]string{"--force"})
-	if code != 0 {
-		t.Fatalf("expected 0 with --force, got %d", code)
-	}
-	data, _ := os.ReadFile("freedius.yaml")
-	if strings.Contains(string(data), "old content") {
-		t.Errorf("file should be overwritten, not contain old content")
-	}
-	if !strings.Contains(string(data), "mappings:") {
-		t.Errorf("overwritten file should contain template")
-	}
-	if _, err := os.Stat("freedius.yaml.bak"); err != nil {
-		t.Errorf("backup freedius.yaml.bak should exist: %v", err)
-	}
-}
-
-func TestStarterTemplate_ValidYAML(t *testing.T) {
-	// Dry-run instead of writing to disk: parse via config.Load.
-	// We validate the template produces a parseable Config.
+func TestRun_CShorthandForConfig(t *testing.T) {
+	// Regression for F8: -c is the shorthand for --config.
 	dir := t.TempDir()
 	cfgPath := dir + "/freedius.yaml"
-	if err := os.WriteFile(cfgPath, []byte(starterTemplate), 0o644); err != nil {
+	if err := os.WriteFile(cfgPath, []byte(minimalConfigYAML), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	cfg, err := config.Load(cfgPath)
-	if err != nil {
-		t.Fatalf("starter template should be valid config: %v", err)
-	}
-	if len(cfg.Mappings) == 0 {
-		t.Errorf("starter template should define at least one mapping")
-	}
-}
+	t.Setenv("NVIDIA_NIM_API_KEY", "test-key")
 
-// --- Phase 4: env auto-injection wiring ---
-
-func TestRunInit_WritesSettingsJSON(t *testing.T) {
-	dir := t.TempDir()
-	t.Setenv("HOME", dir)
-	cwd, _ := os.Getwd()
-	defer os.Chdir(cwd)
-	os.Chdir(dir)
-
-	code := runInit([]string{})
-	if code != 0 {
-		t.Fatalf("expected 0, got %d", code)
-	}
-	// Check ~/.claude/settings.json was written.
-	settingsPath := dir + "/.claude/settings.json"
-	if _, err := os.Stat(settingsPath); err != nil {
-		t.Fatalf("settings.json not written: %v", err)
-	}
-}
-
-func TestRunInit_SkipsSettingsJSONWithNoEnv(t *testing.T) {
-	dir := t.TempDir()
-	t.Setenv("HOME", dir)
-	cwd, _ := os.Getwd()
-	defer os.Chdir(cwd)
-	os.Chdir(dir)
-
-	code := runInit([]string{"--no-env"})
-	if code != 0 {
-		t.Fatalf("expected 0, got %d", code)
-	}
-	settingsPath := dir + "/.claude/settings.json"
-	if _, err := os.Stat(settingsPath); err == nil {
-		t.Errorf("settings.json should not be written with --no-env")
-	}
-}
-
-func TestRunInit_ShellInstallWritesRC(t *testing.T) {
-	dir := t.TempDir()
-	t.Setenv("HOME", dir)
-	t.Setenv("SHELL", "/bin/zsh")
-	cwd, _ := os.Getwd()
-	defer os.Chdir(cwd)
-	os.Chdir(dir)
-
-	code := runInit([]string{"--shell-install"})
-	if code != 0 {
-		t.Fatalf("expected 0, got %d", code)
-	}
-	rcPath := dir + "/.zshrc"
-	if _, err := os.Stat(rcPath); err != nil {
-		t.Fatalf(".zshrc not written: %v", err)
-	}
-}
-
-func TestRunInit_ShellInstallIdempotent(t *testing.T) {
-	dir := t.TempDir()
-	t.Setenv("HOME", dir)
-	t.Setenv("SHELL", "/bin/zsh")
-	cwd, _ := os.Getwd()
-	defer os.Chdir(cwd)
-	os.Chdir(dir)
-
-	code := runInit([]string{"--shell-install", "--output", "cfg1.yaml"})
-	if code != 0 {
-		t.Fatalf("first install: expected 0, got %d", code)
-	}
-
+	cmd := exec.Command("go", "run", ".", "-c", cfgPath, "--port", "1", "--no-export-hint")
 	var stderr bytes.Buffer
-	r, w, _ := os.Pipe()
-	old := os.Stderr
-	os.Stderr = w
+	cmd.Stderr = &stderr
+	cmd.Dir = "."
+	cmd.Run() // port 1 may bind or fail; the point is -c was accepted.
 
-	code = runInit([]string{"--shell-install", "--output", "cfg2.yaml"})
-	w.Close()
-	os.Stderr = old
-	_, _ = io.Copy(&stderr, r)
-
-	if code != 1 {
-		t.Errorf("second install: expected 1, got %d", code)
-	}
-	if !strings.Contains(stderr.String(), "already installed") {
-		t.Errorf("stderr should mention 'already installed', got: %s", stderr.String())
+	output := stderr.String()
+	if strings.Contains(output, "flag provided but not defined: -c") {
+		t.Errorf("-c shorthand not registered; stderr:\n%s", output)
 	}
 }
 
-func TestRunInit_ShellInstallRefusesUnknownShell(t *testing.T) {
-	dir := t.TempDir()
-	t.Setenv("HOME", dir)
-	t.Setenv("SHELL", "/usr/bin/tcsh")
-	cwd, _ := os.Getwd()
-	defer os.Chdir(cwd)
-	os.Chdir(dir)
-
-	var stderr bytes.Buffer
-	r, w, _ := os.Pipe()
-	old := os.Stderr
-	os.Stderr = w
-
-	code := runInit([]string{"--shell-install"})
-	w.Close()
-	os.Stderr = old
-	_, _ = io.Copy(&stderr, r)
-
-	if code != 1 {
-		t.Errorf("expected 1 for unknown shell, got %d", code)
-	}
-	if !strings.Contains(stderr.String(), "unsupported shell") {
-		t.Errorf("stderr should mention unsupported shell, got: %s", stderr.String())
-	}
-}
-
-func TestRunServe_EvalSnippetAppears(t *testing.T) {
+func TestRun_EvalSnippetAppears(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := dir + "/freedius.yaml"
 	if err := os.WriteFile(cfgPath, []byte(minimalConfigYAML), 0o644); err != nil {
@@ -546,7 +312,7 @@ func TestRunServe_EvalSnippetAppears(t *testing.T) {
 	}
 }
 
-func TestRunServe_EvalSnippetSuppressed(t *testing.T) {
+func TestRun_EvalSnippetSuppressed(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := dir + "/freedius.yaml"
 	if err := os.WriteFile(cfgPath, []byte(minimalConfigYAML), 0o644); err != nil {
@@ -562,5 +328,137 @@ func TestRunServe_EvalSnippetSuppressed(t *testing.T) {
 	output := stderr.String()
 	if strings.Contains(output, "ANTHROPIC_BASE_URL") {
 		t.Errorf("eval snippet should be suppressed with --no-export-hint, got:\n%s", output)
+	}
+}
+
+func TestRun_NoArgsStartsProxy(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := dir + "/freedius.yaml"
+	if err := os.WriteFile(cfgPath, []byte(minimalConfigYAML), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("NVIDIA_NIM_API_KEY", "test-key")
+
+	cmd := exec.Command("go", "run", ".", "--config", cfgPath, "--port", "1", "--no-export-hint")
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	cmd.Dir = "."
+	cmd.Run() // expected to fail: port 1 privileged; the point is "freedius" alone starts proxy.
+	output := stderr.String()
+	if !strings.Contains(output, "freedius listening on") {
+		t.Errorf("expected startup banner with no subcommand, got:\n%s", output)
+	}
+	if strings.Contains(output, "unknown subcommand") {
+		t.Errorf("should not print 'unknown subcommand' error, got:\n%s", output)
+	}
+}
+
+func TestRun_UnknownFlagExitsNonZero(t *testing.T) {
+	cmd := exec.Command("go", "run", ".", "--bogus")
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	cmd.Dir = "."
+	if err := cmd.Run(); err == nil {
+		t.Fatal("expected non-zero exit for unknown flag")
+	}
+}
+
+func TestStarterTemplate_ValidConfig(t *testing.T) {
+	// Validate that the embedded starter template parses to a valid Config
+	// without touching the filesystem. Used as a regression check that the
+	// template embedded in main.go remains parseable.
+	cfg, err := config.LoadFromBytes([]byte(starterTemplate))
+	if err != nil {
+		t.Fatalf("starter template should be valid config: %v", err)
+	}
+	if len(cfg.Providers) == 0 && len(cfg.Mappings) == 0 {
+		t.Error("starter template should define at least one provider or mapping")
+	}
+}
+
+func TestRun_BindFailureSurfacesBeforeTUI(t *testing.T) {
+	// Regression for F3: when the bind fails (e.g., port already in use),
+	// the error must be surfaced immediately rather than hidden until the
+	// user quits the TUI. Use a port we hold from a side listener.
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	occupiedPort := ln.Addr().(*net.TCPAddr).Port
+
+	dir := t.TempDir()
+	cfgPath := dir + "/freedius.yaml"
+	if err := os.WriteFile(cfgPath, []byte(minimalConfigYAML), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("NVIDIA_NIM_API_KEY", "test-key")
+
+	cmd := exec.Command("go", "run", ".", "--config", cfgPath, "--port", strconv.Itoa(occupiedPort), "--no-export-hint")
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	cmd.Dir = "."
+	err = cmd.Run()
+	if err == nil {
+		t.Fatal("expected non-zero exit when port is occupied")
+	}
+	output := stderr.String()
+	if !strings.Contains(output, "bind") && !strings.Contains(output, "address already in use") {
+		t.Errorf("expected bind/address-already-in-use error in stderr, got:\n%s", output)
+	}
+}
+
+func TestRun_LazyConfigDoesNotWriteFile(t *testing.T) {
+	// When the resolved config path doesn't exist and --config wasn't passed,
+	// freedius must boot from the embedded default and NOT create a file on
+	// disk. Build a one-shot binary in /tmp (outside the test tempdir) and
+	// override HOME only for the binary so the test process retains its
+	// default GOPATH/GOMODCACHE and doesn't write build artifacts into
+	// t.TempDir.
+	dir := t.TempDir()
+	expectedXDGPath := filepath.Join(dir, ".config", "freedius", "config.yaml")
+
+	projectRoot, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	binDir, err := os.MkdirTemp("", "freedius-bin-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(binDir)
+	bin := filepath.Join(binDir, "freedius")
+	build := exec.Command("go", "build", "-o", bin, ".")
+	build.Dir = projectRoot
+	if out, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("go build: %v\n%s", err, out)
+	}
+
+	cmd := exec.Command(bin, "--port", "1", "--no-export-hint")
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	// Strip any inherited HOME from the test process before re-adding our
+	// override, so HOME points only at the empty dir we control.
+	env := os.Environ()
+	filtered := env[:0]
+	for _, e := range env {
+		if strings.HasPrefix(e, "HOME=") {
+			continue
+		}
+		filtered = append(filtered, e)
+	}
+	filtered = append(filtered, "HOME="+dir)
+	cmd.Env = filtered
+	cmd.Run()
+
+	if _, err := os.Stat(expectedXDGPath); err == nil {
+		t.Errorf("config file should NOT be created on disk during lazy startup, but found at %s", expectedXDGPath)
+	}
+
+	output := stderr.String()
+	if !strings.Contains(output, "freedius listening on") &&
+		!strings.Contains(output, "permission denied") &&
+		!strings.Contains(output, "address already in use") {
+		t.Errorf("expected startup or bind error in stderr, got:\n%s", output)
 	}
 }

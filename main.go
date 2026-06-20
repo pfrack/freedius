@@ -1,3 +1,5 @@
+// Package main implements the freedius binary: a single static executable that
+// always starts the TUI dashboard together with the proxy server.
 package main
 
 import (
@@ -10,16 +12,18 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"os/signal"
 	"path/filepath"
 	"strconv"
-	"strings"
-	"syscall"
 	"time"
+
+	_ "embed"
+
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/pfrack/freedius/config"
 	"github.com/pfrack/freedius/internal/envinject"
 	"github.com/pfrack/freedius/proxy"
+	"github.com/pfrack/freedius/proxy/tui"
 )
 
 const (
@@ -39,6 +43,9 @@ var allowedHosts = map[string]struct{}{
 
 var version = "dev"
 
+//go:embed templates/starter.yaml
+var starterTemplate string
+
 // newLogger constructs the process-wide logger. When format is "json", the
 // handler emits structured JSON lines; otherwise it emits the human-readable
 // text format.
@@ -55,43 +62,28 @@ func newLogger(format string, w io.Writer) (logger *slog.Logger, err error) {
 }
 
 func main() {
-	os.Exit(dispatch(os.Args))
+	os.Exit(run(os.Args[1:]))
 }
 
-func dispatch(argv []string) int {
-	sub := "serve"
-	args := argv[1:]
-	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
-		sub = args[0]
-		args = args[1:]
+// run is the unified entry point: freedius always starts the TUI+proxy, with
+// no subcommand dispatch. --version and --help are handled before flag parsing.
+func run(args []string) int {
+	// Short-circuit --version / --help so they work even without valid flags.
+	for _, a := range args {
+		if a == "--version" {
+			fmt.Printf("freedius %s\n", version)
+			return 0
+		}
+		if a == "--help" || a == "-h" {
+			printUsage(os.Stderr)
+			return 0
+		}
 	}
-	switch sub {
-	case "serve":
-		return runServe(args)
-	case "init":
-		return runInit(args)
-	case "tui":
-		return runTUI(args)
-	case "version":
-		fmt.Printf("freedius %s\n", version)
-		return 0
-	case "help", "-h", "--help":
-		printTopLevelHelp()
-		return 0
-	default:
-		fmt.Fprintf(
-			os.Stderr,
-			"freedius: unknown subcommand %q\nRun 'freedius help' for usage.\n",
-			sub,
-		)
-		return 2
-	}
-}
 
-func runServe(args []string) int {
-	fs := flag.NewFlagSet("serve", flag.ContinueOnError)
+	fs := flag.NewFlagSet("freedius", flag.ContinueOnError)
 	flagConfig := fs.String("config", "", "path to config file (auto-resolved if empty)")
-	flagPort := fs.Int("port", 0, "port to listen on (overrides FREEDIUS_PORT; default 8080)")
+	flagConfigShorthand := fs.String("c", "", "shorthand for --config")
+	flagPort := fs.Int("port", 0, "port to listen on (overrides FREEDIUS_PORT; default 8082)")
 	flagHost := fs.String("host", "", "host to bind (127.0.0.1 or 0.0.0.0; default 127.0.0.1)")
 	flagVerboseErrors := fs.Bool(
 		"verbose-errors",
@@ -109,10 +101,7 @@ func runServe(args []string) int {
 		"per-request upstream timeout (overrides FREEDIUS_STREAM_TIMEOUT; default 5m)",
 	)
 	flagNoExportHint := fs.Bool("no-export-hint", false, "suppress the env-export hint on startup")
-	fs.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage: freedius serve [flags]\n\nFlags:\n")
-		fs.PrintDefaults()
-	}
+	fs.Usage = func() { printUsage(os.Stderr) }
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return 0
@@ -132,14 +121,11 @@ func runServe(args []string) int {
 	if logFormat == "" {
 		logFormat = "text"
 	}
-	baseLogger, err := newLogger(logFormat, os.Stderr)
+	logger, err := newLogger(logFormat, os.Stderr)
 	if err != nil {
 		return failf("freedius: %v", err)
 	}
-	slog.SetDefault(baseLogger)
-	logger := baseLogger
-
-	logger.Info("freedius starting")
+	slog.SetDefault(logger)
 
 	streamTimeout := defaultStreamTimeout
 	if *flagStreamTimeout != 0 {
@@ -163,38 +149,23 @@ func runServe(args []string) int {
 		return failf("freedius: invalid --host value: %s (allowed: 127.0.0.1, 0.0.0.0)", host)
 	}
 
-	cfgPath, err := resolveConfigPath(*flagConfig)
+	configFlag := *flagConfig
+	if configFlag == "" {
+		configFlag = *flagConfigShorthand
+	}
+	cfgPath, err := resolveConfigPath(configFlag)
 	if err != nil {
-		baseLogger.Error("config path resolution failed", "err", err)
+		logger.Error("config path resolution failed", "err", err)
 		return 1
 	}
-	cfg, err := config.Load(cfgPath)
+	cfg, err := loadConfig(cfgPath, configFlag)
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) && *flagConfig == "" {
-			baseLogger.Info("no config found, writing default config", "path", cfgPath)
-			if parent := filepath.Dir(cfgPath); parent != "." {
-				// #nosec G301 -- user-owned config directory; group/other read keeps tools compatible
-				if err := os.MkdirAll(parent, 0o755); err != nil {
-					return failf("freedius: cannot create config directory %s: %v", parent, err)
-				}
-			}
-			// #nosec G306 -- starter config is non-sensitive and should be readable by tooling
-			if err := os.WriteFile(cfgPath, []byte(starterTemplate), 0o644); err != nil {
-				return failf("freedius: write default config %s: %v", cfgPath, err)
-			}
-			fmt.Fprintf(os.Stderr, "wrote default config to %s\n", cfgPath)
-			cfg, err = config.Load(cfgPath)
-			if err != nil {
-				return failf("freedius: %s", err)
-			}
-		} else {
-			return failf("freedius: %s", err)
-		}
-	}
-
-	if err := checkRequiredEnvVars(cfg); err != nil {
 		return failf("freedius: %s", err)
 	}
+
+	// In unified mode, missing env vars are surfaced to the user via the TUI
+	// Config tab rather than blocking startup.
+	_ = checkRequiredEnvVars(cfg)
 
 	serverLogger := logger.With("component", "server")
 	serverLogger.Info(
@@ -211,9 +182,11 @@ func runServe(args []string) int {
 
 	registry := proxy.NewDefaultRegistry(logger, streamTimeout, verboseErrors, nil)
 	dispatcher := proxy.NewDispatcher(cfg, registry, logger, verboseErrors)
-	mux := http.NewServeMux()
+	bus := proxy.NewEventBus(1000)
 
+	mux := http.NewServeMux()
 	httpHandler := proxy.RecoverMiddleware(logger, verboseErrors, dispatcher)
+	httpHandler = proxy.EventBusMiddleware(bus, httpHandler)
 	httpHandler = proxy.AccessLogMiddleware(logger, httpHandler)
 	httpHandler = proxy.RequestIDMiddleware(httpHandler)
 	mux.Handle("/", httpHandler)
@@ -226,9 +199,6 @@ func runServe(args []string) int {
 		IdleTimeout:       idleTimeout,
 	}
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-
 	serverErr := make(chan error, 1)
 	go func() {
 		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -236,35 +206,86 @@ func runServe(args []string) int {
 		}
 	}()
 
-	select {
-	case err := <-serverErr:
+	if err := waitForBind(serverErr); err != nil {
 		return failf("freedius: %v", err)
-	case <-ctx.Done():
 	}
 
-	serverLogger.Info("shutdown signal received")
+	model := tui.NewDashboard(bus.Subscribe(), cfg, registry, dispatcher, cfgPath, host, port, verboseErrors)
+	prog := tea.NewProgram(model)
+	if _, err := prog.Run(); err != nil {
+		logger.Error("TUI program error", "err", err)
+	}
+
+	logger.Info("TUI shutdown, stopping proxy")
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
 	if err := server.Shutdown(shutdownCtx); err != nil {
-		return failf("freedius: shutdown error: %v", err)
+		logger.Error("proxy shutdown error", "err", err)
 	}
-	serverLogger.Info("shutdown complete")
+	logger.Info("shutdown complete")
+
+	select {
+	case err := <-serverErr:
+		return failf("freedius: %v", err)
+	default:
+	}
 	return 0
 }
 
-func printTopLevelHelp() {
-	fmt.Print(`freedius — local Claude Code proxy
+func printUsage(w io.Writer) {
+	usage := `freedius — local Claude Code proxy
 
-Usage: freedius [<subcommand>] [<flags>]
+Usage: freedius [flags]
 
-  serve     Start the proxy server (default)
-  tui       Launch the terminal dashboard
-  init      Generate a starter config file
-  version   Print the binary version
-  help      Show this help
+Flags:
+`
+	if _, err := io.WriteString(w, usage); err != nil {
+		return
+	}
+	// Print the same defaults as the flag set above. We rebuild a FlagSet so
+	// fs.PrintDefaults reflects the canonical flag declarations.
+	fs := flag.NewFlagSet("freedius", flag.ContinueOnError)
+	fs.SetOutput(w)
+	fs.String("config", "", "path to config file (auto-resolved if empty)")
+	fs.String("c", "", "shorthand for --config")
+	fs.Int("port", 0, "port to listen on (overrides FREEDIUS_PORT; default 8082)")
+	fs.String("host", "", "host to bind (127.0.0.1 or 0.0.0.0; default 127.0.0.1)")
+	fs.Bool("verbose-errors", false, "include upstream error detail in error responses")
+	fs.String("log-format", "", "log output format: text, json (default text)")
+	fs.Duration("stream-timeout", 0, "per-request upstream timeout (default 5m)")
+	fs.Bool("no-export-hint", false, "suppress the env-export hint on startup")
+	fs.PrintDefaults()
+}
 
-Run 'freedius <subcommand> --help' for subcommand-specific flags.
-`)
+// waitForBind polls serverErr for up to 50ms looking for an immediate bind
+// failure (port in use, permission denied, etc.). Returns the error if one
+// arrives in that window, or nil if no error fires — at which point the bind
+// has succeeded (or at least has not produced a synchronous error) and the
+// caller can proceed to start the TUI.
+func waitForBind(serverErr <-chan error) error {
+	deadline := time.Now().Add(50 * time.Millisecond)
+	for time.Now().Before(deadline) {
+		select {
+		case err := <-serverErr:
+			return err
+		case <-time.After(5 * time.Millisecond):
+		}
+	}
+	return nil
+}
+
+// loadConfig loads the config from cfgPath, falling back to the embedded
+// starter template when the resolved path does not exist and no explicit
+// --config flag was passed (lazy startup).
+func loadConfig(cfgPath, explicitFlag string) (*config.Config, error) {
+	cfg, err := config.Load(cfgPath)
+	if err == nil {
+		return cfg, nil
+	}
+	if errors.Is(err, os.ErrNotExist) && explicitFlag == "" {
+		return config.LoadFromBytes([]byte(starterTemplate))
+	}
+	return nil, err
 }
 
 func failf(format string, args ...any) int {

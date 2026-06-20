@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -14,9 +15,9 @@ import (
 
 func renderTabs(active int, width int) string {
 	tabs := []string{
-		"[1] Requests",
+		"[1] Log",
 		"[2] Providers",
-		"[3] Config (e=edit a=+map p=+prov d=del)",
+		"[3] Config (j/k=scroll Enter=edit a=+map p=+prov d=del)",
 	}
 	styled := make([]string, len(tabs))
 	for i, t := range tabs {
@@ -30,13 +31,10 @@ func renderTabs(active int, width int) string {
 	return tabBarStyle.Width(max(width-2, 0)).Render(joined)
 }
 
-func renderRequestsTab(events []proxy.RequestEvent, _ int, height int) string {
+func renderLogTab(events []proxy.RequestEvent, _ int, height, scroll int) string {
 	if len(events) == 0 {
-		return windowStyle.Render("No requests yet. Send a request to see it appear here.")
+		return windowStyle.Render("No requests yet...")
 	}
-
-	var b strings.Builder
-	b.WriteString(windowStyle.Render("Request Log") + "\n\n")
 
 	available := height - 4
 	if available < 0 {
@@ -44,10 +42,18 @@ func renderRequestsTab(events []proxy.RequestEvent, _ int, height int) string {
 	}
 	start := 0
 	if len(events) > available {
-		start = len(events) - available
+		start = len(events) - available - scroll
+		if start < 0 {
+			start = 0
+		}
+	}
+	end := start + available
+	if end > len(events) {
+		end = len(events)
 	}
 
-	for i := start; i < len(events); i++ {
+	var b strings.Builder
+	for i := start; i < end; i++ {
 		e := events[i]
 		ts := e.Timestamp.Format("15:04:05")
 		statusStr := fmt.Sprintf("%d", e.Status)
@@ -60,34 +66,29 @@ func renderRequestsTab(events []proxy.RequestEvent, _ int, height int) string {
 		default:
 			statusStyled = statusOKStyle.Render(statusStr)
 		}
-		model := e.Model
-		if model == "" {
-			model = e.MatchedModel
-		}
-		provider := e.Provider
-		if provider == "" {
-			provider = "-"
-		}
-		latency := roundLatency(e.Latency)
-		errMsg := ""
+		duration := e.Latency.Milliseconds()
+		errSuffix := ""
 		if e.Status >= 400 && e.ErrorMessage != "" {
-			errMsg = " " + errorMessageStyle.Render(truncate(e.ErrorMessage, 80))
+			errSuffix = " error=" + strconv.Quote(e.ErrorMessage)
 		}
 		line := fmt.Sprintf(
-			"%s  %s  %s  %s  %s%s",
+			"time=%s request_id=%s method=%s path=%s status=%s duration_ms=%d matched_provider=%s matched_model=%s%s",
 			ts,
+			e.RequestID,
+			e.Method,
+			e.Path,
 			statusStyled,
-			truncate(model, 20),
-			truncate(provider, 14),
-			latency,
-			errMsg,
+			duration,
+			e.MatchedProvider,
+			e.MatchedModel,
+			errSuffix,
 		)
 		b.WriteString(line + "\n")
 	}
 	return b.String()
 }
 
-func renderProvidersTab(cfg *config.Config, width int) string {
+func renderProvidersTab(cfg *config.Config, width, height, scroll int) string {
 	var b strings.Builder
 	b.WriteString(windowStyle.Render("Provider Configuration") + "\n\n")
 
@@ -100,8 +101,26 @@ func renderProvidersTab(cfg *config.Config, width int) string {
 	b.WriteString(header + "\n")
 	b.WriteString(separatorStyle.Render(strings.Repeat("─", max(width-4, 0))) + "\n")
 
+	available := height - 4
+	if available < 0 {
+		available = 0
+	}
+
 	providers := collectProvidersFromConfig(cfg)
-	for _, p := range providers {
+	start := 0
+	if len(providers) > available {
+		start = len(providers) - available - scroll
+		if start < 0 {
+			start = 0
+		}
+	}
+	end := start + available
+	if end > len(providers) {
+		end = len(providers)
+	}
+
+	for i := start; i < end; i++ {
+		p := providers[i]
 		line := fmt.Sprintf(
 			"%-14s %-10s %-30s %-6d",
 			truncate(p.name, 14),
@@ -111,16 +130,52 @@ func renderProvidersTab(cfg *config.Config, width int) string {
 		)
 		b.WriteString(line + "\n")
 	}
+	if len(providers) == 0 {
+		b.WriteString("(no providers configured)\n")
+	}
 	return b.String()
 }
 
-func renderConfigTab(cfg *config.Config, cursor, width int) string {
+func renderConfigTab(cfg *config.Config, cursor int, width, height int) string {
 	var b strings.Builder
 	b.WriteString(windowStyle.Render("Configuration") + "\n\n")
 	b.WriteString(separatorStyle.Render(strings.Repeat("─", max(width-4, 0))) + "\n")
 
 	all := collectAllEntries(cfg)
-	for i, entry := range all {
+	// Each entry occupies ~6 lines (label + 4 fields + blank) for providers
+	// and ~4 lines (label + 2 fields + blank) for mappings. We don't try to
+	// measure precisely; instead we use a conservative per-entry height and
+	// clamp the visible window. The cursor auto-scrolls into view.
+	const approxEntryLines = 6
+	available := height - 3
+	if available < 0 {
+		available = 0
+	}
+	visibleEntries := available / approxEntryLines
+	if visibleEntries < 1 {
+		visibleEntries = 1
+	}
+	if visibleEntries > len(all) {
+		visibleEntries = len(all)
+	}
+
+	// Center the cursor in the visible window.
+	half := visibleEntries / 2
+	start := cursor - half
+	if start < 0 {
+		start = 0
+	}
+	end := start + visibleEntries
+	if end > len(all) {
+		end = len(all)
+		start = end - visibleEntries
+		if start < 0 {
+			start = 0
+		}
+	}
+
+	for i := start; i < end; i++ {
+		entry := all[i]
 		nameStyle := configKeyStyle
 		if i == cursor {
 			nameStyle = activeTabStyle
@@ -173,6 +228,9 @@ func renderStatsBar(stats statsData, width int) string {
 		" uptime: %s │ requests: %d │ errors: %d │ error rate: %s ",
 		uptime, total, errors, errRate,
 	)
+	if stats.message != "" {
+		line = line + "│ " + stats.message + " "
+	}
 	if len(line) < width {
 		line += strings.Repeat(" ", width-len(line))
 	}
@@ -190,10 +248,13 @@ type providerInfo struct {
 }
 
 func collectProvidersFromConfig(cfg *config.Config) []providerInfo {
-	result := make([]providerInfo, 0, len(cfg.Providers))
-	for name, p := range cfg.Providers {
+	// Snapshot the maps so we don't race with the dispatcher's write lock.
+	providers := cfg.ProvidersSnapshot()
+	mappings := cfg.MappingsSnapshot()
+	result := make([]providerInfo, 0, len(providers))
+	for name, p := range providers {
 		mappingCount := 0
-		for _, m := range cfg.Mappings {
+		for _, m := range mappings {
 			if m.ProviderName == name {
 				mappingCount++
 			}
@@ -221,11 +282,14 @@ type configEntry struct {
 }
 
 func collectAllEntries(cfg *config.Config) []configEntry {
+	// Snapshot the maps so we don't race with the dispatcher's write lock.
+	providers := cfg.ProvidersSnapshot()
+	mappings := cfg.MappingsSnapshot()
 	var entries []configEntry
-	for name, p := range cfg.Providers {
+	for name, p := range providers {
 		entries = append(entries, configEntry{name: name, kind: "provider", provider: p})
 	}
-	for name, m := range cfg.Mappings {
+	for name, m := range mappings {
 		entries = append(entries, configEntry{name: name, kind: "mapping", mapping: m})
 	}
 	sort.Slice(entries, func(i, j int) bool {
@@ -236,13 +300,6 @@ func collectAllEntries(cfg *config.Config) []configEntry {
 		return entries[i].name < entries[j].name
 	})
 	return entries
-}
-
-func roundLatency(d time.Duration) string {
-	if d >= time.Second {
-		return fmt.Sprintf("%.1fs", d.Seconds())
-	}
-	return d.Round(time.Millisecond).String()
 }
 
 func truncate(s string, maxLen int) string {

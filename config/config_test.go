@@ -364,6 +364,97 @@ func TestLoadMissingFile(t *testing.T) {
 	}
 }
 
+func TestLoadFromBytes(t *testing.T) {
+	tests := []struct {
+		name    string
+		yaml    string
+		wantErr bool
+	}{
+		{
+			name: "valid YAML",
+			yaml: `providers:
+  nim: { behavior: openai }
+mappings:
+  opus:
+    provider_name: nim
+    model_string: meta/llama
+`,
+		},
+		{
+			name:    "empty bytes",
+			yaml:    "",
+			wantErr: true,
+		},
+		{
+			name:    "no mappings or providers",
+			yaml:    "providers: {}\n",
+			wantErr: true,
+		},
+		{
+			name: "invalid behavior",
+			yaml: `providers:
+  nim: { behavior: bogus }
+`,
+			wantErr: true,
+		},
+		{
+			name:    "malformed YAML",
+			yaml:    "providers:\n  nim:\n   foo: bar\n",
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg, err := LoadFromBytes([]byte(tt.yaml))
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("expected error, got cfg=%+v", cfg)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if _, ok := cfg.Providers["nim"]; !ok {
+				t.Error("expected nim provider after LoadFromBytes")
+			}
+		})
+	}
+}
+
+func TestLoadFromBytes_DoesNotTouchFS(t *testing.T) {
+	// LoadFromBytes must not require any path on disk; ensure it works with a
+	// deliberately bogus working directory that would fail any os.Stat call.
+	t.Setenv("HOME", "/this/path/definitely/does/not/exist")
+	cfg, err := LoadFromBytes([]byte("providers:\n  nim: { behavior: openai }\n"))
+	if err != nil {
+		t.Fatalf("LoadFromBytes should not depend on filesystem, got: %v", err)
+	}
+	if cfg == nil || cfg.Providers["nim"].Behavior != "openai" {
+		t.Errorf("unexpected cfg: %+v", cfg)
+	}
+}
+
+func TestLoad_FilePathInYAMLError(t *testing.T) {
+	// Regression for F4: yamlUnmarshalStrict errors from file-based Load
+	// must include the actual file path, not the placeholder "<bytes>".
+	dir := t.TempDir()
+	path := filepath.Join(dir, "broken.yaml")
+	if err := os.WriteFile(path, []byte("providers:\n  nim:\n   foo: bar\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, err := Load(path)
+	if err == nil {
+		t.Fatal("expected YAML parse error")
+	}
+	if !strings.Contains(err.Error(), path) {
+		t.Errorf("error should mention file path %q, got: %v", path, err)
+	}
+	if strings.Contains(err.Error(), "<bytes>") {
+		t.Errorf("error should NOT mention <bytes>, got: %v", err)
+	}
+}
+
 func TestProviderDefaults(t *testing.T) {
 	expected := []string{"nim", "zen", "go", "custom", "openai", "anthropic", "mix"}
 	if len(providerDefaults) != len(expected) {
@@ -560,41 +651,22 @@ mappings:
 	}
 }
 
-func TestConfig_SaveRollbackOnWriteFailure(t *testing.T) {
+func TestConfig_SaveCreatesParentDir(t *testing.T) {
+	// Save must MkdirAll the parent dir so lazy startup works without a
+	// pre-existing ~/.config/freedius. This replaces the old
+	// TestConfig_SaveRollbackOnWriteFailure behavior.
 	dir := t.TempDir()
-	path := filepath.Join(dir, "freedius.yaml")
+	path := filepath.Join(dir, "deeply", "nested", "config", "freedius.yaml")
 
-	initial := `providers:
-  nim: { behavior: openai }
-mappings:
-  opus:
-    provider_name: nim
-    model_string: meta/llama-3.1-70b-instruct
-`
-	if err := os.WriteFile(path, []byte(initial), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	cfg, err := Load(path)
-	if err != nil {
-		t.Fatalf("Load: %v", err)
-	}
-
-	cfg.Mappings["opus"] = Mapping{ProviderName: "nim", ModelString: "meta/llama-4"}
-
-	// Try saving to a non-writable location to trigger rollback.
-	roPath := filepath.Join(dir, "readonly", "freedius.yaml")
-	if err := cfg.Save(roPath); err == nil {
-		t.Fatal("expected error saving to non-existent directory")
-	}
-
-	// Original file must remain intact.
-	data, err := os.ReadFile(path)
+	cfg, err := LoadFromBytes([]byte("providers:\n  nim: { behavior: openai }\n"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(data), "meta/llama-3.1-70b-instruct") {
-		t.Errorf("original file should remain unchanged after failed save, got:\n%s", string(data))
+	if err := cfg.Save(path); err != nil {
+		t.Fatalf("Save should create parent dirs, got: %v", err)
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Errorf("file should exist after Save: %v", err)
 	}
 }
 

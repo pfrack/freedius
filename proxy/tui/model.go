@@ -6,6 +6,7 @@ package tui
 import (
 	"fmt"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/pfrack/freedius/config"
+	"github.com/pfrack/freedius/internal/envinject"
 	"github.com/pfrack/freedius/proxy"
 )
 
@@ -23,6 +25,7 @@ type statsData struct {
 	startTime     time.Time
 	totalRequests int
 	errorCount    int
+	message       string
 }
 
 type ringBuffer struct {
@@ -51,8 +54,16 @@ func (rb *ringBuffer) all() []proxy.RequestEvent {
 	if rb.size == 0 {
 		return nil
 	}
-	result := make([]proxy.RequestEvent, rb.size)
 	start := (rb.head - rb.size + rb.cap) % rb.cap
+	end := start + rb.size
+	if end <= rb.cap {
+		// Common case: ring has not wrapped. Return a direct slice view
+		// over the underlying array — zero allocation.
+		return rb.buf[start:end]
+	}
+	// Wrapped: oldest entries span the tail + head of the buffer. Allocate
+	// and stitch them together. This only happens when size == cap.
+	result := make([]proxy.RequestEvent, rb.size)
 	for i := 0; i < rb.size; i++ {
 		result[i] = rb.buf[(start+i)%rb.cap]
 	}
@@ -66,44 +77,74 @@ type formSubmittedMsg struct{}
 // Dashboard is the top-level Bubble Tea model for the freedius TUI.
 // It owns the event subscription channel, ring buffer, tabs, and stats.
 type Dashboard struct {
-	activeTab int
-	events    <-chan proxy.RequestEvent
-	eventLog  *ringBuffer
-	config    *config.Config
-	registry  *proxy.Registry
-	stats     statsData
-	width     int
-	height    int
-	quitting  bool
+	activeTab  int
+	events     <-chan proxy.RequestEvent
+	eventLog   *ringBuffer
+	config     *config.Config
+	registry   *proxy.Registry
+	dispatcher *proxy.Dispatcher
+	stats      statsData
+	width      int
+	height     int
+	quitting   bool
 
-	formMode      int
-	formFields    []textinput.Model
-	formFocus     int
-	formKind      string
-	formEntryName string
-	fieldErrors   map[int]string
-	showPicker    bool
-	picker        *providerPicker
-	cfgPath       string
-	configCursor  int
-	formError     string
+	host          string
+	port          int
+	verboseErrors bool
+
+	formMode       int
+	formFields     []textinput.Model
+	formFocus      int
+	formKind       string
+	formEntryName  string
+	fieldErrors    map[int]string
+	showPicker     bool
+	picker         *providerPicker
+	cfgPath        string
+	configCursor   int
+	providerScroll int
+	logScroll      int
+	formError      string
 }
 
 // NewDashboard creates a new Dashboard model subscribed to the given event
-// channel, configuration, and adapter registry.
+// channel, configuration, and adapter registry. host, port, and
+// verboseErrors are stored for runtime use by the TUI shortcuts (Ctrl+E
+// toggles verbose errors; Ctrl+S uses host/port to install the shell RC).
+//
+// cfg, reg, and dispatcher are required. Passing nil panics, matching the
+// convention in NewDispatcher and NewRegistry — silent-nil masks bugs that
+// only surface when the renderer or shortcut tries to dereference.
 func NewDashboard(
 	events <-chan proxy.RequestEvent,
 	cfg *config.Config,
 	reg *proxy.Registry,
+	dispatcher *proxy.Dispatcher,
 	cfgPath string,
+	host string,
+	port int,
+	verboseErrors bool,
 ) *Dashboard {
+	if cfg == nil {
+		panic("tui: nil config")
+	}
+	if reg == nil {
+		panic("tui: nil registry")
+	}
+	if dispatcher == nil {
+		panic("tui: nil dispatcher")
+	}
 	return &Dashboard{
-		activeTab: tabRequests,
-		events:    events,
-		eventLog:  newRingBuffer(1000),
-		config:    cfg,
-		registry:  reg,
-		cfgPath:   cfgPath,
+		activeTab:     tabLog,
+		events:        events,
+		eventLog:      newRingBuffer(1000),
+		config:        cfg,
+		registry:      reg,
+		dispatcher:    dispatcher,
+		cfgPath:       cfgPath,
+		host:          host,
+		port:          port,
+		verboseErrors: verboseErrors,
 		stats: statsData{
 			startTime: time.Now(),
 		},
@@ -175,9 +216,33 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if ev.Status >= 400 {
 			d.stats.errorCount++
 		}
+		d.stats.message = ""
+		// Auto-scroll to bottom on a fresh event.
+		d.logScroll = 0
 		return d, waitForEvent(d.events)
 	}
 	return d, nil
+}
+
+func (d *Dashboard) installShellRC() {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		d.stats.message = fmt.Sprintf("Shell install failed: %v", err)
+		return
+	}
+	shell := os.Getenv("SHELL")
+	// WriteShellRC returns ("<path>", nil) on success; on already-installed it
+	// returns the path with an error so the caller can decide. Recognize the
+	// already-installed case as a success/no-op rather than a failure.
+	if _, err := envinject.WriteShellRC(home, shell, d.host, d.port, false, false); err != nil {
+		if strings.Contains(err.Error(), "already installed") {
+			d.stats.message = "Shell RC already installed ✓"
+			return
+		}
+		d.stats.message = fmt.Sprintf("Shell install failed: %v", err)
+		return
+	}
+	d.stats.message = "Shell RC updated ✓"
 }
 
 func (d *Dashboard) handleTabModeKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
@@ -186,7 +251,7 @@ func (d *Dashboard) handleTabModeKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.C
 		d.quitting = true
 		return d, tea.Quit
 	case "1":
-		d.activeTab = tabRequests
+		d.activeTab = tabLog
 		return d, nil
 	case "2":
 		d.activeTab = tabProviders
@@ -201,23 +266,12 @@ func (d *Dashboard) handleTabModeKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.C
 		d.activeTab = (d.activeTab + 2) % 3
 		return d, nil
 	case "up", "k":
-		if d.activeTab == tabConfig {
-			d.configCursor--
-			if d.configCursor < 0 {
-				d.configCursor = 0
-			}
-		}
+		d.scrollUp()
 		return d, nil
 	case "down", "j":
-		if d.activeTab == tabConfig {
-			all := collectAllEntries(d.config)
-			d.configCursor++
-			if d.configCursor >= len(all) {
-				d.configCursor = len(all) - 1
-			}
-		}
+		d.scrollDown()
 		return d, nil
-	case "e":
+	case "e", "enter":
 		if d.activeTab == tabConfig {
 			d.openEditForm()
 		}
@@ -243,8 +297,69 @@ func (d *Dashboard) handleTabModeKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.C
 			}
 		}
 		return d, nil
+	case "ctrl+e":
+		d.toggleVerboseErrors()
+		return d, nil
+	case "ctrl+s":
+		if d.activeTab != tabConfig {
+			return d, nil
+		}
+		d.installShellRC()
+		return d, nil
 	}
 	return d, nil
+}
+
+// scrollUp moves the active tab's cursor / scroll window one step toward
+// older entries. For tabs without scroll state (Log uses scroll, Providers
+// uses scroll, Config uses cursor) the per-tab helper applies.
+func (d *Dashboard) scrollUp() {
+	switch d.activeTab {
+	case tabConfig:
+		d.configCursor--
+		if d.configCursor < 0 {
+			d.configCursor = 0
+		}
+	case tabProviders:
+		d.providerScroll++
+	case tabLog:
+		d.logScroll++
+	}
+}
+
+// scrollDown moves the active tab's cursor / scroll window one step toward
+// newer entries.
+func (d *Dashboard) scrollDown() {
+	switch d.activeTab {
+	case tabConfig:
+		all := collectAllEntries(d.config)
+		d.configCursor++
+		if d.configCursor >= len(all) {
+			d.configCursor = len(all) - 1
+		}
+	case tabProviders:
+		if d.providerScroll > 0 {
+			d.providerScroll--
+		}
+	case tabLog:
+		if d.logScroll > 0 {
+			d.logScroll--
+		}
+	}
+}
+
+// toggleVerboseErrors flips the verbose-errors flag on both the dashboard and
+// the dispatcher, and surfaces the new state in the status bar.
+func (d *Dashboard) toggleVerboseErrors() {
+	d.verboseErrors = !d.verboseErrors
+	if d.dispatcher != nil {
+		d.dispatcher.SetVerboseErrors(d.verboseErrors)
+	}
+	if d.verboseErrors {
+		d.stats.message = "Verbose errors: ON"
+	} else {
+		d.stats.message = "Verbose errors: OFF"
+	}
 }
 
 func (d *Dashboard) handleFormKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
@@ -274,8 +389,9 @@ func (d *Dashboard) handleFormKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd)
 			if d.formFocus < len(labels) {
 				fieldName := labels[d.formFocus]
 				if fieldName == "provider" && d.formMode == formAddMapping {
-					names := sortedConfiguredProviderNames(d.config.Providers)
-					d.picker = newProviderPicker(names, d.config.Providers)
+					providers := d.config.ProvidersSnapshot()
+					names := sortedConfiguredProviderNames(providers)
+					d.picker = newProviderPicker(names, providers)
 					d.showPicker = true
 					return d, nil
 				}
@@ -308,6 +424,8 @@ func (d *Dashboard) handleFormKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd)
 func (d *Dashboard) handleDeleteConfirmKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "y":
+		d.config.Lock()
+		defer d.config.Unlock()
 		switch d.formKind {
 		case "provider":
 			old := d.config.Providers[d.formEntryName]
@@ -357,12 +475,12 @@ func (d *Dashboard) View() tea.View {
 		content = renderForm(d, width, bodyHeight)
 	} else {
 		switch d.activeTab {
-		case tabRequests:
-			content = renderRequestsTab(d.eventLog.all(), width, bodyHeight)
+		case tabLog:
+			content = renderLogTab(d.eventLog.all(), width, bodyHeight, d.logScroll)
 		case tabProviders:
-			content = renderProvidersTab(d.config, width)
+			content = renderProvidersTab(d.config, width, bodyHeight, d.providerScroll)
 		case tabConfig:
-			content = renderConfigTab(d.config, d.configCursor, width)
+			content = renderConfigTab(d.config, d.configCursor, width, bodyHeight)
 		default:
 			content = fmt.Sprintf("Unknown tab: %d", d.activeTab)
 		}
@@ -527,7 +645,7 @@ func (d *Dashboard) validateForm() map[int]string {
 		providerName := strings.TrimSpace(d.formFields[1].Value())
 		if providerName == "" {
 			errs[1] = "provider is required"
-		} else if _, ok := d.config.Providers[providerName]; !ok {
+		} else if !d.config.HasProvider(providerName) {
 			errs[1] = fmt.Sprintf("unknown provider %q (add it first with 'p')", providerName)
 		}
 		modelStr := strings.TrimSpace(d.formFields[2].Value())
@@ -543,6 +661,9 @@ func (d *Dashboard) validateForm() map[int]string {
 
 func (d *Dashboard) submitForm() {
 	name := strings.TrimSpace(d.formFields[0].Value())
+
+	d.config.Lock()
+	defer d.config.Unlock()
 
 	switch d.formMode {
 	case formEditProvider:
