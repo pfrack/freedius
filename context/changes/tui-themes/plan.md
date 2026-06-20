@@ -318,9 +318,9 @@ If `cfg.Theme` is empty string, `resolveTheme("")` in `NewDashboard` returns `De
 
 #### Manual
 
-- [ ] 1.4 Visual output identical to before (default theme)
-- [ ] 1.5 `TestRenderLogTab_NoStyling` invariant holds
-- [ ] 1.6 Overlay modal background matches rest of TUI
+- [x] 1.4 Visual output identical to before (default theme)
+- [x] 1.5 `TestRenderLogTab_NoStyling` invariant holds
+- [x] 1.6 Overlay modal background matches rest of TUI
 
 ### Phase 2: Additional Themes + Ctrl+T Cycle
 
@@ -332,25 +332,25 @@ If `cfg.Theme` is empty string, `resolveTheme("")` in `NewDashboard` returns `De
 
 #### Manual
 
-- [ ] 2.4 Ctrl+T advances theme; stats bar shows name
-- [ ] 2.5 Cycling wraps around to default
-- [ ] 2.6 Each theme is readable on a dark terminal
-- [ ] 2.7 Help modal lists Ctrl+T shortcut
-- [ ] 2.8 Overlay modal respects theme background
+- [x] 2.4 Ctrl+T advances theme; stats bar shows name
+- [x] 2.5 Cycling wraps around to default
+- [x] 2.6 Each theme is readable on a dark terminal
+- [x] 2.7 Help modal lists Ctrl+T shortcut
+- [x] 2.8 Overlay modal respects theme background
 
 ### Phase 3: Config Persistence
 
 #### Automated
 
-- [x] 3.1 `go test ./config/...` passes
-- [x] 3.2 `go test ./...` passes
-- [x] 3.3 `go vet ./...` passes
-- [x] 3.4 `go build ./...` succeeds
+- [x] 3.1 `go test ./config/...` passes — c59ccc9
+- [x] 3.2 `go test ./...` passes — c59ccc9
+- [x] 3.3 `go vet ./...` passes — c59ccc9
+- [x] 3.4 `go build ./...` succeeds — c59ccc9
 
 #### Manual
 
-- [ ] 3.5 `theme: zenburn` in YAML takes effect on startup
-- [ ] 3.6 `theme: nonexistent` falls back to default silently
-- [ ] 3.7 No `theme` key keeps default behavior
-- [ ] 3.8 Ctrl+T cycle works with config-backed theme
-- [ ] 3.9 `Save()` round-trips the `theme` field correctly
+- [x] 3.5 `theme: zenburn` in YAML takes effect on startup
+- [x] 3.6 `theme: nonexistent` falls back to default silently
+- [x] 3.7 No `theme` key keeps default behavior
+- [x] 3.8 Ctrl+T cycle works with config-backed theme
+- [x] 3.9 `Save()` round-trips the `theme` field correctly
