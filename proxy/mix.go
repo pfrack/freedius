@@ -40,34 +40,25 @@ func NewMixAdapter(
 }
 
 // Handle dispatches the request to the Anthropic or OpenAI sub-adapter based
-// on m.Protocol (if set) or the suffix of m.BaseURL's path.
+// on the suffix of the Provider's DefaultBaseURL path.
 func (a *MixAdapter) Handle(
 	w http.ResponseWriter,
 	r *http.Request,
-	m config.Model,
+	provider config.Provider,
+	mapping config.Mapping,
 	body []byte,
 ) error {
-	switch m.Protocol {
-	case "anthropic":
-		a.logger.Debug("mix routing", "protocol", m.Protocol, "selected", "anthropic")
-		return a.anthropic.Handle(w, r, m, body)
-	case "openai":
-		a.logger.Debug("mix routing", "protocol", m.Protocol, "selected", "openai")
-		return a.openai.Handle(w, r, m, body)
-	default:
-		a.logger.Warn("mix: unknown protocol, falling back to URL sniffing", "protocol", m.Protocol)
-	}
-	parsedURL, err := url.Parse(m.BaseURL)
+	parsedURL, err := url.Parse(provider.DefaultBaseURL)
 	if err != nil {
 		return &configError{
-			err:     fmt.Errorf("%s adapter (mix): parse base_url: %w", originalOr(m), err),
+			err:     fmt.Errorf("%s adapter (mix): parse base_url: %w", mapping.ProviderName, err),
 			errType: "invalid_request_error",
 		}
 	}
 	if strings.HasSuffix(parsedURL.Path, "/v1/messages") {
 		a.logger.Debug("mix routing", "path", parsedURL.Path, "selected", "anthropic")
-		return a.anthropic.Handle(w, r, m, body)
+		return a.anthropic.Handle(w, r, provider, mapping, body)
 	}
 	a.logger.Debug("mix routing", "path", parsedURL.Path, "selected", "openai")
-	return a.openai.Handle(w, r, m, body)
+	return a.openai.Handle(w, r, provider, mapping, body)
 }

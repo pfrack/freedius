@@ -1,5 +1,5 @@
 // Package config loads, validates, and exposes the freedius YAML configuration
-// (provider defaults, model mappings, and per-model overrides).
+// (provider defaults and model mappings).
 package config
 
 import (
@@ -13,20 +13,35 @@ import (
 )
 
 // Config is the top-level configuration loaded from a freedius.yaml file.
+//
+// Providers is the set of named upstream endpoints: each one declares its
+// behavior class (openai / anthropic / mix), the base URL to contact, and the
+// env var that holds the API key. Mappings is the routing layer: each one
+// names a provider and the freetext model string that should be sent to it.
 type Config struct {
-	Models   map[string]Model `yaml:"models"`
-	Mappings map[string]Model `yaml:"mappings,omitempty"`
+	Providers map[string]Provider `yaml:"providers"`
+	Mappings  map[string]Mapping  `yaml:"mappings,omitempty"`
 }
 
-// Model describes a single upstream LLM endpoint and its identity inside freedius.
-type Model struct {
-	Provider         string `yaml:"provider"`
-	Model            string `yaml:"model"`
-	BaseURL          string `yaml:"base_url,omitempty"`
-	APIKeyEnv        string `yaml:"api_key_env,omitempty"`
+// Provider describes a single upstream LLM endpoint. Its settings are
+// independent of any specific mapping: many mappings can share one Provider.
+type Provider struct {
+	Behavior         string `yaml:"behavior"`
+	DefaultBaseURL   string `yaml:"default_base_url,omitempty"`
+	DefaultAPIKeyEnv string `yaml:"default_api_key_env,omitempty"`
 	AnthropicVersion string `yaml:"anthropic_version,omitempty"`
-	Protocol         string `yaml:"protocol,omitempty"`
-	OriginalProvider string `yaml:"-"`
+	// RequireBaseURL and SupportsCountTokens are runtime-only flags populated
+	// by applyDefaults from the generated providerDefaults map. They do not
+	// round-trip through YAML.
+	RequireBaseURL      bool `yaml:"-"`
+	SupportsCountTokens bool `yaml:"-"`
+}
+
+// Mapping binds a freedius-facing name to an upstream Provider plus the
+// freetext model string that should be requested from it.
+type Mapping struct {
+	ProviderName string `yaml:"provider_name"`
+	ModelString  string `yaml:"model_string"`
 }
 
 // Load reads, parses, and validates the freedius configuration at path.
@@ -44,7 +59,7 @@ func Load(path string) (*Config, error) {
 		return nil, err
 	}
 
-	if len(cfg.Models) == 0 && len(cfg.Mappings) == 0 {
+	if len(cfg.Providers) == 0 && len(cfg.Mappings) == 0 {
 		return nil, fmt.Errorf("config: config file at %s contains no model mappings", path)
 	}
 
@@ -57,39 +72,15 @@ func Load(path string) (*Config, error) {
 	return &cfg, nil
 }
 
-// ProviderInfo returns metadata for a given provider name: its behavior class,
-// default API key env var (or ""), default base URL (or ""), and whether it
-// requires an explicit base_url. Falls back to empty values for unknown providers.
-func ProviderInfo(name string) (behavior, apiKeyEnv, baseURL string, requiresBaseURL bool) {
-	switch name {
-	case "nim":
-		return "openai", "NVIDIA_NIM_API_KEY", "https://integrate.api.nvidia.com/v1/chat/completions", false
-	case "openai":
-		return "openai", "", "", true
-	case "anthropic":
-		return "anthropic", "ANTHROPIC_API_KEY", "", true
-	case "mix":
-		return "mix", "", "", true
-	case "zen":
-		return "mix", "OPENCODE_API_KEY", "", true
-	case "go":
-		return "mix", "OPENCODE_API_KEY", "", true
-	case "custom":
-		return "mix", "", "", true
-	default:
-		return "", "", "", false
-	}
-}
-
-// UsesProvider reports whether any model or mapping references the given provider name.
+// UsesProvider reports whether any provider entry or mapping references the
+// given provider name. It checks the providers map directly and walks the
+// mappings to find ProviderName references.
 func (c *Config) UsesProvider(name string) bool {
-	for _, m := range c.Models {
-		if m.Provider == name {
-			return true
-		}
+	if _, ok := c.Providers[name]; ok {
+		return true
 	}
 	for _, m := range c.Mappings {
-		if m.Provider == name {
+		if m.ProviderName == name {
 			return true
 		}
 	}
@@ -97,136 +88,116 @@ func (c *Config) UsesProvider(name string) bool {
 }
 
 func (c *Config) validate(path string) error {
-	for name, m := range c.Models {
-		if err := validateModel(path, "model", name, m); err != nil {
+	for name, p := range c.Providers {
+		if err := validateProvider(path, name, p); err != nil {
 			return err
 		}
 	}
 	for name, m := range c.Mappings {
-		if err := validateModel(path, "mapping", name, m); err != nil {
+		if err := validateMapping(path, name, m, c.Providers); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func validateModel(path, kind, name string, m Model) error {
-	if m.Model == "" {
+func validateProvider(path, name string, p Provider) error {
+	switch p.Behavior {
+	case "openai", "anthropic", "mix":
+		// valid
+	default:
 		return fmt.Errorf(
-			"config: config file at %s: %s %q has no \"model\" field",
+			"config: config file at %s: provider %q has invalid behavior %q (allowed: openai, anthropic, mix)",
 			path,
-			kind,
 			name,
+			p.Behavior,
 		)
 	}
-	if m.Provider == "" {
-		return fmt.Errorf(
-			"config: config file at %s: %s %q has no \"provider\" field",
-			path,
-			kind,
-			name,
-		)
-	}
-	if _, ok := KnownProviders[m.Provider]; !ok {
-		return fmt.Errorf(
-			"config: config file at %s: %s %q uses unknown provider %q (known: %s)",
-			path,
-			kind,
-			name,
-			m.Provider,
-			strings.Join(sortedKnownProviders(), ", "),
-		)
-	}
-	if strings.ContainsAny(m.Model, "\r\n:") {
-		return fmt.Errorf(
-			"config: config file at %s: %s %q has unsafe \"model\" value (must not contain CR, LF, or colon)",
-			path,
-			kind,
-			name,
-		)
-	}
-	if m.BaseURL != "" {
-		u, err := url.Parse(m.BaseURL)
+	if p.DefaultBaseURL != "" {
+		u, err := url.Parse(p.DefaultBaseURL)
 		if err != nil {
 			return fmt.Errorf(
-				"config: config file at %s: %s %q has invalid base_url %q: %v",
+				"config: config file at %s: provider %q has invalid default_base_url %q: %v",
 				path,
-				kind,
 				name,
-				m.BaseURL,
+				p.DefaultBaseURL,
 				err,
 			)
 		}
 		if u.Scheme != "http" && u.Scheme != "https" {
 			return fmt.Errorf(
-				"config: config file at %s: %s %q has base_url with invalid scheme %q (allowed: http, https)",
+				"config: config file at %s: provider %q has default_base_url with invalid scheme %q (allowed: http, https)",
 				path,
-				kind,
 				name,
 				u.Scheme,
 			)
 		}
 	}
-	if _, ok := requireBaseURL[m.Provider]; ok && m.BaseURL == "" {
+	if p.DefaultAPIKeyEnv != "" && strings.ContainsAny(p.DefaultAPIKeyEnv, "\r\n=") {
 		return fmt.Errorf(
-			"config: config file at %s: %s %q has provider=%s but no base_url",
+			"config: config file at %s: provider %q has default_api_key_env with invalid characters (must not contain CR, LF, or =)",
 			path,
-			kind,
-			name,
-			m.Provider,
-		)
-	}
-	if m.APIKeyEnv != "" && strings.ContainsAny(m.APIKeyEnv, "\r\n=") {
-		return fmt.Errorf(
-			"config: config file at %s: %s %q has api_key_env with invalid characters (must not contain CR, LF, or =)",
-			path,
-			kind,
 			name,
 		)
 	}
-	if m.Protocol != "" && m.Protocol != "anthropic" && m.Protocol != "openai" {
+	if p.RequireBaseURL && p.DefaultBaseURL == "" {
 		return fmt.Errorf(
-			"config: config file at %s: %s %q has invalid protocol %q (allowed: anthropic, openai)",
+			"config: config file at %s: provider %q requires default_base_url but none is set",
 			path,
-			kind,
 			name,
-			m.Protocol,
 		)
 	}
 	return nil
 }
 
-func sortedKnownProviders() []string {
-	keys := make([]string, 0, len(KnownProviders))
-	for k := range KnownProviders {
+func validateMapping(path, name string, m Mapping, providers map[string]Provider) error {
+	if m.ProviderName == "" {
+		return fmt.Errorf(
+			"config: config file at %s: mapping %q has no \"provider_name\" field",
+			path,
+			name,
+		)
+	}
+	if _, ok := providers[m.ProviderName]; !ok {
+		return fmt.Errorf(
+			"config: config file at %s: mapping %q references unknown provider %q (known: %s)",
+			path,
+			name,
+			m.ProviderName,
+			strings.Join(sortedProviderNames(providers), ", "),
+		)
+	}
+	if m.ModelString == "" {
+		return fmt.Errorf(
+			"config: config file at %s: mapping %q has no \"model_string\" field",
+			path,
+			name,
+		)
+	}
+	if strings.ContainsAny(m.ModelString, "\r\n:") {
+		return fmt.Errorf(
+			"config: config file at %s: mapping %q has unsafe \"model_string\" value (must not contain CR, LF, or colon)",
+			path,
+			name,
+		)
+	}
+	return nil
+}
+
+func sortedProviderNames(providers map[string]Provider) []string {
+	keys := make([]string, 0, len(providers))
+	for k := range providers {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
 	return keys
 }
 
-// Marshal serializes the config to YAML bytes, recovering OriginalProvider
-// values for alias entries (zen, go, custom) so they survive the round-trip.
+// Marshal serializes the config to YAML bytes. All user-facing fields are
+// tagged with yaml struct tags; runtime-only fields (RequireBaseURL,
+// SupportsCountTokens) carry yaml:"-" so they are not emitted.
 func (c *Config) Marshal() ([]byte, error) {
-	clone := &Config{
-		Models:   make(map[string]Model, len(c.Models)),
-		Mappings: make(map[string]Model, len(c.Mappings)),
-	}
-	for name, m := range c.Models {
-		if m.OriginalProvider != "" && m.OriginalProvider != m.Provider {
-			m.Provider = m.OriginalProvider
-		}
-		m.OriginalProvider = ""
-		clone.Models[name] = m
-	}
-	for name, m := range c.Mappings {
-		if m.OriginalProvider != "" && m.OriginalProvider != m.Provider {
-			m.Provider = m.OriginalProvider
-		}
-		m.OriginalProvider = ""
-		clone.Mappings[name] = m
-	}
-	return yaml.Marshal(clone)
+	return yaml.Marshal(c)
 }
 
 // Save validates, marshals, and writes the config to path. If path exists,

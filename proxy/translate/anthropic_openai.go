@@ -268,7 +268,11 @@ func userBlockToMessage(b map[string]any) (openAIMessage, bool) {
 	return openAIMessage{}, false
 }
 
-func convertAssistantMessage(raw []byte, content any, topLevelReasoning string) ([]openAIMessage, error) {
+func convertAssistantMessage(
+	raw []byte,
+	content any,
+	topLevelReasoning string,
+) ([]openAIMessage, error) {
 	om := openAIMessage{Role: "assistant"}
 
 	if str, ok := content.(string); ok && str != "" {

@@ -60,7 +60,9 @@ const (
 
 const (
 	formNone          = 0
-	formEdit          = 1
-	formAdd           = 2
-	formDeleteConfirm = 3
+	formEditProvider  = 1
+	formAddProvider   = 2
+	formEditMapping   = 3
+	formAddMapping    = 4
+	formDeleteConfirm = 5
 )

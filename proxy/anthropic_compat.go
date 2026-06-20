@@ -39,39 +39,43 @@ func NewAnthropicCompatibleAdapter(
 func (a *AnthropicCompatibleAdapter) Handle(
 	w http.ResponseWriter,
 	r *http.Request,
-	m config.Model,
+	provider config.Provider,
+	mapping config.Mapping,
 	body []byte,
 ) error {
-	if m.BaseURL == "" {
+	if provider.DefaultBaseURL == "" {
 		return &configError{
-			err:     fmt.Errorf("%s adapter (anthropic-compat): missing base_url", originalOr(m)),
+			err: fmt.Errorf(
+				"%s adapter (anthropic-compat): missing base_url",
+				mapping.ProviderName,
+			),
 			errType: "invalid_request_error",
 		}
 	}
-	apiKey := os.Getenv(m.APIKeyEnv)
+	apiKey := os.Getenv(provider.DefaultAPIKeyEnv)
 	if apiKey == "" {
 		return &configError{
 			err: fmt.Errorf(
 				"%s adapter (anthropic-compat): env var %s is not set",
-				originalOr(m),
-				m.APIKeyEnv,
+				mapping.ProviderName,
+				provider.DefaultAPIKeyEnv,
 			),
 			errType: "authentication_error",
 		}
 	}
-	target, err := url.Parse(m.BaseURL)
+	target, err := url.Parse(provider.DefaultBaseURL)
 	if err != nil {
 		return &configError{
 			err: fmt.Errorf(
 				"%s adapter (anthropic-compat): invalid base_url %q: %w",
-				originalOr(m),
-				m.BaseURL,
+				mapping.ProviderName,
+				provider.DefaultBaseURL,
 				err,
 			),
 			errType: "invalid_request_error",
 		}
 	}
-	apiVersion := m.AnthropicVersion
+	apiVersion := provider.AnthropicVersion
 	if apiVersion == "" {
 		apiVersion = "2023-06-01"
 	}

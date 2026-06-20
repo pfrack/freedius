@@ -16,8 +16,11 @@ import (
 func newTestDispatcher(t *testing.T) *Dispatcher {
 	t.Helper()
 	cfg := &config.Config{
-		Models: map[string]config.Model{
-			"claude-opus-4": {Provider: "nim", Model: "meta/llama-3.1-70b-instruct"},
+		Providers: map[string]config.Provider{
+			"nim": {Behavior: "openai"},
+		},
+		Mappings: map[string]config.Mapping{
+			"claude-opus-4": {ProviderName: "nim", ModelString: "meta/llama-3.1-70b-instruct"},
 		},
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -49,7 +52,7 @@ func TestServeHTTP(t *testing.T) {
 		wantHeaderMiss []string
 	}{
 		{
-			name:       "POST known model no registered adapter",
+			name:       "POST known mapping no registered adapter",
 			method:     http.MethodPost,
 			body:       `{"model":"claude-opus-4"}`,
 			wantStatus: http.StatusInternalServerError,
@@ -181,14 +184,16 @@ func TestServeHTTPMappingsLookup(t *testing.T) {
 	defer upstream.Close()
 
 	cfg := &config.Config{
-		Models: map[string]config.Model{},
-		Mappings: map[string]config.Model{
-			"opus": {Provider: "nim", Model: "x", APIKeyEnv: "NVIDIA_NIM_API_KEY"},
+		Providers: map[string]config.Provider{
+			"nim": {Behavior: "openai", DefaultAPIKeyEnv: "NVIDIA_NIM_API_KEY"},
+		},
+		Mappings: map[string]config.Mapping{
+			"opus": {ProviderName: "nim", ModelString: "x"},
 		},
 	}
 	t.Setenv("NVIDIA_NIM_API_KEY", "k1")
 	d := newTestDispatcherWithAdapter(t, cfg, map[string]Provider{
-		"nim": &mockProvider{status: 200, body: `{"ok":true}`},
+		"openai": &mockProvider{status: 200, body: `{"ok":true}`},
 	})
 
 	req := httptest.NewRequest(
@@ -211,13 +216,15 @@ func TestServeHTTPMappingsLookup(t *testing.T) {
 
 func TestServeHTTPNeitherMatch(t *testing.T) {
 	cfg := &config.Config{
-		Models: map[string]config.Model{},
-		Mappings: map[string]config.Model{
-			"opus": {Provider: "nim", Model: "x", APIKeyEnv: "NVIDIA_NIM_API_KEY"},
+		Providers: map[string]config.Provider{
+			"nim": {Behavior: "openai", DefaultAPIKeyEnv: "NVIDIA_NIM_API_KEY"},
+		},
+		Mappings: map[string]config.Mapping{
+			"opus": {ProviderName: "nim", ModelString: "x"},
 		},
 	}
 	d := newTestDispatcherWithAdapter(t, cfg, map[string]Provider{
-		"nim": &mockProvider{status: 200, body: `{}`},
+		"openai": &mockProvider{status: 200, body: `{}`},
 	})
 
 	req := httptest.NewRequest(
@@ -239,20 +246,32 @@ func TestServeHTTPNeitherMatch(t *testing.T) {
 
 func TestServeHTTPModelsWinsOverMappings(t *testing.T) {
 	cfg := &config.Config{
-		Models: map[string]config.Model{
-			"shared-key": {Provider: "nim", Model: "from-models", APIKeyEnv: "NVIDIA_NIM_API_KEY"},
+		Providers: map[string]config.Provider{
+			"nim": {Behavior: "openai", DefaultAPIKeyEnv: "NVIDIA_NIM_API_KEY"},
 		},
-		Mappings: map[string]config.Model{
-			"shared-key": {
-				Provider:  "nim",
-				Model:     "from-mappings",
-				APIKeyEnv: "NVIDIA_NIM_API_KEY",
-			},
+		Mappings: map[string]config.Mapping{
+			"shared-key":      {ProviderName: "nim", ModelString: "from-mappings"},
+			"shared-key-name": {ProviderName: "nim", ModelString: "from-models"},
 		},
 	}
+	_ = cfg
+	cfg = &config.Config{
+		Providers: map[string]config.Provider{
+			"nim": {Behavior: "openai", DefaultAPIKeyEnv: "NVIDIA_NIM_API_KEY"},
+		},
+		Mappings: map[string]config.Mapping{
+			"shared-key": {ProviderName: "nim", ModelString: "from-mappings"},
+		},
+	}
+	// Add a Models map that wins for a key that's also in Mappings.
+	// Note: under the new schema, Models map is removed at the dispatcher level —
+	// dispatcher only consults Mappings, so this regression test no longer
+	// applies. Kept here as a placeholder documenting the behavior change.
+	t.Skip("Models map removed in providers-section-refactor; dispatcher consults Mappings only")
+
 	t.Setenv("NVIDIA_NIM_API_KEY", "k1")
 	d := newTestDispatcherWithAdapter(t, cfg, map[string]Provider{
-		"nim": &recordingProvider{},
+		"openai": &recordingProvider{},
 	})
 
 	req := httptest.NewRequest(
@@ -264,25 +283,23 @@ func TestServeHTTPModelsWinsOverMappings(t *testing.T) {
 	rec := httptest.NewRecorder()
 	d.ServeHTTP(rec, req)
 
-	if got := rec.Header().Get("X-Freedius-Matched-Model"); got != "from-models" {
-		t.Errorf("models should win over mappings; got model %q, want from-models", got)
+	if got := rec.Header().Get("X-Freedius-Matched-Model"); got != "from-mappings" {
+		t.Errorf("matched model: got %q, want from-mappings", got)
 	}
 }
 
 func TestServeHTTPFamilyMatch(t *testing.T) {
 	cfg := &config.Config{
-		Models: map[string]config.Model{},
-		Mappings: map[string]config.Model{
-			"opus": {
-				Provider:  "nim",
-				Model:     "meta/llama-3.1-70b-instruct",
-				APIKeyEnv: "NVIDIA_NIM_API_KEY",
-			},
+		Providers: map[string]config.Provider{
+			"nim": {Behavior: "openai", DefaultAPIKeyEnv: "NVIDIA_NIM_API_KEY"},
+		},
+		Mappings: map[string]config.Mapping{
+			"opus": {ProviderName: "nim", ModelString: "meta/llama-3.1-70b-instruct"},
 		},
 	}
 	t.Setenv("NVIDIA_NIM_API_KEY", "k1")
 	d := newTestDispatcherWithAdapter(t, cfg, map[string]Provider{
-		"nim": &mockProvider{status: 200, body: `{"ok":true,"matched":"family"}`},
+		"openai": &mockProvider{status: 200, body: `{"ok":true,"matched":"family"}`},
 	})
 
 	req := httptest.NewRequest(
@@ -307,11 +324,11 @@ func TestServeHTTPFamilyMatch(t *testing.T) {
 
 func TestServeHTTPFamilyNoDefault(t *testing.T) {
 	cfg := &config.Config{
-		Models:   map[string]config.Model{},
-		Mappings: map[string]config.Model{},
+		Providers: map[string]config.Provider{},
+		Mappings:  map[string]config.Mapping{},
 	}
 	d := newTestDispatcherWithAdapter(t, cfg, map[string]Provider{
-		"nim": &mockProvider{status: 200, body: `{}`},
+		"openai": &mockProvider{status: 200, body: `{}`},
 	})
 
 	req := httptest.NewRequest(
@@ -330,14 +347,16 @@ func TestServeHTTPFamilyNoDefault(t *testing.T) {
 
 func TestServeHTTPFamilyDefaultCatchAll(t *testing.T) {
 	cfg := &config.Config{
-		Models: map[string]config.Model{},
-		Mappings: map[string]config.Model{
-			"default": {Provider: "nim", Model: "catch-all", APIKeyEnv: "NVIDIA_NIM_API_KEY"},
+		Providers: map[string]config.Provider{
+			"nim": {Behavior: "openai", DefaultAPIKeyEnv: "NVIDIA_NIM_API_KEY"},
+		},
+		Mappings: map[string]config.Mapping{
+			"default": {ProviderName: "nim", ModelString: "catch-all"},
 		},
 	}
 	t.Setenv("NVIDIA_NIM_API_KEY", "k1")
 	d := newTestDispatcherWithAdapter(t, cfg, map[string]Provider{
-		"nim": &mockProvider{status: 200, body: `{"ok":true}`},
+		"openai": &mockProvider{status: 200, body: `{"ok":true}`},
 	})
 
 	req := httptest.NewRequest(
@@ -360,16 +379,18 @@ func TestServeHTTPFamilyDefaultCatchAll(t *testing.T) {
 func TestServeHTTPFamilyPriorityIndependentOfYAMLOrder(t *testing.T) {
 	// Mappings list auto before opus — but opus has higher priority in knownFamilies
 	cfg := &config.Config{
-		Models: map[string]config.Model{},
-		Mappings: map[string]config.Model{
-			"auto":    {Provider: "nim", Model: "from-auto", APIKeyEnv: "NVIDIA_NIM_API_KEY"},
-			"opus":    {Provider: "nim", Model: "from-opus", APIKeyEnv: "NVIDIA_NIM_API_KEY"},
-			"default": {Provider: "nim", Model: "from-default", APIKeyEnv: "NVIDIA_NIM_API_KEY"},
+		Providers: map[string]config.Provider{
+			"nim": {Behavior: "openai", DefaultAPIKeyEnv: "NVIDIA_NIM_API_KEY"},
+		},
+		Mappings: map[string]config.Mapping{
+			"auto":    {ProviderName: "nim", ModelString: "from-auto"},
+			"opus":    {ProviderName: "nim", ModelString: "from-opus"},
+			"default": {ProviderName: "nim", ModelString: "from-default"},
 		},
 	}
 	t.Setenv("NVIDIA_NIM_API_KEY", "k1")
 	d := newTestDispatcherWithAdapter(t, cfg, map[string]Provider{
-		"nim": &mockProvider{status: 200, body: `{}`},
+		"openai": &mockProvider{status: 200, body: `{}`},
 	})
 
 	// claude-opus-4-1 should match opus even though auto is listed first in the map
@@ -387,50 +408,34 @@ func TestServeHTTPFamilyPriorityIndependentOfYAMLOrder(t *testing.T) {
 	}
 }
 
-func TestServeHTTPModelsWinsOverFamilyMatch(t *testing.T) {
+func TestServeHTTPFamilyMatchWinsOverUnrelatedExact(t *testing.T) {
+	// Exact match on a different family should not preempt family matching
+	// for the requested model.
 	cfg := &config.Config{
-		Models: map[string]config.Model{
-			"claude-opus-4-1": {
-				Provider:  "nim",
-				Model:     "exact-match",
-				APIKeyEnv: "NVIDIA_NIM_API_KEY",
-			},
+		Providers: map[string]config.Provider{
+			"nim": {Behavior: "openai", DefaultAPIKeyEnv: "NVIDIA_NIM_API_KEY"},
 		},
-		Mappings: map[string]config.Model{
-			"opus": {Provider: "nim", Model: "family-match", APIKeyEnv: "NVIDIA_NIM_API_KEY"},
+		Mappings: map[string]config.Mapping{
+			"sonnet": {ProviderName: "nim", ModelString: "exact-match"},
+			"opus":   {ProviderName: "nim", ModelString: "family-match"},
 		},
 	}
 	t.Setenv("NVIDIA_NIM_API_KEY", "k1")
 	d := newTestDispatcherWithAdapter(t, cfg, map[string]Provider{
-		"nim": &mockProvider{status: 200, body: `{}`},
+		"openai": &mockProvider{status: 200, body: `{}`},
 	})
 
-	// Exact model match should win over family pattern
 	req := httptest.NewRequest(
 		http.MethodPost,
 		"/v1/messages",
-		strings.NewReader(`{"model":"claude-opus-4-1"}`),
+		strings.NewReader(`{"model":"claude-opus-4-5"}`),
 	)
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	d.ServeHTTP(rec, req)
 
-	if got := rec.Header().Get("X-Freedius-Matched-Model"); got != "exact-match" {
-		t.Errorf("models exact match should win over family; got model %q, want exact-match", got)
-	}
-
-	// A different opus version not in models: should use the family mapping
-	req2 := httptest.NewRequest(
-		http.MethodPost,
-		"/v1/messages",
-		strings.NewReader(`{"model":"claude-opus-4-5"}`),
-	)
-	req2.Header.Set("Content-Type", "application/json")
-	rec2 := httptest.NewRecorder()
-	d.ServeHTTP(rec2, req2)
-
-	if got2 := rec2.Header().Get("X-Freedius-Matched-Model"); got2 != "family-match" {
-		t.Errorf("unmatched opus version should use family; got model %q, want family-match", got2)
+	if got := rec.Header().Get("X-Freedius-Matched-Model"); got != "family-match" {
+		t.Errorf("unmatched opus version should use family; got model %q, want family-match", got)
 	}
 }
 
@@ -442,7 +447,8 @@ type mockProvider struct {
 func (m *mockProvider) Handle(
 	w http.ResponseWriter,
 	_ *http.Request,
-	_ config.Model,
+	_ config.Provider,
+	_ config.Mapping,
 	_ []byte,
 ) error {
 	w.Header().Set("Content-Type", "application/json")
@@ -452,18 +458,19 @@ func (m *mockProvider) Handle(
 }
 
 type recordingProvider struct {
-	called bool
-	model  string
+	called   bool
+	modelStr string
 }
 
 func (r *recordingProvider) Handle(
 	w http.ResponseWriter,
 	_ *http.Request,
-	cfg config.Model,
+	_ config.Provider,
+	mapping config.Mapping,
 	_ []byte,
 ) error {
 	r.called = true
-	r.model = cfg.Model
+	r.modelStr = mapping.ModelString
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(`{"ok":true}`))
 	return nil
@@ -476,9 +483,9 @@ func (r *recordingProvider) Handle(
 // dispatcher computes the count locally and does NOT invoke the adapter.
 func TestServeHTTPCountTokens(t *testing.T) {
 	const (
-		anthropicProvider = "anthropic"
-		nimProvider       = "nim"
-		mixProvider       = "mix"
+		anthropicBehavior = "anthropic"
+		nimBehavior       = "openai"
+		mixBehavior       = "mix"
 	)
 	mockOK := &mockProvider{status: http.StatusOK, body: `{"input_tokens":1}`}
 	mockOKMix := &mockProvider{status: http.StatusOK, body: `{"input_tokens":1}`}
@@ -486,7 +493,8 @@ func TestServeHTTPCountTokens(t *testing.T) {
 	tests := []struct {
 		name                  string
 		path                  string
-		model                 config.Model
+		provider              config.Provider
+		mapping               config.Mapping
 		registeredMocks       map[string]Provider
 		wantStatus            int
 		wantBodyHas           []string
@@ -497,101 +505,106 @@ func TestServeHTTPCountTokens(t *testing.T) {
 		wantInputTokensGTZero bool
 	}{
 		{
-			name:  "anthropic provider + count_tokens path -> success (pass-through)",
-			path:  "/v1/messages/count_tokens",
-			model: config.Model{Provider: anthropicProvider, Model: "claude-opus-4"},
+			name: "anthropic provider + count_tokens path -> success (pass-through)",
+			path: "/v1/messages/count_tokens",
+			provider: config.Provider{
+				Behavior:            anthropicBehavior,
+				SupportsCountTokens: true,
+			},
+			mapping: config.Mapping{ProviderName: "anthropic", ModelString: "claude-opus-4"},
 			registeredMocks: map[string]Provider{
-				anthropicProvider: mockOK,
+				anthropicBehavior: mockOK,
 			},
 			wantStatus: http.StatusOK,
 			wantBodyHas: []string{
 				`"input_tokens":1`,
 			},
 			wantHeader: map[string]string{
-				"X-Freedius-Matched-Provider": anthropicProvider,
+				"X-Freedius-Matched-Provider": "anthropic",
 				"X-Freedius-Matched-Model":    "claude-opus-4",
 			},
 		},
 		{
-			name:  "nim provider + count_tokens path -> local counter (200)",
-			path:  "/v1/messages/count_tokens",
-			model: config.Model{Provider: nimProvider, Model: "x"},
-			registeredMocks: map[string]Provider{
-				nimProvider: &recordingProvider{},
-			},
-			wantStatus: http.StatusOK,
-			wantBodyHas: []string{
-				`"input_tokens":`,
-				`"context_management":`,
-				`"original_input_tokens":`,
-			},
-			wantHeader: map[string]string{
-				"X-Freedius-Matched-Provider": nimProvider,
-				"X-Freedius-Matched-Model":    "x",
-			},
-			wantAdapterNotCalled:  true,
-			wantInputTokensGTZero: true,
-		},
-		{
-			name:  "mix + Protocol anthropic + count_tokens -> success",
-			path:  "/v1/messages/count_tokens",
-			model: config.Model{Provider: mixProvider, Protocol: "anthropic", Model: "x"},
-			registeredMocks: map[string]Provider{
-				mixProvider: mockOKMix, // mix→anthropic delegation covered by mix_test
-			},
-			wantStatus: http.StatusOK,
-			wantHeader: map[string]string{
-				"X-Freedius-Matched-Provider": mixProvider,
-				"X-Freedius-Matched-Model":    "x",
-			},
-		},
-		{
-			name:  "mix + Protocol openai + count_tokens -> local counter (200)",
-			path:  "/v1/messages/count_tokens",
-			model: config.Model{Provider: mixProvider, Protocol: "openai", Model: "x"},
-			registeredMocks: map[string]Provider{
-				mixProvider: &recordingProvider{},
-			},
-			wantStatus: http.StatusOK,
-			wantBodyHas: []string{
-				`"input_tokens":`,
-				`"context_management":`,
-				`"original_input_tokens":`,
-			},
-			wantHeader: map[string]string{
-				"X-Freedius-Matched-Provider": mixProvider,
-				"X-Freedius-Matched-Model":    "x",
-			},
-			wantAdapterNotCalled:  true,
-			wantInputTokensGTZero: true,
-		},
-		{
-			name: "mix + no protocol + /v1/messages BaseURL + count_tokens -> success (URL sniff)",
+			name: "nim provider + count_tokens path -> local counter (200)",
 			path: "/v1/messages/count_tokens",
-			model: config.Model{
-				Provider: mixProvider,
-				Model:    "x",
-				BaseURL:  "https://api.minimax.io/anthropic/v1/messages",
+			provider: config.Provider{
+				Behavior:            nimBehavior,
+				SupportsCountTokens: false,
 			},
+			mapping: config.Mapping{ProviderName: "nim", ModelString: "x"},
 			registeredMocks: map[string]Provider{
-				mixProvider: mockOKMix,
+				nimBehavior: &recordingProvider{},
+			},
+			wantStatus: http.StatusOK,
+			wantBodyHas: []string{
+				`"input_tokens":`,
+				`"context_management":`,
+				`"original_input_tokens":`,
+			},
+			wantHeader: map[string]string{
+				"X-Freedius-Matched-Provider": "nim",
+				"X-Freedius-Matched-Model":    "x",
+			},
+			wantAdapterNotCalled:  true,
+			wantInputTokensGTZero: true,
+		},
+		{
+			name: "mix with /v1/messages base_url + count_tokens -> success (path sniff)",
+			path: "/v1/messages/count_tokens",
+			provider: config.Provider{
+				Behavior:            mixBehavior,
+				DefaultBaseURL:      "https://api.minimax.io/anthropic/v1/messages",
+				SupportsCountTokens: true,
+			},
+			mapping: config.Mapping{ProviderName: "mix", ModelString: "x"},
+			registeredMocks: map[string]Provider{
+				mixBehavior: mockOKMix,
 			},
 			wantStatus: http.StatusOK,
 			wantHeader: map[string]string{
-				"X-Freedius-Matched-Provider": mixProvider,
+				"X-Freedius-Matched-Provider": "mix",
 				"X-Freedius-Matched-Model":    "x",
 			},
 		},
 		{
-			name:  "regular /v1/messages + nim -> success (regression)",
-			path:  "/v1/messages",
-			model: config.Model{Provider: nimProvider, Model: "x"},
+			name: "mix with /v1/chat/completions base_url + count_tokens -> local counter",
+			path: "/v1/messages/count_tokens",
+			provider: config.Provider{
+				Behavior:            mixBehavior,
+				DefaultBaseURL:      "https://api.minimax.io/v1/chat/completions",
+				SupportsCountTokens: false,
+			},
+			mapping: config.Mapping{ProviderName: "mix", ModelString: "x"},
 			registeredMocks: map[string]Provider{
-				nimProvider: mockOK,
+				mixBehavior: &recordingProvider{},
+			},
+			wantStatus: http.StatusOK,
+			wantBodyHas: []string{
+				`"input_tokens":`,
+				`"context_management":`,
+				`"original_input_tokens":`,
+			},
+			wantHeader: map[string]string{
+				"X-Freedius-Matched-Provider": "mix",
+				"X-Freedius-Matched-Model":    "x",
+			},
+			wantAdapterNotCalled:  true,
+			wantInputTokensGTZero: true,
+		},
+		{
+			name: "regular /v1/messages + nim -> success (regression)",
+			path: "/v1/messages",
+			provider: config.Provider{
+				Behavior:            nimBehavior,
+				SupportsCountTokens: false,
+			},
+			mapping: config.Mapping{ProviderName: "nim", ModelString: "x"},
+			registeredMocks: map[string]Provider{
+				nimBehavior: mockOK,
 			},
 			wantStatus: http.StatusOK,
 			wantHeader: map[string]string{
-				"X-Freedius-Matched-Provider": nimProvider,
+				"X-Freedius-Matched-Provider": "nim",
 				"X-Freedius-Matched-Model":    "x",
 			},
 		},
@@ -600,8 +613,11 @@ func TestServeHTTPCountTokens(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := &config.Config{
-				Models: map[string]config.Model{
-					"claude-opus-4": tt.model,
+				Providers: map[string]config.Provider{
+					tt.mapping.ProviderName: tt.provider,
+				},
+				Mappings: map[string]config.Mapping{
+					"claude-opus-4": tt.mapping,
 				},
 			}
 			d := newTestDispatcherWithAdapter(t, cfg, tt.registeredMocks)
@@ -663,7 +679,10 @@ func TestServeHTTPCountTokens(t *testing.T) {
 			if tt.wantAdapterNotCalled {
 				for providerName, p := range tt.registeredMocks {
 					if rp, ok := p.(*recordingProvider); ok && rp.called {
-						t.Errorf("adapter %q was invoked; the local counter must short-circuit dispatch", providerName)
+						t.Errorf(
+							"adapter %q was invoked; the local counter must short-circuit dispatch",
+							providerName,
+						)
 					}
 				}
 			}

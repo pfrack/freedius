@@ -1,11 +1,15 @@
 # Supported providers are defined in providers.yaml
-mappings:
+providers:
   # Opencode Go — OpenAI-format base_url (DeepSeek, GLM, Kimi, etc.)
-  opus:    { provider: go,  model: deepseek-v4-pro,   base_url: https://opencode.ai/zen/go/v1/chat/completions }
-  # Opencode Go — Anthropic-format base_url (MiniMax, Qwen, etc.)
-  sonnet:  { provider: go,  model: minimax-m3,        base_url: https://opencode.ai/zen/go/v1/messages }
+  go:  { behavior: mix, default_base_url: https://opencode.ai/zen/go/v1/chat/completions, default_api_key_env: OPENCODE_API_KEY }
   # Opencode Zen — Anthropic-format base_url (Claude, Qwen, etc.)
-  haiku:   { provider: zen, model: claude-sonnet-4-6, base_url: https://opencode.ai/zen/v1/messages }
+  zen: { behavior: mix, default_base_url: https://opencode.ai/zen/v1/messages, default_api_key_env: OPENCODE_API_KEY }
   # NVIDIA NIM — uses built-in defaults
-  auto:    { provider: nim, model: step-3.5 }
-  default: { provider: nim, model: step-3.5 }
+  nim: { behavior: openai, default_api_key_env: NVIDIA_NIM_API_KEY }
+
+mappings:
+  opus:    { provider_name: go,  model_string: deepseek-v4-pro }
+  sonnet:  { provider_name: go,  model_string: minimax-m3 }
+  haiku:   { provider_name: zen, model_string: claude-sonnet-4-6 }
+  auto:    { provider_name: nim, model_string: step-3.5 }
+  default: { provider_name: nim, model_string: step-3.5 }

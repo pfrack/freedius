@@ -10,7 +10,13 @@ import (
 // Provider is a single backend implementation that can serve a freedius
 // request end-to-end (build upstream request, copy/stream the response).
 type Provider interface {
-	Handle(w http.ResponseWriter, r *http.Request, m config.Model, body []byte) error
+	Handle(
+		w http.ResponseWriter,
+		r *http.Request,
+		provider config.Provider,
+		mapping config.Mapping,
+		body []byte,
+	) error
 }
 
 // Registry maps provider names (e.g. "nim", "openai", "anthropic") to their

@@ -40,7 +40,12 @@ func forwardUpstreamError(w http.ResponseWriter, resp *http.Response) error {
 // writeAnthropicError writes an Anthropic-shaped error JSON response with
 // appropriate retry headers. If retryAfter > 0, sets retry-after and
 // x-should-retry: true headers.
-func writeAnthropicError(w http.ResponseWriter, statusCode int, errType, message string, retryAfter int) {
+func writeAnthropicError(
+	w http.ResponseWriter,
+	statusCode int,
+	errType, message string,
+	retryAfter int,
+) {
 	if retryAfter > 0 {
 		w.Header().Set("retry-after", strconv.Itoa(retryAfter))
 		w.Header().Set("x-should-retry", "true")

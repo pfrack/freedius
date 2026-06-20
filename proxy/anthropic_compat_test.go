@@ -47,12 +47,12 @@ func TestAnthropicCompat_PassthroughText(t *testing.T) {
 	err := a.Handle(
 		rec,
 		req,
-		config.Model{
-			Provider:  "anthropic",
-			Model:     "x",
-			BaseURL:   upstream.URL,
-			APIKeyEnv: "ANTHROPIC_API_KEY",
+		config.Provider{
+			Behavior:         "anthropic",
+			DefaultBaseURL:   upstream.URL,
+			DefaultAPIKeyEnv: "ANTHROPIC_API_KEY",
 		},
+		config.Mapping{ProviderName: "anthropic", ModelString: "x"},
 		[]byte(`{"model":"x"}`),
 	)
 	if err != nil {
@@ -71,7 +71,8 @@ func TestAnthropicCompat_MissingBaseURL(t *testing.T) {
 	err := a.Handle(
 		rec,
 		req,
-		config.Model{Provider: "anthropic", Model: "x", APIKeyEnv: "ANTHROPIC_API_KEY"},
+		config.Provider{Behavior: "anthropic", DefaultAPIKeyEnv: "ANTHROPIC_API_KEY"},
+		config.Mapping{ProviderName: "anthropic", ModelString: "x"},
 		[]byte(`{}`),
 	)
 	if err == nil {
@@ -87,12 +88,12 @@ func TestAnthropicCompat_MissingEnvVar(t *testing.T) {
 	err := a.Handle(
 		rec,
 		req,
-		config.Model{
-			Provider:  "anthropic",
-			Model:     "x",
-			BaseURL:   "https://x",
-			APIKeyEnv: "ANTHROPIC_API_KEY",
+		config.Provider{
+			Behavior:         "anthropic",
+			DefaultBaseURL:   "https://x",
+			DefaultAPIKeyEnv: "ANTHROPIC_API_KEY",
 		},
+		config.Mapping{ProviderName: "anthropic", ModelString: "x"},
 		[]byte(`{}`),
 	)
 	if err == nil {

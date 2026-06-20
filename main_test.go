@@ -12,11 +12,16 @@ import (
 	"github.com/pfrack/freedius/config"
 )
 
+const minimalConfigYAML = "providers:\n" +
+	"  nim: {behavior: openai}\n" +
+	"mappings:\n" +
+	"  opus: {provider_name: nim, model_string: test}\n"
+
 func TestCheckRequiredEnvVars_PresetEnvVarMissing(t *testing.T) {
 	t.Setenv("NVIDIA_NIM_API_KEY", "")
 	cfg := &config.Config{
-		Models: map[string]config.Model{
-			"a": {Provider: "nim", Model: "x", APIKeyEnv: "NVIDIA_NIM_API_KEY"},
+		Providers: map[string]config.Provider{
+			"nim": {Behavior: "openai", DefaultAPIKeyEnv: "NVIDIA_NIM_API_KEY"},
 		},
 	}
 	err := checkRequiredEnvVars(cfg)
@@ -29,17 +34,12 @@ func TestCheckRequiredEnvVars_PresetEnvVarMissing(t *testing.T) {
 	}
 }
 
-func TestCheckRequiredEnvVars_PerModelOverrideMissing(t *testing.T) {
+func TestCheckRequiredEnvVars_PerProviderOverrideMissing(t *testing.T) {
 	t.Setenv("NVIDIA_NIM_API_KEY", "set")
 	t.Setenv("OPENCODE_API_KEY", "")
 	cfg := &config.Config{
-		Models: map[string]config.Model{
-			"haiku": {
-				Provider:         "mix",
-				OriginalProvider: "zen",
-				Model:            "x",
-				APIKeyEnv:        "OPENCODE_API_KEY",
-			},
+		Providers: map[string]config.Provider{
+			"zen": {Behavior: "mix", DefaultAPIKeyEnv: "OPENCODE_API_KEY"},
 		},
 	}
 	err := checkRequiredEnvVars(cfg)
@@ -55,9 +55,9 @@ func TestCheckRequiredEnvVars_AllSet(t *testing.T) {
 	t.Setenv("NVIDIA_NIM_API_KEY", "k1")
 	t.Setenv("OPENAI_API_KEY", "k2")
 	cfg := &config.Config{
-		Models: map[string]config.Model{
-			"a": {Provider: "nim", Model: "x", APIKeyEnv: "NVIDIA_NIM_API_KEY"},
-			"b": {Provider: "openai", Model: "gpt-4", APIKeyEnv: "OPENAI_API_KEY"},
+		Providers: map[string]config.Provider{
+			"nim":    {Behavior: "openai", DefaultAPIKeyEnv: "NVIDIA_NIM_API_KEY"},
+			"openai": {Behavior: "openai", DefaultAPIKeyEnv: "OPENAI_API_KEY"},
 		},
 	}
 	if err := checkRequiredEnvVars(cfg); err != nil {
@@ -68,8 +68,12 @@ func TestCheckRequiredEnvVars_AllSet(t *testing.T) {
 func TestCheckRequiredEnvVars_CustomNoDefault(t *testing.T) {
 	t.Setenv("NVIDIA_NIM_API_KEY", "k1")
 	cfg := &config.Config{
-		Models: map[string]config.Model{
-			"a": {Provider: "custom", Model: "x", BaseURL: "https://x", APIKeyEnv: "CUSTOM_KEY"},
+		Providers: map[string]config.Provider{
+			"custom": {
+				Behavior:         "mix",
+				DefaultBaseURL:   "https://x",
+				DefaultAPIKeyEnv: "CUSTOM_KEY",
+			},
 		},
 	}
 	t.Setenv("CUSTOM_KEY", "k2")
@@ -78,16 +82,15 @@ func TestCheckRequiredEnvVars_CustomNoDefault(t *testing.T) {
 	}
 }
 
-func TestCheckRequiredEnvVars_ProviderNotReferenced(t *testing.T) {
+func TestCheckRequiredEnvVars_NoProvidersWithEnv(t *testing.T) {
 	t.Setenv("NVIDIA_NIM_API_KEY", "")
 	t.Setenv("OPENAI_API_KEY", "k2")
 	cfg := &config.Config{
-		Models: map[string]config.Model{
-			"a": {
-				Provider:  "openai",
-				Model:     "gpt-4",
-				BaseURL:   "https://x",
-				APIKeyEnv: "OPENAI_API_KEY",
+		Providers: map[string]config.Provider{
+			"openai": {
+				Behavior:         "openai",
+				DefaultBaseURL:   "https://x",
+				DefaultAPIKeyEnv: "OPENAI_API_KEY",
 			},
 		},
 	}
@@ -96,26 +99,26 @@ func TestCheckRequiredEnvVars_ProviderNotReferenced(t *testing.T) {
 	}
 }
 
-func TestCheckRequiredEnvVars_MappingMissingEnv(t *testing.T) {
+func TestCheckRequiredEnvVars_MappingDoesNotTriggerCheck(t *testing.T) {
+	// Env var checks are provider-level now; mappings referencing a provider
+	// with a missing env should still surface the error via the provider, not
+	// independently per-mapping.
 	t.Setenv("NVIDIA_NIM_API_KEY", "k1")
 	t.Setenv("OPENCODE_API_KEY", "")
 	cfg := &config.Config{
-		Models: map[string]config.Model{},
-		Mappings: map[string]config.Model{
-			"haiku": {
-				Provider:         "mix",
-				OriginalProvider: "zen",
-				Model:            "x",
-				APIKeyEnv:        "OPENCODE_API_KEY",
-			},
+		Providers: map[string]config.Provider{
+			"zen": {Behavior: "mix", DefaultAPIKeyEnv: "OPENCODE_API_KEY"},
+		},
+		Mappings: map[string]config.Mapping{
+			"haiku": {ProviderName: "zen", ModelString: "x"},
 		},
 	}
 	err := checkRequiredEnvVars(cfg)
 	if err == nil {
-		t.Fatal("expected error for missing mapping env")
+		t.Fatal("expected error for missing OPENCODE_API_KEY")
 	}
 	if !strings.Contains(err.Error(), "OPENCODE_API_KEY") {
-		t.Errorf("error should mention mapping env: %v", err)
+		t.Errorf("error should mention provider env: %v", err)
 	}
 }
 
@@ -170,47 +173,40 @@ func TestNewLogger_InvalidFormat(t *testing.T) {
 	}
 }
 
-func TestCheckRequiredEnvVars_UsesOriginalProvider(t *testing.T) {
-	// `provider=zen` post-rewrites to `mix`, but the user wrote `zen` — the
-	// error must reflect the user's actual provider name.
+func TestCheckRequiredEnvVars_ProviderNameInError(t *testing.T) {
+	// Under the new schema, the env-var check is provider-level. The error
+	// must reference the provider's user-defined name.
 	t.Setenv("OPENCODE_API_KEY", "")
 	cfg := &config.Config{
-		Models: map[string]config.Model{
-			"haiku": {
-				Provider:         "mix",
-				OriginalProvider: "zen",
-				Model:            "x",
-				APIKeyEnv:        "OPENCODE_API_KEY",
-			},
+		Providers: map[string]config.Provider{
+			"zen": {Behavior: "mix", DefaultAPIKeyEnv: "OPENCODE_API_KEY"},
 		},
 	}
 	err := checkRequiredEnvVars(cfg)
 	if err == nil {
 		t.Fatal("expected error for missing OPENCODE_API_KEY")
 	}
-	if !strings.Contains(err.Error(), "provider=zen") {
-		t.Errorf("error should reference the original provider name (zen), got: %v", err)
+	if !strings.Contains(err.Error(), "zen") {
+		t.Errorf("error should reference the provider name (zen), got: %v", err)
 	}
-	if strings.Contains(err.Error(), "provider=mix") {
-		t.Errorf("error must NOT reference the rewritten provider name (mix), got: %v", err)
+	if !strings.Contains(err.Error(), "OPENCODE_API_KEY") {
+		t.Errorf("error should reference the env var, got: %v", err)
 	}
 }
 
-func TestCheckRequiredEnvVars_FallsBackToProvider(t *testing.T) {
-	// Backwards compat: Model literals without OriginalProvider should still
-	// report the (post-rewrite) Provider name.
+func TestCheckRequiredEnvVars_ReferencesConfiguredProvider(t *testing.T) {
 	t.Setenv("NVIDIA_NIM_API_KEY", "")
 	cfg := &config.Config{
-		Models: map[string]config.Model{
-			"a": {Provider: "nim", Model: "x", APIKeyEnv: "NVIDIA_NIM_API_KEY"},
+		Providers: map[string]config.Provider{
+			"nim": {Behavior: "openai", DefaultAPIKeyEnv: "NVIDIA_NIM_API_KEY"},
 		},
 	}
 	err := checkRequiredEnvVars(cfg)
 	if err == nil {
 		t.Fatal("expected error")
 	}
-	if !strings.Contains(err.Error(), "provider=nim") {
-		t.Errorf("error should reference Provider when OriginalProvider empty, got: %v", err)
+	if !strings.Contains(err.Error(), "provider \"nim\"") {
+		t.Errorf("error should reference the configured provider (nim), got: %v", err)
 	}
 }
 
@@ -219,7 +215,11 @@ func TestRun_StartupBanner(t *testing.T) {
 	// "listening on". Run via `go run` so we capture a fresh binary's stderr.
 	dir := t.TempDir()
 	cfgPath := dir + "/freedius.yaml"
-	if err := os.WriteFile(cfgPath, []byte("mappings: {}\n"), 0o644); err != nil {
+	cfgBody := "providers:\n" +
+		"  nim: {behavior: openai}\n" +
+		"mappings:\n" +
+		"  opus: {provider_name: nim, model_string: test}\n"
+	if err := os.WriteFile(cfgPath, []byte(cfgBody), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -527,7 +527,7 @@ func TestRunInit_ShellInstallRefusesUnknownShell(t *testing.T) {
 func TestRunServe_EvalSnippetAppears(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := dir + "/freedius.yaml"
-	if err := os.WriteFile(cfgPath, []byte("mappings:\n  opus: {provider: nim, model: test}\n"), 0o644); err != nil {
+	if err := os.WriteFile(cfgPath, []byte(minimalConfigYAML), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("NVIDIA_NIM_API_KEY", "test-key")
@@ -549,7 +549,7 @@ func TestRunServe_EvalSnippetAppears(t *testing.T) {
 func TestRunServe_EvalSnippetSuppressed(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := dir + "/freedius.yaml"
-	if err := os.WriteFile(cfgPath, []byte("mappings:\n  opus: {provider: nim, model: test}\n"), 0o644); err != nil {
+	if err := os.WriteFile(cfgPath, []byte(minimalConfigYAML), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("NVIDIA_NIM_API_KEY", "test-key")

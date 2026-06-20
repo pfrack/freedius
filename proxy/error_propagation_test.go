@@ -29,10 +29,10 @@ func TestOpenAICompat_Upstream429_ReturnsAnthropicFormat(t *testing.T) {
 	body := []byte(`{"model":"x","max_tokens":10,"messages":[{"role":"user","content":"hi"}]}`)
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 
-	err := a.Handle(rec, req, config.Model{
-		Provider: "nim", Model: "x",
-		BaseURL: upstream.URL, APIKeyEnv: "TEST_API_KEY",
-	}, body)
+	err := a.Handle(rec, req, config.Provider{
+		Behavior:       "openai",
+		DefaultBaseURL: upstream.URL, DefaultAPIKeyEnv: "TEST_API_KEY",
+	}, config.Mapping{ProviderName: "nim", ModelString: "x"}, body)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,10 +83,10 @@ func TestOpenAICompat_Timeout_ReturnsAnthropicOverloaded(t *testing.T) {
 	// coverage for writeAnthropicError itself lives in TestWriteAnthropicError
 	// (errors_test.go). This test only proves the adapter times out and
 	// surfaces the error to the caller.
-	err := a.Handle(rec, req, config.Model{
-		Provider: "nim", Model: "x",
-		BaseURL: upstream.URL, APIKeyEnv: "TEST_API_KEY",
-	}, body)
+	err := a.Handle(rec, req, config.Provider{
+		Behavior:       "openai",
+		DefaultBaseURL: upstream.URL, DefaultAPIKeyEnv: "TEST_API_KEY",
+	}, config.Mapping{ProviderName: "nim", ModelString: "x"}, body)
 	if err == nil {
 		t.Fatal("expected error from timeout")
 	}

@@ -158,24 +158,55 @@ func TestDashboard_Update_EventMsgErrorCount(t *testing.T) {
 	}
 }
 
-func TestDashboard_OpenEditForm(t *testing.T) {
+func TestDashboard_OpenEditProviderForm(t *testing.T) {
 	cfg := &config.Config{
-		Models: map[string]config.Model{
-			"opus": {Provider: "nim", Model: "meta/llama-3.1-70b-instruct"},
+		Providers: map[string]config.Provider{
+			"nim": {Behavior: "openai"},
 		},
 	}
 	d := NewDashboard(nil, cfg, nil, "")
 	d.activeTab = tabConfig
 
-	// Select the first entry and press e.
+	// Cursor 0 = the only provider.
 	d.configCursor = 0
 	d.Update(tea.KeyPressMsg{Text: "e"})
 
-	if d.formMode != formEdit {
-		t.Fatalf("formMode = %d, want %d (formEdit)", d.formMode, formEdit)
+	if d.formMode != formEditProvider {
+		t.Fatalf("formMode = %d, want %d (formEditProvider)", d.formMode, formEditProvider)
 	}
-	if len(d.formFields) != 7 {
-		t.Fatalf("formFields count = %d, want 7", len(d.formFields))
+	if len(d.formFields) != 5 {
+		t.Fatalf("formFields count = %d, want 5", len(d.formFields))
+	}
+	if d.formFields[0].Value() != "nim" {
+		t.Errorf("field 0 (name) = %q, want nim", d.formFields[0].Value())
+	}
+	if d.formFields[1].Value() != "openai" {
+		t.Errorf("field 1 (behavior) = %q, want openai", d.formFields[1].Value())
+	}
+}
+
+func TestDashboard_OpenEditMappingForm(t *testing.T) {
+	cfg := &config.Config{
+		Providers: map[string]config.Provider{
+			"nim": {Behavior: "openai"},
+		},
+		Mappings: map[string]config.Mapping{
+			"opus": {ProviderName: "nim", ModelString: "meta-llama"},
+		},
+	}
+	d := NewDashboard(nil, cfg, nil, "")
+	d.activeTab = tabConfig
+
+	// collectAllEntries returns providers first, then mappings. With one
+	// provider and one mapping, the mapping is at index 1.
+	d.configCursor = 1
+	d.Update(tea.KeyPressMsg{Text: "e"})
+
+	if d.formMode != formEditMapping {
+		t.Fatalf("formMode = %d, want %d (formEditMapping)", d.formMode, formEditMapping)
+	}
+	if len(d.formFields) != 3 {
+		t.Fatalf("formFields count = %d, want 3", len(d.formFields))
 	}
 	if d.formFields[0].Value() != "opus" {
 		t.Errorf("field 0 (name) = %q, want opus", d.formFields[0].Value())
@@ -183,24 +214,42 @@ func TestDashboard_OpenEditForm(t *testing.T) {
 	if d.formFields[1].Value() != "nim" {
 		t.Errorf("field 1 (provider) = %q, want nim", d.formFields[1].Value())
 	}
-	if d.formFields[2].Value() != "meta/llama-3.1-70b-instruct" {
-		t.Errorf("field 2 (model) = %q, want meta/llama-3.1-70b-instruct", d.formFields[2].Value())
+	if d.formFields[2].Value() != "meta-llama" {
+		t.Errorf("field 2 (model) = %q, want meta-llama", d.formFields[2].Value())
 	}
 }
 
-func TestDashboard_OpenAddForm(t *testing.T) {
+func TestDashboard_OpenAddProviderForm(t *testing.T) {
+	d := NewDashboard(nil, &config.Config{}, nil, "")
+	d.activeTab = tabConfig
+
+	d.Update(tea.KeyPressMsg{Text: "p"})
+
+	if d.formMode != formAddProvider {
+		t.Fatalf("formMode = %d, want %d (formAddProvider)", d.formMode, formAddProvider)
+	}
+	if len(d.formFields) != 5 {
+		t.Fatalf("formFields count = %d, want 5", len(d.formFields))
+	}
+	for i, f := range d.formFields {
+		if f.Value() != "" {
+			t.Errorf("field %d should be empty for add form, got %q", i, f.Value())
+		}
+	}
+}
+
+func TestDashboard_OpenAddMappingForm(t *testing.T) {
 	d := NewDashboard(nil, &config.Config{}, nil, "")
 	d.activeTab = tabConfig
 
 	d.Update(tea.KeyPressMsg{Text: "a"})
 
-	if d.formMode != formAdd {
-		t.Fatalf("formMode = %d, want %d (formAdd)", d.formMode, formAdd)
+	if d.formMode != formAddMapping {
+		t.Fatalf("formMode = %d, want %d (formAddMapping)", d.formMode, formAddMapping)
 	}
-	if len(d.formFields) != 7 {
-		t.Fatalf("formFields count = %d, want 7", len(d.formFields))
+	if len(d.formFields) != 3 {
+		t.Fatalf("formFields count = %d, want 3", len(d.formFields))
 	}
-	// All fields should be empty for add.
 	for i, f := range d.formFields {
 		if f.Value() != "" {
 			t.Errorf("field %d should be empty for add form, got %q", i, f.Value())
@@ -219,12 +268,12 @@ func TestDashboard_FormCancel(t *testing.T) {
 		t.Fatal("expected formMode formNone when no entries exist")
 	}
 
-	// Add a model manually and open form.
-	d.config.Models = map[string]config.Model{"test": {Provider: "nim", Model: "test-model"}}
+	// Add a provider manually and open form.
+	d.config.Providers = map[string]config.Provider{"test": {Behavior: "openai"}}
 	d.configCursor = 0
 	d.Update(tea.KeyPressMsg{Text: "e"})
-	if d.formMode != formEdit {
-		t.Fatalf("formMode = %d, want formEdit", d.formMode)
+	if d.formMode != formEditProvider {
+		t.Fatalf("formMode = %d, want formEditProvider", d.formMode)
 	}
 
 	// Cancel the form.
@@ -237,7 +286,7 @@ func TestDashboard_FormCancel(t *testing.T) {
 func TestDashboard_FormFieldNavigation(t *testing.T) {
 	d := NewDashboard(nil, &config.Config{}, nil, "")
 	d.activeTab = tabConfig
-	d.config.Models = map[string]config.Model{"test": {Provider: "nim", Model: "test-model"}}
+	d.config.Providers = map[string]config.Provider{"test": {Behavior: "openai"}}
 	d.configCursor = 0
 
 	d.Update(tea.KeyPressMsg{Text: "e"})
@@ -261,8 +310,13 @@ func TestDashboard_FormFieldNavigation(t *testing.T) {
 func TestDashboard_FormSubmitInvalidShowsErrors(t *testing.T) {
 	d := NewDashboard(nil, &config.Config{}, nil, "")
 	d.activeTab = tabConfig
-	d.config.Models = map[string]config.Model{"test": {Provider: "nim", Model: "test-model"}}
-	d.configCursor = 0
+	d.config.Providers = map[string]config.Provider{
+		"test": {Behavior: "openai"},
+	}
+	d.config.Mappings = map[string]config.Mapping{
+		"old": {ProviderName: "test", ModelString: "x"},
+	}
+	d.configCursor = 1 // the mapping
 
 	d.Update(tea.KeyPressMsg{Text: "e"})
 
@@ -270,7 +324,7 @@ func TestDashboard_FormSubmitInvalidShowsErrors(t *testing.T) {
 	d.formFields[2].SetValue("")
 	d.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 
-	if d.formMode != formEdit {
+	if d.formMode != formEditMapping {
 		t.Fatal("expected form to stay open after invalid submit")
 	}
 	if len(d.fieldErrors) == 0 {
@@ -285,10 +339,63 @@ func TestDashboard_FormSubmitInvalidShowsErrors(t *testing.T) {
 	}
 }
 
-func TestDashboard_DeleteConfirm(t *testing.T) {
+func TestDashboard_FormSubmitProviderInvalidBehavior(t *testing.T) {
 	d := NewDashboard(nil, &config.Config{}, nil, "")
 	d.activeTab = tabConfig
-	d.config.Models = map[string]config.Model{"test": {Provider: "nim", Model: "test-model"}}
+	d.config.Providers = map[string]config.Provider{
+		"test": {Behavior: "openai"},
+	}
+	d.configCursor = 0
+	d.Update(tea.KeyPressMsg{Text: "p"}) // open add provider form
+
+	// Fill the name and an invalid behavior.
+	d.formFields[0].SetValue("newprov")
+	d.formFields[1].SetValue("garbage")
+	d.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+
+	if d.formMode != formAddProvider {
+		t.Fatal("form should stay open after invalid behavior submit")
+	}
+	errMsg, ok := d.fieldErrors[1]
+	if !ok {
+		t.Fatalf("expected error on field 1 (behavior), got errors: %v", d.fieldErrors)
+	}
+	if !strings.Contains(errMsg, "behavior must be one of") {
+		t.Errorf("error = %q, want 'behavior must be one of...'", errMsg)
+	}
+}
+
+func TestDashboard_FormSubmitMappingUnknownProvider(t *testing.T) {
+	d := NewDashboard(nil, &config.Config{}, nil, "")
+	d.activeTab = tabConfig
+	d.config.Providers = map[string]config.Provider{
+		"nim": {Behavior: "openai"},
+	}
+
+	d.Update(tea.KeyPressMsg{Text: "a"}) // open add mapping form
+	d.formFields[0].SetValue("opus")
+	d.formFields[1].SetValue("nope") // unknown provider
+	d.formFields[2].SetValue("x")
+	d.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+
+	if d.formMode != formAddMapping {
+		t.Fatal("form should stay open after invalid provider reference")
+	}
+	errMsg, ok := d.fieldErrors[1]
+	if !ok {
+		t.Fatalf("expected error on field 1 (provider), got errors: %v", d.fieldErrors)
+	}
+	if !strings.Contains(errMsg, "unknown provider") {
+		t.Errorf("error = %q, want 'unknown provider...'", errMsg)
+	}
+}
+
+func TestDashboard_DeleteProvider(t *testing.T) {
+	d := NewDashboard(nil, &config.Config{}, nil, "")
+	d.activeTab = tabConfig
+	d.config.Providers = map[string]config.Provider{
+		"test": {Behavior: "openai"},
+	}
 	d.configCursor = 0
 
 	d.Update(tea.KeyPressMsg{Text: "d"})
@@ -296,21 +403,48 @@ func TestDashboard_DeleteConfirm(t *testing.T) {
 		t.Fatalf("formMode = %d, want formDeleteConfirm", d.formMode)
 	}
 
-	// Confirm deletion.
 	d.Update(tea.KeyPressMsg{Text: "y"})
 
 	if d.formMode != formNone {
 		t.Errorf("formMode after confirm = %d, want formNone", d.formMode)
 	}
-	if _, ok := d.config.Models["test"]; ok {
-		t.Error("model 'test' should have been deleted")
+	if _, ok := d.config.Providers["test"]; ok {
+		t.Error("provider 'test' should have been deleted")
+	}
+}
+
+func TestDashboard_DeleteMapping(t *testing.T) {
+	d := NewDashboard(nil, &config.Config{}, nil, "")
+	d.activeTab = tabConfig
+	d.config.Providers = map[string]config.Provider{
+		"nim": {Behavior: "openai"},
+	}
+	d.config.Mappings = map[string]config.Mapping{
+		"opus": {ProviderName: "nim", ModelString: "x"},
+	}
+	// Mappings are after providers in collectAllEntries; cursor 1 = the mapping.
+	d.configCursor = 1
+
+	d.Update(tea.KeyPressMsg{Text: "d"})
+	if d.formMode != formDeleteConfirm {
+		t.Fatalf("formMode = %d, want formDeleteConfirm", d.formMode)
+	}
+	d.Update(tea.KeyPressMsg{Text: "y"})
+
+	if d.formMode != formNone {
+		t.Errorf("formMode after confirm = %d, want formNone", d.formMode)
+	}
+	if _, ok := d.config.Mappings["opus"]; ok {
+		t.Error("mapping 'opus' should have been deleted")
 	}
 }
 
 func TestDashboard_DeleteCancel(t *testing.T) {
 	d := NewDashboard(nil, &config.Config{}, nil, "")
 	d.activeTab = tabConfig
-	d.config.Models = map[string]config.Model{"test": {Provider: "nim", Model: "test-model"}}
+	d.config.Providers = map[string]config.Provider{
+		"test": {Behavior: "openai"},
+	}
 	d.configCursor = 0
 
 	d.Update(tea.KeyPressMsg{Text: "d"})
@@ -319,8 +453,8 @@ func TestDashboard_DeleteCancel(t *testing.T) {
 	if d.formMode != formNone {
 		t.Errorf("formMode after cancel = %d, want formNone", d.formMode)
 	}
-	if _, ok := d.config.Models["test"]; !ok {
-		t.Error("model 'test' should still exist after cancel")
+	if _, ok := d.config.Providers["test"]; !ok {
+		t.Error("provider 'test' should still exist after cancel")
 	}
 }
 
@@ -328,12 +462,15 @@ func TestDashboard_SaveConfig(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := dir + "/freedius.yaml"
 
-	initial := `models:
+	initial := `providers:
+  nim:
+    behavior: openai
+    default_base_url: https://integrate.api.nvidia.com/v1/chat/completions
+    default_api_key_env: NVIDIA_NIM_API_KEY
+mappings:
   opus:
-    provider: nim
-    model: meta/llama-3.1-70b-instruct
-    base_url: https://integrate.api.nvidia.com/v1/chat/completions
-    api_key_env: NVIDIA_NIM_API_KEY
+    provider_name: nim
+    model_string: meta/llama-3.1-70b-instruct
 `
 	if err := os.WriteFile(cfgPath, []byte(initial), 0o644); err != nil {
 		t.Fatal(err)
@@ -346,20 +483,18 @@ func TestDashboard_SaveConfig(t *testing.T) {
 
 	d := NewDashboard(nil, cfg, nil, cfgPath)
 	d.activeTab = tabConfig
-	d.configCursor = 0
+	d.configCursor = 1 // the mapping
 
-	// Open edit form and modify the model field.
+	// Open edit form on the mapping and modify the model field.
 	d.Update(tea.KeyPressMsg{Text: "e"})
 	d.formFields[2].SetValue("meta/llama-4")
 
-	// Simulate submit (validate then emit formSubmittedMsg).
 	d.fieldErrors = d.validateForm()
 	if len(d.fieldErrors) > 0 {
 		t.Fatalf("unexpected validation errors: %v", d.fieldErrors)
 	}
 	d.Update(formSubmittedMsg{})
 
-	// Verify file was written with new model name.
 	data, err := os.ReadFile(cfgPath)
 	if err != nil {
 		t.Fatal(err)
@@ -367,41 +502,70 @@ func TestDashboard_SaveConfig(t *testing.T) {
 	if !strings.Contains(string(data), "meta/llama-4") {
 		t.Errorf("saved file should contain new model name, got:\n%s", string(data))
 	}
-	if !strings.Contains(string(data), "meta/llama-3.1-70b-instruct") {
-		t.Logf("old model name may still exist (edit modifies in-place, not append): %s", string(data))
-	}
 }
 
-func TestDashboard_AddInsert(t *testing.T) {
-	d := NewDashboard(nil, &config.Config{Models: map[string]config.Model{}}, nil, "")
+func TestDashboard_AddProviderInsert(t *testing.T) {
+	d := NewDashboard(nil, &config.Config{}, nil, "")
 	d.activeTab = tabConfig
 
-	// Open add form.
-	d.Update(tea.KeyPressMsg{Text: "a"})
+	// Open add provider form.
+	d.Update(tea.KeyPressMsg{Text: "p"})
 
-	// Fill in the fields.
-	d.formFields[0].SetValue("new-model")
-	d.formFields[1].SetValue("nim")
-	d.formFields[2].SetValue("test-model")
-	d.formFields[3].SetValue("https://example.com")
+	// Fill the fields.
+	d.formFields[0].SetValue("newprov")
+	d.formFields[1].SetValue("openai")
+	d.formFields[2].SetValue("https://example.com")
+	d.formFields[3].SetValue("EXAMPLE_KEY")
 
-	// Submit.
 	d.fieldErrors = d.validateForm()
 	if len(d.fieldErrors) > 0 {
 		t.Fatalf("unexpected validation errors: %v", d.fieldErrors)
 	}
 	d.Update(formSubmittedMsg{})
 
-	// Verify entry was added to models map.
-	m, ok := d.config.Models["new-model"]
+	p, ok := d.config.Providers["newprov"]
 	if !ok {
-		t.Fatal("new-model should exist in Models after add")
+		t.Fatal("newprov should exist in Providers after add")
 	}
-	if m.Provider != "nim" {
-		t.Errorf("provider = %q, want nim", m.Provider)
+	if p.Behavior != "openai" {
+		t.Errorf("behavior = %q, want openai", p.Behavior)
 	}
-	if m.Model != "test-model" {
-		t.Errorf("model = %q, want test-model", m.Model)
+	if p.DefaultBaseURL != "https://example.com" {
+		t.Errorf("default_base_url = %q, want https://example.com", p.DefaultBaseURL)
+	}
+}
+
+func TestDashboard_AddMappingInsert(t *testing.T) {
+	d := NewDashboard(nil, &config.Config{
+		Providers: map[string]config.Provider{
+			"nim": {Behavior: "openai"},
+		},
+	}, nil, "")
+	d.activeTab = tabConfig
+
+	// Open add mapping form.
+	d.Update(tea.KeyPressMsg{Text: "a"})
+
+	// Fill the fields.
+	d.formFields[0].SetValue("newmap")
+	d.formFields[1].SetValue("nim")
+	d.formFields[2].SetValue("test-model")
+
+	d.fieldErrors = d.validateForm()
+	if len(d.fieldErrors) > 0 {
+		t.Fatalf("unexpected validation errors: %v", d.fieldErrors)
+	}
+	d.Update(formSubmittedMsg{})
+
+	m, ok := d.config.Mappings["newmap"]
+	if !ok {
+		t.Fatal("newmap should exist in Mappings after add")
+	}
+	if m.ProviderName != "nim" {
+		t.Errorf("provider_name = %q, want nim", m.ProviderName)
+	}
+	if m.ModelString != "test-model" {
+		t.Errorf("model_string = %q, want test-model", m.ModelString)
 	}
 }
 

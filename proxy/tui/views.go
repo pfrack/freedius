@@ -16,7 +16,7 @@ func renderTabs(active int, width int) string {
 	tabs := []string{
 		"[1] Requests",
 		"[2] Providers",
-		"[3] Config (e=edit a=add d=del)",
+		"[3] Config (e=edit a=+map p=+prov d=del)",
 	}
 	styled := make([]string, len(tabs))
 	for i, t := range tabs {
@@ -94,7 +94,7 @@ func renderProvidersTab(cfg *config.Config, width int) string {
 	header := providerTableHeaderStyle.Render(
 		fmt.Sprintf(
 			"%-14s %-10s %-30s %-6s",
-			"Provider", "Protocol", "Base URL", "Models",
+			"Provider", "Behavior", "Base URL", "Mappings",
 		),
 	)
 	b.WriteString(header + "\n")
@@ -105,9 +105,9 @@ func renderProvidersTab(cfg *config.Config, width int) string {
 		line := fmt.Sprintf(
 			"%-14s %-10s %-30s %-6d",
 			truncate(p.name, 14),
-			truncate(p.protocol, 10),
+			truncate(p.behavior, 10),
 			truncate(p.baseURL, 30),
-			p.modelCount,
+			p.mappingCount,
 		)
 		b.WriteString(line + "\n")
 	}
@@ -116,10 +116,10 @@ func renderProvidersTab(cfg *config.Config, width int) string {
 
 func renderConfigTab(cfg *config.Config, cursor, width int) string {
 	var b strings.Builder
-	b.WriteString(windowStyle.Render("Model Configuration") + "\n\n")
+	b.WriteString(windowStyle.Render("Configuration") + "\n\n")
 	b.WriteString(separatorStyle.Render(strings.Repeat("─", max(width-4, 0))) + "\n")
 
-	all := collectAllModels(cfg)
+	all := collectAllEntries(cfg)
 	for i, entry := range all {
 		nameStyle := configKeyStyle
 		if i == cursor {
@@ -127,16 +127,34 @@ func renderConfigTab(cfg *config.Config, cursor, width int) string {
 		}
 		label := nameStyle.Render(entry.name)
 		fmt.Fprintf(&b, "%s (%s):\n", label, entry.kind)
-		fmt.Fprintf(&b, "  provider: %s\n", configValueStyle.Render(entry.model.Provider))
-		fmt.Fprintf(&b, "  model:    %s\n", configValueStyle.Render(entry.model.Model))
-		if entry.model.BaseURL != "" {
-			fmt.Fprintf(&b, "  base_url: %s\n", configValueStyle.Render(entry.model.BaseURL))
-		}
-		if entry.model.Protocol != "" {
-			fmt.Fprintf(&b, "  protocol: %s\n", configValueStyle.Render(entry.model.Protocol))
-		}
-		if entry.model.APIKeyEnv != "" {
-			fmt.Fprintf(&b, "  api_key:  %s\n", configValueStyle.Render(entry.model.APIKeyEnv))
+		if entry.kind == "provider" {
+			provider := entry.provider
+			fmt.Fprintf(&b, "  behavior: %s\n", configValueStyle.Render(provider.Behavior))
+			if provider.DefaultBaseURL != "" {
+				fmt.Fprintf(
+					&b,
+					"  base_url: %s\n",
+					configValueStyle.Render(provider.DefaultBaseURL),
+				)
+			}
+			if provider.DefaultAPIKeyEnv != "" {
+				fmt.Fprintf(
+					&b,
+					"  api_key:  %s\n",
+					configValueStyle.Render(provider.DefaultAPIKeyEnv),
+				)
+			}
+			if provider.AnthropicVersion != "" {
+				fmt.Fprintf(
+					&b,
+					"  api_ver:  %s\n",
+					configValueStyle.Render(provider.AnthropicVersion),
+				)
+			}
+		} else {
+			mapping := entry.mapping
+			fmt.Fprintf(&b, "  provider_name: %s\n", configValueStyle.Render(mapping.ProviderName))
+			fmt.Fprintf(&b, "  model_string:  %s\n", configValueStyle.Render(mapping.ModelString))
 		}
 		b.WriteString("\n")
 	}
@@ -165,43 +183,27 @@ func renderStatsBar(stats statsData, width int) string {
 }
 
 type providerInfo struct {
-	name       string
-	protocol   string
-	baseURL    string
-	modelCount int
+	name         string
+	behavior     string
+	baseURL      string
+	mappingCount int
 }
 
 func collectProvidersFromConfig(cfg *config.Config) []providerInfo {
-	seen := map[string]*providerInfo{}
-	incr := func(name, protocol, baseURL string) {
-		if info, ok := seen[name]; ok {
-			info.modelCount++
-			return
+	result := make([]providerInfo, 0, len(cfg.Providers))
+	for name, p := range cfg.Providers {
+		mappingCount := 0
+		for _, m := range cfg.Mappings {
+			if m.ProviderName == name {
+				mappingCount++
+			}
 		}
-		seen[name] = &providerInfo{
-			name:       name,
-			protocol:   protocol,
-			baseURL:    baseURL,
-			modelCount: 1,
-		}
-	}
-	for _, m := range cfg.Models {
-		if m.OriginalProvider != "" {
-			incr(m.OriginalProvider, m.Protocol, m.BaseURL)
-		} else {
-			incr(m.Provider, m.Protocol, m.BaseURL)
-		}
-	}
-	for _, m := range cfg.Mappings {
-		if m.OriginalProvider != "" {
-			incr(m.OriginalProvider, m.Protocol, m.BaseURL)
-		} else {
-			incr(m.Provider, m.Protocol, m.BaseURL)
-		}
-	}
-	result := make([]providerInfo, 0, len(seen))
-	for _, info := range seen {
-		result = append(result, *info)
+		result = append(result, providerInfo{
+			name:         name,
+			behavior:     p.Behavior,
+			baseURL:      p.DefaultBaseURL,
+			mappingCount: mappingCount,
+		})
 	}
 	sort.Slice(result, func(i, j int) bool {
 		return result[i].name < result[j].name
@@ -209,23 +211,27 @@ func collectProvidersFromConfig(cfg *config.Config) []providerInfo {
 	return result
 }
 
-type modelEntry struct {
-	name  string
-	kind  string
-	model config.Model
+// configEntry is one row in the config tab. Exactly one of provider or mapping
+// is set, identified by kind.
+type configEntry struct {
+	name     string
+	kind     string // "provider" or "mapping"
+	provider config.Provider
+	mapping  config.Mapping
 }
 
-func collectAllModels(cfg *config.Config) []modelEntry {
-	var entries []modelEntry
-	for name, m := range cfg.Models {
-		entries = append(entries, modelEntry{name: name, kind: "model", model: m})
+func collectAllEntries(cfg *config.Config) []configEntry {
+	var entries []configEntry
+	for name, p := range cfg.Providers {
+		entries = append(entries, configEntry{name: name, kind: "provider", provider: p})
 	}
 	for name, m := range cfg.Mappings {
-		entries = append(entries, modelEntry{name: name, kind: "mapping", model: m})
+		entries = append(entries, configEntry{name: name, kind: "mapping", mapping: m})
 	}
 	sort.Slice(entries, func(i, j int) bool {
 		if entries[i].kind != entries[j].kind {
-			return entries[i].kind < entries[j].kind
+			// providers first, mappings second
+			return entries[i].kind > entries[j].kind
 		}
 		return entries[i].name < entries[j].name
 	})
@@ -249,6 +255,29 @@ func truncate(s string, maxLen int) string {
 	return s[:maxLen-1] + "…"
 }
 
+// fieldLabelsForMode returns the ordered list of form-field labels for the
+// current form mode (provider or mapping).
+func fieldLabelsForMode(mode int) []string {
+	switch mode {
+	case formEditProvider, formAddProvider:
+		return []string{
+			"name",
+			"behavior",
+			"base_url",
+			"api_key_env",
+			"anthropic_version",
+		}
+	case formEditMapping, formAddMapping:
+		return []string{
+			"name",
+			"provider",
+			"model",
+		}
+	default:
+		return nil
+	}
+}
+
 func renderForm(d *Dashboard, width, _ int) string {
 	if d.formMode == formDeleteConfirm {
 		return renderDeleteConfirm(d, width)
@@ -257,22 +286,16 @@ func renderForm(d *Dashboard, width, _ int) string {
 	var b strings.Builder
 	b.WriteString(windowStyle.Render("Edit Configuration") + "\n\n")
 
-	fieldLabels := []string{
-		"name",
-		"provider",
-		"model",
-		"base_url",
-		"api_key_env",
-		"anthropic_version",
-		"protocol",
-	}
-
-	for i, label := range fieldLabels {
+	labels := fieldLabelsForMode(d.formMode)
+	for i, label := range labels {
 		labelStr := configKeyStyle.Render(label + ":")
 		fieldView := d.formFields[i].View()
 
-		if d.showPicker && label == "provider" && d.picker != nil {
-			fieldView = d.picker.View()
+		if d.showPicker && d.picker != nil {
+			if (label == "provider" && d.formMode == formAddMapping) ||
+				(label == "behavior" && (d.formMode == formAddProvider || d.formMode == formEditProvider)) {
+				fieldView = d.picker.View()
+			}
 		}
 
 		fmt.Fprintf(&b, "  %s\n  %s\n", labelStr, fieldView)

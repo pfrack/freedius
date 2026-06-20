@@ -7,27 +7,32 @@ import (
 	"github.com/goccy/go-yaml"
 )
 
-type modelDefaults struct {
-	BaseURL   string
-	APIKeyEnv string
-}
-
-// ProviderEnvVar returns the conventional environment-variable name that holds
-// the API key for the given provider, or "" if the provider has no known default.
-func ProviderEnvVar(name string) string {
-	d, ok := knownProviderDefaults[name]
-	if !ok {
-		return ""
-	}
-	return d.APIKeyEnv
-}
-
+// applyDefaults merges generated provider defaults into the user's Providers
+// map. It fills empty DefaultBaseURL / DefaultAPIKeyEnv fields and sets the
+// runtime-only RequireBaseURL / SupportsCountTokens flags from the generated
+// metadata.
 func (c *Config) applyDefaults() {
-	for name, m := range c.Models {
-		c.Models[name] = applyEntryDefaults(m)
+	if c.Providers == nil {
+		return
 	}
-	for name, m := range c.Mappings {
-		c.Mappings[name] = applyEntryDefaults(m)
+	for name, defaults := range providerDefaults {
+		p, ok := c.Providers[name]
+		if !ok {
+			continue
+		}
+		if p.DefaultBaseURL == "" {
+			p.DefaultBaseURL = defaults.DefaultBaseURL
+		}
+		if p.DefaultAPIKeyEnv == "" {
+			p.DefaultAPIKeyEnv = defaults.DefaultAPIKeyEnv
+		}
+		p.RequireBaseURL = defaults.RequireBaseURL
+		// Static flag set at code-generation time. If a user overrides DefaultBaseURL
+		// to a /v1/messages-suffixed URL on a mix provider whose generated
+		// SupportsCountTokens is false, the dispatcher will use local counting even
+		// though MixAdapter would route /v1/messages/count_tokens upstream.
+		p.SupportsCountTokens = defaults.SupportsCountTokens
+		c.Providers[name] = p
 	}
 }
 

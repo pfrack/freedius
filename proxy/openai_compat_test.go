@@ -32,12 +32,12 @@ func TestOpenAICompat_Upstream401(t *testing.T) {
 	err := a.Handle(
 		rec,
 		req,
-		config.Model{
-			Provider:  "openai",
-			Model:     "gpt-4",
-			BaseURL:   upstream.URL,
-			APIKeyEnv: "OPENAI_API_KEY",
+		config.Provider{
+			Behavior:         "openai",
+			DefaultBaseURL:   upstream.URL,
+			DefaultAPIKeyEnv: "OPENAI_API_KEY",
 		},
+		config.Mapping{ProviderName: "openai", ModelString: "gpt-4"},
 		[]byte(`{}`),
 	)
 	if err != nil {
@@ -56,12 +56,12 @@ func TestOpenAICompat_MissingEnvVar(t *testing.T) {
 	err := a.Handle(
 		rec,
 		req,
-		config.Model{
-			Provider:  "openai",
-			Model:     "gpt-4",
-			BaseURL:   "https://x",
-			APIKeyEnv: "OPENAI_API_KEY",
+		config.Provider{
+			Behavior:         "openai",
+			DefaultBaseURL:   "https://x",
+			DefaultAPIKeyEnv: "OPENAI_API_KEY",
 		},
+		config.Mapping{ProviderName: "openai", ModelString: "gpt-4"},
 		[]byte(`{}`),
 	)
 	if err == nil {
@@ -98,12 +98,12 @@ func TestOpenAICompat_TranslationIncludesStream(t *testing.T) {
 	err := a.Handle(
 		rec,
 		req,
-		config.Model{
-			Provider:  "openai",
-			Model:     "gpt-4",
-			BaseURL:   upstream.URL,
-			APIKeyEnv: "OPENAI_API_KEY",
+		config.Provider{
+			Behavior:         "openai",
+			DefaultBaseURL:   upstream.URL,
+			DefaultAPIKeyEnv: "OPENAI_API_KEY",
 		},
+		config.Mapping{ProviderName: "openai", ModelString: "gpt-4"},
 		body,
 	)
 	if err != nil {

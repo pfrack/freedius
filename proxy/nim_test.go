@@ -62,12 +62,12 @@ func TestNIMAdapter_DispatchesToOpenAI(t *testing.T) {
 	err := a.Handle(
 		rec,
 		req,
-		config.Model{
-			Provider:  "nim",
-			Model:     "meta-llama",
-			BaseURL:   upstream.URL + "/v1/chat/completions",
-			APIKeyEnv: "NVIDIA_NIM_API_KEY",
+		config.Provider{
+			Behavior:         "openai",
+			DefaultBaseURL:   upstream.URL + "/v1/chat/completions",
+			DefaultAPIKeyEnv: "NVIDIA_NIM_API_KEY",
 		},
+		config.Mapping{ProviderName: "nim", ModelString: "meta-llama"},
 		body,
 	)
 	if err != nil {
@@ -122,12 +122,12 @@ func TestNIMAdapter_OmitsStreamOptionsAndStripsBooleanSchema(t *testing.T) {
 	err := a.Handle(
 		rec,
 		req,
-		config.Model{
-			Provider:  "nim",
-			Model:     "meta-llama",
-			BaseURL:   upstream.URL + "/v1/chat/completions",
-			APIKeyEnv: "NVIDIA_NIM_API_KEY",
+		config.Provider{
+			Behavior:         "openai",
+			DefaultBaseURL:   upstream.URL + "/v1/chat/completions",
+			DefaultAPIKeyEnv: "NVIDIA_NIM_API_KEY",
 		},
+		config.Mapping{ProviderName: "nim", ModelString: "meta-llama"},
 		body,
 	)
 	if err != nil {
@@ -181,12 +181,12 @@ func TestNIMAdapter_Upstream401_ReturnsAnthropicFormat(t *testing.T) {
 	err := a.Handle(
 		rec,
 		req,
-		config.Model{
-			Provider:  "nim",
-			Model:     "meta-llama",
-			BaseURL:   upstream.URL + "/v1/chat/completions",
-			APIKeyEnv: "NVIDIA_NIM_API_KEY",
+		config.Provider{
+			Behavior:         "openai",
+			DefaultBaseURL:   upstream.URL + "/v1/chat/completions",
+			DefaultAPIKeyEnv: "NVIDIA_NIM_API_KEY",
 		},
+		config.Mapping{ProviderName: "nim", ModelString: "x"},
 		body,
 	)
 	if err != nil {
@@ -240,12 +240,12 @@ func TestNIMAdapter_Upstream429_ReturnsAnthropicFormat(t *testing.T) {
 	err := a.Handle(
 		rec,
 		req,
-		config.Model{
-			Provider:  "nim",
-			Model:     "meta-llama",
-			BaseURL:   upstream.URL + "/v1/chat/completions",
-			APIKeyEnv: "NVIDIA_NIM_API_KEY",
+		config.Provider{
+			Behavior:         "openai",
+			DefaultBaseURL:   upstream.URL + "/v1/chat/completions",
+			DefaultAPIKeyEnv: "NVIDIA_NIM_API_KEY",
 		},
+		config.Mapping{ProviderName: "nim", ModelString: "x"},
 		body,
 	)
 	if err != nil {
@@ -315,12 +315,12 @@ func TestNIMAdapter_StreamingToolUse_EmitsContentBlockStart(t *testing.T) {
 	err := a.Handle(
 		rec,
 		req,
-		config.Model{
-			Provider:  "nim",
-			Model:     "meta-llama",
-			BaseURL:   upstream.URL + "/v1/chat/completions",
-			APIKeyEnv: "NVIDIA_NIM_API_KEY",
+		config.Provider{
+			Behavior:         "openai",
+			DefaultBaseURL:   upstream.URL + "/v1/chat/completions",
+			DefaultAPIKeyEnv: "NVIDIA_NIM_API_KEY",
 		},
+		config.Mapping{ProviderName: "nim", ModelString: "meta-llama"},
 		body,
 	)
 	if err != nil {
@@ -366,12 +366,12 @@ func TestNIMAdapter_ParallelToolCalls_EmitsMultipleIndices(t *testing.T) {
 	err := a.Handle(
 		rec,
 		req,
-		config.Model{
-			Provider:  "nim",
-			Model:     "meta-llama",
-			BaseURL:   upstream.URL + "/v1/chat/completions",
-			APIKeyEnv: "NVIDIA_NIM_API_KEY",
+		config.Provider{
+			Behavior:         "openai",
+			DefaultBaseURL:   upstream.URL + "/v1/chat/completions",
+			DefaultAPIKeyEnv: "NVIDIA_NIM_API_KEY",
 		},
+		config.Mapping{ProviderName: "nim", ModelString: "meta-llama"},
 		body,
 	)
 	if err != nil {
@@ -409,12 +409,12 @@ func TestNIMAdapter_NonStreamingResponse_NoOutput(t *testing.T) {
 	err := a.Handle(
 		rec,
 		req,
-		config.Model{
-			Provider:  "nim",
-			Model:     "meta-llama",
-			BaseURL:   upstream.URL + "/v1/chat/completions",
-			APIKeyEnv: "NVIDIA_NIM_API_KEY",
+		config.Provider{
+			Behavior:         "openai",
+			DefaultBaseURL:   upstream.URL + "/v1/chat/completions",
+			DefaultAPIKeyEnv: "NVIDIA_NIM_API_KEY",
 		},
+		config.Mapping{ProviderName: "nim", ModelString: "x"},
 		body,
 	)
 	if err != nil {
@@ -460,12 +460,12 @@ func TestNIMAdapter_ClientCancel_ReturnsError(t *testing.T) {
 	_ = a.Handle(
 		rec,
 		req,
-		config.Model{
-			Provider:  "nim",
-			Model:     "meta-llama",
-			BaseURL:   upstream.URL + "/v1/chat/completions",
-			APIKeyEnv: "NVIDIA_NIM_API_KEY",
+		config.Provider{
+			Behavior:         "openai",
+			DefaultBaseURL:   upstream.URL + "/v1/chat/completions",
+			DefaultAPIKeyEnv: "NVIDIA_NIM_API_KEY",
 		},
+		config.Mapping{ProviderName: "nim", ModelString: "x"},
 		body,
 	)
 }
@@ -481,12 +481,12 @@ func TestNIMAdapter_TransportError_Returns502(t *testing.T) {
 	err := a.Handle(
 		rec,
 		req,
-		config.Model{
-			Provider:  "nim",
-			Model:     "meta-llama",
-			BaseURL:   "http://127.0.0.1:1/v1/chat/completions",
-			APIKeyEnv: "NVIDIA_NIM_API_KEY",
+		config.Provider{
+			Behavior:         "openai",
+			DefaultBaseURL:   "http://127.0.0.1:1/v1/chat/completions",
+			DefaultAPIKeyEnv: "NVIDIA_NIM_API_KEY",
 		},
+		config.Mapping{ProviderName: "nim", ModelString: "x"},
 		body,
 	)
 	if err == nil {

@@ -19,59 +19,76 @@ func TestLoad(t *testing.T) {
 		check     func(t *testing.T, cfg *Config)
 	}{
 		{
-			name: "valid single model",
-			yaml: `models:
-  claude-opus-4:
-    provider: nim
-    model: meta/llama-3.1-70b-instruct
+			name: "valid single provider",
+			yaml: `providers:
+  nim:
+    behavior: openai
+    default_api_key_env: NVIDIA_NIM_API_KEY
 `,
 			check: func(t *testing.T, cfg *Config) {
-				if len(cfg.Models) != 1 {
-					t.Fatalf("expected 1 model, got %d", len(cfg.Models))
+				if len(cfg.Providers) != 1 {
+					t.Fatalf("expected 1 provider, got %d", len(cfg.Providers))
 				}
-				m, ok := cfg.Models["claude-opus-4"]
+				p, ok := cfg.Providers["nim"]
 				if !ok {
-					t.Fatal("expected claude-opus-4 in models")
+					t.Fatal("expected nim in providers")
 				}
-				if m.Provider != "nim" {
-					t.Errorf("provider: got %q, want nim", m.Provider)
+				if p.Behavior != "openai" {
+					t.Errorf("behavior: got %q, want openai", p.Behavior)
 				}
-				if m.Model != "meta/llama-3.1-70b-instruct" {
-					t.Errorf("model: got %q, want meta/llama-3.1-70b-instruct", m.Model)
+				if p.DefaultBaseURL == "" {
+					t.Error("expected nim default_base_url to be filled in")
 				}
-				if m.BaseURL == "" {
-					t.Error("expected nim default base_url to be filled in")
-				}
-				if m.APIKeyEnv != "NVIDIA_NIM_API_KEY" {
-					t.Errorf("api_key_env: got %q, want NVIDIA_NIM_API_KEY", m.APIKeyEnv)
+				if p.DefaultAPIKeyEnv != "NVIDIA_NIM_API_KEY" {
+					t.Errorf(
+						"default_api_key_env: got %q, want NVIDIA_NIM_API_KEY",
+						p.DefaultAPIKeyEnv,
+					)
 				}
 			},
 		},
 		{
-			name: "valid two models",
-			yaml: `models:
-  claude-opus-4:
-    provider: nim
-    model: meta/llama-3.1-70b-instruct
-  claude-sonnet-4:
-    provider: custom
-    model: my-sonnet-shim
-    base_url: https://example.com/v1/messages
-    api_key_env: CUSTOM_API_KEY
+			name: "valid providers and mappings",
+			yaml: `providers:
+  nim:
+    behavior: openai
+  custom:
+    behavior: mix
+    default_base_url: https://example.com/v1/messages
+    default_api_key_env: CUSTOM_API_KEY
+mappings:
+  opus:
+    provider_name: nim
+    model_string: meta/llama-3.1-70b-instruct
+  sonnet:
+    provider_name: custom
+    model_string: my-sonnet-shim
 `,
 			check: func(t *testing.T, cfg *Config) {
-				if len(cfg.Models) != 2 {
-					t.Fatalf("expected 2 models, got %d", len(cfg.Models))
+				if len(cfg.Providers) != 2 {
+					t.Fatalf("expected 2 providers, got %d", len(cfg.Providers))
 				}
-				if _, ok := cfg.Models["claude-opus-4"]; !ok {
-					t.Error("missing claude-opus-4")
+				if _, ok := cfg.Providers["nim"]; !ok {
+					t.Error("missing nim provider")
 				}
-				sonnet, ok := cfg.Models["claude-sonnet-4"]
+				if _, ok := cfg.Providers["custom"]; !ok {
+					t.Error("missing custom provider")
+				}
+				if len(cfg.Mappings) != 2 {
+					t.Fatalf("expected 2 mappings, got %d", len(cfg.Mappings))
+				}
+				if _, ok := cfg.Mappings["opus"]; !ok {
+					t.Error("missing opus mapping")
+				}
+				if _, ok := cfg.Mappings["sonnet"]; !ok {
+					t.Error("missing sonnet mapping")
+				}
+				sonnet, ok := cfg.Mappings["sonnet"]
 				if !ok {
-					t.Fatal("missing claude-sonnet-4")
+					t.Fatal("missing sonnet mapping")
 				}
-				if sonnet.Provider != "mix" {
-					t.Errorf("custom should rewrite to mix, got %q", sonnet.Provider)
+				if sonnet.ProviderName != "custom" {
+					t.Errorf("sonnet provider_name: got %q, want custom", sonnet.ProviderName)
 				}
 			},
 		},
@@ -82,158 +99,168 @@ func TestLoad(t *testing.T) {
 			errSubstr: "contains no model mappings",
 		},
 		{
-			name:      "empty models map",
-			yaml:      "models: {}\n",
+			name:      "empty providers map",
+			yaml:      "providers: {}\n",
 			wantErr:   true,
 			errSubstr: "contains no model mappings",
 		},
 		{
 			name: "malformed YAML",
-			yaml: `models:
-  claude-opus-4:
-    provider: nim
-   model: foo
+			yaml: `providers:
+  nim:
+    behavior: openai
+   default_api_key_env: foo
 `,
 			wantErr:   true,
 			errSubstr: "[",
 		},
 		{
-			name: "unknown provider",
-			yaml: `models:
-  claude-opus-4:
-    provider: foo
-    model: bar
+			name: "invalid provider behavior",
+			yaml: `providers:
+  nim:
+    behavior: bogus
+    default_api_key_env: NVIDIA_NIM_API_KEY
 `,
 			wantErr:   true,
-			errSubstr: `model "claude-opus-4" uses unknown provider "foo" (known: anthropic, custom, go, mix, nim, openai, zen)`,
+			errSubstr: `invalid behavior "bogus"`,
 		},
 		{
 			name: "unknown field typo",
-			yaml: `models:
-  claude-opus-4:
-    provder: nim
-    model: foo
+			yaml: `providers:
+  nim:
+    behav: openai
+    default_api_key_env: NVIDIA_NIM_API_KEY
 `,
 			wantErr:   true,
-			errSubstr: `unknown field "provder"`,
+			errSubstr: `unknown field "behav"`,
 		},
 		{
-			name: "missing model field",
-			yaml: `models:
-  claude-opus-4:
-    provider: nim
-`,
-			wantErr:   true,
-			errSubstr: `model "claude-opus-4" has no "model" field`,
-		},
-		{
-			name: "missing provider field",
-			yaml: `models:
-  claude-opus-4:
-    model: foo
-`,
-			wantErr:   true,
-			errSubstr: `model "claude-opus-4" has no "provider" field`,
-		},
-		{
-			name: "non-string provider",
-			yaml: `models:
-  claude-opus-4:
-    provider: 42
-    model: foo
+			name: "non-string provider behavior",
+			yaml: `providers:
+  nim:
+    behavior: 42
 `,
 			wantErr: true,
 		},
 		{
-			name:      "model with header-unsafe characters",
-			yaml:      "models:\n  claude-opus-4:\n    provider: nim\n    model: \"foo\\r\\nX-Injected: bar\"\n",
-			wantErr:   true,
-			errSubstr: "unsafe \"model\" value",
-		},
-		{
-			name: "openai without base_url",
-			yaml: `models:
-  claude-sonnet-4:
-    provider: openai
-    model: gpt-4
-    api_key_env: OPENAI_API_KEY
+			name: "missing mapping model_string",
+			yaml: `providers:
+  nim: { behavior: openai }
+mappings:
+  opus:
+    provider_name: nim
 `,
 			wantErr:   true,
-			errSubstr: `provider=openai but no base_url`,
+			errSubstr: `mapping "opus" has no "model_string" field`,
 		},
 		{
-			name: "anthropic without base_url",
-			yaml: `models:
-  claude-sonnet-4:
-    provider: anthropic
-    model: claude-sonnet
-    api_key_env: ANTHROPIC_API_KEY
+			name: "missing mapping provider_name",
+			yaml: `providers:
+  nim: { behavior: openai }
+mappings:
+  opus:
+    model_string: x
 `,
 			wantErr:   true,
-			errSubstr: `provider=anthropic but no base_url`,
+			errSubstr: `mapping "opus" has no "provider_name" field`,
 		},
 		{
-			name: "base_url with invalid scheme",
-			yaml: `models:
-  claude-sonnet-4:
-    provider: openai
-    model: gpt-4
-    base_url: ftp://example.com/v1/chat/completions
-    api_key_env: OPENAI_API_KEY
+			name: "mapping references unknown provider",
+			yaml: `providers:
+  nim: { behavior: openai }
+mappings:
+  opus:
+    provider_name: doesnotexist
+    model_string: x
+`,
+			wantErr:   true,
+			errSubstr: `references unknown provider "doesnotexist"`,
+		},
+		{
+			name:      "mapping model_string header-unsafe characters",
+			yaml:      "providers:\n  nim: { behavior: openai }\nmappings:\n  opus:\n    provider_name: nim\n    model_string: \"foo\\r\\nX-Injected: bar\"\n",
+			wantErr:   true,
+			errSubstr: "unsafe \"model_string\" value",
+		},
+		{
+			name: "openai provider without default_base_url",
+			yaml: `providers:
+  openai:
+    behavior: openai
+    default_api_key_env: OPENAI_API_KEY
+`,
+			wantErr:   true,
+			errSubstr: `requires default_base_url`,
+		},
+		{
+			name: "anthropic provider without default_base_url",
+			yaml: `providers:
+  anthropic:
+    behavior: anthropic
+    default_api_key_env: ANTHROPIC_API_KEY
+`,
+			wantErr:   true,
+			errSubstr: `requires default_base_url`,
+		},
+		{
+			name: "default_base_url with invalid scheme",
+			yaml: `providers:
+  openai:
+    behavior: openai
+    default_base_url: ftp://example.com/v1/chat/completions
+    default_api_key_env: OPENAI_API_KEY
 `,
 			wantErr:   true,
 			errSubstr: `invalid scheme`,
 		},
 		{
-			name:      "api_key_env with newline",
-			yaml:      "models:\n  claude-opus-4:\n    provider: openai\n    model: gpt-4\n    base_url: https://example.com\n    api_key_env: \"OPENAI\\nKEY\"\n",
+			name:      "default_api_key_env with newline",
+			yaml:      "providers:\n  openai:\n    behavior: openai\n    default_base_url: https://example.com\n    default_api_key_env: \"OPENAI\\nKEY\"\n",
 			wantErr:   true,
-			errSubstr: "api_key_env with invalid characters",
+			errSubstr: "default_api_key_env with invalid characters",
 		},
 		{
-			name: "valid openai with all fields",
-			yaml: `models:
-  gpt-4:
-    provider: openai
-    model: gpt-4
-    base_url: https://api.openai.com/v1/chat/completions
-    api_key_env: OPENAI_API_KEY
+			name: "valid openai provider with all fields",
+			yaml: `providers:
+  openai:
+    behavior: openai
+    default_base_url: https://api.openai.com/v1/chat/completions
+    default_api_key_env: OPENAI_API_KEY
 `,
 			check: func(t *testing.T, cfg *Config) {
-				m, ok := cfg.Models["gpt-4"]
+				p, ok := cfg.Providers["openai"]
 				if !ok {
-					t.Fatal("missing gpt-4")
+					t.Fatal("missing openai provider")
 				}
-				if m.BaseURL != "https://api.openai.com/v1/chat/completions" {
-					t.Errorf("base_url: got %q", m.BaseURL)
+				if p.DefaultBaseURL != "https://api.openai.com/v1/chat/completions" {
+					t.Errorf("default_base_url: got %q", p.DefaultBaseURL)
 				}
 			},
 		},
 		{
-			name: "valid custom alias rewrite",
-			yaml: `models:
-  my-shim:
-    provider: custom
-    model: shim-v1
-    base_url: https://example.com/v1/messages
-    api_key_env: CUSTOM_KEY
+			name: "valid mix provider with anthropic-version",
+			yaml: `providers:
+  custom:
+    behavior: mix
+    default_base_url: https://example.com/v1/messages
+    default_api_key_env: CUSTOM_KEY
+    anthropic_version: 2023-06-01
 `,
 			check: func(t *testing.T, cfg *Config) {
-				m, ok := cfg.Models["my-shim"]
-				if !ok {
-					t.Fatal("missing my-shim")
-				}
-				if m.Provider != "mix" {
-					t.Errorf("custom should rewrite to mix, got %q", m.Provider)
+				p := cfg.Providers["custom"]
+				if p.AnthropicVersion != "2023-06-01" {
+					t.Errorf("anthropic_version: got %q", p.AnthropicVersion)
 				}
 			},
 		},
 		{
-			name: "valid mappings block",
-			yaml: `mappings:
+			name: "valid mappings only",
+			yaml: `providers:
+  nim: { behavior: openai }
+mappings:
   opus:
-    provider: nim
-    model: meta/llama-3.1-70b-instruct
+    provider_name: nim
+    model_string: meta/llama-3.1-70b-instruct
 `,
 			check: func(t *testing.T, cfg *Config) {
 				if len(cfg.Mappings) != 1 {
@@ -245,148 +272,42 @@ func TestLoad(t *testing.T) {
 			},
 		},
 		{
-			name: "mappings with openai no base_url",
-			yaml: `mappings:
+			name: "mappings with invalid scheme on provider",
+			yaml: `providers:
+  openai:
+    behavior: openai
+    default_base_url: ftp://example.com
+mappings:
   opus:
-    provider: openai
-    model: gpt-4
-    api_key_env: OPENAI_API_KEY
-`,
-			wantErr:   true,
-			errSubstr: `provider=openai but no base_url`,
-		},
-		{
-			name: "mappings with invalid scheme",
-			yaml: `mappings:
-  opus:
-    provider: openai
-    model: gpt-4
-    base_url: ftp://example.com
-    api_key_env: OPENAI_API_KEY
+    provider_name: openai
+    model_string: gpt-4
 `,
 			wantErr:   true,
 			errSubstr: `invalid scheme`,
 		},
 		{
-			name: "mappings with api_key_env containing equals",
-			yaml: `mappings:
-  opus:
-    provider: openai
-    model: gpt-4
-    base_url: https://x
-    api_key_env: "KEY=VALUE"
+			name: "default_api_key_env with equals",
+			yaml: `providers:
+  openai:
+    behavior: openai
+    default_base_url: https://x
+    default_api_key_env: "KEY=VALUE"
 `,
 			wantErr:   true,
-			errSubstr: "api_key_env with invalid characters",
-		},
-		{
-			name: "valid zen model",
-			yaml: `models:
-  test:
-    provider: zen
-    model: test-model
-    base_url: https://opencode.ai/zen/v1/messages
-`,
-			check: func(t *testing.T, cfg *Config) {
-				m, ok := cfg.Models["test"]
-				if !ok {
-					t.Fatal("missing test model")
-				}
-				if m.Provider != "mix" {
-					t.Errorf("zen should rewrite to mix, got %q", m.Provider)
-				}
-				if m.BaseURL != "https://opencode.ai/zen/v1/messages" {
-					t.Errorf("base_url: got %q", m.BaseURL)
-				}
-				if m.APIKeyEnv != "OPENCODE_API_KEY" {
-					t.Errorf("api_key_env: got %q, want OPENCODE_API_KEY", m.APIKeyEnv)
-				}
-			},
-		},
-		{
-			name: "valid go model",
-			yaml: `models:
-  test:
-    provider: go
-    model: test-model
-    base_url: https://opencode.ai/zen/go/v1/messages
-`,
-			check: func(t *testing.T, cfg *Config) {
-				m, ok := cfg.Models["test"]
-				if !ok {
-					t.Fatal("missing test model")
-				}
-				if m.Provider != "mix" {
-					t.Errorf("go should rewrite to mix, got %q", m.Provider)
-				}
-				if m.BaseURL != "https://opencode.ai/zen/go/v1/messages" {
-					t.Errorf("base_url: got %q", m.BaseURL)
-				}
-				if m.APIKeyEnv != "OPENCODE_API_KEY" {
-					t.Errorf("api_key_env: got %q, want OPENCODE_API_KEY", m.APIKeyEnv)
-				}
-			},
-		},
-		{
-			name: "valid mix model",
-			yaml: `models:
-  test:
-    provider: mix
-    model: test-model
-    base_url: https://example.com/v1/chat/completions
-    api_key_env: MIX_API_KEY
-`,
-			check: func(t *testing.T, cfg *Config) {
-				m, ok := cfg.Models["test"]
-				if !ok {
-					t.Fatal("missing test model")
-				}
-				if m.Provider != "mix" {
-					t.Errorf("provider: got %q, want mix", m.Provider)
-				}
-			},
-		},
-		{
-			name: "zen without base_url",
-			yaml: `models:
-  test:
-    provider: zen
-    model: test-model
-`,
-			wantErr:   true,
-			errSubstr: `provider=mix but no base_url`,
-		},
-		{
-			name: "go without base_url",
-			yaml: `models:
-  test:
-    provider: go
-    model: test-model
-`,
-			wantErr:   true,
-			errSubstr: `provider=mix but no base_url`,
-		},
-		{
-			name: "mix without base_url",
-			yaml: `models:
-  test:
-    provider: mix
-    model: test-model
-    api_key_env: MIX_API_KEY
-`,
-			wantErr:   true,
-			errSubstr: `provider=mix but no base_url`,
+			errSubstr: "default_api_key_env with invalid characters",
 		},
 		{
 			name: "models empty but mappings non-empty",
-			yaml: `mappings:
+			yaml: `providers:
+  nim: { behavior: openai }
+mappings:
   opus:
-    provider: nim
-    model: x
+    provider_name: nim
+    model_string: x
 `,
 			check: func(t *testing.T, cfg *Config) {
-				if len(cfg.Models) != 0 {
-					t.Errorf("expected 0 models, got %d", len(cfg.Models))
+				if len(cfg.Providers) != 1 {
+					t.Errorf("expected 1 provider, got %d", len(cfg.Providers))
 				}
 				if len(cfg.Mappings) != 1 {
 					t.Errorf("expected 1 mapping, got %d", len(cfg.Mappings))
@@ -395,56 +316,9 @@ func TestLoad(t *testing.T) {
 		},
 		{
 			name:      "empty mappings block alone is not enough",
-			yaml:      "mappings: {}\n",
+			yaml:      "providers: {}\nmappings: {}\n",
 			wantErr:   true,
 			errSubstr: "contains no model mappings",
-		},
-		{
-			name: "valid protocol openai",
-			yaml: `models:
-  test:
-    provider: custom
-    model: x
-    base_url: https://example.com/v1/chat/completions
-    api_key_env: CUSTOM_KEY
-    protocol: openai
-`,
-			check: func(t *testing.T, cfg *Config) {
-				m := cfg.Models["test"]
-				if m.Protocol != "openai" {
-					t.Errorf("protocol: got %q, want openai", m.Protocol)
-				}
-			},
-		},
-		{
-			name: "valid protocol anthropic",
-			yaml: `models:
-  test:
-    provider: custom
-    model: x
-    base_url: https://example.com/v1/messages
-    api_key_env: CUSTOM_KEY
-    protocol: anthropic
-`,
-			check: func(t *testing.T, cfg *Config) {
-				m := cfg.Models["test"]
-				if m.Protocol != "anthropic" {
-					t.Errorf("protocol: got %q, want anthropic", m.Protocol)
-				}
-			},
-		},
-		{
-			name: "invalid protocol",
-			yaml: `models:
-  test:
-    provider: custom
-    model: x
-    base_url: https://example.com/v1/messages
-    api_key_env: CUSTOM_KEY
-    protocol: grpc
-`,
-			wantErr:   true,
-			errSubstr: `invalid protocol "grpc"`,
 		},
 	}
 
@@ -490,38 +364,39 @@ func TestLoadMissingFile(t *testing.T) {
 	}
 }
 
-func TestKnownProviders(t *testing.T) {
+func TestProviderDefaults(t *testing.T) {
 	expected := []string{"nim", "zen", "go", "custom", "openai", "anthropic", "mix"}
-	if len(KnownProviders) != len(expected) {
-		t.Errorf("KnownProviders has %d entries, want %d", len(KnownProviders), len(expected))
+	if len(providerDefaults) != len(expected) {
+		t.Errorf("providerDefaults has %d entries, want %d", len(providerDefaults), len(expected))
 	}
 	for _, e := range expected {
-		if _, ok := KnownProviders[e]; !ok {
-			t.Errorf("KnownProviders missing %q", e)
+		if _, ok := providerDefaults[e]; !ok {
+			t.Errorf("providerDefaults missing %q", e)
 		}
 	}
 }
 
-func TestProviderEnvVar(t *testing.T) {
+func TestProviderDefaults_SupportsCountTokens(t *testing.T) {
 	tests := []struct {
 		name string
-		in   string
-		want string
+		want bool
 	}{
-		{"nim", "nim", "NVIDIA_NIM_API_KEY"},
-		{"zen", "zen", "OPENCODE_API_KEY"},
-		{"go", "go", "OPENCODE_API_KEY"},
-		{"openai has no default", "openai", ""},
-		{"anthropic has default", "anthropic", "ANTHROPIC_API_KEY"},
-		{"custom has no default", "custom", ""},
-		{"mix has no default", "mix", ""},
-		{"unknown", "unknown", ""},
+		{"nim", false},
+		{"openai", false},
+		{"anthropic", true},
+		{"mix", false},
+		{"zen", false},
+		{"go", false},
+		{"custom", false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := ProviderEnvVar(tt.in)
-			if got != tt.want {
-				t.Errorf("ProviderEnvVar(%q) = %q, want %q", tt.in, got, tt.want)
+			p, ok := providerDefaults[tt.name]
+			if !ok {
+				t.Fatalf("providerDefaults missing %q", tt.name)
+			}
+			if p.SupportsCountTokens != tt.want {
+				t.Errorf("SupportsCountTokens = %v, want %v", p.SupportsCountTokens, tt.want)
 			}
 		})
 	}
@@ -529,12 +404,12 @@ func TestProviderEnvVar(t *testing.T) {
 
 func TestUsesProvider(t *testing.T) {
 	cfg := &Config{
-		Models: map[string]Model{
-			"a": {Provider: "nim"},
-			"b": {Provider: "openai"},
+		Providers: map[string]Provider{
+			"nim":    {Behavior: "openai"},
+			"openai": {Behavior: "openai"},
 		},
-		Mappings: map[string]Model{
-			"opus": {Provider: "anthropic"},
+		Mappings: map[string]Mapping{
+			"opus": {ProviderName: "anthropic"},
 		},
 	}
 	tests := []struct {
@@ -542,12 +417,12 @@ func TestUsesProvider(t *testing.T) {
 		in   string
 		want bool
 	}{
-		{"nim in models", "nim", true},
-		{"openai in models", "openai", true},
-		{"anthropic in mappings", "anthropic", true},
+		{"nim in providers", "nim", true},
+		{"openai in providers", "openai", true},
+		{"anthropic referenced by mapping", "anthropic", true},
 		{"zen not used", "zen", false},
 		{"go not used", "go", false},
-		{"custom not used (post-rewrite)", "custom", false},
+		{"custom not used", "custom", false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -560,8 +435,11 @@ func TestUsesProvider(t *testing.T) {
 
 func TestConfig_MarshalBasic(t *testing.T) {
 	cfg := &Config{
-		Models: map[string]Model{
-			"opus": {Provider: "nim", Model: "meta/llama-3.1-70b-instruct"},
+		Providers: map[string]Provider{
+			"nim": {Behavior: "openai"},
+		},
+		Mappings: map[string]Mapping{
+			"opus": {ProviderName: "nim", ModelString: "meta/llama-3.1-70b-instruct"},
 		},
 	}
 	data, err := cfg.Marshal()
@@ -573,38 +451,29 @@ func TestConfig_MarshalBasic(t *testing.T) {
 	if err := yaml.Unmarshal(data, &parsed); err != nil {
 		t.Fatalf("Unmarshal: %v", err)
 	}
-	m, ok := parsed.Models["opus"]
+	p, ok := parsed.Providers["nim"]
 	if !ok {
-		t.Fatal("missing opus model after round-trip")
+		t.Fatal("missing nim provider after round-trip")
 	}
-	if m.Provider != "nim" {
-		t.Errorf("provider = %q, want nim", m.Provider)
+	if p.Behavior != "openai" {
+		t.Errorf("behavior = %q, want openai", p.Behavior)
 	}
-	if m.Model != "meta/llama-3.1-70b-instruct" {
-		t.Errorf("model = %q, want meta/llama-3.1-70b-instruct", m.Model)
+	m, ok := parsed.Mappings["opus"]
+	if !ok {
+		t.Fatal("missing opus mapping after round-trip")
+	}
+	if m.ModelString != "meta/llama-3.1-70b-instruct" {
+		t.Errorf("model_string = %q, want meta/llama-3.1-70b-instruct", m.ModelString)
 	}
 }
 
-func TestConfig_MarshalOriginalProvider(t *testing.T) {
+func TestConfig_MarshalOmitsRuntimeFields(t *testing.T) {
 	cfg := &Config{
-		Models: map[string]Model{
-			"zen-model": {
-				Provider:         "mix",
-				Model:            "test",
-				BaseURL:          "https://example.com",
-				OriginalProvider: "zen",
-			},
-			"go-model": {
-				Provider:         "mix",
-				Model:            "test",
-				BaseURL:          "https://example.com",
-				OriginalProvider: "go",
-			},
-			"custom-model": {
-				Provider:         "mix",
-				Model:            "test",
-				BaseURL:          "https://example.com",
-				OriginalProvider: "custom",
+		Providers: map[string]Provider{
+			"nim": {
+				Behavior:            "openai",
+				RequireBaseURL:      true,
+				SupportsCountTokens: false,
 			},
 		},
 	}
@@ -615,23 +484,19 @@ func TestConfig_MarshalOriginalProvider(t *testing.T) {
 	}
 
 	yamlStr := string(data)
-	if !strings.Contains(yamlStr, "provider: zen") {
-		t.Errorf("expected 'provider: zen' in marshaled YAML, got:\n%s", yamlStr)
+	if strings.Contains(yamlStr, "require_base_url") {
+		t.Errorf("runtime-only require_base_url must not appear in YAML, got:\n%s", yamlStr)
 	}
-	if !strings.Contains(yamlStr, "provider: go") {
-		t.Errorf("expected 'provider: go' in marshaled YAML, got:\n%s", yamlStr)
-	}
-	if !strings.Contains(yamlStr, "provider: custom") {
-		t.Errorf("expected 'provider: custom' in marshaled YAML, got:\n%s", yamlStr)
+	if strings.Contains(yamlStr, "supports_count_tokens") {
+		t.Errorf("runtime-only supports_count_tokens must not appear in YAML, got:\n%s", yamlStr)
 	}
 }
 
 func TestConfig_MarshalOmitEmpty(t *testing.T) {
 	cfg := &Config{
-		Models: map[string]Model{
+		Providers: map[string]Provider{
 			"test": {
-				Provider: "nim",
-				Model:    "test-model",
+				Behavior: "openai",
 			},
 		},
 	}
@@ -642,11 +507,11 @@ func TestConfig_MarshalOmitEmpty(t *testing.T) {
 	}
 
 	yamlStr := string(data)
-	if strings.Contains(yamlStr, "base_url") {
-		t.Errorf("expected no base_url in output (empty, omitempty), got:\n%s", yamlStr)
+	if strings.Contains(yamlStr, "default_base_url") {
+		t.Errorf("expected no default_base_url in output (empty, omitempty), got:\n%s", yamlStr)
 	}
-	if strings.Contains(yamlStr, "api_key_env") {
-		t.Errorf("expected no api_key_env in output (empty, omitempty), got:\n%s", yamlStr)
+	if strings.Contains(yamlStr, "default_api_key_env") {
+		t.Errorf("expected no default_api_key_env in output (empty, omitempty), got:\n%s", yamlStr)
 	}
 }
 
@@ -654,10 +519,12 @@ func TestConfig_SaveBackup(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "freedius.yaml")
 
-	initial := `models:
+	initial := `providers:
+  nim: { behavior: openai }
+mappings:
   opus:
-    provider: nim
-    model: meta/llama-3.1-70b-instruct
+    provider_name: nim
+    model_string: meta/llama-3.1-70b-instruct
 `
 	if err := os.WriteFile(path, []byte(initial), 0o644); err != nil {
 		t.Fatal(err)
@@ -668,10 +535,7 @@ func TestConfig_SaveBackup(t *testing.T) {
 		t.Fatalf("Load: %v", err)
 	}
 
-	cfg.Models["opus"] = Model{
-		Provider: "nim",
-		Model:    "meta/llama-4",
-	}
+	cfg.Mappings["opus"] = Mapping{ProviderName: "nim", ModelString: "meta/llama-4"}
 
 	if err := cfg.Save(path); err != nil {
 		t.Fatalf("Save: %v", err)
@@ -683,7 +547,7 @@ func TestConfig_SaveBackup(t *testing.T) {
 		t.Fatalf("read backup: %v", err)
 	}
 	if !strings.Contains(string(bakData), "meta/llama-3.1-70b-instruct") {
-		t.Errorf("backup should contain original model, got:\n%s", string(bakData))
+		t.Errorf("backup should contain original mapping, got:\n%s", string(bakData))
 	}
 
 	// Verify saved file contains new content.
@@ -692,7 +556,7 @@ func TestConfig_SaveBackup(t *testing.T) {
 		t.Fatalf("read saved: %v", err)
 	}
 	if !strings.Contains(string(savedData), "meta/llama-4") {
-		t.Errorf("saved file should contain new model, got:\n%s", string(savedData))
+		t.Errorf("saved file should contain new mapping, got:\n%s", string(savedData))
 	}
 }
 
@@ -700,10 +564,12 @@ func TestConfig_SaveRollbackOnWriteFailure(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "freedius.yaml")
 
-	initial := `models:
+	initial := `providers:
+  nim: { behavior: openai }
+mappings:
   opus:
-    provider: nim
-    model: meta/llama-3.1-70b-instruct
+    provider_name: nim
+    model_string: meta/llama-3.1-70b-instruct
 `
 	if err := os.WriteFile(path, []byte(initial), 0o644); err != nil {
 		t.Fatal(err)
@@ -714,10 +580,7 @@ func TestConfig_SaveRollbackOnWriteFailure(t *testing.T) {
 		t.Fatalf("Load: %v", err)
 	}
 
-	cfg.Models["opus"] = Model{
-		Provider: "nim",
-		Model:    "meta/llama-4",
-	}
+	cfg.Mappings["opus"] = Mapping{ProviderName: "nim", ModelString: "meta/llama-4"}
 
 	// Try saving to a non-writable location to trigger rollback.
 	roPath := filepath.Join(dir, "readonly", "freedius.yaml")
@@ -739,28 +602,27 @@ func TestConfig_RoundTripLoadMarshalLoad(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "freedius.yaml")
 
-	input := `models:
-  claude-opus-4:
-    provider: nim
-    model: meta/llama-3.1-70b-instruct
-  claude-sonnet-4:
-    provider: custom
-    model: my-sonnet-shim
-    base_url: https://example.com/v1/messages
-    api_key_env: CUSTOM_API_KEY
-  gpt-4:
-    provider: openai
-    model: gpt-4
-    base_url: https://api.openai.com/v1/chat/completions
-    api_key_env: OPENAI_API_KEY
+	input := `providers:
+  nim:
+    behavior: openai
+  custom:
+    behavior: mix
+    default_base_url: https://example.com/v1/messages
+    default_api_key_env: CUSTOM_API_KEY
+  openai:
+    behavior: openai
+    default_base_url: https://api.openai.com/v1/chat/completions
+    default_api_key_env: OPENAI_API_KEY
 mappings:
   opus:
-    provider: nim
-    model: meta/llama-4
+    provider_name: nim
+    model_string: meta/llama-3.1-70b-instruct
   deepseek:
-    provider: zen
-    model: deepseek-v4-pro
-    base_url: https://zen.example.com/v1/messages
+    provider_name: custom
+    model_string: deepseek-v4-pro
+  gpt:
+    provider_name: openai
+    model_string: gpt-4
 `
 	if err := os.WriteFile(path, []byte(input), 0o644); err != nil {
 		t.Fatal(err)
@@ -787,22 +649,35 @@ mappings:
 	}
 
 	// Verify key properties survived the round-trip.
-	if len(cfg2.Models) != len(cfg.Models) {
-		t.Errorf("model count: %d, want %d", len(cfg2.Models), len(cfg.Models))
+	if len(cfg2.Providers) != len(cfg.Providers) {
+		t.Errorf("provider count: %d, want %d", len(cfg2.Providers), len(cfg.Providers))
 	}
 	if len(cfg2.Mappings) != len(cfg.Mappings) {
 		t.Errorf("mapping count: %d, want %d", len(cfg2.Mappings), len(cfg.Mappings))
 	}
 
-	// Verify alias providers survived.
-	if m, ok := cfg2.Mappings["deepseek"]; ok {
-		if m.OriginalProvider != "zen" {
-			t.Errorf("deepseek OriginalProvider = %q, want zen", m.OriginalProvider)
+	// Verify mappings preserved provider_name and model_string.
+	for name, want := range cfg.Mappings {
+		got, ok := cfg2.Mappings[name]
+		if !ok {
+			t.Errorf("mapping %q lost in round-trip", name)
+			continue
 		}
-	}
-	if m, ok := cfg2.Models["claude-sonnet-4"]; ok {
-		if m.OriginalProvider != "custom" {
-			t.Errorf("claude-sonnet-4 OriginalProvider = %q, want custom", m.OriginalProvider)
+		if got.ProviderName != want.ProviderName {
+			t.Errorf(
+				"mapping %q provider_name: got %q, want %q",
+				name,
+				got.ProviderName,
+				want.ProviderName,
+			)
+		}
+		if got.ModelString != want.ModelString {
+			t.Errorf(
+				"mapping %q model_string: got %q, want %q",
+				name,
+				got.ModelString,
+				want.ModelString,
+			)
 		}
 	}
 }

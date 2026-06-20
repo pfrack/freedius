@@ -10,9 +10,27 @@ func TestEventBus_EmitAndSubscribe(t *testing.T) {
 	bus := NewEventBus(10)
 
 	events := []RequestEvent{
-		{RequestID: "a", Model: "opus", Provider: "nim", Status: 200, Latency: 10 * time.Millisecond},
-		{RequestID: "b", Model: "sonnet", Provider: "anthropic", Status: 200, Latency: 50 * time.Millisecond},
-		{RequestID: "c", Model: "haiku", Provider: "openai", Status: 500, Latency: 100 * time.Millisecond},
+		{
+			RequestID: "a",
+			Model:     "opus",
+			Provider:  "nim",
+			Status:    200,
+			Latency:   10 * time.Millisecond,
+		},
+		{
+			RequestID: "b",
+			Model:     "sonnet",
+			Provider:  "anthropic",
+			Status:    200,
+			Latency:   50 * time.Millisecond,
+		},
+		{
+			RequestID: "c",
+			Model:     "haiku",
+			Provider:  "openai",
+			Status:    500,
+			Latency:   100 * time.Millisecond,
+		},
 	}
 
 	for i := range events {

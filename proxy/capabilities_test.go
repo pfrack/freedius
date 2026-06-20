@@ -3,8 +3,6 @@ package proxy
 import (
 	"net/url"
 	"testing"
-
-	"github.com/pfrack/freedius/config"
 )
 
 func TestIsCountTokensPath(t *testing.T) {
@@ -66,80 +64,5 @@ func TestIsCountTokensPathIgnoresQuery(t *testing.T) {
 	}
 	if !isCountTokensPath(parsed.Path) {
 		t.Errorf("isCountTokensPath(%q) = false, want true (query is in RawQuery)", parsed.Path)
-	}
-}
-
-func TestSupportsCountTokens(t *testing.T) {
-	tests := []struct {
-		name string
-		m    config.Model
-		want bool
-	}{
-		{
-			name: "anthropic provider",
-			m:    config.Model{Provider: "anthropic"},
-			want: true,
-		},
-		{
-			name: "mix with anthropic protocol",
-			m:    config.Model{Provider: "mix", Protocol: "anthropic"},
-			want: true,
-		},
-		{
-			name: "mix with openai protocol",
-			m:    config.Model{Provider: "mix", Protocol: "openai"},
-			want: false,
-		},
-		{
-			name: "mix no protocol + /v1/messages URL sniff",
-			m: config.Model{
-				Provider: "mix",
-				BaseURL:  "https://api.minimax.io/anthropic/v1/messages",
-			},
-			want: true,
-		},
-		{
-			name: "mix no protocol + other URL",
-			m: config.Model{
-				Provider: "mix",
-				BaseURL:  "https://integrate.api.nvidia.com/v1/chat/completions",
-			},
-			want: false,
-		},
-		{
-			name: "mix no protocol + empty BaseURL",
-			m:    config.Model{Provider: "mix"},
-			want: false,
-		},
-		{
-			name: "mix no protocol + unparseable BaseURL",
-			m: config.Model{
-				Provider: "mix",
-				BaseURL:  "://bad",
-			},
-			want: false,
-		},
-		{
-			name: "nim provider",
-			m:    config.Model{Provider: "nim"},
-			want: false,
-		},
-		{
-			name: "openai provider",
-			m:    config.Model{Provider: "openai"},
-			want: false,
-		},
-		{
-			name: "empty provider",
-			m:    config.Model{},
-			want: false,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := supportsCountTokens(tt.m); got != tt.want {
-				t.Errorf("supportsCountTokens(%+v) = %v, want %v", tt.m, got, tt.want)
-			}
-		})
 	}
 }

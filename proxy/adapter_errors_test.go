@@ -27,7 +27,8 @@ type preWriteHeaderErrProvider struct {
 func (s *preWriteHeaderErrProvider) Handle(
 	_ http.ResponseWriter,
 	_ *http.Request,
-	_ config.Model,
+	_ config.Provider,
+	_ config.Mapping,
 	_ []byte,
 ) error {
 	return s.err
@@ -35,15 +36,18 @@ func (s *preWriteHeaderErrProvider) Handle(
 
 func TestDispatcher_AdapterError_TranslatedAsAnthropicOverloaded(t *testing.T) {
 	cfg := &config.Config{
-		Models: map[string]config.Model{
-			"claude-opus-4": {Provider: "nim", Model: "x"},
+		Providers: map[string]config.Provider{
+			"nim": {Behavior: "openai"},
+		},
+		Mappings: map[string]config.Mapping{
+			"claude-opus-4": {ProviderName: "nim", ModelString: "x"},
 		},
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	t.Run("without verbose-errors detail is omitted", func(t *testing.T) {
 		registry := NewRegistry(map[string]Provider{
-			"nim": &preWriteHeaderErrProvider{err: errors.New("upstream connection refused")},
+			"openai": &preWriteHeaderErrProvider{err: errors.New("upstream connection refused")},
 		})
 		d := NewDispatcher(cfg, registry, logger, false)
 		handler := RequestIDMiddleware(d)
@@ -77,7 +81,7 @@ func TestDispatcher_AdapterError_TranslatedAsAnthropicOverloaded(t *testing.T) {
 
 	t.Run("with verbose-errors same Anthropic shape", func(t *testing.T) {
 		registry := NewRegistry(map[string]Provider{
-			"nim": &preWriteHeaderErrProvider{err: errors.New("upstream connection refused")},
+			"openai": &preWriteHeaderErrProvider{err: errors.New("upstream connection refused")},
 		})
 		d := NewDispatcher(cfg, registry, logger, true)
 		handler := RequestIDMiddleware(d)
@@ -133,24 +137,24 @@ func TestFreediusErrorHandler_AnthropicFormat(t *testing.T) {
 	}
 }
 
-func TestAdapter_ErrorTemplate_UsesOriginalProvider(t *testing.T) {
+func TestAdapter_ErrorTemplate_UsesProviderName(t *testing.T) {
 	tests := []struct {
 		name         string
-		model        config.Model
+		provider     config.Provider
+		mapping      config.Mapping
 		apiKeyEnv    string
 		envValue     string
 		adapterCtor  func(logger *slog.Logger) Provider
 		wantContains []string
 	}{
 		{
-			name: "nim via openai-compat names provider nim not openai",
-			model: config.Model{
-				Provider:         "openai",
-				Model:            "x",
-				BaseURL:          "https://x/v1/chat/completions",
-				APIKeyEnv:        "NVIDIA_NIM_API_KEY",
-				OriginalProvider: "nim",
+			name: "nim via openai-compat names provider nim",
+			provider: config.Provider{
+				Behavior:         "openai",
+				DefaultBaseURL:   "https://x/v1/chat/completions",
+				DefaultAPIKeyEnv: "NVIDIA_NIM_API_KEY",
 			},
+			mapping:   config.Mapping{ProviderName: "nim", ModelString: "x"},
 			apiKeyEnv: "NVIDIA_NIM_API_KEY",
 			envValue:  "",
 			adapterCtor: func(l *slog.Logger) Provider {
@@ -159,14 +163,13 @@ func TestAdapter_ErrorTemplate_UsesOriginalProvider(t *testing.T) {
 			wantContains: []string{"nim adapter (openai-compat)", "NVIDIA_NIM_API_KEY"},
 		},
 		{
-			name: "custom via anthropic-compat names provider custom not anthropic",
-			model: config.Model{
-				Provider:         "anthropic",
-				Model:            "x",
-				BaseURL:          "https://x",
-				APIKeyEnv:        "CUSTOM_KEY",
-				OriginalProvider: "custom",
+			name: "custom via anthropic-compat names provider custom",
+			provider: config.Provider{
+				Behavior:         "anthropic",
+				DefaultBaseURL:   "https://x",
+				DefaultAPIKeyEnv: "CUSTOM_KEY",
 			},
+			mapping:   config.Mapping{ProviderName: "custom", ModelString: "x"},
 			apiKeyEnv: "CUSTOM_KEY",
 			envValue:  "",
 			adapterCtor: func(l *slog.Logger) Provider {
@@ -175,14 +178,13 @@ func TestAdapter_ErrorTemplate_UsesOriginalProvider(t *testing.T) {
 			wantContains: []string{"custom adapter (anthropic-compat)", "CUSTOM_KEY"},
 		},
 		{
-			name: "zen post-rewrite names provider zen not mix",
-			model: config.Model{
-				Provider:         "mix",
-				Model:            "x",
-				BaseURL:          "https://x/v1/messages",
-				APIKeyEnv:        "OPENCODE_API_KEY",
-				OriginalProvider: "zen",
+			name: "zen via mix/anthropic-compat names provider zen",
+			provider: config.Provider{
+				Behavior:         "mix",
+				DefaultBaseURL:   "https://x/v1/messages",
+				DefaultAPIKeyEnv: "OPENCODE_API_KEY",
 			},
+			mapping:   config.Mapping{ProviderName: "zen", ModelString: "x"},
 			apiKeyEnv: "OPENCODE_API_KEY",
 			envValue:  "",
 			adapterCtor: func(l *slog.Logger) Provider {
@@ -192,13 +194,12 @@ func TestAdapter_ErrorTemplate_UsesOriginalProvider(t *testing.T) {
 		},
 		{
 			name: "go via openai-compat names provider go",
-			model: config.Model{
-				Provider:         "openai",
-				Model:            "x",
-				BaseURL:          "https://x/v1/chat/completions",
-				APIKeyEnv:        "OPENAI_API_KEY",
-				OriginalProvider: "go",
+			provider: config.Provider{
+				Behavior:         "openai",
+				DefaultBaseURL:   "https://x/v1/chat/completions",
+				DefaultAPIKeyEnv: "OPENAI_API_KEY",
 			},
+			mapping:   config.Mapping{ProviderName: "go", ModelString: "x"},
 			apiKeyEnv: "OPENAI_API_KEY",
 			envValue:  "",
 			adapterCtor: func(l *slog.Logger) Provider {
@@ -214,7 +215,7 @@ func TestAdapter_ErrorTemplate_UsesOriginalProvider(t *testing.T) {
 			a := tt.adapterCtor(slog.New(slog.NewTextHandler(io.Discard, nil)))
 			rec := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader("{}"))
-			err := a.Handle(rec, req, tt.model, []byte("{}"))
+			err := a.Handle(rec, req, tt.provider, tt.mapping, []byte("{}"))
 			if err == nil {
 				t.Fatal("expected error")
 			}
@@ -234,14 +235,15 @@ func TestAdapter_ErrorTemplate_UsesOriginalProvider(t *testing.T) {
 	}
 }
 
-func TestOpenAICompat_MissingBaseURL_UsesOriginalProvider(t *testing.T) {
+func TestOpenAICompat_MissingBaseURL_UsesProviderName(t *testing.T) {
 	a := NewOpenAICompatibleAdapter(slog.New(slog.NewTextHandler(io.Discard, nil)))
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader("{}"))
 	err := a.Handle(
 		rec,
 		req,
-		config.Model{Provider: "openai", Model: "x", OriginalProvider: "go"},
+		config.Provider{Behavior: "openai"},
+		config.Mapping{ProviderName: "go", ModelString: "x"},
 		[]byte("{}"),
 	)
 	if err == nil {
@@ -255,14 +257,15 @@ func TestOpenAICompat_MissingBaseURL_UsesOriginalProvider(t *testing.T) {
 	}
 }
 
-func TestAnthropicCompat_MissingBaseURL_UsesOriginalProvider(t *testing.T) {
+func TestAnthropicCompat_MissingBaseURL_UsesProviderName(t *testing.T) {
 	a := NewAnthropicCompatibleAdapter(slog.New(slog.NewTextHandler(io.Discard, nil)), false)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader("{}"))
 	err := a.Handle(
 		rec,
 		req,
-		config.Model{Provider: "anthropic", Model: "x", OriginalProvider: "custom"},
+		config.Provider{Behavior: "anthropic"},
+		config.Mapping{ProviderName: "custom", ModelString: "x"},
 		[]byte("{}"),
 	)
 	if err == nil {
@@ -292,9 +295,11 @@ func TestOpenAICompat_StreamTimeout_Honored(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(`{}`))
 
 	start := time.Now()
-	err := a.Handle(rec, req, config.Model{
-		Provider: "openai", Model: "x", BaseURL: upstream.URL, APIKeyEnv: "OPENAI_API_KEY",
-	}, []byte(`{}`))
+	err := a.Handle(rec, req, config.Provider{
+		Behavior:         "openai",
+		DefaultBaseURL:   upstream.URL,
+		DefaultAPIKeyEnv: "OPENAI_API_KEY",
+	}, config.Mapping{ProviderName: "openai", ModelString: "x"}, []byte(`{}`))
 	elapsed := time.Since(start)
 
 	if err == nil {
@@ -331,11 +336,11 @@ func TestMixAdapter_RoutingDebugLog(t *testing.T) {
 			"/v1/messages",
 			strings.NewReader(`{"stream":false}`),
 		)
-		mix.Handle(rec, req, config.Model{
-			Provider: "mix", Model: "x",
-			BaseURL:   upstream.URL + "/v1/messages",
-			APIKeyEnv: "OPENAI_API_KEY",
-		}, []byte(`{}`))
+		mix.Handle(rec, req, config.Provider{
+			Behavior:         "mix",
+			DefaultBaseURL:   upstream.URL + "/v1/messages",
+			DefaultAPIKeyEnv: "OPENAI_API_KEY",
+		}, config.Mapping{ProviderName: "mix", ModelString: "x"}, []byte(`{}`))
 		if !strings.Contains(logBuf.String(), `selected=anthropic`) {
 			t.Errorf("expected 'selected=anthropic' log, got: %s", logBuf.String())
 		}
@@ -345,11 +350,11 @@ func TestMixAdapter_RoutingDebugLog(t *testing.T) {
 		logBuf.Reset()
 		rec := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(`{}`))
-		mix.Handle(rec, req, config.Model{
-			Provider: "mix", Model: "x",
-			BaseURL:   upstream.URL + "/v1/chat/completions",
-			APIKeyEnv: "OPENAI_API_KEY",
-		}, []byte(`{}`))
+		mix.Handle(rec, req, config.Provider{
+			Behavior:         "mix",
+			DefaultBaseURL:   upstream.URL + "/v1/chat/completions",
+			DefaultAPIKeyEnv: "OPENAI_API_KEY",
+		}, config.Mapping{ProviderName: "mix", ModelString: "x"}, []byte(`{}`))
 		if !strings.Contains(logBuf.String(), `selected=openai`) {
 			t.Errorf("expected 'selected=openai' log, got: %s", logBuf.String())
 		}
@@ -358,13 +363,16 @@ func TestMixAdapter_RoutingDebugLog(t *testing.T) {
 
 func TestDispatcher_ConfigError_Returns500(t *testing.T) {
 	cfg := &config.Config{
-		Models: map[string]config.Model{
-			"claude-opus-4": {Provider: "nim", Model: "x"},
+		Providers: map[string]config.Provider{
+			"nim": {Behavior: "openai"},
+		},
+		Mappings: map[string]config.Mapping{
+			"claude-opus-4": {ProviderName: "nim", ModelString: "x"},
 		},
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	registry := NewRegistry(map[string]Provider{
-		"nim": &preWriteHeaderErrProvider{
+		"openai": &preWriteHeaderErrProvider{
 			err: &configError{err: errors.New("missing API key"), errType: "authentication_error"},
 		},
 	})
@@ -403,13 +411,16 @@ func TestDispatcher_ConfigError_Returns500(t *testing.T) {
 
 func TestDispatcher_ConfigError_InvalidRequest(t *testing.T) {
 	cfg := &config.Config{
-		Models: map[string]config.Model{
-			"claude-opus-4": {Provider: "nim", Model: "x"},
+		Providers: map[string]config.Provider{
+			"nim": {Behavior: "openai"},
+		},
+		Mappings: map[string]config.Mapping{
+			"claude-opus-4": {ProviderName: "nim", ModelString: "x"},
 		},
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	registry := NewRegistry(map[string]Provider{
-		"nim": &preWriteHeaderErrProvider{
+		"openai": &preWriteHeaderErrProvider{
 			err: &configError{err: errors.New("bad base_url"), errType: "invalid_request_error"},
 		},
 	})

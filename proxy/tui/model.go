@@ -5,6 +5,7 @@ package tui
 
 import (
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
@@ -121,8 +122,16 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// --- Form-specific messages ---
 	case providerSelectedMsg:
 		provider := string(msg)
-		if len(d.formFields) > 1 {
-			d.formFields[1].SetValue(provider)
+		// Identify which field is focused by label, and write the selected
+		// value into that field.
+		labels := fieldLabelsForMode(d.formMode)
+		if d.formFocus >= 0 && d.formFocus < len(labels) {
+			fieldName := labels[d.formFocus]
+			if fieldName == "provider" || fieldName == "behavior" {
+				if d.formFocus < len(d.formFields) {
+					d.formFields[d.formFocus].SetValue(provider)
+				}
+			}
 		}
 		d.showPicker = false
 		return d, nil
@@ -201,7 +210,7 @@ func (d *Dashboard) handleTabModeKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.C
 		return d, nil
 	case "down", "j":
 		if d.activeTab == tabConfig {
-			all := collectAllModels(d.config)
+			all := collectAllEntries(d.config)
 			d.configCursor++
 			if d.configCursor >= len(all) {
 				d.configCursor = len(all) - 1
@@ -215,12 +224,17 @@ func (d *Dashboard) handleTabModeKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.C
 		return d, nil
 	case "a":
 		if d.activeTab == tabConfig {
-			d.openAddForm()
+			d.openAddMappingForm()
+		}
+		return d, nil
+	case "p":
+		if d.activeTab == tabConfig {
+			d.openAddProviderForm()
 		}
 		return d, nil
 	case "d":
 		if d.activeTab == tabConfig {
-			all := collectAllModels(d.config)
+			all := collectAllEntries(d.config)
 			if d.configCursor >= 0 && d.configCursor < len(all) {
 				entry := all[d.configCursor]
 				d.formEntryName = entry.name
@@ -256,11 +270,21 @@ func (d *Dashboard) handleFormKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd)
 		return d, nil
 	case "enter":
 		if d.formFocus >= 0 && d.formFocus < len(d.formFields) {
-			fieldLabel := d.fieldLabel(d.formFocus)
-			if fieldLabel == "provider" {
-				d.picker = newProviderPicker()
-				d.showPicker = true
-				return d, nil
+			labels := fieldLabelsForMode(d.formMode)
+			if d.formFocus < len(labels) {
+				fieldName := labels[d.formFocus]
+				if fieldName == "provider" && d.formMode == formAddMapping {
+					names := sortedConfiguredProviderNames(d.config.Providers)
+					d.picker = newProviderPicker(names, d.config.Providers)
+					d.showPicker = true
+					return d, nil
+				}
+				if fieldName == "behavior" &&
+					(d.formMode == formAddProvider || d.formMode == formEditProvider) {
+					d.picker = newBehaviorPicker()
+					d.showPicker = true
+					return d, nil
+				}
 			}
 		}
 		d.fieldErrors = d.validateForm()
@@ -284,14 +308,24 @@ func (d *Dashboard) handleFormKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd)
 func (d *Dashboard) handleDeleteConfirmKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "y":
-		if d.formKind == "model" {
-			delete(d.config.Models, d.formEntryName)
-		} else {
+		switch d.formKind {
+		case "provider":
+			old := d.config.Providers[d.formEntryName]
+			delete(d.config.Providers, d.formEntryName)
+			if d.cfgPath != "" {
+				if err := d.config.Save(d.cfgPath); err != nil {
+					d.config.Providers[d.formEntryName] = old
+					d.formError = fmt.Sprintf("save failed: %v", err)
+				}
+			}
+		case "mapping":
+			old := d.config.Mappings[d.formEntryName]
 			delete(d.config.Mappings, d.formEntryName)
-		}
-		if d.cfgPath != "" {
-			if err := d.config.Save(d.cfgPath); err != nil {
-				d.formError = fmt.Sprintf("save failed: %v", err)
+			if d.cfgPath != "" {
+				if err := d.config.Save(d.cfgPath); err != nil {
+					d.config.Mappings[d.formEntryName] = old
+					d.formError = fmt.Sprintf("save failed: %v", err)
+				}
 			}
 		}
 		d.resetForm()
@@ -364,22 +398,6 @@ func (d *Dashboard) newFormField(value, placeholder string) textinput.Model {
 	return ti
 }
 
-func (d *Dashboard) fieldLabel(index int) string {
-	labels := []string{
-		"name",
-		"provider",
-		"model",
-		"base_url",
-		"api_key_env",
-		"anthropic_version",
-		"protocol",
-	}
-	if index >= 0 && index < len(labels) {
-		return labels[index]
-	}
-	return ""
-}
-
 func (d *Dashboard) updateFormFocus() {
 	for i := range d.formFields {
 		if i == d.formFocus {
@@ -391,7 +409,7 @@ func (d *Dashboard) updateFormFocus() {
 }
 
 func (d *Dashboard) openEditForm() {
-	all := collectAllModels(d.config)
+	all := collectAllEntries(d.config)
 	if d.configCursor < 0 || d.configCursor >= len(all) {
 		return
 	}
@@ -399,42 +417,67 @@ func (d *Dashboard) openEditForm() {
 	d.formKind = entry.kind
 	d.formEntryName = entry.name
 
-	d.formFields = []textinput.Model{
-		d.newFormField(entry.name, "entry name"),
-		d.newFormField(entry.model.Provider, "provider"),
-		d.newFormField(entry.model.Model, "model"),
-		d.newFormField(entry.model.BaseURL, "base_url"),
-		d.newFormField(entry.model.APIKeyEnv, "api_key_env"),
-		d.newFormField(entry.model.AnthropicVersion, "anthropic_version"),
-		d.newFormField(entry.model.Protocol, "protocol"),
+	switch entry.kind {
+	case "provider":
+		p := entry.provider
+		d.formFields = []textinput.Model{
+			d.newFormField(entry.name, "provider name"),
+			d.newFormField(p.Behavior, "behavior"),
+			d.newFormField(p.DefaultBaseURL, "base_url"),
+			d.newFormField(p.DefaultAPIKeyEnv, "api_key_env"),
+			d.newFormField(p.AnthropicVersion, "anthropic_version"),
+		}
+		d.formMode = formEditProvider
+	case "mapping":
+		m := entry.mapping
+		d.formFields = []textinput.Model{
+			d.newFormField(entry.name, "mapping name"),
+			d.newFormField(m.ProviderName, "provider"),
+			d.newFormField(m.ModelString, "model"),
+		}
+		d.formMode = formEditMapping
 	}
 	d.formFocus = 0
 	d.updateFormFocus()
 	d.fieldErrors = nil
 	d.formError = ""
 	d.showPicker = false
-	d.formMode = formEdit
 }
 
-func (d *Dashboard) openAddForm() {
-	d.formKind = "model"
+func (d *Dashboard) openAddProviderForm() {
+	d.formKind = "provider"
 	d.formEntryName = ""
 
 	d.formFields = []textinput.Model{
-		d.newFormField("", "entry name"),
-		d.newFormField("", "provider"),
-		d.newFormField("", "model"),
+		d.newFormField("", "provider name"),
+		d.newFormField("", "behavior"),
 		d.newFormField("", "base_url"),
 		d.newFormField("", "api_key_env"),
 		d.newFormField("", "anthropic_version"),
-		d.newFormField("", "protocol"),
 	}
 	d.formFocus = 0
 	d.updateFormFocus()
 	d.fieldErrors = nil
 	d.formError = ""
 	d.showPicker = false
-	d.formMode = formAdd
+	d.formMode = formAddProvider
+}
+
+func (d *Dashboard) openAddMappingForm() {
+	d.formKind = "mapping"
+	d.formEntryName = ""
+
+	d.formFields = []textinput.Model{
+		d.newFormField("", "mapping name"),
+		d.newFormField("", "provider"),
+		d.newFormField("", "model"),
+	}
+	d.formFocus = 0
+	d.updateFormFocus()
+	d.fieldErrors = nil
+	d.formError = ""
+	d.showPicker = false
+	d.formMode = formAddMapping
 }
 
 func (d *Dashboard) resetForm() {
@@ -460,76 +503,123 @@ func (d *Dashboard) validateForm() map[int]string {
 		errs[0] = "entry name must not contain CR, LF, or colon"
 	}
 
-	provider := strings.TrimSpace(d.formFields[1].Value())
-	if provider == "" {
-		errs[1] = "provider is required"
-	} else if _, ok := config.KnownProviders[provider]; !ok {
-		errs[1] = fmt.Sprintf("unknown provider %q", provider)
-	}
-
-	model := strings.TrimSpace(d.formFields[2].Value())
-	if model == "" {
-		errs[2] = "model is required"
-	}
-
-	baseURL := strings.TrimSpace(d.formFields[3].Value())
-	_, _, _, requiresBaseURL := config.ProviderInfo(provider)
-	if requiresBaseURL && baseURL == "" {
-		errs[3] = fmt.Sprintf("base_url required for provider %q", provider)
-	}
-
-	apiKeyEnv := strings.TrimSpace(d.formFields[4].Value())
-	if apiKeyEnv != "" && strings.ContainsAny(apiKeyEnv, "\r\n=") {
-		errs[4] = "api_key_env must not contain CR, LF, or ="
-	}
-
-	protocol := strings.TrimSpace(d.formFields[6].Value())
-	if protocol != "" && protocol != "anthropic" && protocol != "openai" {
-		errs[6] = "protocol must be 'anthropic' or 'openai'"
+	switch d.formMode {
+	case formEditProvider, formAddProvider:
+		behavior := strings.TrimSpace(d.formFields[1].Value())
+		switch behavior {
+		case "openai", "anthropic", "mix":
+			// valid
+		default:
+			errs[1] = "behavior must be one of: openai, anthropic, mix"
+		}
+		baseURL := strings.TrimSpace(d.formFields[2].Value())
+		if baseURL != "" {
+			if u, err := url.Parse(baseURL); err != nil ||
+				(u.Scheme != "http" && u.Scheme != "https") {
+				errs[2] = "base_url must be a valid http(s) URL"
+			}
+		}
+		apiKeyEnv := strings.TrimSpace(d.formFields[3].Value())
+		if apiKeyEnv != "" && strings.ContainsAny(apiKeyEnv, "\r\n=") {
+			errs[3] = "api_key_env must not contain CR, LF, or ="
+		}
+	case formEditMapping, formAddMapping:
+		providerName := strings.TrimSpace(d.formFields[1].Value())
+		if providerName == "" {
+			errs[1] = "provider is required"
+		} else if _, ok := d.config.Providers[providerName]; !ok {
+			errs[1] = fmt.Sprintf("unknown provider %q (add it first with 'p')", providerName)
+		}
+		modelStr := strings.TrimSpace(d.formFields[2].Value())
+		if modelStr == "" {
+			errs[2] = "model is required"
+		} else if strings.ContainsAny(modelStr, "\r\n:") {
+			errs[2] = "model must not contain CR, LF, or colon"
+		}
 	}
 
 	return errs
 }
 
 func (d *Dashboard) submitForm() {
-	modelVal := d.formFields[2].Value()
-	provider := d.formFields[1].Value()
-	baseURL := d.formFields[3].Value()
-	apiKeyEnv := d.formFields[4].Value()
-	anthropicVersion := d.formFields[5].Value()
-	protocol := d.formFields[6].Value()
-	name := d.formFields[0].Value()
+	name := strings.TrimSpace(d.formFields[0].Value())
 
-	m := config.Model{
-		Provider:         provider,
-		Model:            modelVal,
-		BaseURL:          baseURL,
-		APIKeyEnv:        apiKeyEnv,
-		AnthropicVersion: anthropicVersion,
-		Protocol:         protocol,
-	}
-
-	if d.formMode == formEdit {
-		if d.formKind == "model" {
-			delete(d.config.Models, d.formEntryName)
-			d.config.Models[name] = m
-		} else {
-			delete(d.config.Mappings, d.formEntryName)
-			d.config.Mappings[name] = m
+	switch d.formMode {
+	case formEditProvider:
+		p := d.collectProviderFromForm()
+		oldP, hadOld := d.config.Providers[d.formEntryName]
+		if d.config.Providers == nil {
+			d.config.Providers = map[string]config.Provider{}
 		}
-	} else {
-		if d.formKind == "model" {
-			d.config.Models[name] = m
-		} else {
-			d.config.Mappings[name] = m
+		delete(d.config.Providers, d.formEntryName)
+		d.config.Providers[name] = p
+		if d.cfgPath != "" {
+			if err := d.config.Save(d.cfgPath); err != nil {
+				delete(d.config.Providers, name)
+				if hadOld {
+					d.config.Providers[d.formEntryName] = oldP
+				}
+				d.formError = fmt.Sprintf("save failed: %v", err)
+			}
 		}
-	}
-
-	if d.cfgPath != "" {
-		if err := d.config.Save(d.cfgPath); err != nil {
-			d.formError = fmt.Sprintf("save failed: %v", err)
+	case formAddProvider:
+		p := d.collectProviderFromForm()
+		if d.config.Providers == nil {
+			d.config.Providers = map[string]config.Provider{}
+		}
+		d.config.Providers[name] = p
+		if d.cfgPath != "" {
+			if err := d.config.Save(d.cfgPath); err != nil {
+				delete(d.config.Providers, name)
+				d.formError = fmt.Sprintf("save failed: %v", err)
+			}
+		}
+	case formEditMapping:
+		m := d.collectMappingFromForm()
+		oldM, hadOld := d.config.Mappings[d.formEntryName]
+		if d.config.Mappings == nil {
+			d.config.Mappings = map[string]config.Mapping{}
+		}
+		delete(d.config.Mappings, d.formEntryName)
+		d.config.Mappings[name] = m
+		if d.cfgPath != "" {
+			if err := d.config.Save(d.cfgPath); err != nil {
+				delete(d.config.Mappings, name)
+				if hadOld {
+					d.config.Mappings[d.formEntryName] = oldM
+				}
+				d.formError = fmt.Sprintf("save failed: %v", err)
+			}
+		}
+	case formAddMapping:
+		m := d.collectMappingFromForm()
+		if d.config.Mappings == nil {
+			d.config.Mappings = map[string]config.Mapping{}
+		}
+		d.config.Mappings[name] = m
+		if d.cfgPath != "" {
+			if err := d.config.Save(d.cfgPath); err != nil {
+				delete(d.config.Mappings, name)
+				d.formError = fmt.Sprintf("save failed: %v", err)
+			}
 		}
 	}
 
 	d.resetForm()
+}
+
+func (d *Dashboard) collectProviderFromForm() config.Provider {
+	return config.Provider{
+		Behavior:         strings.TrimSpace(d.formFields[1].Value()),
+		DefaultBaseURL:   strings.TrimSpace(d.formFields[2].Value()),
+		DefaultAPIKeyEnv: strings.TrimSpace(d.formFields[3].Value()),
+		AnthropicVersion: strings.TrimSpace(d.formFields[4].Value()),
+	}
+}
+
+func (d *Dashboard) collectMappingFromForm() config.Mapping {
+	return config.Mapping{
+		ProviderName: strings.TrimSpace(d.formFields[1].Value()),
+		ModelString:  strings.TrimSpace(d.formFields[2].Value()),
+	}
 }

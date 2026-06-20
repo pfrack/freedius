@@ -1,33 +1,24 @@
 # providers.yaml — single source of truth for all freedius provider metadata.
 #
-# Each entry declares a user-facing provider name (the value used in
-# freedius.yaml `provider:` fields) plus its runtime behavior class,
-# default values, optional alias rewrite target, and adapter-specific
-# tweaks. Adding a provider is one YAML entry + `go generate ./...`.
+# Each entry declares a user-facing provider name plus its runtime behavior
+# class, default values, and adapter-specific tweaks. Adding a provider is
+# one YAML entry + `go generate ./...`.
 #
 # Field reference:
 #   behavior:           openai | anthropic | mix — runtime adapter class
-#   rewrite_to:         optional alias target — see "Rewrite phases" below
-#   default_base_url:   URL applied when user does not set base_url
-#   default_api_key_env: env-var name applied when user does not set api_key_env
-#   require_base_url:   true if the adapter needs an explicit base_url
+#   default_base_url:   URL applied when user does not set default_base_url
+#   default_api_key_env: env-var name applied when user does not set
+#                        default_api_key_env
+#   require_base_url:   true if the adapter needs an explicit default_base_url
 #                       (false when default_base_url is provided)
 #   manual:             true to skip adapter generation — user provides
 #                       hand-written logic and wires it via NewDefaultRegistry
-#                       overrides; the provider still appears in KnownProviders
-#                       and (if it has defaults) in knownProviderDefaults
+#                       overrides; the provider still appears in
+#                       providerDefaults with its declared defaults.
 #   openai:             openai-behavior-specific adapter tweaks
 #     no_stream_usage:  suppress OpenAI stream_options.include_usage
 #     pre_send_hook:    name of a func([]byte)([]byte, error) in the proxy
 #                       package invoked before sending the request body
-#
-# Rewrite phases (in applyEntryDefaults):
-#   Pre-lookup  (before knownProviderDefaults lookup):
-#     Aliases with no defaults entry MUST rewrite first so the lookup
-#     sees the canonical name.
-#   Post-lookup (after defaults are applied):
-#     Aliases with defaults inherit them first (e.g. zen/go pick up
-#     OPENCODE_API_KEY) before rewriting to the canonical adapter.
 
 providers:
   nim:
@@ -41,19 +32,16 @@ providers:
 
   zen:
     behavior: mix
-    rewrite_to: mix
     default_api_key_env: OPENCODE_API_KEY
     require_base_url: true
 
   go:
     behavior: mix
-    rewrite_to: mix
     default_api_key_env: OPENCODE_API_KEY
     require_base_url: true
 
   custom:
     behavior: mix
-    rewrite_to: mix
     require_base_url: true
 
   openai:
