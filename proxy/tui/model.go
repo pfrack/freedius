@@ -111,6 +111,10 @@ type Dashboard struct {
 // channel, configuration, and adapter registry. host, port, and
 // verboseErrors are stored for runtime use by the TUI shortcuts (Ctrl+E
 // toggles verbose errors; Ctrl+S uses host/port to install the shell RC).
+//
+// cfg, reg, and dispatcher are required. Passing nil panics, matching the
+// convention in NewDispatcher and NewRegistry — silent-nil masks bugs that
+// only surface when the renderer or shortcut tries to dereference.
 func NewDashboard(
 	events <-chan proxy.RequestEvent,
 	cfg *config.Config,
@@ -121,6 +125,15 @@ func NewDashboard(
 	port int,
 	verboseErrors bool,
 ) *Dashboard {
+	if cfg == nil {
+		panic("tui: nil config")
+	}
+	if reg == nil {
+		panic("tui: nil registry")
+	}
+	if dispatcher == nil {
+		panic("tui: nil dispatcher")
+	}
 	return &Dashboard{
 		activeTab:     tabLog,
 		events:        events,

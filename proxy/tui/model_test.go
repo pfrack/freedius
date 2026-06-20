@@ -13,6 +13,22 @@ import (
 	"github.com/pfrack/freedius/proxy"
 )
 
+var (
+	emptyConfig     = &config.Config{}
+	emptyRegistry   = proxy.NewRegistry(nil)
+	emptyDispatcher = &proxy.Dispatcher{}
+)
+
+// newTestDashboard constructs a Dashboard with sensible defaults for the
+// required pointer args. Tests that don't care about cfg can pass nil and
+// get the empty default.
+func newTestDashboard(cfg *config.Config, host string, port int, verbose bool) *Dashboard {
+	if cfg == nil {
+		cfg = emptyConfig
+	}
+	return NewDashboard(nil, cfg, emptyRegistry, emptyDispatcher, "", host, port, verbose)
+}
+
 func TestDashboard_Update_KeyPress(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -30,7 +46,7 @@ func TestDashboard_Update_KeyPress(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			d := NewDashboard(nil, nil, nil, nil, "", "", 0, false)
+			d := newTestDashboard(nil, "", 0, false)
 			// Start on tab 0
 			d.activeTab = tabLog
 
@@ -90,7 +106,7 @@ func TestDashboard_Update_TabCycle(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			d := NewDashboard(nil, nil, nil, nil, "", "", 0, false)
+			d := newTestDashboard(nil, "", 0, false)
 			d.activeTab = tt.initial
 			d.Update(tt.key)
 			if d.activeTab != tt.want {
@@ -101,7 +117,7 @@ func TestDashboard_Update_TabCycle(t *testing.T) {
 }
 
 func TestDashboard_Update_Resize(t *testing.T) {
-	d := NewDashboard(nil, nil, nil, nil, "", "", 0, false)
+	d := newTestDashboard(nil, "", 0, false)
 	d.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 
 	if d.width != 120 {
@@ -116,7 +132,7 @@ func TestDashboard_Update_EventMsg(t *testing.T) {
 	ch := make(chan proxy.RequestEvent, 1)
 	defer close(ch)
 
-	d := NewDashboard(ch, &config.Config{}, nil, nil, "", "", 0, false)
+	d := NewDashboard(ch, &config.Config{}, emptyRegistry, emptyDispatcher, "", "", 0, false)
 
 	ev := proxy.RequestEvent{
 		RequestID: "test-1",
@@ -149,7 +165,7 @@ func TestDashboard_Update_EventMsg(t *testing.T) {
 }
 
 func TestDashboard_Update_EventMsgErrorCount(t *testing.T) {
-	d := NewDashboard(nil, nil, nil, nil, "", "", 0, false)
+	d := newTestDashboard(nil, "", 0, false)
 
 	errEv := proxy.RequestEvent{
 		RequestID: "err-1",
@@ -169,7 +185,7 @@ func TestDashboard_OpenEditProviderForm(t *testing.T) {
 			"nim": {Behavior: "openai"},
 		},
 	}
-	d := NewDashboard(nil, cfg, nil, nil, "", "", 0, false)
+	d := newTestDashboard(cfg, "", 0, false)
 	d.activeTab = tabConfig
 
 	// Cursor 0 = the only provider.
@@ -199,7 +215,7 @@ func TestDashboard_OpenEditMappingForm(t *testing.T) {
 			"opus": {ProviderName: "nim", ModelString: "meta-llama"},
 		},
 	}
-	d := NewDashboard(nil, cfg, nil, nil, "", "", 0, false)
+	d := newTestDashboard(cfg, "", 0, false)
 	d.activeTab = tabConfig
 
 	// collectAllEntries returns providers first, then mappings. With one
@@ -225,7 +241,7 @@ func TestDashboard_OpenEditMappingForm(t *testing.T) {
 }
 
 func TestDashboard_OpenAddProviderForm(t *testing.T) {
-	d := NewDashboard(nil, &config.Config{}, nil, nil, "", "", 0, false)
+	d := newTestDashboard(&config.Config{}, "", 0, false)
 	d.activeTab = tabConfig
 
 	d.Update(tea.KeyPressMsg{Text: "p"})
@@ -244,7 +260,7 @@ func TestDashboard_OpenAddProviderForm(t *testing.T) {
 }
 
 func TestDashboard_OpenAddMappingForm(t *testing.T) {
-	d := NewDashboard(nil, &config.Config{}, nil, nil, "", "", 0, false)
+	d := newTestDashboard(&config.Config{}, "", 0, false)
 	d.activeTab = tabConfig
 
 	d.Update(tea.KeyPressMsg{Text: "a"})
@@ -263,7 +279,7 @@ func TestDashboard_OpenAddMappingForm(t *testing.T) {
 }
 
 func TestDashboard_FormCancel(t *testing.T) {
-	d := NewDashboard(nil, &config.Config{}, nil, nil, "", "", 0, false)
+	d := newTestDashboard(&config.Config{}, "", 0, false)
 	d.activeTab = tabConfig
 	d.configCursor = 0
 
@@ -289,7 +305,7 @@ func TestDashboard_FormCancel(t *testing.T) {
 }
 
 func TestDashboard_FormFieldNavigation(t *testing.T) {
-	d := NewDashboard(nil, &config.Config{}, nil, nil, "", "", 0, false)
+	d := newTestDashboard(&config.Config{}, "", 0, false)
 	d.activeTab = tabConfig
 	d.config.Providers = map[string]config.Provider{"test": {Behavior: "openai"}}
 	d.configCursor = 0
@@ -313,7 +329,7 @@ func TestDashboard_FormFieldNavigation(t *testing.T) {
 }
 
 func TestDashboard_FormSubmitInvalidShowsErrors(t *testing.T) {
-	d := NewDashboard(nil, &config.Config{}, nil, nil, "", "", 0, false)
+	d := newTestDashboard(&config.Config{}, "", 0, false)
 	d.activeTab = tabConfig
 	d.config.Providers = map[string]config.Provider{
 		"test": {Behavior: "openai"},
@@ -345,7 +361,7 @@ func TestDashboard_FormSubmitInvalidShowsErrors(t *testing.T) {
 }
 
 func TestDashboard_FormSubmitProviderInvalidBehavior(t *testing.T) {
-	d := NewDashboard(nil, &config.Config{}, nil, nil, "", "", 0, false)
+	d := newTestDashboard(&config.Config{}, "", 0, false)
 	d.activeTab = tabConfig
 	d.config.Providers = map[string]config.Provider{
 		"test": {Behavior: "openai"},
@@ -371,7 +387,7 @@ func TestDashboard_FormSubmitProviderInvalidBehavior(t *testing.T) {
 }
 
 func TestDashboard_FormSubmitMappingUnknownProvider(t *testing.T) {
-	d := NewDashboard(nil, &config.Config{}, nil, nil, "", "", 0, false)
+	d := newTestDashboard(&config.Config{}, "", 0, false)
 	d.activeTab = tabConfig
 	d.config.Providers = map[string]config.Provider{
 		"nim": {Behavior: "openai"},
@@ -396,7 +412,7 @@ func TestDashboard_FormSubmitMappingUnknownProvider(t *testing.T) {
 }
 
 func TestDashboard_DeleteProvider(t *testing.T) {
-	d := NewDashboard(nil, &config.Config{}, nil, nil, "", "", 0, false)
+	d := newTestDashboard(&config.Config{}, "", 0, false)
 	d.activeTab = tabConfig
 	d.config.Providers = map[string]config.Provider{
 		"test": {Behavior: "openai"},
@@ -419,7 +435,7 @@ func TestDashboard_DeleteProvider(t *testing.T) {
 }
 
 func TestDashboard_DeleteMapping(t *testing.T) {
-	d := NewDashboard(nil, &config.Config{}, nil, nil, "", "", 0, false)
+	d := newTestDashboard(&config.Config{}, "", 0, false)
 	d.activeTab = tabConfig
 	d.config.Providers = map[string]config.Provider{
 		"nim": {Behavior: "openai"},
@@ -445,7 +461,7 @@ func TestDashboard_DeleteMapping(t *testing.T) {
 }
 
 func TestDashboard_DeleteCancel(t *testing.T) {
-	d := NewDashboard(nil, &config.Config{}, nil, nil, "", "", 0, false)
+	d := newTestDashboard(&config.Config{}, "", 0, false)
 	d.activeTab = tabConfig
 	d.config.Providers = map[string]config.Provider{
 		"test": {Behavior: "openai"},
@@ -486,7 +502,7 @@ mappings:
 		t.Fatalf("Load: %v", err)
 	}
 
-	d := NewDashboard(nil, cfg, nil, nil, cfgPath, "", 0, false)
+	d := NewDashboard(nil, cfg, emptyRegistry, emptyDispatcher, cfgPath, "", 0, false)
 	d.activeTab = tabConfig
 	d.configCursor = 1 // the mapping
 
@@ -510,7 +526,7 @@ mappings:
 }
 
 func TestDashboard_AddProviderInsert(t *testing.T) {
-	d := NewDashboard(nil, &config.Config{}, nil, nil, "", "", 0, false)
+	d := newTestDashboard(&config.Config{}, "", 0, false)
 	d.activeTab = tabConfig
 
 	// Open add provider form.
@@ -541,11 +557,11 @@ func TestDashboard_AddProviderInsert(t *testing.T) {
 }
 
 func TestDashboard_AddMappingInsert(t *testing.T) {
-	d := NewDashboard(nil, &config.Config{
+	d := newTestDashboard(&config.Config{
 		Providers: map[string]config.Provider{
 			"nim": {Behavior: "openai"},
 		},
-	}, nil, nil, "", "", 0, false)
+	}, "", 0, false)
 	d.activeTab = tabConfig
 
 	// Open add mapping form.
@@ -609,7 +625,7 @@ func TestRingBuffer(t *testing.T) {
 }
 
 func TestRenderLogTab_Format(t *testing.T) {
-	d := NewDashboard(nil, nil, nil, nil, "", "", 0, false)
+	d := newTestDashboard(nil, "", 0, false)
 	d.eventLog.push(proxy.RequestEvent{
 		RequestID:       "abc123",
 		Method:          "POST",
@@ -646,7 +662,7 @@ func TestRenderLogTab_Empty(t *testing.T) {
 }
 
 func TestRenderLogTab_ErrorSuffix(t *testing.T) {
-	d := NewDashboard(nil, nil, nil, nil, "", "", 0, false)
+	d := newTestDashboard(nil, "", 0, false)
 	d.eventLog.push(proxy.RequestEvent{
 		RequestID:    "err-1",
 		Method:       "POST",
@@ -693,7 +709,7 @@ func stripANSI(s string) string {
 }
 
 func TestDashboard_CtrlETogglesVerboseErrors(t *testing.T) {
-	d := NewDashboard(nil, nil, nil, nil, "", "127.0.0.1", 8082, false)
+	d := newTestDashboard(nil, "127.0.0.1", 8082, false)
 	if d.verboseErrors {
 		t.Fatal("initial verboseErrors should be false")
 	}
@@ -716,7 +732,7 @@ func TestDashboard_CtrlETogglesVerboseErrors(t *testing.T) {
 }
 
 func TestDashboard_CtrlEUpdatesDispatcher(t *testing.T) {
-	d := NewDashboard(nil, nil, nil, nil, "", "127.0.0.1", 8082, false)
+	d := newTestDashboard(nil, "127.0.0.1", 8082, false)
 	d.dispatcher = &proxy.Dispatcher{}
 	d.dispatcher.SetVerboseErrors(false)
 
@@ -727,7 +743,7 @@ func TestDashboard_CtrlEUpdatesDispatcher(t *testing.T) {
 }
 
 func TestDashboard_CtrlSOutsideConfigNoOp(t *testing.T) {
-	d := NewDashboard(nil, nil, nil, nil, "", "127.0.0.1", 8082, false)
+	d := newTestDashboard(nil, "127.0.0.1", 8082, false)
 	d.activeTab = tabLog
 	d.stats.message = "previous"
 
@@ -742,7 +758,7 @@ func TestDashboard_CtrlSInConfigInstallsShellRC(t *testing.T) {
 	t.Setenv("HOME", dir)
 	t.Setenv("SHELL", "/bin/zsh")
 
-	d := NewDashboard(nil, nil, nil, nil, "", "127.0.0.1", 8082, false)
+	d := newTestDashboard(nil, "127.0.0.1", 8082, false)
 	d.activeTab = tabConfig
 	d.Update(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
 
@@ -764,7 +780,7 @@ func TestDashboard_CtrlSAlreadyInstalledShowsSuccess(t *testing.T) {
 	t.Setenv("HOME", dir)
 	t.Setenv("SHELL", "/bin/zsh")
 
-	d := NewDashboard(nil, nil, nil, nil, "", "127.0.0.1", 8082, false)
+	d := newTestDashboard(nil, "127.0.0.1", 8082, false)
 	d.activeTab = tabConfig
 	d.Update(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
 	// Second install: should be detected as already-installed, not failure.
@@ -779,7 +795,7 @@ func TestDashboard_CtrlSAlreadyInstalledShowsSuccess(t *testing.T) {
 }
 
 func TestDashboard_RequestEventClearsStatusMessage(t *testing.T) {
-	d := NewDashboard(nil, nil, nil, nil, "", "127.0.0.1", 8082, false)
+	d := newTestDashboard(nil, "127.0.0.1", 8082, false)
 	d.stats.message = "Shell RC updated ✓"
 
 	d.Update(requestEventMsg(proxy.RequestEvent{Status: 200}))
@@ -800,7 +816,7 @@ func TestDashboard_ConfigTabEnterEdits(t *testing.T) {
 			"nim": {Behavior: "openai"},
 		},
 	}
-	d := NewDashboard(nil, cfg, nil, nil, "", "", 0, false)
+	d := newTestDashboard(cfg, "", 0, false)
 	d.activeTab = tabConfig
 	d.configCursor = 0
 
@@ -831,7 +847,7 @@ func TestDashboard_ConfigTabScrollsToCursor(t *testing.T) {
 			"default": {ProviderName: "nim", ModelString: "x"},
 		},
 	}
-	d := NewDashboard(nil, cfg, nil, nil, "", "", 0, false)
+	d := newTestDashboard(cfg, "", 0, false)
 	d.activeTab = tabConfig
 	d.width = 80
 	d.height = 24
@@ -870,7 +886,7 @@ func TestDashboard_ProvidersTabScroll(t *testing.T) {
 			"custom7":   {Behavior: "mix"},
 		},
 	}
-	d := NewDashboard(nil, cfg, nil, nil, "", "", 0, false)
+	d := newTestDashboard(cfg, "", 0, false)
 	d.activeTab = tabProviders
 	d.width = 80
 	// Small height forces overflow: 12 - 4 header lines = 8 visible rows.
