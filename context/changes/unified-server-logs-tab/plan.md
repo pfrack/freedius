@@ -562,22 +562,22 @@ Remove leftover code, tests, and targets from the removed subcommand architectur
 
 #### Automated
 
-- [x] 1.1 Build passes: `go build ./...`
-- [x] 1.2 All tests pass: `go test ./...`
-- [x] 1.3 `go vet ./...` clean
+- [x] 1.1 Build passes: `go build ./...` — 88127d4
+- [x] 1.2 All tests pass: `go test ./...` — 88127d4
+- [x] 1.3 `go vet ./...` clean — 88127d4
 
 #### Manual
 
-- [x] 1.4 N/A — data model change; user-visible behavior unchanged
+- [x] 1.4 N/A — data model change; user-visible behavior unchanged — 88127d4
 
 ### Phase 2: Rewrite Tab 1 as access-log view
 
 #### Automated
 
-- [ ] 2.1 `go build ./...` succeeds
-- [ ] 2.2 `go test ./proxy/tui/... -v -run "Log"` passes
-- [ ] 2.3 All existing tests pass: `go test ./...`
-- [ ] 2.4 `go vet ./...` clean
+- [x] 2.1 `go build ./...` succeeds
+- [x] 2.2 `go test ./proxy/tui/... -v -run "Log"` passes
+- [x] 2.3 All existing tests pass: `go test ./...`
+- [x] 2.4 `go vet ./...` clean
 
 #### Manual
 

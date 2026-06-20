@@ -98,7 +98,7 @@ func NewDashboard(
 	cfgPath string,
 ) *Dashboard {
 	return &Dashboard{
-		activeTab: tabRequests,
+		activeTab: tabLog,
 		events:    events,
 		eventLog:  newRingBuffer(1000),
 		config:    cfg,
@@ -186,7 +186,7 @@ func (d *Dashboard) handleTabModeKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.C
 		d.quitting = true
 		return d, tea.Quit
 	case "1":
-		d.activeTab = tabRequests
+		d.activeTab = tabLog
 		return d, nil
 	case "2":
 		d.activeTab = tabProviders
@@ -357,8 +357,8 @@ func (d *Dashboard) View() tea.View {
 		content = renderForm(d, width, bodyHeight)
 	} else {
 		switch d.activeTab {
-		case tabRequests:
-			content = renderRequestsTab(d.eventLog.all(), width, bodyHeight)
+		case tabLog:
+			content = renderLogTab(d.eventLog.all(), width, bodyHeight)
 		case tabProviders:
 			content = renderProvidersTab(d.config, width)
 		case tabConfig:

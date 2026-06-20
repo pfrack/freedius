@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -14,7 +15,7 @@ import (
 
 func renderTabs(active int, width int) string {
 	tabs := []string{
-		"[1] Requests",
+		"[1] Log",
 		"[2] Providers",
 		"[3] Config (e=edit a=+map p=+prov d=del)",
 	}
@@ -30,13 +31,10 @@ func renderTabs(active int, width int) string {
 	return tabBarStyle.Width(max(width-2, 0)).Render(joined)
 }
 
-func renderRequestsTab(events []proxy.RequestEvent, _ int, height int) string {
+func renderLogTab(events []proxy.RequestEvent, _ int, height int) string {
 	if len(events) == 0 {
-		return windowStyle.Render("No requests yet. Send a request to see it appear here.")
+		return windowStyle.Render("No requests yet...")
 	}
-
-	var b strings.Builder
-	b.WriteString(windowStyle.Render("Request Log") + "\n\n")
 
 	available := height - 4
 	if available < 0 {
@@ -47,6 +45,7 @@ func renderRequestsTab(events []proxy.RequestEvent, _ int, height int) string {
 		start = len(events) - available
 	}
 
+	var b strings.Builder
 	for i := start; i < len(events); i++ {
 		e := events[i]
 		ts := e.Timestamp.Format("15:04:05")
@@ -60,27 +59,22 @@ func renderRequestsTab(events []proxy.RequestEvent, _ int, height int) string {
 		default:
 			statusStyled = statusOKStyle.Render(statusStr)
 		}
-		model := e.Model
-		if model == "" {
-			model = e.MatchedModel
-		}
-		provider := e.Provider
-		if provider == "" {
-			provider = "-"
-		}
-		latency := roundLatency(e.Latency)
-		errMsg := ""
+		duration := e.Latency.Milliseconds()
+		errSuffix := ""
 		if e.Status >= 400 && e.ErrorMessage != "" {
-			errMsg = " " + errorMessageStyle.Render(truncate(e.ErrorMessage, 80))
+			errSuffix = " error=" + strconv.Quote(e.ErrorMessage)
 		}
 		line := fmt.Sprintf(
-			"%s  %s  %s  %s  %s%s",
+			"time=%s request_id=%s method=%s path=%s status=%s duration_ms=%d matched_provider=%s matched_model=%s%s",
 			ts,
+			e.RequestID,
+			e.Method,
+			e.Path,
 			statusStyled,
-			truncate(model, 20),
-			truncate(provider, 14),
-			latency,
-			errMsg,
+			duration,
+			e.MatchedProvider,
+			e.MatchedModel,
+			errSuffix,
 		)
 		b.WriteString(line + "\n")
 	}
@@ -236,13 +230,6 @@ func collectAllEntries(cfg *config.Config) []configEntry {
 		return entries[i].name < entries[j].name
 	})
 	return entries
-}
-
-func roundLatency(d time.Duration) string {
-	if d >= time.Second {
-		return fmt.Sprintf("%.1fs", d.Seconds())
-	}
-	return d.Round(time.Millisecond).String()
 }
 
 func truncate(s string, maxLen int) string {

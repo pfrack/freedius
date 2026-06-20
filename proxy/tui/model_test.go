@@ -19,7 +19,7 @@ func TestDashboard_Update_KeyPress(t *testing.T) {
 		wantTab  int
 		wantQuit bool
 	}{
-		{name: "press 1", key: tea.KeyPressMsg{Code: '1'}, wantTab: tabRequests},
+		{name: "press 1", key: tea.KeyPressMsg{Code: '1'}, wantTab: tabLog},
 		{name: "press 2", key: tea.KeyPressMsg{Code: '2'}, wantTab: tabProviders},
 		{name: "press 3", key: tea.KeyPressMsg{Code: '3'}, wantTab: tabConfig},
 		{name: "press q", key: tea.KeyPressMsg{Text: "q"}, wantQuit: true},
@@ -31,7 +31,7 @@ func TestDashboard_Update_KeyPress(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			d := NewDashboard(nil, nil, nil, "")
 			// Start on tab 0
-			d.activeTab = tabRequests
+			d.activeTab = tabLog
 
 			_, cmd := d.Update(tt.key)
 			if tt.wantQuit {
@@ -58,7 +58,7 @@ func TestDashboard_Update_TabCycle(t *testing.T) {
 		{
 			name:    "tab from 0 to 1",
 			key:     tea.KeyPressMsg{Code: tea.KeyTab},
-			initial: tabRequests,
+			initial: tabLog,
 			want:    tabProviders,
 		},
 		{
@@ -71,12 +71,12 @@ func TestDashboard_Update_TabCycle(t *testing.T) {
 			name:    "tab from 2 wraps to 0",
 			key:     tea.KeyPressMsg{Code: tea.KeyTab},
 			initial: tabConfig,
-			want:    tabRequests,
+			want:    tabLog,
 		},
 		{
 			name:    "shift+tab from 0 wraps to 2",
 			key:     tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift},
-			initial: tabRequests,
+			initial: tabLog,
 			want:    tabConfig,
 		},
 		{
@@ -605,4 +605,88 @@ func TestRingBuffer(t *testing.T) {
 			t.Errorf("event[%d] RequestID = %q, want %q", i, all[i].RequestID, want)
 		}
 	}
+}
+
+func TestRenderLogTab_Format(t *testing.T) {
+	d := NewDashboard(nil, nil, nil, "")
+	d.eventLog.push(proxy.RequestEvent{
+		RequestID:       "abc123",
+		Method:          "POST",
+		Path:            "/v1/messages",
+		Model:           "opus",
+		Provider:        "nim",
+		Status:          200,
+		Latency:         42 * time.Millisecond,
+		MatchedProvider: "nim",
+		MatchedModel:    "step-3.5",
+		Timestamp:       time.Date(2026, 1, 1, 15, 4, 5, 0, time.UTC),
+	})
+	out := stripANSI(renderLogTab(d.eventLog.all(), 80, 24))
+	for _, want := range []string{
+		"request_id=abc123",
+		"method=POST",
+		"path=/v1/messages",
+		"status=200",
+		"duration_ms=42",
+		"matched_provider=nim",
+		"matched_model=step-3.5",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("renderLogTab output missing %q\nfull output:\n%s", want, out)
+		}
+	}
+}
+
+func TestRenderLogTab_Empty(t *testing.T) {
+	out := stripANSI(renderLogTab(nil, 80, 24))
+	if !strings.Contains(out, "No requests yet") {
+		t.Errorf("expected empty-state message, got: %s", out)
+	}
+}
+
+func TestRenderLogTab_ErrorSuffix(t *testing.T) {
+	d := NewDashboard(nil, nil, nil, "")
+	d.eventLog.push(proxy.RequestEvent{
+		RequestID:    "err-1",
+		Method:       "POST",
+		Path:         "/v1/messages",
+		Status:       500,
+		Latency:      100 * time.Millisecond,
+		ErrorMessage: "boom",
+		Timestamp:    time.Date(2026, 1, 1, 15, 4, 5, 0, time.UTC),
+	})
+	out := stripANSI(renderLogTab(d.eventLog.all(), 80, 24))
+	if !strings.Contains(out, `error="boom"`) {
+		t.Errorf("expected error= suffix in output, got: %s", out)
+	}
+}
+
+func TestRenderTabs_LabelIsLog(t *testing.T) {
+	out := stripANSI(renderTabs(0, 80))
+	if !strings.Contains(out, "[1] Log") {
+		t.Errorf("expected '[1] Log' tab label, got: %s", out)
+	}
+	if strings.Contains(out, "[1] Requests") {
+		t.Errorf("should not contain '[1] Requests' label anymore, got: %s", out)
+	}
+}
+
+// stripANSI removes ANSI escape codes for test assertions.
+func stripANSI(s string) string {
+	var b strings.Builder
+	b.Grow(len(s))
+	inEscape := false
+	for _, r := range s {
+		switch {
+		case r == 0x1b:
+			inEscape = true
+		case inEscape:
+			if r == 'm' {
+				inEscape = false
+			}
+		default:
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
 }
