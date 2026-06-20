@@ -279,7 +279,8 @@ func (d *Dashboard) handleFormKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd)
 					d.showPicker = true
 					return d, nil
 				}
-				if fieldName == "behavior" && (d.formMode == formAddProvider || d.formMode == formEditProvider) {
+				if fieldName == "behavior" &&
+					(d.formMode == formAddProvider || d.formMode == formEditProvider) {
 					d.picker = newBehaviorPicker()
 					d.showPicker = true
 					return d, nil
@@ -309,13 +310,22 @@ func (d *Dashboard) handleDeleteConfirmKeyPress(msg tea.KeyPressMsg) (tea.Model,
 	case "y":
 		switch d.formKind {
 		case "provider":
+			old := d.config.Providers[d.formEntryName]
 			delete(d.config.Providers, d.formEntryName)
+			if d.cfgPath != "" {
+				if err := d.config.Save(d.cfgPath); err != nil {
+					d.config.Providers[d.formEntryName] = old
+					d.formError = fmt.Sprintf("save failed: %v", err)
+				}
+			}
 		case "mapping":
+			old := d.config.Mappings[d.formEntryName]
 			delete(d.config.Mappings, d.formEntryName)
-		}
-		if d.cfgPath != "" {
-			if err := d.config.Save(d.cfgPath); err != nil {
-				d.formError = fmt.Sprintf("save failed: %v", err)
+			if d.cfgPath != "" {
+				if err := d.config.Save(d.cfgPath); err != nil {
+					d.config.Mappings[d.formEntryName] = old
+					d.formError = fmt.Sprintf("save failed: %v", err)
+				}
 			}
 		}
 		d.resetForm()
@@ -504,7 +514,8 @@ func (d *Dashboard) validateForm() map[int]string {
 		}
 		baseURL := strings.TrimSpace(d.formFields[2].Value())
 		if baseURL != "" {
-			if u, err := url.Parse(baseURL); err != nil || (u.Scheme != "http" && u.Scheme != "https") {
+			if u, err := url.Parse(baseURL); err != nil ||
+				(u.Scheme != "http" && u.Scheme != "https") {
 				errs[2] = "base_url must be a valid http(s) URL"
 			}
 		}
@@ -536,35 +547,61 @@ func (d *Dashboard) submitForm() {
 	switch d.formMode {
 	case formEditProvider:
 		p := d.collectProviderFromForm()
+		oldP, hadOld := d.config.Providers[d.formEntryName]
 		if d.config.Providers == nil {
 			d.config.Providers = map[string]config.Provider{}
 		}
 		delete(d.config.Providers, d.formEntryName)
 		d.config.Providers[name] = p
+		if d.cfgPath != "" {
+			if err := d.config.Save(d.cfgPath); err != nil {
+				delete(d.config.Providers, name)
+				if hadOld {
+					d.config.Providers[d.formEntryName] = oldP
+				}
+				d.formError = fmt.Sprintf("save failed: %v", err)
+			}
+		}
 	case formAddProvider:
 		p := d.collectProviderFromForm()
 		if d.config.Providers == nil {
 			d.config.Providers = map[string]config.Provider{}
 		}
 		d.config.Providers[name] = p
+		if d.cfgPath != "" {
+			if err := d.config.Save(d.cfgPath); err != nil {
+				delete(d.config.Providers, name)
+				d.formError = fmt.Sprintf("save failed: %v", err)
+			}
+		}
 	case formEditMapping:
 		m := d.collectMappingFromForm()
+		oldM, hadOld := d.config.Mappings[d.formEntryName]
 		if d.config.Mappings == nil {
 			d.config.Mappings = map[string]config.Mapping{}
 		}
 		delete(d.config.Mappings, d.formEntryName)
 		d.config.Mappings[name] = m
+		if d.cfgPath != "" {
+			if err := d.config.Save(d.cfgPath); err != nil {
+				delete(d.config.Mappings, name)
+				if hadOld {
+					d.config.Mappings[d.formEntryName] = oldM
+				}
+				d.formError = fmt.Sprintf("save failed: %v", err)
+			}
+		}
 	case formAddMapping:
 		m := d.collectMappingFromForm()
 		if d.config.Mappings == nil {
 			d.config.Mappings = map[string]config.Mapping{}
 		}
 		d.config.Mappings[name] = m
-	}
-
-	if d.cfgPath != "" {
-		if err := d.config.Save(d.cfgPath); err != nil {
-			d.formError = fmt.Sprintf("save failed: %v", err)
+		if d.cfgPath != "" {
+			if err := d.config.Save(d.cfgPath); err != nil {
+				delete(d.config.Mappings, name)
+				d.formError = fmt.Sprintf("save failed: %v", err)
+			}
 		}
 	}
 

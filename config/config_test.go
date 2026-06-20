@@ -40,7 +40,10 @@ func TestLoad(t *testing.T) {
 					t.Error("expected nim default_base_url to be filled in")
 				}
 				if p.DefaultAPIKeyEnv != "NVIDIA_NIM_API_KEY" {
-					t.Errorf("default_api_key_env: got %q, want NVIDIA_NIM_API_KEY", p.DefaultAPIKeyEnv)
+					t.Errorf(
+						"default_api_key_env: got %q, want NVIDIA_NIM_API_KEY",
+						p.DefaultAPIKeyEnv,
+					)
 				}
 			},
 		},
@@ -661,10 +664,20 @@ mappings:
 			continue
 		}
 		if got.ProviderName != want.ProviderName {
-			t.Errorf("mapping %q provider_name: got %q, want %q", name, got.ProviderName, want.ProviderName)
+			t.Errorf(
+				"mapping %q provider_name: got %q, want %q",
+				name,
+				got.ProviderName,
+				want.ProviderName,
+			)
 		}
 		if got.ModelString != want.ModelString {
-			t.Errorf("mapping %q model_string: got %q, want %q", name, got.ModelString, want.ModelString)
+			t.Errorf(
+				"mapping %q model_string: got %q, want %q",
+				name,
+				got.ModelString,
+				want.ModelString,
+			)
 		}
 	}
 }

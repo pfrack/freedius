@@ -45,7 +45,10 @@ func (a *AnthropicCompatibleAdapter) Handle(
 ) error {
 	if provider.DefaultBaseURL == "" {
 		return &configError{
-			err:     fmt.Errorf("%s adapter (anthropic-compat): missing base_url", mapping.ProviderName),
+			err: fmt.Errorf(
+				"%s adapter (anthropic-compat): missing base_url",
+				mapping.ProviderName,
+			),
 			errType: "invalid_request_error",
 		}
 	}

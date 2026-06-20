@@ -131,13 +131,25 @@ func renderConfigTab(cfg *config.Config, cursor, width int) string {
 			provider := entry.provider
 			fmt.Fprintf(&b, "  behavior: %s\n", configValueStyle.Render(provider.Behavior))
 			if provider.DefaultBaseURL != "" {
-				fmt.Fprintf(&b, "  base_url: %s\n", configValueStyle.Render(provider.DefaultBaseURL))
+				fmt.Fprintf(
+					&b,
+					"  base_url: %s\n",
+					configValueStyle.Render(provider.DefaultBaseURL),
+				)
 			}
 			if provider.DefaultAPIKeyEnv != "" {
-				fmt.Fprintf(&b, "  api_key:  %s\n", configValueStyle.Render(provider.DefaultAPIKeyEnv))
+				fmt.Fprintf(
+					&b,
+					"  api_key:  %s\n",
+					configValueStyle.Render(provider.DefaultAPIKeyEnv),
+				)
 			}
 			if provider.AnthropicVersion != "" {
-				fmt.Fprintf(&b, "  api_ver:  %s\n", configValueStyle.Render(provider.AnthropicVersion))
+				fmt.Fprintf(
+					&b,
+					"  api_ver:  %s\n",
+					configValueStyle.Render(provider.AnthropicVersion),
+				)
 			}
 		} else {
 			mapping := entry.mapping

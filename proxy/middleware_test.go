@@ -318,7 +318,9 @@ func TestEventBusMiddleware_PopulatesErrorFields(t *testing.T) {
 		w.Header().Set("X-Freedius-Error-Message", "no configured mapping for model \"gpt-4\"")
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusNotFound)
-		_, _ = w.Write([]byte(`{"error":"no_match","message":"no configured mapping for model \"gpt-4\""}`))
+		_, _ = w.Write(
+			[]byte(`{"error":"no_match","message":"no configured mapping for model \"gpt-4\""}`),
+		)
 	})
 	handler := EventBusMiddleware(bus, errHandler)
 	rec := httptest.NewRecorder()
@@ -334,7 +336,11 @@ func TestEventBusMiddleware_PopulatesErrorFields(t *testing.T) {
 			t.Errorf("ErrorType = %q, want %q", ev.ErrorType, "no_match")
 		}
 		if ev.ErrorMessage != "no configured mapping for model \"gpt-4\"" {
-			t.Errorf("ErrorMessage = %q, want %q", ev.ErrorMessage, "no configured mapping for model \"gpt-4\"")
+			t.Errorf(
+				"ErrorMessage = %q, want %q",
+				ev.ErrorMessage,
+				"no configured mapping for model \"gpt-4\"",
+			)
 		}
 	case <-time.After(100 * time.Millisecond):
 		t.Fatal("timed out waiting for event")

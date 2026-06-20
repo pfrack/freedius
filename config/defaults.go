@@ -26,10 +26,11 @@ func (c *Config) applyDefaults() {
 		if p.DefaultAPIKeyEnv == "" {
 			p.DefaultAPIKeyEnv = defaults.DefaultAPIKeyEnv
 		}
-		if p.AnthropicVersion == "" {
-			p.AnthropicVersion = defaults.AnthropicVersion
-		}
 		p.RequireBaseURL = defaults.RequireBaseURL
+		// Static flag set at code-generation time. If a user overrides DefaultBaseURL
+		// to a /v1/messages-suffixed URL on a mix provider whose generated
+		// SupportsCountTokens is false, the dispatcher will use local counting even
+		// though MixAdapter would route /v1/messages/count_tokens upstream.
 		p.SupportsCountTokens = defaults.SupportsCountTokens
 		c.Providers[name] = p
 	}

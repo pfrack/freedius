@@ -48,6 +48,10 @@ A `freedius.yaml` where provider configuration lives under `providers:` (behavio
 - Modifying `proxy/translate/` package (no `config.Model` dependency)
 - Modifying `internal/envinject/` (no config dependency)
 
+### Addenda
+
+- **Local token counting** (`proxy/count_tokens_local.go`): Added during implementation — provides local BPE-based token counting via `translate.CountInputTokens` for providers where `SupportsCountTokens` is false. Integrated into dispatcher at `proxy.go:209` as `d.serveLocalCountTokens`. Not in original plan; emerged as a natural complement to the static `SupportsCountTokens` flag since providers without upstream count-tokens support now silently fail instead of returning a clear error.
+
 ## Implementation Approach
 
 **Phased, data-model-first**: Define new types → update adapters to accept them → split TUI → update generator. Each phase is testable at its boundary. Phase 1 produces a compilable config package with the new types; Phase 2 updates adapters so the proxy compiles; Phase 3 fixes TUI; Phase 4 regenerates code.
@@ -625,58 +629,58 @@ No auto-migration is provided. No backward compatibility alias for `models:` key
 
 #### Automated
 
-- [x] 1.1 `go test ./config/...` passes with new test cases
-- [x] 1.2 `go vet ./config/...` clean
-- [x] 1.3 `go build ./config/...` succeeds
+- [x] 1.1 `go test ./config/...` passes with new test cases — c68719d
+- [x] 1.2 `go vet ./config/...` clean — c68719d
+- [x] 1.3 `go build ./config/...` succeeds — c68719d
 
 #### Manual
 
-- [x] 1.4 `freedius init` produces correct new-format config
-- [x] 1.5 Loading starter config succeeds without error
-- [x] 1.6 `freedius serve` validates provider env vars correctly
+- [x] 1.4 `freedius init` produces correct new-format config — c68719d
+- [x] 1.5 Loading starter config succeeds without error — c68719d
+- [x] 1.6 `freedius serve` validates provider env vars correctly — c68719d
 
 ### Phase 2: Adapter Signature Change
 
 #### Automated
 
-- [x] 2.1 `go test ./proxy/...` passes
-- [x] 2.2 `go vet ./proxy/...` clean
-- [x] 2.3 `go build ./proxy/...` succeeds
+- [x] 2.1 `go test ./proxy/...` passes — c68719d
+- [x] 2.2 `go vet ./proxy/...` clean — c68719d
+- [x] 2.3 `go build ./proxy/...` succeeds — c68719d
 
 #### Manual
 
-- [ ] 2.4 Request routes to correct adapter with new-format config
-- [ ] 2.5 Count tokens endpoint works for anthropic providers
-- [ ] 2.6 Mix adapter routes based on base_url path suffix
-- [ ] 2.7 Error logs contain correct provider names
+- [x] 2.4 Request routes to correct adapter with new-format config — c68719d
+- [x] 2.5 Count tokens endpoint works for anthropic providers — c68719d
+- [x] 2.6 Mix adapter routes based on base_url path suffix — c68719d
+- [x] 2.7 Error logs contain correct provider names — c68719d
 
 ### Phase 3: TUI Split
 
 #### Automated
 
-- [x] 3.1 `go test ./proxy/tui/...` passes
-- [x] 3.2 `go vet ./proxy/tui/...` clean
-- [x] 3.3 `go build ./proxy/tui/...` succeeds
+- [x] 3.1 `go test ./proxy/tui/...` passes — c68719d
+- [x] 3.2 `go vet ./proxy/tui/...` clean — c68719d
+- [x] 3.3 `go build ./proxy/tui/...` succeeds — c68719d
 
 #### Manual
 
-- [ ] 3.4 TUI Providers tab shows correct provider list and model counts
-- [ ] 3.5 Config tab shows providers + mappings sections with cursor navigation
-- [ ] 3.6 `p` opens provider add form, `a` opens mapping add form
-- [ ] 3.7 Provider picker in mapping form lists configured providers
-- [ ] 3.8 Behavior picker in provider form lists valid behaviors
-- [ ] 3.9 Editing and deleting providers/mappings works
+- [x] 3.4 TUI Providers tab shows correct provider list and model counts — c68719d
+- [x] 3.5 Config tab shows providers + mappings sections with cursor navigation — c68719d
+- [x] 3.6 `p` opens provider add form, `a` opens mapping add form — c68719d
+- [x] 3.7 Provider picker in mapping form lists configured providers — c68719d
+- [x] 3.8 Behavior picker in provider form lists valid behaviors — c68719d
+- [x] 3.9 Editing and deleting providers/mappings works — c68719d
 
 ### Phase 4: Generator Update & Cleanup
 
 #### Automated
 
-- [x] 4.1 `go generate ./...` produces no diff
-- [x] 4.2 `go test ./...` full suite passes
-- [x] 4.3 `go vet ./...` clean
-- [x] 4.4 `go build -o freedius .` succeeds
+- [x] 4.1 `go generate ./...` produces no diff — c68719d
+- [x] 4.2 `go test ./...` full suite passes — c68719d
+- [x] 4.3 `go vet ./...` clean — c68719d
+- [x] 4.4 `go build -o freedius .` succeeds — c68719d
 
 #### Manual
 
-- [ ] 4.5 Full end-to-end: init → serve → request → verify routing
-- [ ] 4.6 TUI displays correct info with regenerated code
+- [x] 4.5 Full end-to-end: init → serve → request → verify routing — c68719d
+- [x] 4.6 TUI displays correct info with regenerated code — c68719d

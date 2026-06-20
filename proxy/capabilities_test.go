@@ -3,8 +3,6 @@ package proxy
 import (
 	"net/url"
 	"testing"
-
-	"github.com/pfrack/freedius/config"
 )
 
 func TestIsCountTokensPath(t *testing.T) {
@@ -66,53 +64,5 @@ func TestIsCountTokensPathIgnoresQuery(t *testing.T) {
 	}
 	if !isCountTokensPath(parsed.Path) {
 		t.Errorf("isCountTokensPath(%q) = false, want true (query is in RawQuery)", parsed.Path)
-	}
-}
-
-func TestSupportsCountTokens(t *testing.T) {
-	// supportsCountTokens is now a one-line read of Provider.SupportsCountTokens
-	// (set at config-load time by applyDefaults from generated providerDefaults).
-	// Behavior at request time is governed by the provider's runtime flag.
-	tests := []struct {
-		name string
-		p    config.Provider
-		want bool
-	}{
-		{
-			name: "anthropic behavior with SupportsCountTokens true",
-			p:    config.Provider{Behavior: "anthropic", SupportsCountTokens: true},
-			want: true,
-		},
-		{
-			name: "openai behavior with SupportsCountTokens false",
-			p:    config.Provider{Behavior: "openai", SupportsCountTokens: false},
-			want: false,
-		},
-		{
-			name: "mix behavior with SupportsCountTokens true (set by applyDefaults when base_url path is /v1/messages)",
-			p:    config.Provider{Behavior: "mix", DefaultBaseURL: "https://x/v1/messages", SupportsCountTokens: true},
-			want: true,
-		},
-		{
-			name: "mix behavior with SupportsCountTokens false (set by applyDefaults when base_url path is /v1/chat/completions)",
-			p: config.Provider{
-				Behavior:            "mix",
-				DefaultBaseURL:      "https://x/v1/chat/completions",
-				SupportsCountTokens: false,
-			},
-			want: false,
-		},
-		{
-			name: "empty provider",
-			p:    config.Provider{},
-			want: false,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := supportsCountTokens(tt.p); got != tt.want {
-				t.Errorf("supportsCountTokens(%+v) = %v, want %v", tt.p, got, tt.want)
-			}
-		})
 	}
 }

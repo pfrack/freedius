@@ -340,7 +340,11 @@ func TestMixAdapter_URLAuthPathSniff(t *testing.T) {
 
 	a := newMixAdapter(t)
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader([]byte(`{"model":"x"}`)))
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/v1/messages",
+		bytes.NewReader([]byte(`{"model":"x"}`)),
+	)
 	err := a.Handle(rec, req, config.Provider{
 		Behavior:         "mix",
 		DefaultBaseURL:   upstream.URL + "/v1/messages",
@@ -401,7 +405,10 @@ func TestMixAdapter_URLOpenAIPathSniff(t *testing.T) {
 		t.Errorf("status: got %d, want %d", rec.Code, http.StatusOK)
 	}
 	if !strings.Contains(rec.Body.String(), "event: message_start") {
-		t.Errorf("body should contain Anthropic SSE (translated from OpenAI), got %q", rec.Body.String())
+		t.Errorf(
+			"body should contain Anthropic SSE (translated from OpenAI), got %q",
+			rec.Body.String(),
+		)
 	}
 }
 

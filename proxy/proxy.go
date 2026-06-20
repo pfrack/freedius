@@ -186,7 +186,10 @@ func (d *Dispatcher) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			r,
 			http.StatusInternalServerError,
 			"provider_not_registered",
-			fmt.Sprintf("provider %q is not registered in this freedius build", mapping.ProviderName),
+			fmt.Sprintf(
+				"provider %q is not registered in this freedius build",
+				mapping.ProviderName,
+			),
 		)
 		return
 	}
@@ -202,16 +205,12 @@ func (d *Dispatcher) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"target_model",
 		mapping.ModelString,
 	)
-	if isCountTokensPath(r.URL.Path) {
-		w.Header().Set("X-Freedius-Matched-Provider", mapping.ProviderName)
-		w.Header().Set("X-Freedius-Matched-Model", mapping.ModelString)
-		if !provider.SupportsCountTokens {
-			d.serveLocalCountTokens(w, r, mapping, body)
-			return
-		}
-	}
 	w.Header().Set("X-Freedius-Matched-Provider", mapping.ProviderName)
 	w.Header().Set("X-Freedius-Matched-Model", mapping.ModelString)
+	if isCountTokensPath(r.URL.Path) && !provider.SupportsCountTokens {
+		d.serveLocalCountTokens(w, r, mapping, body)
+		return
+	}
 
 	adapter, ok := d.Registry.Lookup(provider.Behavior)
 	if !ok {
@@ -511,7 +510,7 @@ func extractModelFromBody(r *http.Request) string {
 	if r.Body == nil {
 		return ""
 	}
-	bodyBytes, err := io.ReadAll(r.Body)
+	bodyBytes, err := io.ReadAll(io.LimitReader(r.Body, MaxBodyBytes))
 	_ = r.Body.Close()
 	if err != nil {
 		r.Body = http.NoBody

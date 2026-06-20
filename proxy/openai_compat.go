@@ -65,7 +65,10 @@ func (a *OpenAICompatibleAdapter) Handle(
 ) error {
 	if provider.DefaultBaseURL == "" {
 		return &configError{
-			err:     fmt.Errorf("%s adapter (openai-compat): missing base_url", mapping.ProviderName),
+			err: fmt.Errorf(
+				"%s adapter (openai-compat): missing base_url",
+				mapping.ProviderName,
+			),
 			errType: "invalid_request_error",
 		}
 	}
@@ -83,7 +86,11 @@ func (a *OpenAICompatibleAdapter) Handle(
 	upstreamBody, err := translate.Request(body, mapping.ModelString, a.translateOpts)
 	if err != nil {
 		return &configError{
-			err:     fmt.Errorf("%s adapter (openai-compat): translate request: %w", mapping.ProviderName, err),
+			err: fmt.Errorf(
+				"%s adapter (openai-compat): translate request: %w",
+				mapping.ProviderName,
+				err,
+			),
 			errType: "invalid_request_error",
 		}
 	}
@@ -91,7 +98,11 @@ func (a *OpenAICompatibleAdapter) Handle(
 		upstreamBody, err = a.preSendHook(upstreamBody)
 		if err != nil {
 			return &configError{
-				err:     fmt.Errorf("%s adapter (openai-compat): sanitize body: %w", mapping.ProviderName, err),
+				err: fmt.Errorf(
+					"%s adapter (openai-compat): sanitize body: %w",
+					mapping.ProviderName,
+					err,
+				),
 				errType: "invalid_request_error",
 			}
 		}
@@ -108,7 +119,11 @@ func (a *OpenAICompatibleAdapter) Handle(
 	)
 	if err != nil {
 		return &configError{
-			err:     fmt.Errorf("%s adapter (openai-compat): build request: %w", mapping.ProviderName, err),
+			err: fmt.Errorf(
+				"%s adapter (openai-compat): build request: %w",
+				mapping.ProviderName,
+				err,
+			),
 			errType: "invalid_request_error",
 		}
 	}

@@ -679,7 +679,10 @@ func TestServeHTTPCountTokens(t *testing.T) {
 			if tt.wantAdapterNotCalled {
 				for providerName, p := range tt.registeredMocks {
 					if rp, ok := p.(*recordingProvider); ok && rp.called {
-						t.Errorf("adapter %q was invoked; the local counter must short-circuit dispatch", providerName)
+						t.Errorf(
+							"adapter %q was invoked; the local counter must short-circuit dispatch",
+							providerName,
+						)
 					}
 				}
 			}

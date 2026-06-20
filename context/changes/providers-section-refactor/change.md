@@ -2,7 +2,7 @@
 
 - **created**: 2026-06-19
 - **updated**: 2026-06-20
-- **status**: implementing
+- **status**: impl_reviewed
 - **research_complete**: true
 - **plan_complete**: true
 - **tags**: [config, providers, mappings, refactor, tui, breaking-change]
