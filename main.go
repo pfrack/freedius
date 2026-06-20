@@ -355,6 +355,9 @@ func newMux(httpHandler http.Handler) *http.ServeMux {
 			if r.URL.Path == "/" && (r.Method == http.MethodGet || r.Method == http.MethodHead) {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusOK)
+				if r.Method == http.MethodGet {
+					_, _ = w.Write([]byte(`{"status":"ok"}`))
+				}
 				return
 			}
 			next.ServeHTTP(w, r)
