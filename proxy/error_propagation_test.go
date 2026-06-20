@@ -30,7 +30,7 @@ func TestOpenAICompat_Upstream429_ReturnsAnthropicFormat(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 
 	err := a.Handle(rec, req, config.Provider{
-		Behavior: "openai",
+		Behavior:       "openai",
 		DefaultBaseURL: upstream.URL, DefaultAPIKeyEnv: "TEST_API_KEY",
 	}, config.Mapping{ProviderName: "nim", ModelString: "x"}, body)
 	if err != nil {
@@ -84,7 +84,7 @@ func TestOpenAICompat_Timeout_ReturnsAnthropicOverloaded(t *testing.T) {
 	// (errors_test.go). This test only proves the adapter times out and
 	// surfaces the error to the caller.
 	err := a.Handle(rec, req, config.Provider{
-		Behavior: "openai",
+		Behavior:       "openai",
 		DefaultBaseURL: upstream.URL, DefaultAPIKeyEnv: "TEST_API_KEY",
 	}, config.Mapping{ProviderName: "nim", ModelString: "x"}, body)
 	if err == nil {

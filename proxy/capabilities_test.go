@@ -95,7 +95,11 @@ func TestSupportsCountTokens(t *testing.T) {
 		},
 		{
 			name: "mix behavior with SupportsCountTokens false (set by applyDefaults when base_url path is /v1/chat/completions)",
-			p:    config.Provider{Behavior: "mix", DefaultBaseURL: "https://x/v1/chat/completions", SupportsCountTokens: false},
+			p: config.Provider{
+				Behavior:            "mix",
+				DefaultBaseURL:      "https://x/v1/chat/completions",
+				SupportsCountTokens: false,
+			},
 			want: false,
 		},
 		{

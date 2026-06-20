@@ -250,7 +250,7 @@ func TestServeHTTPModelsWinsOverMappings(t *testing.T) {
 			"nim": {Behavior: "openai", DefaultAPIKeyEnv: "NVIDIA_NIM_API_KEY"},
 		},
 		Mappings: map[string]config.Mapping{
-			"shared-key":     {ProviderName: "nim", ModelString: "from-mappings"},
+			"shared-key":      {ProviderName: "nim", ModelString: "from-mappings"},
 			"shared-key-name": {ProviderName: "nim", ModelString: "from-models"},
 		},
 	}
@@ -416,8 +416,8 @@ func TestServeHTTPFamilyMatchWinsOverUnrelatedExact(t *testing.T) {
 			"nim": {Behavior: "openai", DefaultAPIKeyEnv: "NVIDIA_NIM_API_KEY"},
 		},
 		Mappings: map[string]config.Mapping{
-			"sonnet":          {ProviderName: "nim", ModelString: "exact-match"},
-			"opus":            {ProviderName: "nim", ModelString: "family-match"},
+			"sonnet": {ProviderName: "nim", ModelString: "exact-match"},
+			"opus":   {ProviderName: "nim", ModelString: "family-match"},
 		},
 	}
 	t.Setenv("NVIDIA_NIM_API_KEY", "k1")
@@ -458,8 +458,8 @@ func (m *mockProvider) Handle(
 }
 
 type recordingProvider struct {
-	called    bool
-	modelStr  string
+	called   bool
+	modelStr string
 }
 
 func (r *recordingProvider) Handle(
@@ -505,8 +505,8 @@ func TestServeHTTPCountTokens(t *testing.T) {
 		wantInputTokensGTZero bool
 	}{
 		{
-			name:  "anthropic provider + count_tokens path -> success (pass-through)",
-			path:  "/v1/messages/count_tokens",
+			name: "anthropic provider + count_tokens path -> success (pass-through)",
+			path: "/v1/messages/count_tokens",
 			provider: config.Provider{
 				Behavior:            anthropicBehavior,
 				SupportsCountTokens: true,
@@ -525,8 +525,8 @@ func TestServeHTTPCountTokens(t *testing.T) {
 			},
 		},
 		{
-			name:  "nim provider + count_tokens path -> local counter (200)",
-			path:  "/v1/messages/count_tokens",
+			name: "nim provider + count_tokens path -> local counter (200)",
+			path: "/v1/messages/count_tokens",
 			provider: config.Provider{
 				Behavior:            nimBehavior,
 				SupportsCountTokens: false,
@@ -592,8 +592,8 @@ func TestServeHTTPCountTokens(t *testing.T) {
 			wantInputTokensGTZero: true,
 		},
 		{
-			name:  "regular /v1/messages + nim -> success (regression)",
-			path:  "/v1/messages",
+			name: "regular /v1/messages + nim -> success (regression)",
+			path: "/v1/messages",
 			provider: config.Provider{
 				Behavior:            nimBehavior,
 				SupportsCountTokens: false,

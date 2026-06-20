@@ -10,7 +10,11 @@ import (
 
 func TestProviderPicker_Selection(t *testing.T) {
 	providers := map[string]config.Provider{
-		"nim":  {Behavior: "openai", DefaultBaseURL: "https://x/v1/chat/completions", DefaultAPIKeyEnv: "NVIDIA_NIM_API_KEY"},
+		"nim": {
+			Behavior:         "openai",
+			DefaultBaseURL:   "https://x/v1/chat/completions",
+			DefaultAPIKeyEnv: "NVIDIA_NIM_API_KEY",
+		},
 		"zen":  {Behavior: "mix"},
 		"anth": {Behavior: "anthropic"},
 	}
