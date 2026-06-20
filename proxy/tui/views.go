@@ -167,6 +167,9 @@ func renderStatsBar(stats statsData, width int) string {
 		" uptime: %s │ requests: %d │ errors: %d │ error rate: %s ",
 		uptime, total, errors, errRate,
 	)
+	if stats.message != "" {
+		line = line + "│ " + stats.message + " "
+	}
 	if len(line) < width {
 		line += strings.Repeat(" ", width-len(line))
 	}

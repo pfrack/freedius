@@ -2,6 +2,7 @@ package tui
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -689,4 +690,92 @@ func stripANSI(s string) string {
 		}
 	}
 	return b.String()
+}
+
+func TestDashboard_CtrlETogglesVerboseErrors(t *testing.T) {
+	d := NewDashboard(nil, nil, nil, nil, "", "127.0.0.1", 8082, false)
+	if d.verboseErrors {
+		t.Fatal("initial verboseErrors should be false")
+	}
+
+	d.Update(tea.KeyPressMsg{Code: 'e', Mod: tea.ModCtrl})
+	if !d.verboseErrors {
+		t.Error("expected verboseErrors=true after first Ctrl+E")
+	}
+	if d.stats.message != "Verbose errors: ON" {
+		t.Errorf("expected ON message, got %q", d.stats.message)
+	}
+
+	d.Update(tea.KeyPressMsg{Code: 'e', Mod: tea.ModCtrl})
+	if d.verboseErrors {
+		t.Error("expected verboseErrors=false after second Ctrl+E")
+	}
+	if d.stats.message != "Verbose errors: OFF" {
+		t.Errorf("expected OFF message, got %q", d.stats.message)
+	}
+}
+
+func TestDashboard_CtrlEUpdatesDispatcher(t *testing.T) {
+	d := NewDashboard(nil, nil, nil, nil, "", "127.0.0.1", 8082, false)
+	d.dispatcher = &proxy.Dispatcher{VerboseErrors: false}
+
+	d.Update(tea.KeyPressMsg{Code: 'e', Mod: tea.ModCtrl})
+	if !d.dispatcher.VerboseErrors {
+		t.Error("dispatcher.VerboseErrors should be true after Ctrl+E")
+	}
+}
+
+func TestDashboard_CtrlSOutsideConfigNoOp(t *testing.T) {
+	d := NewDashboard(nil, nil, nil, nil, "", "127.0.0.1", 8082, false)
+	d.activeTab = tabLog
+	d.stats.message = "previous"
+
+	d.Update(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
+	if d.stats.message != "previous" {
+		t.Errorf("Ctrl+S outside Config tab should not change status message, got %q", d.stats.message)
+	}
+}
+
+func TestDashboard_CtrlSInConfigInstallsShellRC(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+	t.Setenv("SHELL", "/bin/zsh")
+
+	d := NewDashboard(nil, nil, nil, nil, "", "127.0.0.1", 8082, false)
+	d.activeTab = tabConfig
+	d.Update(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
+
+	if !strings.Contains(d.stats.message, "Shell RC updated") {
+		t.Errorf("expected success message, got %q", d.stats.message)
+	}
+	rcPath := filepath.Join(dir, ".zshrc")
+	if _, err := os.Stat(rcPath); err != nil {
+		t.Errorf(".zshrc should have been written, got: %v", err)
+	}
+}
+
+func TestDashboard_CtrlSAlreadyInstalledShowsError(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+	t.Setenv("SHELL", "/bin/zsh")
+
+	d := NewDashboard(nil, nil, nil, nil, "", "127.0.0.1", 8082, false)
+	d.activeTab = tabConfig
+	d.Update(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
+	// Second install should fail (already installed; force=false).
+	d.Update(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
+
+	if !strings.Contains(d.stats.message, "Shell install failed") {
+		t.Errorf("expected failure message on second install, got %q", d.stats.message)
+	}
+}
+
+func TestDashboard_RequestEventClearsStatusMessage(t *testing.T) {
+	d := NewDashboard(nil, nil, nil, nil, "", "127.0.0.1", 8082, false)
+	d.stats.message = "Shell RC updated ✓"
+
+	d.Update(requestEventMsg(proxy.RequestEvent{Status: 200}))
+	if d.stats.message != "" {
+		t.Errorf("status message should clear on next event, got %q", d.stats.message)
+	}
 }

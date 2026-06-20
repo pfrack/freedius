@@ -608,8 +608,8 @@ Remove leftover code, tests, and targets from the removed subcommand architectur
 
 #### Automated
 
-- [x] 4.1 `go test ./...` passes
-- [x] 4.2 `go build ./...` succeeds
+- [x] 4.1 `go test ./...` passes — 46f8edf
+- [x] 4.2 `go build ./...` succeeds — 46f8edf
 
 #### Manual
 
@@ -622,9 +622,9 @@ Remove leftover code, tests, and targets from the removed subcommand architectur
 
 #### Automated
 
-- [ ] 5.1 `go build ./...` succeeds
-- [ ] 5.2 `go test ./...` passes
-- [ ] 5.3 `go vet ./...` clean
+- [x] 5.1 `go build ./...` succeeds
+- [x] 5.2 `go test ./...` passes
+- [x] 5.3 `go vet ./...` clean
 
 #### Manual
 

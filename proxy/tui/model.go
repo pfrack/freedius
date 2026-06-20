@@ -6,6 +6,7 @@ package tui
 import (
 	"fmt"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/pfrack/freedius/config"
+	"github.com/pfrack/freedius/internal/envinject"
 	"github.com/pfrack/freedius/proxy"
 )
 
@@ -23,6 +25,7 @@ type statsData struct {
 	startTime     time.Time
 	totalRequests int
 	errorCount    int
+	message       string
 }
 
 type ringBuffer struct {
@@ -190,9 +193,27 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if ev.Status >= 400 {
 			d.stats.errorCount++
 		}
+		d.stats.message = ""
 		return d, waitForEvent(d.events)
 	}
 	return d, nil
+}
+
+func (d *Dashboard) installShellRC() {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		d.stats.message = fmt.Sprintf("Shell install failed: %v", err)
+		return
+	}
+	shell := os.Getenv("SHELL")
+	// WriteShellRC returns ("<path>", nil) on success; on already-installed it
+	// returns the path with an error so the caller can decide. We treat any
+	// non-nil error as a status-bar message regardless of path.
+	if _, err := envinject.WriteShellRC(home, shell, d.host, d.port, false, false); err != nil {
+		d.stats.message = fmt.Sprintf("Shell install failed: %v", err)
+		return
+	}
+	d.stats.message = "Shell RC updated ✓"
 }
 
 func (d *Dashboard) handleTabModeKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
@@ -257,6 +278,23 @@ func (d *Dashboard) handleTabModeKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.C
 				d.formMode = formDeleteConfirm
 			}
 		}
+		return d, nil
+	case "ctrl+e":
+		d.verboseErrors = !d.verboseErrors
+		if d.dispatcher != nil {
+			d.dispatcher.VerboseErrors = d.verboseErrors
+		}
+		if d.verboseErrors {
+			d.stats.message = "Verbose errors: ON"
+		} else {
+			d.stats.message = "Verbose errors: OFF"
+		}
+		return d, nil
+	case "ctrl+s":
+		if d.activeTab != tabConfig {
+			return d, nil
+		}
+		d.installShellRC()
 		return d, nil
 	}
 	return d, nil
