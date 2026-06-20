@@ -637,19 +637,21 @@ func TestLogRingBuffer(t *testing.T) {
 }
 
 func TestRenderLogTab_Empty(t *testing.T) {
-	out := stripANSI(renderLogTab(nil, 80, 24, 0, filterAll))
+	s := NewStyles(DefaultPalette(), true)
+	out := stripANSI(renderLogTab(nil, 80, 24, 0, filterAll, s))
 	if !strings.Contains(out, "No log entries yet") {
 		t.Errorf("expected empty-state message, got: %s", out)
 	}
 }
 
 func TestRenderLogTab_RendersLogLines(t *testing.T) {
+	s := NewStyles(DefaultPalette(), true)
 	entries := []proxy.LogEntry{
 		{Level: slog.LevelInfo, Line: "line1"},
 		{Level: slog.LevelWarn, Line: "line2"},
 		{Level: slog.LevelError, Line: "line3"},
 	}
-	out := renderLogTab(entries, 80, 24, 0, filterAll)
+	out := renderLogTab(entries, 80, 24, 0, filterAll, s)
 	for _, want := range []string{"line1", "line2", "line3"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("renderLogTab missing %q\nfull output:\n%s", want, out)
@@ -657,23 +659,32 @@ func TestRenderLogTab_RendersLogLines(t *testing.T) {
 	}
 }
 
-func TestRenderLogTab_NoStyling(t *testing.T) {
+func TestRenderLogTab_LevelStyling(t *testing.T) {
+	s := NewStyles(DefaultPalette(), true)
 	entries := []proxy.LogEntry{
-		{Level: slog.LevelInfo, Line: "plain text line"},
+		{Level: slog.LevelInfo, Line: "info line"},
+		{Level: slog.LevelError, Line: "error line"},
+		{Level: slog.LevelDebug, Line: "debug line"},
 	}
-	out := renderLogTab(entries, 80, 24, 0, filterAll)
+	out := renderLogTab(entries, 80, 24, 0, filterAll, s)
+	for _, want := range []string{"info line", "error line", "debug line"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("renderLogTab missing %q\nfull output:\n%s", want, out)
+		}
+	}
 	cleaned := stripANSI(out)
-	if cleaned != out {
-		t.Errorf("expected no ANSI escapes in output, got: %q", out)
+	if cleaned == out {
+		t.Error("expected some ANSI escapes (log level coloring), got none")
 	}
 }
 
 func TestRenderLogTab_AppliesFilter(t *testing.T) {
+	s := NewStyles(DefaultPalette(), true)
 	entries := []proxy.LogEntry{
 		{Level: slog.LevelDebug, Line: "debug line"},
 		{Level: slog.LevelError, Line: "error line"},
 	}
-	out := renderLogTab(entries, 80, 24, 0, filterError)
+	out := renderLogTab(entries, 80, 24, 0, filterError, s)
 	if strings.Contains(out, "debug line") {
 		t.Errorf("filter=error should hide debug line, got:\n%s", out)
 	}

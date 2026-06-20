@@ -52,6 +52,8 @@ type Styles struct {
 	ShortcutKeyStyle         lipgloss.Style
 	ShortcutDescStyle        lipgloss.Style
 	OverlayBgStyle           lipgloss.Style
+	LogInfoStyle             lipgloss.Style
+	LogDebugStyle            lipgloss.Style
 }
 
 // DefaultPalette returns the palette that reproduces the original hard-coded
@@ -134,17 +136,19 @@ func NewStyles(p Palette, isDark bool) Styles {
 		ActiveTabStyle: lipgloss.NewStyle().
 			Bold(true).
 			Underline(true).
-			Padding(0, 1),
+			Padding(0, 1).
+			Foreground(fn(p.Accent.Light, p.Accent.Dark)),
 		InactiveTabStyle: lipgloss.NewStyle().
 			Faint(true).
-			Padding(0, 1),
+			Padding(0, 1).
+			Foreground(fn(p.Muted.Light, p.Muted.Dark)),
 		StatusClientErrStyle: lipgloss.NewStyle().
 			Foreground(fn(p.Warning.Light, p.Warning.Dark)),
 		StatusErrorStyle: lipgloss.NewStyle().
 			Foreground(fn(p.Error.Light, p.Error.Dark)),
 		StatsBarStyle: lipgloss.NewStyle().
-			Reverse(true).
-			Padding(0, 1),
+			Padding(0, 1).
+			Background(fn(p.Accent.Light, p.Accent.Dark)),
 		TabBarStyle: lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder(), false, false, true, false).
 			BorderForeground(fn(p.Border.Light, p.Border.Dark)),
@@ -152,11 +156,14 @@ func NewStyles(p Palette, isDark bool) Styles {
 			Padding(0, 1),
 		ProviderTableHeaderStyle: lipgloss.NewStyle().
 			Bold(true).
-			Underline(true),
+			Underline(true).
+			Foreground(fn(p.Accent.Light, p.Accent.Dark)),
 		ConfigKeyStyle: lipgloss.NewStyle().
-			Bold(true),
+			Bold(true).
+			Foreground(fn(p.Accent.Light, p.Accent.Dark)),
 		ConfigValueStyle: lipgloss.NewStyle().
-			Faint(true),
+			Faint(true).
+			Foreground(fn(p.Muted.Light, p.Muted.Dark)),
 		SeparatorStyle: lipgloss.NewStyle().
 			Foreground(fn(p.Border.Light, p.Border.Dark)),
 		ModalStyle: lipgloss.NewStyle().
@@ -177,6 +184,11 @@ func NewStyles(p Palette, isDark bool) Styles {
 			Foreground(fn(p.Muted.Light, p.Muted.Dark)),
 		OverlayBgStyle: lipgloss.NewStyle().
 			Background(fn(p.Background.Light, p.Background.Dark)),
+		LogInfoStyle: lipgloss.NewStyle().
+			Foreground(fn(p.KeyCap.Light, p.KeyCap.Dark)),
+		LogDebugStyle: lipgloss.NewStyle().
+			Foreground(fn(p.Muted.Light, p.Muted.Dark)).
+			Faint(true),
 	}
 }
 

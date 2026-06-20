@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"log/slog"
 	"sort"
 	"strings"
 	"time"
@@ -30,7 +31,7 @@ func renderTabs(active int, width int, level LogFilter, styles Styles) string {
 	return styles.TabBarStyle.Width(max(width-2, 0)).Render(joined)
 }
 
-func renderLogTab(entries []proxy.LogEntry, _ int, height, scroll int, filter LogFilter) string {
+func renderLogTab(entries []proxy.LogEntry, _ int, height, scroll int, filter LogFilter, styles Styles) string {
 	if len(entries) == 0 {
 		return "No log entries yet..."
 	}
@@ -57,7 +58,18 @@ func renderLogTab(entries []proxy.LogEntry, _ int, height, scroll int, filter Lo
 		if !filter.Matches(e.Level) {
 			continue
 		}
-		b.WriteString(e.Line + "\n")
+		var styled string
+		switch {
+		case e.Level >= slog.LevelError:
+			styled = styles.StatusErrorStyle.Render(e.Line)
+		case e.Level >= slog.LevelWarn:
+			styled = styles.StatusClientErrStyle.Render(e.Line)
+		case e.Level >= slog.LevelInfo:
+			styled = styles.LogInfoStyle.Render(e.Line)
+		default: // Debug
+			styled = styles.LogDebugStyle.Render(e.Line)
+		}
+		b.WriteString(styled + "\n")
 	}
 	return b.String()
 }

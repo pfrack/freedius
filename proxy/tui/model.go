@@ -550,7 +550,7 @@ func (d *Dashboard) View() tea.View {
 		d.styleBody = d.activeTab != tabLog
 		switch d.activeTab {
 		case tabLog:
-			content = renderLogTab(d.logBuffer.all(), width, bodyHeight, d.logScroll, d.currentLogLevel)
+			content = renderLogTab(d.logBuffer.all(), width, bodyHeight, d.logScroll, d.currentLogLevel, d.styles)
 		case tabProviders:
 			content = renderProvidersTab(d.config, width, bodyHeight, d.providerScroll, d.styles)
 		case tabConfig:

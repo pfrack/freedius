@@ -326,9 +326,9 @@ If `cfg.Theme` is empty string, `resolveTheme("")` in `NewDashboard` returns `De
 
 #### Automated
 
-- [x] 2.1 `go vet ./proxy/tui/` passes
-- [x] 2.2 `go test ./...` passes
-- [x] 2.3 `go build ./...` succeeds
+- [x] 2.1 `go vet ./proxy/tui/` passes — e157c21
+- [x] 2.2 `go test ./...` passes — e157c21
+- [x] 2.3 `go build ./...` succeeds — e157c21
 
 #### Manual
 
