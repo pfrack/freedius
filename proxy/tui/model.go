@@ -230,8 +230,6 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			d.stats.errorCount++
 		}
 		d.stats.message = ""
-		// Auto-scroll to bottom on a fresh event.
-		d.logScroll = 0
 		return d, waitForEvent(d.events)
 
 	// --- Log entries ---

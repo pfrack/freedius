@@ -3,7 +3,9 @@ package proxy
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"log/slog"
+	"os"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -34,11 +36,17 @@ func NewLogSink(capacity int) *LogSink {
 
 // Subscribe returns the read-only channel that the TUI consumes from.
 func (s *LogSink) Subscribe() <-chan LogEntry {
+	if s == nil {
+		return nil
+	}
 	return s.ch
 }
 
 // Snapshot drains the channel non-blockingly and returns all buffered entries.
 func (s *LogSink) Snapshot() []LogEntry {
+	if s == nil {
+		return nil
+	}
 	out := make([]LogEntry, 0, cap(s.ch))
 	for {
 		select {
@@ -52,6 +60,9 @@ func (s *LogSink) Snapshot() []LogEntry {
 
 // EventCount returns the total number of log entries emitted (including drops).
 func (s *LogSink) EventCount() int64 {
+	if s == nil {
+		return 0
+	}
 	return s.emitted.Load()
 }
 
@@ -70,7 +81,7 @@ type ringHandler struct {
 // (stderr) and pushes pre-rendered text copies into sink.
 func NewRingHandler(inner slog.Handler, sink *LogSink) slog.Handler {
 	buf := new(bytes.Buffer)
-	formatH := slog.NewTextHandler(buf, &slog.HandlerOptions{Level: slog.LevelInfo})
+	formatH := slog.NewTextHandler(buf, &slog.HandlerOptions{Level: slog.LevelDebug})
 	return &ringHandler{
 		inner:     inner,
 		formatH:   formatH,
@@ -114,7 +125,7 @@ func (h *ringHandler) Handle(ctx context.Context, r slog.Record) error {
 		h.sink.overflow.Store(false)
 	default:
 		if !h.sink.overflow.Swap(true) {
-			slog.Warn("log sink overflow, dropping entries")
+			fmt.Fprintln(os.Stderr, "log sink overflow, dropping entries")
 		}
 	}
 
