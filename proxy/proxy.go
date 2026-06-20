@@ -541,8 +541,11 @@ func EventBusMiddleware(bus *EventBus, next http.Handler) http.Handler {
 }
 
 // extractModelFromBody reads the request body, extracts the "model" field from
-// the JSON payload, and recreates the body for downstream handlers. On any
-// error, it returns an empty string and the body is recreated for the caller.
+// the JSON payload, and recreates the body for downstream handlers. On a
+// read error, the body is left in its post-error state (closed, not re-seated)
+// so the dispatcher's own io.ReadAll returns the original error and produces
+// a "body_unreadable" 400 — the previous behavior set r.Body = http.NoBody
+// which masked the real failure as a misleading "empty body" error.
 func extractModelFromBody(r *http.Request) string {
 	if r.Body == nil {
 		return ""
@@ -550,7 +553,8 @@ func extractModelFromBody(r *http.Request) string {
 	bodyBytes, err := io.ReadAll(io.LimitReader(r.Body, MaxBodyBytes))
 	_ = r.Body.Close()
 	if err != nil {
-		r.Body = http.NoBody
+		// Don't re-seat the body; the dispatcher's read will return the
+		// same error and surface it correctly.
 		return ""
 	}
 	r.Body = io.NopCloser(bytes.NewReader(bodyBytes))
