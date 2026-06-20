@@ -804,6 +804,36 @@ func TestDashboard_RequestEventClearsStatusMessage(t *testing.T) {
 	}
 }
 
+func TestDashboard_Layout_StatsAboveTabs(t *testing.T) {
+	d := newTestDashboard(nil, "", 0, false)
+	d.width = 80
+	d.height = 24
+
+	out := stripANSI(viewContent(d.View()))
+
+	// Stats bar must appear before the tab bar.
+	statsIdx := strings.Index(out, "uptime:")
+	tabIdx := strings.Index(out, "[1] Log")
+	if statsIdx == -1 {
+		t.Fatal("expected uptime in stats bar")
+	}
+	if tabIdx == -1 {
+		t.Fatal("expected [1] Log in tab bar")
+	}
+	if statsIdx > tabIdx {
+		t.Error("stats bar should appear above tab bar, got stats at", statsIdx, "tab at", tabIdx)
+	}
+
+	// Tab bar must appear before body content.
+	bodyIdx := strings.Index(out, "No requests")
+	if bodyIdx == -1 {
+		t.Fatal("expected 'No requests' body content")
+	}
+	if tabIdx > bodyIdx {
+		t.Error("tab bar should appear above body content, got tab at", tabIdx, "body at", bodyIdx)
+	}
+}
+
 func viewContent(v tea.View) string {
 	return v.Content
 }

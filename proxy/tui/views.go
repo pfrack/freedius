@@ -367,7 +367,7 @@ func renderForm(d *Dashboard, width, _ int) string {
 	}
 
 	b.WriteString("\n")
-	footer := statusClientErrStyle.Render("Enter=Save  Esc=Cancel  Tab=Next Field  Ctrl+D=Delete")
+	footer := statusClientErrStyle.Render("Enter=Save  Esc=Cancel  Tab=Next Field")
 	b.WriteString("  " + footer)
 
 	content := b.String()
