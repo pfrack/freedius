@@ -1117,6 +1117,34 @@ func TestDashboard_CycleLogLevel(t *testing.T) {
 	}
 }
 
+func TestDashboard_CycleTheme(t *testing.T) {
+	d := newTestDashboard(nil, "", 0, false)
+
+	if d.currentTheme.Name != "default" {
+		t.Fatalf("initial theme = %q, want 'default'", d.currentTheme.Name)
+	}
+
+	d.cycleTheme()
+	if d.currentTheme.Name != "zenburn" {
+		t.Errorf("after cycle 1: Name = %q, want 'zenburn'", d.currentTheme.Name)
+	}
+
+	d.cycleTheme()
+	if d.currentTheme.Name != "gruvbox-dark" {
+		t.Errorf("after cycle 2: Name = %q, want 'gruvbox-dark'", d.currentTheme.Name)
+	}
+
+	d.cycleTheme()
+	if d.currentTheme.Name != "catppuccin-mocha" {
+		t.Errorf("after cycle 3: Name = %q, want 'catppuccin-mocha'", d.currentTheme.Name)
+	}
+
+	d.cycleTheme()
+	if d.currentTheme.Name != "default" {
+		t.Errorf("after cycle 4 (wrap): Name = %q, want 'default'", d.currentTheme.Name)
+	}
+}
+
 func TestDashboard_LKeyInTabMode(t *testing.T) {
 	d := newTestDashboard(nil, "", 0, false)
 	d.currentLogLevel = filterAll

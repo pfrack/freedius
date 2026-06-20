@@ -76,6 +76,7 @@ func DefaultTheme() Theme {
 	return Theme{Name: "default", Palette: DefaultPalette()}
 }
 
+// themeRegistry is immutable after init — do not append or reassign.
 var themeRegistry = []Theme{
 	DefaultTheme(),
 	{
