@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/pfrack/freedius/config"
+	"github.com/pfrack/freedius/proxy"
 )
 
 const minimalConfigYAML = "providers:\n" +
@@ -127,7 +128,7 @@ func TestCheckRequiredEnvVars_MappingDoesNotTriggerCheck(t *testing.T) {
 
 func TestNewLogger_JSONFormat(t *testing.T) {
 	var buf bytes.Buffer
-	logger, err := newLogger("json", &buf)
+	logger, err := newLogger("json", &buf, proxy.NewLogSink(10))
 	if err != nil {
 		t.Fatalf("newLogger(json): %v", err)
 	}
@@ -150,7 +151,7 @@ func TestNewLogger_JSONFormat(t *testing.T) {
 
 func TestNewLogger_TextFormat(t *testing.T) {
 	var buf bytes.Buffer
-	logger, err := newLogger("text", &buf)
+	logger, err := newLogger("text", &buf, proxy.NewLogSink(10))
 	if err != nil {
 		t.Fatalf("newLogger(text): %v", err)
 	}
@@ -167,7 +168,7 @@ func TestNewLogger_TextFormat(t *testing.T) {
 }
 
 func TestNewLogger_InvalidFormat(t *testing.T) {
-	_, err := newLogger("yaml", io.Discard)
+	_, err := newLogger("yaml", io.Discard, nil)
 	if err == nil {
 		t.Fatal("expected error for invalid log format")
 	}
@@ -214,8 +215,8 @@ func TestCheckRequiredEnvVars_ReferencesConfiguredProvider(t *testing.T) {
 }
 
 func TestRun_StartupBanner(t *testing.T) {
-	// Manual check 2.10: the "freedius starting" log line must appear before
-	// "listening on". Run via `go run` so we capture a fresh binary's stderr.
+	// The startup banner now goes to the TUI's log ring buffer, not stderr.
+	// Verify the process still attempts to start (bind error on privileged port).
 	dir := t.TempDir()
 	cfgPath := dir + "/freedius.yaml"
 	cfgBody := "providers:\n" +
@@ -230,10 +231,10 @@ func TestRun_StartupBanner(t *testing.T) {
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	cmd.Dir = "."
-	cmd.Run() // expected to fail (port 1 is privileged), but banner should be emitted
+	cmd.Run() // expected to fail (port 1 is privileged)
 	output := stderr.String()
-	if !strings.Contains(output, "freedius listening on") {
-		t.Errorf("startup banner 'freedius listening on' not found in stderr:\n%s", output)
+	if !strings.Contains(output, "bind") && !strings.Contains(output, "address already in use") {
+		t.Errorf("expected bind/address error on stderr, got:\n%s", output)
 	}
 }
 
@@ -345,11 +346,14 @@ func TestRun_NoArgsStartsProxy(t *testing.T) {
 	cmd.Dir = "."
 	cmd.Run() // expected to fail: port 1 privileged; the point is "freedius" alone starts proxy.
 	output := stderr.String()
-	if !strings.Contains(output, "freedius listening on") {
-		t.Errorf("expected startup banner with no subcommand, got:\n%s", output)
-	}
+	// The startup banner now goes to the TUI ring buffer, not stderr.
+	// Verify the process attempted to start by checking for the bind error
+	// and that no "unknown subcommand" error appeared.
 	if strings.Contains(output, "unknown subcommand") {
 		t.Errorf("should not print 'unknown subcommand' error, got:\n%s", output)
+	}
+	if !strings.Contains(output, "bind") && !strings.Contains(output, "address already in use") {
+		t.Errorf("expected bind/address error showing the proxy attempted to start, got:\n%s", output)
 	}
 }
 

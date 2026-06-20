@@ -6,10 +6,11 @@ Replace the Makefile with Mage — a Go-based build tool. Targets live in `magef
 
 ## Current State Analysis
 
-- `Makefile:1-36` — 12 targets, all thin wrappers around `go` commands and linters
-- `scripts/pre-commit:1-6` — calls `make lint`
-- `go.mod` — single dependency (`go-yaml`); production-only
-- Provider-codegen plan (`context/changes/provider-codegen/plan.md`) Phase 3 references adding a `generate-check` Makefile target — that plan will be updated to target Mage directly since this lands first
+- `Makefile:1-81` — 18 targets, all thin wrappers around `go` commands and linters
+- `scripts/pre-commit:1-7` — calls `make lint`
+- `go.mod` — production deps (bubbletea, lipgloss, go-yaml, tiktoken-go); `magefiles/go.mod` isolates the build dependency
+- `generate-check` already exists as a Makefile target and is part of the `ci` pipeline
+- The `ci` target runs `vet generate-check test build` (not lint); the CI workflow at `.github/workflows/ci.yml` runs raw `go` commands
 
 ## Desired End State
 
@@ -20,22 +21,24 @@ After this plan is complete:
 3. The Makefile is deleted
 4. `magefiles/` has its own `go.mod` — the main module stays production-deps-only
 5. The pre-commit hook calls `mage lint`
-6. Provider-codegen (S-05) plan references are updated from `make` to `mage`
+6. No Makefile remains anywhere in the repository
 
 Verification: `mage ci` passes. `mage -l` shows all targets.
 
 ### Key Discoveries:
 
+- The `generate-check` target already exists in the Makefile — it is NOT a future S-05 concern; it must be ported
+- The `ci` target composes `vet generate-check test build` — NOT `lint test build`; the lint targets are standalone
 - The empty-package guards (`if [ -n "$(PKGS)" ]`) are unnecessary in Go 1.26 — `./...` handles it
 - Mage's `mg.SerialDeps` replaces Make's dependency ordering for composite targets
 - The `magefiles/` directory with separate `go.mod` keeps mage out of the production dependency tree
 - The zero-install bootstrap (`go run mage.go <target>`) means no global `mage` binary required
+- Format targets (`format`, `format-changed`) are shell-intensive — use `sh.RunV` with Go `filepath.Walk` or pass shell commands directly
 
 ## What We're NOT Doing
 
 - Adding new build targets beyond what the Makefile currently has
-- Setting up CI workflow files (GitHub Actions) — that's a separate concern
-- Adding the `GenerateCheck` target — that belongs to provider-codegen (S-05)
+- Changing CI workflow files (`.github/workflows/ci.yml`) — already uses raw `go` commands, no Makefile dependency
 - Changing any runtime behavior of the application
 
 ## Implementation Approach
@@ -62,9 +65,34 @@ Create the `magefiles/` directory with its own Go module, port all Makefile targ
 
 **File**: `magefiles/mage.go`
 
-**Intent**: Port all 12 Makefile targets to Go functions with doc comments (which become `mage -l` help text).
+**Intent**: Port all 18 Makefile targets to Go functions with doc comments (which become `mage -l` help text).
 
-**Contract**: `//go:build mage` tag, `package main`. Exported functions: `Test`, `Vet`, `Build`, `Tidy`, `Run`, `LintStatic`, `LintGolangci`, `Lint`, `CI`, `ManualTest`, `InstallHooks`. `Lint` uses `mg.SerialDeps(Vet, LintStatic, LintGolangci)`. `CI` uses `mg.SerialDeps(Lint, Test, Build)`. `Run` reads `os.Args` after `--` for passthrough. `LintStatic` auto-installs staticcheck if missing (using `exec.LookPath` check). `InstallHooks` copies `scripts/pre-commit` to `.git/hooks/pre-commit` and chmods it.
+**Contract**: `//go:build mage` tag, `package main`. Exported functions:
+
+| Function | Equivalent Make target | Notes |
+|---|---|---|
+| `Test` | `test` | `go test -race -cover ./...` |
+| `Vet` | `vet` | `go vet ./...` |
+| `Build` | `build` | `go build -o freedius .` |
+| `GenerateCheck` | `generate-check` | `go generate ./... && git diff --exit-code -- '*.go'` |
+| `Tidy` | `tidy` | `go mod tidy` |
+| `Run` | `run` | `go run . $(ARGS)` — read `ARGS` env var for passthrough |
+| `Verbose` | `verbose` | `go run . --verbose-errors` |
+| `LintStatic` | `lint-static` | Auto-install staticcheck via `exec.LookPath` + `go install` |
+| `LintGolangci` | `lint-golangci` | Warn + exit if golangci-lint not found |
+| `Lint` | `lint` | `mg.SerialDeps(Vet, LintStatic, LintGolangci)` |
+| `CI` | `ci` | `mg.SerialDeps(Vet, GenerateCheck, Test, Build)` — matches actual Makefile composition |
+| `ManualTest` | `manual-test` | `sh.RunV("./test-manual.sh")` |
+| `InstallHooks` | `install-hooks` | Copy `scripts/pre-commit` to `.git/hooks/pre-commit`, chmod +x |
+| `InstallGoimports` | `install-goimports` | Auto-install via `go install golang.org/x/tools/cmd/goimports@latest` |
+| `InstallGolines` | `install-golines` | Auto-install via `go install github.com/segmentio/golines@latest` |
+| `InstallGci` | `install-gci` | Auto-install via `go install github.com/daixiang0/gci@latest` |
+| `Format` | `format` | Walk all `.go` files, run `gofmt` + `goimports` + `golines` + `gci` (see **Critical Detail** below) |
+| `FormatChanged` | `format-changed` | Same formatting pipeline, only on files changed vs HEAD + untracked |
+
+**Critical Detail — Format targets**: The formatters (`gofmt`, `goimports`, `golines`, `gci`) must run per-file with the `-w` flag. Since Mage targets are Go functions, use `filepath.Walk` and `os/exec` to pipe each file through the toolchain. The `GCI_SECTIONS` variable (`--skip-generated -s standard -s default -s "prefix(github.com/pfrack/freedius)" -s blank -s dot -s alias -s localmodule`) must be passed to `gci write`. `Format` calls `InstallGoimports`/`InstallGolines`/`InstallGci` first (via `mg.Deps`) then formats all files. `FormatChanged` uses `git diff --name-only` + `git ls-files --others --exclude-standard` to find Go files, then formats only those.
+
+`LintStatic` auto-installs staticcheck if missing (using `exec.LookPath` check). `LintGolangci` warns if golangci-lint is missing and exits (does NOT auto-install). `InstallHooks` copies `scripts/pre-commit` to `.git/hooks/pre-commit` and chmods it.
 
 #### 3. Zero-install bootstrap
 
@@ -79,13 +107,20 @@ Create the `magefiles/` directory with its own Go module, port all Makefile targ
 #### Automated Verification:
 
 - `mage ci` passes (equivalent to `make ci`)
-- `mage -l` lists all targets with descriptions
+- `mage -l` lists all 18 targets with descriptions
 - `go run mage.go ci` works (zero-install path)
 - `mage build` produces the `freedius` binary
+- `mage generate-check` passes
+- `mage run` starts the server (cancel immediately)
+- `mage tidy` runs `go mod tidy` cleanly
+- `mage install-hooks` installs the pre-commit hook
 
 #### Manual Verification:
 
-- `mage -l` output is readable and covers all targets
+- `mage -l` output is readable and covers all 18 targets
+- `mage format` formats all Go files without error
+- `mage format-changed` formats only changed Go files
+- `mage verbose` starts the server with `--verbose-errors`
 
 **Implementation Note**: After completing this phase and all automated verification passes, proceed to Phase 2.
 
@@ -95,7 +130,7 @@ Create the `magefiles/` directory with its own Go module, port all Makefile targ
 
 ### Overview
 
-Delete the Makefile, update the pre-commit hook and provider-codegen plan references to use Mage.
+Delete the Makefile and update the pre-commit hook to use Mage.
 
 ### Changes Required:
 
@@ -115,13 +150,9 @@ Delete the Makefile, update the pre-commit hook and provider-codegen plan refere
 
 **Contract**: The hook runs `mage lint` (or `go run mage.go lint` for environments without mage installed). Keep the same error-on-failure behavior.
 
-#### 3. Update provider-codegen plan references
+#### 3. (No update needed — no downstream plans reference the Makefile)
 
-**File**: `context/changes/provider-codegen/plan.md`
-
-**Intent**: Replace `make ci`, `make generate-check`, and Makefile references with Mage equivalents so S-05 implementation targets Mage directly.
-
-**Contract**: All occurrences of `make ci` become `mage ci`. The Phase 3 `generate-check` Makefile target description becomes a `GenerateCheck` Mage target description. The `ci` target composition reference updates accordingly.
+No stale `make` references exist in other change plans. If a `context/changes/provider-codegen/` plan is created in the future, it should target Mage directly.
 
 ### Success Criteria:
 
@@ -130,11 +161,12 @@ Delete the Makefile, update the pre-commit hook and provider-codegen plan refere
 - `mage ci` passes
 - `ls Makefile` returns "No such file"
 - `scripts/pre-commit` contains `mage lint`
-- `grep -r "make ci" context/changes/provider-codegen/plan.md` returns no matches
+- `make` returns "command not found" (no fallback to Makefile)
 
 #### Manual Verification:
 
 - `git commit` triggers the pre-commit hook and runs `mage lint` successfully
+- `mage -l` still works (bootstrap not broken by Makefile deletion)
 
 ---
 
@@ -142,20 +174,24 @@ Delete the Makefile, update the pre-commit hook and provider-codegen plan refere
 
 ### Unit Tests:
 
-- None needed — Mage targets are thin wrappers around `go` commands
+- None needed — Mage targets are thin wrappers around `go` commands and external tools
 
 ### Integration Tests:
 
-- `mage ci` is the integration test — it runs lint + test + build
+- `mage ci` is the integration test — it runs vet + generate-check + test + build
 - All existing Go tests pass unchanged (they don't reference the build system)
+- `mage format` and `mage format-changed` should be tested by modifying a Go file, running the target, and verifying the file is reformatted
 
 ### Manual Testing Steps:
 
-1. Run `mage -l` and verify all targets are listed
+1. Run `mage -l` and verify all 18 targets are listed with descriptions
 2. Run `mage ci` and verify it passes
 3. Run `go run mage.go ci` (zero-install) and verify it passes
 4. Make a commit and verify the pre-commit hook fires `mage lint`
-5. Run `mage run -- --port 9090` and verify args pass through
+5. Run `mage run` (with and without `ARGS` env var) and verify the server starts
+6. Run `mage verbose` and verify `--verbose-errors` is active
+7. Run `mage format` and verify Go files are reformatted
+8. Verify `mage generate-check` passes
 
 ## Performance Considerations
 
@@ -165,8 +201,8 @@ None — Mage compiles targets on first run (cached thereafter). Cold start adds
 
 - Research: `context/changes/magefile/research.md`
 - Mage docs: https://magefile.org/
-- Provider-codegen plan: `context/changes/provider-codegen/plan.md`
-- Current Makefile: `Makefile:1-36`
+- Current Makefile: `Makefile:1-81`
+- CI workflow: `.github/workflows/ci.yml`
 
 ## Progress
 
@@ -176,24 +212,32 @@ None — Mage compiles targets on first run (cached thereafter). Cold start adds
 
 #### Automated
 
-- [ ] 1.1 `mage ci` passes
-- [ ] 1.2 `mage -l` lists all targets with descriptions
-- [ ] 1.3 `go run mage.go ci` works (zero-install path)
-- [ ] 1.4 `mage build` produces the `freedius` binary
+- [x] 1.1 `mage ci` passes (vet + generate-check + test + build) — f1aabd1
+- [x] 1.2 `mage -l` lists all 18 targets with descriptions — f1aabd1
+- [x] 1.3 `go run mage.go ci` works (zero-install path) — f1aabd1
+- [x] 1.4 `mage build` produces the `freedius` binary — f1aabd1
+- [x] 1.5 `mage generateCheck` passes — f1aabd1
+- [x] 1.6 `mage run` starts the server — f1aabd1
+- [x] 1.7 `mage tidy` runs cleanly — f1aabd1
+- [x] 1.8 `mage installHooks` installs the pre-commit hook — f1aabd1
 
 #### Manual
 
-- [ ] 1.5 `mage -l` output is readable and covers all targets
+- [x] 1.9 `mage -l` output is readable and covers all 18 targets
+- [x] 1.10 `mage format` formats all Go files without error
+- [x] 1.11 `mage format-changed` formats only changed Go files
+- [x] 1.12 `mage verbose` starts the server with `--verbose-errors`
 
 ### Phase 2: Cutover
 
 #### Automated
 
-- [ ] 2.1 `mage ci` passes
-- [ ] 2.2 Makefile no longer exists
-- [ ] 2.3 `scripts/pre-commit` contains `mage lint`
-- [ ] 2.4 No `make ci` references in provider-codegen plan
+- [x] 2.1 `mage ci` passes — d361805
+- [x] 2.2 Makefile no longer exists — d361805
+- [x] 2.3 `scripts/pre-commit` contains `mage lint` — d361805
+- [x] 2.4 `make` fails (no Makefile) — d361805
 
 #### Manual
 
-- [ ] 2.5 Pre-commit hook fires `mage lint` on commit
+- [x] 2.5 Pre-commit hook fires `mage lint` on commit — d361805
+- [x] 2.6 `mage -l` still works after Makefile deletion — d361805

@@ -2,6 +2,6 @@
 set -e
 
 echo "Running linters before commit..."
-make lint
+mage lint
 
 echo "All checks passed."

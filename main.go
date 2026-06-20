@@ -49,16 +49,19 @@ var starterTemplate string
 // newLogger constructs the process-wide logger. When format is "json", the
 // handler emits structured JSON lines; otherwise it emits the human-readable
 // text format.
-func newLogger(format string, w io.Writer) (logger *slog.Logger, err error) {
+func newLogger(format string, w io.Writer, sink *proxy.LogSink) (*slog.Logger, error) {
 	opts := &slog.HandlerOptions{Level: slog.LevelInfo}
+	var inner slog.Handler
 	switch format {
 	case "json":
-		return slog.New(slog.NewJSONHandler(w, opts)), nil
+		inner = slog.NewJSONHandler(w, opts)
 	case "text":
-		return slog.New(slog.NewTextHandler(w, opts)), nil
+		inner = slog.NewTextHandler(w, opts)
 	default:
 		return nil, fmt.Errorf("invalid log format %q (allowed: text, json)", format)
 	}
+	handler := proxy.NewRingHandler(inner, sink)
+	return slog.New(handler), nil
 }
 
 func main() {
@@ -121,7 +124,8 @@ func run(args []string) int {
 	if logFormat == "" {
 		logFormat = "text"
 	}
-	logger, err := newLogger(logFormat, os.Stderr)
+	logSink := proxy.NewLogSink(1000)
+	logger, err := newLogger(logFormat, io.Discard, logSink)
 	if err != nil {
 		return failf("freedius: %v", err)
 	}
@@ -210,7 +214,11 @@ func run(args []string) int {
 		return failf("freedius: %v", err)
 	}
 
-	model := tui.NewDashboard(bus.Subscribe(), cfg, registry, dispatcher, cfgPath, host, port, verboseErrors)
+	model := tui.NewDashboard(
+		bus.Subscribe(),
+		logSink.Subscribe(),
+		cfg, registry, dispatcher, cfgPath, host, port, verboseErrors,
+	)
 	prog := tea.NewProgram(model)
 	if _, err := prog.Run(); err != nil {
 		logger.Error("TUI program error", "err", err)

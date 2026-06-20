@@ -17,6 +17,7 @@ var helpShortcuts = []shortcut{
 	{"p", "Add new provider (Config tab)"},
 	{"d", "Delete entry under cursor (Config tab)"},
 	{"Ctrl+E", "Toggle verbose errors"},
+	{"L", "Cycle log level filter"},
 	{"Ctrl+S", "Install shell RC (Config tab)"},
 	{"Tab", "Next form field"},
 	{"Shift+Tab", "Previous form field"},

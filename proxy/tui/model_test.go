@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -26,7 +27,7 @@ func newTestDashboard(cfg *config.Config, host string, port int, verbose bool) *
 	if cfg == nil {
 		cfg = emptyConfig
 	}
-	return NewDashboard(nil, cfg, emptyRegistry, emptyDispatcher, "", host, port, verbose)
+	return NewDashboard(nil, nil, cfg, emptyRegistry, emptyDispatcher, "", host, port, verbose)
 }
 
 func TestDashboard_Update_KeyPress(t *testing.T) {
@@ -132,7 +133,7 @@ func TestDashboard_Update_EventMsg(t *testing.T) {
 	ch := make(chan proxy.RequestEvent, 1)
 	defer close(ch)
 
-	d := NewDashboard(ch, &config.Config{}, emptyRegistry, emptyDispatcher, "", "", 0, false)
+	d := NewDashboard(ch, nil, &config.Config{}, emptyRegistry, emptyDispatcher, "", "", 0, false)
 
 	ev := proxy.RequestEvent{
 		RequestID: "test-1",
@@ -152,13 +153,6 @@ func TestDashboard_Update_EventMsg(t *testing.T) {
 	if d.stats.errorCount != 0 {
 		t.Errorf("errorCount = %d, want 0 (status 200)", d.stats.errorCount)
 	}
-	events := d.eventLog.all()
-	if len(events) != 1 {
-		t.Fatalf("eventLog size = %d, want 1", len(events))
-	}
-	if events[0].RequestID != "test-1" {
-		t.Errorf("event RequestID = %q, want test-1", events[0].RequestID)
-	}
 	if cmd == nil {
 		t.Error("expected re-arm command after event")
 	}
@@ -176,6 +170,24 @@ func TestDashboard_Update_EventMsgErrorCount(t *testing.T) {
 	d.Update(requestEventMsg(errEv))
 	if d.stats.errorCount != 1 {
 		t.Errorf("errorCount = %d, want 1", d.stats.errorCount)
+	}
+}
+
+func TestDashboard_LogBufferReceivesEntries(t *testing.T) {
+	ch := make(chan proxy.LogEntry, 1)
+	defer close(ch)
+
+	d := NewDashboard(nil, ch, &config.Config{}, emptyRegistry, emptyDispatcher, "", "", 0, false)
+
+	entry := proxy.LogEntry{Level: slog.LevelInfo, Line: "test log line"}
+	ch <- entry
+
+	d.Update(logEntryMsg(entry))
+	if len(d.logBuffer.all()) != 1 {
+		t.Fatalf("logBuffer size = %d, want 1", len(d.logBuffer.all()))
+	}
+	if d.logBuffer.all()[0].Line != "test log line" {
+		t.Errorf("logBuffer entry Line = %q, want 'test log line'", d.logBuffer.all()[0].Line)
 	}
 }
 
@@ -502,7 +514,7 @@ mappings:
 		t.Fatalf("Load: %v", err)
 	}
 
-	d := NewDashboard(nil, cfg, emptyRegistry, emptyDispatcher, cfgPath, "", 0, false)
+	d := NewDashboard(nil, nil, cfg, emptyRegistry, emptyDispatcher, cfgPath, "", 0, false)
 	d.activeTab = tabConfig
 	d.configCursor = 1 // the mapping
 
@@ -590,98 +602,90 @@ func TestDashboard_AddMappingInsert(t *testing.T) {
 	}
 }
 
-func TestRingBuffer(t *testing.T) {
-	rb := newRingBuffer(3)
+func TestLogRingBuffer(t *testing.T) {
+	rb := newRingBuffer[proxy.LogEntry](3)
 
 	if all := rb.all(); len(all) != 0 {
-		t.Errorf("empty ring buffer should return 0 events, got %d", len(all))
+		t.Errorf("empty ring buffer should return 0 entries, got %d", len(all))
 	}
 
-	rb.push(proxy.RequestEvent{RequestID: "a"})
-	rb.push(proxy.RequestEvent{RequestID: "b"})
-	rb.push(proxy.RequestEvent{RequestID: "c"})
+	rb.push(proxy.LogEntry{Line: "a"})
+	rb.push(proxy.LogEntry{Line: "b"})
+	rb.push(proxy.LogEntry{Line: "c"})
 
 	all := rb.all()
 	if len(all) != 3 {
 		t.Fatalf("size = %d, want 3", len(all))
 	}
 	for i, want := range []string{"a", "b", "c"} {
-		if all[i].RequestID != want {
-			t.Errorf("event[%d] RequestID = %q, want %q", i, all[i].RequestID, want)
+		if all[i].Line != want {
+			t.Errorf("entry[%d] Line = %q, want %q", i, all[i].Line, want)
 		}
 	}
 
 	// Overflow: push beyond capacity.
-	rb.push(proxy.RequestEvent{RequestID: "d"})
+	rb.push(proxy.LogEntry{Line: "d"})
 	all = rb.all()
 	if len(all) != 3 {
 		t.Fatalf("size after overflow = %d, want 3", len(all))
 	}
 	for i, want := range []string{"b", "c", "d"} {
-		if all[i].RequestID != want {
-			t.Errorf("event[%d] RequestID = %q, want %q", i, all[i].RequestID, want)
-		}
-	}
-}
-
-func TestRenderLogTab_Format(t *testing.T) {
-	d := newTestDashboard(nil, "", 0, false)
-	d.eventLog.push(proxy.RequestEvent{
-		RequestID:       "abc123",
-		Method:          "POST",
-		Path:            "/v1/messages",
-		Model:           "opus",
-		Provider:        "nim",
-		Status:          200,
-		Latency:         42 * time.Millisecond,
-		MatchedProvider: "nim",
-		MatchedModel:    "step-3.5",
-		Timestamp:       time.Date(2026, 1, 1, 15, 4, 5, 0, time.UTC),
-	})
-	out := stripANSI(renderLogTab(d.eventLog.all(), 80, 24, 0))
-	for _, want := range []string{
-		"request_id=abc123",
-		"method=POST",
-		"path=/v1/messages",
-		"status=200",
-		"duration_ms=42",
-		"matched_provider=nim",
-		"matched_model=step-3.5",
-	} {
-		if !strings.Contains(out, want) {
-			t.Errorf("renderLogTab output missing %q\nfull output:\n%s", want, out)
+		if all[i].Line != want {
+			t.Errorf("entry[%d] Line = %q, want %q", i, all[i].Line, want)
 		}
 	}
 }
 
 func TestRenderLogTab_Empty(t *testing.T) {
-	out := stripANSI(renderLogTab(nil, 80, 24, 0))
-	if !strings.Contains(out, "No requests yet") {
+	out := stripANSI(renderLogTab(nil, 80, 24, 0, filterAll))
+	if !strings.Contains(out, "No log entries yet") {
 		t.Errorf("expected empty-state message, got: %s", out)
 	}
 }
 
-func TestRenderLogTab_ErrorSuffix(t *testing.T) {
-	d := newTestDashboard(nil, "", 0, false)
-	d.eventLog.push(proxy.RequestEvent{
-		RequestID:    "err-1",
-		Method:       "POST",
-		Path:         "/v1/messages",
-		Status:       500,
-		Latency:      100 * time.Millisecond,
-		ErrorMessage: "boom",
-		Timestamp:    time.Date(2026, 1, 1, 15, 4, 5, 0, time.UTC),
-	})
-	out := stripANSI(renderLogTab(d.eventLog.all(), 80, 24, 0))
-	if !strings.Contains(out, `error="boom"`) {
-		t.Errorf("expected error= suffix in output, got: %s", out)
+func TestRenderLogTab_RendersLogLines(t *testing.T) {
+	entries := []proxy.LogEntry{
+		{Level: slog.LevelInfo, Line: "line1"},
+		{Level: slog.LevelWarn, Line: "line2"},
+		{Level: slog.LevelError, Line: "line3"},
+	}
+	out := renderLogTab(entries, 80, 24, 0, filterAll)
+	for _, want := range []string{"line1", "line2", "line3"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("renderLogTab missing %q\nfull output:\n%s", want, out)
+		}
+	}
+}
+
+func TestRenderLogTab_NoStyling(t *testing.T) {
+	entries := []proxy.LogEntry{
+		{Level: slog.LevelInfo, Line: "plain text line"},
+	}
+	out := renderLogTab(entries, 80, 24, 0, filterAll)
+	cleaned := stripANSI(out)
+	if cleaned != out {
+		t.Errorf("expected no ANSI escapes in output, got: %q", out)
+	}
+}
+
+func TestRenderLogTab_AppliesFilter(t *testing.T) {
+	entries := []proxy.LogEntry{
+		{Level: slog.LevelDebug, Line: "debug line"},
+		{Level: slog.LevelError, Line: "error line"},
+	}
+	out := renderLogTab(entries, 80, 24, 0, filterError)
+	if strings.Contains(out, "debug line") {
+		t.Errorf("filter=error should hide debug line, got:\n%s", out)
+	}
+	if !strings.Contains(out, "error line") {
+		t.Errorf("filter=error should show error line, got:\n%s", out)
 	}
 }
 
 func TestRenderTabs_LabelIsLog(t *testing.T) {
-	out := stripANSI(renderTabs(0, 80))
-	if !strings.Contains(out, "[1] Log") {
-		t.Errorf("expected '[1] Log' tab label, got: %s", out)
+	out := stripANSI(renderTabs(0, 80, filterAll))
+	if !strings.Contains(out, "[1] Log [all]") {
+		t.Errorf("expected '[1] Log [all]' tab label, got: %s", out)
 	}
 	if strings.Contains(out, "[1] Requests") {
 		t.Errorf("should not contain '[1] Requests' label anymore, got: %s", out)
@@ -825,7 +829,7 @@ func TestDashboard_Layout_StatsAboveTabs(t *testing.T) {
 	}
 
 	// Tab bar must appear before body content.
-	bodyIdx := strings.Index(out, "No requests")
+	bodyIdx := strings.Index(out, "No log entries")
 	if bodyIdx == -1 {
 		t.Fatal("expected 'No requests' body content")
 	}
@@ -1042,3 +1046,107 @@ func TestDashboard_ProvidersTabScroll(t *testing.T) {
 }
 
 // TestConfig_SaveCreatesParentDir moved to config/config_test.go.
+
+func TestLogFilter_Matches(t *testing.T) {
+	tests := []struct {
+		name   string
+		filter LogFilter
+		level  slog.Level
+		want   bool
+	}{
+		{name: "All matches Debug", filter: filterAll, level: slog.LevelDebug, want: true},
+		{name: "Info rejects Debug", filter: filterInfo, level: slog.LevelDebug, want: false},
+		{name: "Info matches Info", filter: filterInfo, level: slog.LevelInfo, want: true},
+		{name: "Error rejects Warn", filter: filterError, level: slog.LevelWarn, want: false},
+		{name: "Error matches Error", filter: filterError, level: slog.LevelError, want: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.filter.Matches(tt.level); got != tt.want {
+				t.Errorf("Matches(%v) = %v, want %v", tt.level, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestDashboard_CycleLogLevel(t *testing.T) {
+	d := newTestDashboard(nil, "", 0, false)
+
+	if d.currentLogLevel.Label != "all" {
+		t.Fatalf("initial level = %q, want 'all'", d.currentLogLevel.Label)
+	}
+
+	d.cycleLogLevel()
+	if d.currentLogLevel.Label != "debug" {
+		t.Errorf("after cycle 1: Label = %q, want 'debug'", d.currentLogLevel.Label)
+	}
+	if d.logScroll != 0 {
+		t.Error("logScroll should be 0 after level cycle")
+	}
+
+	d.cycleLogLevel()
+	if d.currentLogLevel.Label != "info" {
+		t.Errorf("after cycle 2: Label = %q, want 'info'", d.currentLogLevel.Label)
+	}
+
+	d.cycleLogLevel()
+	if d.currentLogLevel.Label != "warn" {
+		t.Errorf("after cycle 3: Label = %q, want 'warn'", d.currentLogLevel.Label)
+	}
+
+	d.cycleLogLevel()
+	if d.currentLogLevel.Label != "error" {
+		t.Errorf("after cycle 4: Label = %q, want 'error'", d.currentLogLevel.Label)
+	}
+
+	d.cycleLogLevel()
+	if d.currentLogLevel.Label != "all" {
+		t.Errorf("after cycle 5: Label = %q, want 'all'", d.currentLogLevel.Label)
+	}
+}
+
+func TestDashboard_LKeyInTabMode(t *testing.T) {
+	d := newTestDashboard(nil, "", 0, false)
+	d.currentLogLevel = filterAll
+
+	d.Update(tea.KeyPressMsg{Text: "l"})
+	if d.currentLogLevel.Label != "debug" {
+		t.Errorf("after L: Label = %q, want 'debug'", d.currentLogLevel.Label)
+	}
+}
+
+func TestDashboard_LKeyInsertsInFormMode(t *testing.T) {
+	d := newTestDashboard(&config.Config{
+		Providers: map[string]config.Provider{
+			"nim": {Behavior: "openai"},
+		},
+	}, "", 0, false)
+	d.activeTab = tabConfig
+	d.configCursor = 0
+	d.Update(tea.KeyPressMsg{Text: "e"})
+	if d.formMode != formEditProvider {
+		t.Fatalf("expected form to open, got formMode=%d", d.formMode)
+	}
+	d.currentLogLevel = filterAll
+
+	d.Update(tea.KeyPressMsg{Text: "l"})
+	if d.formFields[0].Value() != "niml" {
+		t.Errorf("in form mode, L should insert 'l' into focused field, got %q", d.formFields[0].Value())
+	}
+	if d.currentLogLevel.Label != "all" {
+		t.Errorf("in form mode, L should NOT cycle level, got Label=%q", d.currentLogLevel.Label)
+	}
+}
+
+func TestHelpShortcuts_ContainsL(t *testing.T) {
+	found := false
+	for _, s := range helpShortcuts {
+		if s.key == "L" && s.desc == "Cycle log level filter" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("helpShortcuts should contain entry with key 'L' and desc 'Cycle log level filter'")
+	}
+}

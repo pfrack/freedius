@@ -14,9 +14,6 @@ var (
 				Faint(true).
 				Padding(0, 1)
 
-	statusOKStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("2"))
-
 	statusClientErrStyle = lipgloss.NewStyle().
 				Foreground(lipgloss.Color("3"))
 

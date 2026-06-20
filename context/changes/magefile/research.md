@@ -25,7 +25,7 @@ What would it take to replace the current Makefile with Mage (a Go-based build t
 
 ## Summary
 
-The current Makefile has 12 targets totaling 36 lines of shell. Mage is a natural fit: the project is pure Go, has no non-Go build steps, and the current targets map 1:1 to simple Go functions using `sh.Run`. The migration is straightforward — a single `magefiles/mage.go` replaces the Makefile entirely. The zero-install option (`go run mage.go`) means no new binary dependency for contributors.
+The current Makefile has 18 targets totaling 81 lines of shell. Mage is a natural fit: the project is pure Go, has no non-Go build steps, and the current targets map 1:1 to simple Go functions using `sh.Run`. The migration is straightforward — a single `magefiles/mage.go` replaces the Makefile entirely. The zero-install option (`go run mage.go`) means no new binary dependency for contributors.
 
 ## Detailed Findings
 
@@ -33,17 +33,24 @@ The current Makefile has 12 targets totaling 36 lines of shell. Mage is a natura
 
 | Target | Command(s) | Notes |
 |--------|-----------|-------|
-| `test` | `go test -race -cover ./...` | Guards against empty package list |
-| `vet` | `go vet ./...` | Guards against empty package list |
+| `test` | `go test -race -cover ./...` | — |
+| `vet` | `go vet ./...` | — |
 | `build` | `go build -o freedius .` | — |
+| `generate-check` | `go generate ./... && git diff --exit-code -- '*.go'` | Already exists, part of `ci` |
 | `tidy` | `go mod tidy` | — |
-| `run` | `go run . $(ARGS)` | Passes through args |
+| `run` | `go run . $(ARGS)` | Passes through `ARGS` env var |
+| `verbose` | `go run . --verbose-errors` | Convenience wrapper |
 | `lint-static` | `staticcheck ./...` | Auto-installs if missing |
-| `lint-golangci` | `golangci-lint run ./...` | Requires pre-installed |
-| `lint` | `vet` + `lint-static` + `lint-golangci` | Composite |
-| `ci` | `lint` + `test` + `build` | Composite — the main gate |
+| `lint-golangci` | `golangci-lint run ./...` | Warns + exits if not found |
+| `lint` | `vet` + `lint-static` + `lint-golangci` | Composite — standalone, NOT in `ci` |
+| `ci` | `vet` + `generate-check` + `test` + `build` | Composite — the main gate; does NOT include lint |
 | `manual-test` | `./test-manual.sh` | — |
 | `install-hooks` | Copies `scripts/pre-commit` | — |
+| `format` | gofmt + goimports + golines + gci on all `.go` files | Shell-intensive |
+| `format-changed` | Same formatters on changed Go files only | Uses `git diff` |
+| `install-goimports` | `go install golang.org/x/tools/cmd/goimports@latest` | — |
+| `install-golines` | `go install github.com/segmentio/golines@latest` | — |
+| `install-gci` | `go install github.com/daixiang0/gci@latest` | — |
 
 ### Mage Equivalents
 
@@ -105,9 +112,17 @@ func Lint() error {
     return nil
 }
 
-// CI runs the full CI pipeline: lint + test + build.
+// GenerateCheck ensures generated files are up to date.
+func GenerateCheck() error {
+    if err := sh.RunV("go", "generate", "./..."); err != nil {
+        return err
+    }
+    return sh.RunV("git", "diff", "--exit-code", "--", "*.go")
+}
+
+// CI runs the full CI pipeline: vet + generate-check + test + build.
 func CI() error {
-    mg.SerialDeps(Lint, Test, Build)
+    mg.SerialDeps(Vet, GenerateCheck, Test, Build)
     return nil
 }
 
@@ -119,6 +134,80 @@ func ManualTest() error {
 // InstallHooks copies the pre-commit hook into .git/hooks/.
 func InstallHooks() error {
     return sh.Copy(".git/hooks/pre-commit", "scripts/pre-commit")
+}
+
+// Verbose starts the server with verbose error output.
+func Verbose() error {
+    return sh.RunV("go", "run", ".", "--verbose-errors")
+}
+
+// InstallGoimports installs goimports if missing.
+func InstallGoimports() error {
+    _, err := exec.LookPath("goimports")
+    if err != nil {
+        return sh.RunV("go", "install", "golang.org/x/tools/cmd/goimports@latest")
+    }
+    return nil
+}
+
+// InstallGolines installs golines if missing.
+func InstallGolines() error {
+    _, err := exec.LookPath("golines")
+    if err != nil {
+        return sh.RunV("go", "install", "github.com/segmentio/golines@latest")
+    }
+    return nil
+}
+
+// InstallGci installs gci if missing.
+func InstallGci() error {
+    _, err := exec.LookPath("gci")
+    if err != nil {
+        return sh.RunV("go", "install", "github.com/daixiang0/gci@latest")
+    }
+    return nil
+}
+
+// Format runs all formatters on every .go file.
+func Format() error {
+    mg.Deps(InstallGoimports, InstallGolines, InstallGci)
+    return filepath.Walk(".", func(path string, info os.FileInfo, err error) error {
+        if err != nil || !strings.HasSuffix(path, ".go") {
+            return err
+        }
+        if err := sh.RunV("gofmt", "-w", path); err != nil { return err }
+        if err := sh.RunV("goimports", "-w", "-local", "github.com/pfrack/freedius", path); err != nil { return err }
+        if err := sh.RunV("golines", "-w", path); err != nil { return err }
+        if err := sh.RunV("gci", "write",
+            "--skip-generated", "-s", "standard", "-s", "default",
+            "-s", "prefix(github.com/pfrack/freedius)", "-s", "blank",
+            "-s", "dot", "-s", "alias", "-s", "localmodule", path); err != nil { return err }
+        return nil
+    })
+}
+
+// FormatChanged runs formatters only on changed Go files.
+func FormatChanged() error {
+    mg.Deps(InstallGoimports, InstallGolines, InstallGci)
+    out, err := sh.Output("git", "diff", "--name-only", "--diff-filter=ACM", "HEAD")
+    if err != nil {
+        return err
+    }
+    untracked, _ := sh.Output("git", "ls-files", "--others", "--exclude-standard")
+    files := strings.Fields(out + "\n" + untracked)
+    for _, f := range files {
+        if !strings.HasSuffix(f, ".go") {
+            continue
+        }
+        if err := sh.RunV("gofmt", "-w", f); err != nil { return err }
+        if err := sh.RunV("goimports", "-w", "-local", "github.com/pfrack/freedius", f); err != nil { return err }
+        if err := sh.RunV("golines", "-w", f); err != nil { return err }
+        if err := sh.RunV("gci", "write",
+            "--skip-generated", "-s", "standard", "-s", "default",
+            "-s", "prefix(github.com/pfrack/freedius)", "-s", "blank",
+            "-s", "dot", "-s", "alias", "-s", "localmodule", f); err != nil { return err }
+    }
+    return nil
 }
 ```
 
@@ -143,7 +232,7 @@ func InstallHooks() error {
 
 | Concern | Current (Makefile) | Mage equivalent |
 |---------|-------------------|-----------------|
-| CI invocation | `make ci` | `mage ci` or `go run mage.go ci` |
+| CI invocation | `make ci` (runs `vet generate-check test build`) | `mage ci` (runs `Vet + GenerateCheck + Test + Build`) |
 | pre-commit hook | `make lint` | `mage lint` — update `scripts/pre-commit` |
 | Provider-codegen plan references `make ci` | Multiple references in plans | Update to `mage ci` |
 | ARGS passthrough for `run` | `make run ARGS="--port 9090"` | Use env var or Mage flag arguments |
@@ -166,33 +255,9 @@ mage.go        # //go:build ignore — zero-install bootstrap
 
 Option A is cleaner for projects that may grow more build logic (e.g., `generate-check` from the provider-codegen plan).
 
-### Provider-Codegen Plan Impact
+### `generate-check` Already Exists
 
-The `provider-codegen` plan (`context/changes/provider-codegen/plan.md`) Phase 3 adds a `generate-check` target to the Makefile:
-```makefile
-generate-check:
-    go generate ./...
-    git diff --exit-code -- '*.go'
-```
-
-In Mage:
-```go
-// GenerateCheck ensures generated files are up to date.
-func GenerateCheck() error {
-    if err := sh.RunV("go", "generate", "./..."); err != nil {
-        return err
-    }
-    return sh.RunV("git", "diff", "--exit-code", "--", "*.go")
-}
-```
-
-And `CI` would become:
-```go
-func CI() error {
-    mg.SerialDeps(Lint, GenerateCheck, Test, Build)
-    return nil
-}
-```
+The `generate-check` target already exists in the current Makefile (`Makefile:16-17`). It is NOT a future addition — it must be ported to Mage as part of this migration. The `ci` target already includes `generate-check` in its composition. No provider-codegen plan dependency exists; this migration ports `generate-check` directly.
 
 ### Dependency Addition
 
@@ -201,7 +266,7 @@ Mage requires adding to `go.mod`:
 require github.com/magefile/mage v1.16.0
 ```
 
-This is a development-only dependency. Since `magefiles/` uses `//go:build mage`, it won't be included in the production binary. However, it will appear in `go.mod` — some teams put magefiles in a separate module (`magefiles/go.mod`) to isolate the dependency.
+This is a development-only dependency. Since `magefiles/` uses `//go:build mage`, it won't be included in the production binary. However, it will appear in `go.mod` — some teams put magefiles in a separate module (`magefiles/go.mod`) to isolate the dependency. The main `go.mod` already has multiple production dependencies (bubbletea, lipgloss, go-yaml, tiktoken-go), so isolation is less critical but still keeps the build toolchain out of the production module.
 
 **Separate module approach:**
 ```
@@ -214,10 +279,10 @@ This keeps the main `go.mod` clean but adds module management overhead. For a sm
 
 ## Code References
 
-- `Makefile:1-36` — Current build targets
-- `scripts/pre-commit:1-6` — Git hook that calls `make lint`
-- `context/changes/provider-codegen/plan.md:207-210` — Planned `generate-check` target
-- `go.mod:1-5` — Current dependencies (only `go-yaml`)
+- `Makefile:1-81` — Current build targets (18 targets)
+- `scripts/pre-commit:1-7` — Git hook that calls `make lint`
+- `.github/workflows/ci.yml` — CI workflow uses raw `go` commands, no Makefile dependency
+- `go.mod:1-34` — Current production dependencies
 
 ## Architecture Insights
 
@@ -232,6 +297,6 @@ This keeps the main `go.mod` clean but adds module management overhead. For a sm
 
 ## Open Questions
 
-1. **Separate module for magefiles?** — Keep `github.com/magefile/mage` out of the main `go.mod` by using `magefiles/go.mod`? Adds complexity but keeps production deps clean.
-2. **Ordering with provider-codegen** — Should this land before or after S-05? If before, provider-codegen's Phase 3 targets Mage directly. If after, this migration absorbs the Makefile changes from provider-codegen.
-3. **`ARGS` passthrough** — Current `make run ARGS="--port 9090"` pattern. Mage alternative: `mage run --port 9090` using Mage's flag argument feature, or read `ARGS` env var.
+1. **Separate module for magefiles?** — Keep `github.com/magefile/mage` out of the main `go.mod` by using `magefiles/go.mod`? Adds complexity but keeps production deps clean. (Settled in plan: use isolated `magefiles/go.mod`.)
+2. ~~**Ordering with provider-codegen** — No provider-codegen plan exists; `generate-check` is already in the Makefile. This question is moot.~~
+3. **`ARGS` passthrough** — Current `make run ARGS="--port 9090"` pattern. Mage alternative: `mage run --port 9090` using Mage's flag argument feature, or read `ARGS` env var. (Settled in plan: read `ARGS` env var for backward compatibility.)
