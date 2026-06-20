@@ -54,8 +54,16 @@ func (rb *ringBuffer) all() []proxy.RequestEvent {
 	if rb.size == 0 {
 		return nil
 	}
-	result := make([]proxy.RequestEvent, rb.size)
 	start := (rb.head - rb.size + rb.cap) % rb.cap
+	end := start + rb.size
+	if end <= rb.cap {
+		// Common case: ring has not wrapped. Return a direct slice view
+		// over the underlying array — zero allocation.
+		return rb.buf[start:end]
+	}
+	// Wrapped: oldest entries span the tail + head of the buffer. Allocate
+	// and stitch them together. This only happens when size == cap.
+	result := make([]proxy.RequestEvent, rb.size)
 	for i := 0; i < rb.size; i++ {
 		result[i] = rb.buf[(start+i)%rb.cap]
 	}
