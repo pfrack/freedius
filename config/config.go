@@ -245,7 +245,7 @@ func (c *Config) Save(path string) error {
 		}
 	}
 
-	// #nosec G306 -- same permissions as freedius init (init.go:70) and starter config
+	// #nosec G306 -- starter config is non-sensitive and should be readable by tooling
 	if err := os.WriteFile(path, data, 0o644); err != nil {
 		_ = os.Rename(path+".bak", path)
 		return fmt.Errorf("config: write %s: %w", path, err)

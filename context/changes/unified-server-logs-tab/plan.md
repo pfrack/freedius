@@ -622,9 +622,9 @@ Remove leftover code, tests, and targets from the removed subcommand architectur
 
 #### Automated
 
-- [x] 5.1 `go build ./...` succeeds
-- [x] 5.2 `go test ./...` passes
-- [x] 5.3 `go vet ./...` clean
+- [x] 5.1 `go build ./...` succeeds — 85ecb12
+- [x] 5.2 `go test ./...` passes — 85ecb12
+- [x] 5.3 `go vet ./...` clean — 85ecb12
 
 #### Manual
 
@@ -637,11 +637,11 @@ Remove leftover code, tests, and targets from the removed subcommand architectur
 
 #### Automated
 
-- [ ] 6.1 `go build ./...` succeeds
-- [ ] 6.2 `go test ./...` passes (all adapted tests)
-- [ ] 6.3 `go vet ./...` clean
-- [ ] 6.4 `make ci` passes
-- [ ] 6.5 Zero stale references to old subcommands in Go/MD/Makefile/sh files
+- [x] 6.1 `go build ./...` succeeds
+- [x] 6.2 `go test ./...` passes (all adapted tests)
+- [x] 6.3 `go vet ./...` clean
+- [x] 6.4 `make ci` passes
+- [x] 6.5 Zero stale references to old subcommands in Go/MD/Makefile/sh files
 
 #### Manual
 

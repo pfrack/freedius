@@ -10,14 +10,16 @@ Single static binary. Zero external runtime dependencies.
 # Build
 go build -o freedius .
 
-# Generate a starter config + Claude Code integration
-./freedius init --shell-install
+# Start the proxy + TUI dashboard (defaults to 127.0.0.1:8082)
+./freedius
 
-# Start the proxy (defaults to 127.0.0.1:8082)
-./freedius serve
+# Send a request to see it appear in Tab 1 (Log):
+curl -X POST http://127.0.0.1:8082/v1/messages \
+  -H 'Content-Type: application/json' \
+  -d '{"model": "opus", "messages": [{"role": "user", "content": "hi"}]}'
 ```
 
-The proxy will auto-write a default config to `~/.config/freedius/config.yaml` on first run if none is found.
+On first run, freedius uses an embedded default config so no setup is required. To customize, navigate to Tab 3 (Config) and edit providers / mappings — your changes are written to disk on save.
 
 ## Configuration
 
@@ -65,25 +67,21 @@ Each mapping specifies the upstream `provider`, `model`, `base_url`, and optiona
 ## CLI
 
 ```
-freedius [<subcommand>] [flags]
+freedius [flags]
 
-  serve     Start the proxy server (default)
-  init      Generate a starter config file
-  version   Print the binary version
-  help      Show help
+Flags:
+  -config string       Path to config file (auto-resolved if empty)
+  -host string         Host to bind (127.0.0.1 or 0.0.0.0; default 127.0.0.1)
+  -log-format string   Log output format: text, json (default text)
+  -no-export-hint      Suppress the env-export hint on startup
+  -port int            Port to listen on (default 8082)
+  -stream-timeout      Per-request upstream timeout (default 5m)
+  -verbose-errors      Include upstream error detail in error responses
+  -help                Show help
+  -version             Print version
 ```
 
-### `serve` flags
-
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--config` | auto-resolved | Path to config file |
-| `--port` | `8082` | Port to listen on |
-| `--host` | `127.0.0.1` | Host to bind (`127.0.0.1` or `0.0.0.0`) |
-| `--log-format` | `text` | Log format: `text` or `json` |
-| `--verbose-errors` | `false` | Include upstream error detail in responses |
-| `--stream-timeout` | `5m` | Per-request upstream timeout |
-| `--no-export-hint` | `false` | Suppress env-export hint on startup |
+No subcommands — `freedius` always starts the TUI dashboard alongside the proxy. Use Tab 3 (Config) to edit and save config. Press `Ctrl+E` to toggle verbose errors and `Ctrl+S` in Config to install the shell env block.
 
 ### Environment variables
 
