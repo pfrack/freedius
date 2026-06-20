@@ -3,12 +3,15 @@ package proxy
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/pfrack/freedius/config"
 )
@@ -688,4 +691,71 @@ func TestServeHTTPCountTokens(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestDispatcher_ConcurrentMapAccess is a regression test for the F1
+// impl-review finding. The dispatcher reads config.Providers/Mappings on
+// HTTP goroutines while the TUI mutates them under write lock. With the
+// sync.RWMutex in config.Config, the race detector must stay clean under
+// sustained concurrent load.
+func TestDispatcher_ConcurrentMapAccess(t *testing.T) {
+	cfg, err := config.LoadFromBytes([]byte(`providers:
+  nim: {behavior: openai}
+mappings:
+  opus: {provider_name: nim, model_string: m-opus}
+  sonnet: {provider_name: nim, model_string: m-sonnet}
+  haiku: {provider_name: nim, model_string: m-haiku}
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	d := &Dispatcher{
+		Cfg:      cfg,
+		Logger:   slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Registry: NewRegistry(nil),
+	}
+
+	stop := make(chan struct{})
+	var wg sync.WaitGroup
+
+	// Writer: constantly mutate the config maps under write lock.
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i := 0; ; i++ {
+			select {
+			case <-stop:
+				return
+			default:
+			}
+			cfg.Lock()
+			cfg.Mappings["opus"] = config.Mapping{
+				ProviderName: "nim",
+				ModelString:  fmt.Sprintf("m-%d", i),
+			}
+			cfg.Unlock()
+		}
+	}()
+
+	// Readers: invoke resolveMapping concurrently.
+	for r := 0; r < 8; r++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				select {
+				case <-stop:
+					return
+				default:
+				}
+				_, _, _ = d.resolveMapping("opus")
+			}
+		}()
+	}
+
+	// Let it run briefly, then stop everything.
+	time.Sleep(50 * time.Millisecond)
+	close(stop)
+	wg.Wait()
 }

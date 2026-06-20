@@ -1,7 +1,7 @@
 ---
 change_id: unified-server-logs-tab
 title: "Unified mode: server-log tab + single binary entry point"
-status: implemented
+status: impl_reviewed
 created: 2026-06-20
 updated: 2026-06-20
 ---

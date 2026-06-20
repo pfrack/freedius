@@ -248,10 +248,13 @@ type providerInfo struct {
 }
 
 func collectProvidersFromConfig(cfg *config.Config) []providerInfo {
-	result := make([]providerInfo, 0, len(cfg.Providers))
-	for name, p := range cfg.Providers {
+	// Snapshot the maps so we don't race with the dispatcher's write lock.
+	providers := cfg.ProvidersSnapshot()
+	mappings := cfg.MappingsSnapshot()
+	result := make([]providerInfo, 0, len(providers))
+	for name, p := range providers {
 		mappingCount := 0
-		for _, m := range cfg.Mappings {
+		for _, m := range mappings {
 			if m.ProviderName == name {
 				mappingCount++
 			}
@@ -279,11 +282,14 @@ type configEntry struct {
 }
 
 func collectAllEntries(cfg *config.Config) []configEntry {
+	// Snapshot the maps so we don't race with the dispatcher's write lock.
+	providers := cfg.ProvidersSnapshot()
+	mappings := cfg.MappingsSnapshot()
 	var entries []configEntry
-	for name, p := range cfg.Providers {
+	for name, p := range providers {
 		entries = append(entries, configEntry{name: name, kind: "provider", provider: p})
 	}
-	for name, m := range cfg.Mappings {
+	for name, m := range mappings {
 		entries = append(entries, configEntry{name: name, kind: "mapping", mapping: m})
 	}
 	sort.Slice(entries, func(i, j int) bool {

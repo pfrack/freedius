@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/goccy/go-yaml"
 )
@@ -19,7 +20,13 @@ import (
 // behavior class (openai / anthropic / mix), the base URL to contact, and the
 // env var that holds the API key. Mappings is the routing layer: each one
 // names a provider and the freetext model string that should be sent to it.
+//
+// Concurrent access is guarded by an internal RWMutex: the dispatcher holds
+// a read lock while resolving a request, while the TUI holds a write lock
+// when mutating the maps (submitForm, delete). Snapshot helpers below return
+// copies so renderers can iterate without holding the lock.
 type Config struct {
+	mu        sync.RWMutex
 	Providers map[string]Provider `yaml:"providers"`
 	Mappings  map[string]Mapping  `yaml:"mappings,omitempty"`
 }
@@ -55,7 +62,7 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("config: config file at %s contains no model mappings", path)
 	}
 
-	cfg, err := loadFromUnmarshaled(data)
+	cfg, err := loadFromUnmarshaled(path, data)
 	if err != nil {
 		return nil, err
 	}
@@ -72,7 +79,7 @@ func LoadFromBytes(data []byte) (*Config, error) {
 	if len(data) == 0 {
 		return nil, fmt.Errorf("config: empty config bytes")
 	}
-	cfg, err := loadFromUnmarshaled(data)
+	cfg, err := loadFromUnmarshaled("<bytes>", data)
 	if err != nil {
 		return nil, err
 	}
@@ -85,9 +92,9 @@ func LoadFromBytes(data []byte) (*Config, error) {
 // loadFromUnmarshaled parses data, applies defaults, and asserts that the
 // result has at least one provider or mapping. The path argument is used
 // purely for error messages.
-func loadFromUnmarshaled(data []byte) (*Config, error) {
+func loadFromUnmarshaled(path string, data []byte) (*Config, error) {
 	var cfg Config
-	if err := yamlUnmarshalStrict("<bytes>", data, &cfg); err != nil {
+	if err := yamlUnmarshalStrict(path, data, &cfg); err != nil {
 		return nil, err
 	}
 
@@ -99,10 +106,60 @@ func loadFromUnmarshaled(data []byte) (*Config, error) {
 	return &cfg, nil
 }
 
+// Lock acquires the writer mutex for the underlying Providers and Mappings
+// maps. It must be paired with a matching Unlock. The TUI uses this when
+// mutating the maps (submitForm, handleDeleteConfirmKeyPress). Dispatcher
+// request handlers should use RLock/RUnlock instead.
+func (c *Config) Lock() { c.mu.Lock() }
+
+// Unlock releases the writer mutex.
+func (c *Config) Unlock() { c.mu.Unlock() }
+
+// RLock acquires the reader mutex for safe concurrent map reads.
+func (c *Config) RLock() { c.mu.RLock() }
+
+// RUnlock releases the reader mutex.
+func (c *Config) RUnlock() { c.mu.RUnlock() }
+
+// ProvidersSnapshot returns a copy of the providers map safe for the caller
+// to iterate without holding the lock. Useful for rendering loops.
+func (c *Config) ProvidersSnapshot() map[string]Provider {
+	c.RLock()
+	defer c.RUnlock()
+	out := make(map[string]Provider, len(c.Providers))
+	for k, v := range c.Providers {
+		out[k] = v
+	}
+	return out
+}
+
+// MappingsSnapshot returns a copy of the mappings map safe for the caller
+// to iterate without holding the lock.
+func (c *Config) MappingsSnapshot() map[string]Mapping {
+	c.RLock()
+	defer c.RUnlock()
+	out := make(map[string]Mapping, len(c.Mappings))
+	for k, v := range c.Mappings {
+		out[k] = v
+	}
+	return out
+}
+
+// HasProvider reports whether the named provider exists. Safe for concurrent
+// callers; uses a read lock internally.
+func (c *Config) HasProvider(name string) bool {
+	c.RLock()
+	defer c.RUnlock()
+	_, ok := c.Providers[name]
+	return ok
+}
+
 // UsesProvider reports whether any provider entry or mapping references the
 // given provider name. It checks the providers map directly and walks the
-// mappings to find ProviderName references.
+// mappings to find ProviderName references. Safe for concurrent callers.
 func (c *Config) UsesProvider(name string) bool {
+	c.RLock()
+	defer c.RUnlock()
 	if _, ok := c.Providers[name]; ok {
 		return true
 	}

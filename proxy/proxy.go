@@ -68,6 +68,32 @@ func NewDispatcher(
 	}
 }
 
+// resolveMapping looks up the mapping and provider for the given model name,
+// holding the config read lock for the duration of both map accesses. Returns
+// (mapping, provider, true) on hit; on miss returns zero-valued mapping, nil
+// provider, false. The returned Provider pointer is a copy of the map entry —
+// it remains valid even after the lock is released since Go maps store values
+// by value, but mutating fields on the returned Provider would race with
+// other writers; treat it as read-only.
+func (d *Dispatcher) resolveMapping(model string) (config.Mapping, *config.Provider, bool) {
+	d.Cfg.RLock()
+	defer d.Cfg.RUnlock()
+	mapping, ok := d.Cfg.Mappings[model]
+	if !ok {
+		if family, found := extractFamily(model); found {
+			mapping, ok = d.Cfg.Mappings[family]
+		}
+	}
+	if !ok {
+		return config.Mapping{}, nil, false
+	}
+	provider, ok := d.Cfg.Providers[mapping.ProviderName]
+	if !ok {
+		return mapping, nil, true
+	}
+	return mapping, &provider, true
+}
+
 func (d *Dispatcher) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		w.Header().Set("Allow", http.MethodPost)
@@ -148,12 +174,7 @@ func (d *Dispatcher) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	mapping, ok := d.Cfg.Mappings[req.Model]
-	if !ok {
-		if family, found := extractFamily(req.Model); found {
-			mapping, ok = d.Cfg.Mappings[family]
-		}
-	}
+	mapping, provider, ok := d.resolveMapping(req.Model)
 	if !ok {
 		d.Logger.Debug(
 			"no match for model",
@@ -171,9 +192,7 @@ func (d *Dispatcher) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		)
 		return
 	}
-
-	provider, ok := d.Cfg.Providers[mapping.ProviderName]
-	if !ok {
+	if provider == nil {
 		d.Logger.Error(
 			"provider not registered",
 			"request_id",
@@ -231,7 +250,7 @@ func (d *Dispatcher) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ww := &wroteHeaderResponseWriter{ResponseWriter: w}
-	if err := adapter.Handle(ww, r, provider, mapping, body); err != nil {
+	if err := adapter.Handle(ww, r, *provider, mapping, body); err != nil {
 		if !ww.wroteHeader {
 			// Pre-WriteHeader error — safe to forward to the client.
 			var ce *configError

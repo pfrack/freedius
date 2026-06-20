@@ -364,8 +364,9 @@ func (d *Dashboard) handleFormKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd)
 			if d.formFocus < len(labels) {
 				fieldName := labels[d.formFocus]
 				if fieldName == "provider" && d.formMode == formAddMapping {
-					names := sortedConfiguredProviderNames(d.config.Providers)
-					d.picker = newProviderPicker(names, d.config.Providers)
+					providers := d.config.ProvidersSnapshot()
+					names := sortedConfiguredProviderNames(providers)
+					d.picker = newProviderPicker(names, providers)
 					d.showPicker = true
 					return d, nil
 				}
@@ -398,6 +399,8 @@ func (d *Dashboard) handleFormKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd)
 func (d *Dashboard) handleDeleteConfirmKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "y":
+		d.config.Lock()
+		defer d.config.Unlock()
 		switch d.formKind {
 		case "provider":
 			old := d.config.Providers[d.formEntryName]
@@ -617,7 +620,7 @@ func (d *Dashboard) validateForm() map[int]string {
 		providerName := strings.TrimSpace(d.formFields[1].Value())
 		if providerName == "" {
 			errs[1] = "provider is required"
-		} else if _, ok := d.config.Providers[providerName]; !ok {
+		} else if !d.config.HasProvider(providerName) {
 			errs[1] = fmt.Sprintf("unknown provider %q (add it first with 'p')", providerName)
 		}
 		modelStr := strings.TrimSpace(d.formFields[2].Value())
@@ -633,6 +636,9 @@ func (d *Dashboard) validateForm() map[int]string {
 
 func (d *Dashboard) submitForm() {
 	name := strings.TrimSpace(d.formFields[0].Value())
+
+	d.config.Lock()
+	defer d.config.Unlock()
 
 	switch d.formMode {
 	case formEditProvider:
