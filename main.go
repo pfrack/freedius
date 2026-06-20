@@ -125,12 +125,11 @@ func run(args []string) int {
 		logFormat = "text"
 	}
 	logSink := proxy.NewLogSink(1000)
-	logger, err := newLogger(logFormat, os.Stderr, logSink)
+	logger, err := newLogger(logFormat, io.Discard, logSink)
 	if err != nil {
 		return failf("freedius: %v", err)
 	}
 	slog.SetDefault(logger)
-	_ = logSink // Phase 2 wires logSink.Subscribe() to tui.NewDashboard
 
 	streamTimeout := defaultStreamTimeout
 	if *flagStreamTimeout != 0 {
@@ -215,7 +214,11 @@ func run(args []string) int {
 		return failf("freedius: %v", err)
 	}
 
-	model := tui.NewDashboard(bus.Subscribe(), cfg, registry, dispatcher, cfgPath, host, port, verboseErrors)
+	model := tui.NewDashboard(
+		bus.Subscribe(),
+		logSink.Subscribe(),
+		cfg, registry, dispatcher, cfgPath, host, port, verboseErrors,
+	)
 	prog := tea.NewProgram(model)
 	if _, err := prog.Run(); err != nil {
 		logger.Error("TUI program error", "err", err)

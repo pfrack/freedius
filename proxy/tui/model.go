@@ -21,6 +21,8 @@ import (
 
 type requestEventMsg proxy.RequestEvent
 
+type logEntryMsg proxy.LogEntry
+
 type statsData struct {
 	startTime     time.Time
 	totalRequests int
@@ -28,21 +30,21 @@ type statsData struct {
 	message       string
 }
 
-type ringBuffer struct {
-	buf  []proxy.RequestEvent
+type ringBuffer[T any] struct {
+	buf  []T
 	head int
 	size int
 	cap  int
 }
 
-func newRingBuffer(capacity int) *ringBuffer {
-	return &ringBuffer{
-		buf: make([]proxy.RequestEvent, capacity),
+func newRingBuffer[T any](capacity int) *ringBuffer[T] {
+	return &ringBuffer[T]{
+		buf: make([]T, capacity),
 		cap: capacity,
 	}
 }
 
-func (rb *ringBuffer) push(e proxy.RequestEvent) {
+func (rb *ringBuffer[T]) push(e T) {
 	rb.buf[rb.head] = e
 	rb.head = (rb.head + 1) % rb.cap
 	if rb.size < rb.cap {
@@ -50,20 +52,16 @@ func (rb *ringBuffer) push(e proxy.RequestEvent) {
 	}
 }
 
-func (rb *ringBuffer) all() []proxy.RequestEvent {
+func (rb *ringBuffer[T]) all() []T {
 	if rb.size == 0 {
 		return nil
 	}
 	start := (rb.head - rb.size + rb.cap) % rb.cap
 	end := start + rb.size
 	if end <= rb.cap {
-		// Common case: ring has not wrapped. Return a direct slice view
-		// over the underlying array — zero allocation.
 		return rb.buf[start:end]
 	}
-	// Wrapped: oldest entries span the tail + head of the buffer. Allocate
-	// and stitch them together. This only happens when size == cap.
-	result := make([]proxy.RequestEvent, rb.size)
+	result := make([]T, rb.size)
 	for i := 0; i < rb.size; i++ {
 		result[i] = rb.buf[(start+i)%rb.cap]
 	}
@@ -79,7 +77,9 @@ type formSubmittedMsg struct{}
 type Dashboard struct {
 	activeTab  int
 	events     <-chan proxy.RequestEvent
-	eventLog   *ringBuffer
+	logs       <-chan proxy.LogEntry
+	logBuffer  *ringBuffer[proxy.LogEntry]
+	styleBody  bool
 	config     *config.Config
 	registry   *proxy.Registry
 	dispatcher *proxy.Dispatcher
@@ -88,9 +88,10 @@ type Dashboard struct {
 	height     int
 	quitting   bool
 
-	host          string
-	port          int
-	verboseErrors bool
+	host            string
+	port            int
+	verboseErrors   bool
+	currentLogLevel LogFilter
 
 	formMode       int
 	formFields     []textinput.Model
@@ -118,6 +119,7 @@ type Dashboard struct {
 // only surface when the renderer or shortcut tries to dereference.
 func NewDashboard(
 	events <-chan proxy.RequestEvent,
+	logs <-chan proxy.LogEntry,
 	cfg *config.Config,
 	reg *proxy.Registry,
 	dispatcher *proxy.Dispatcher,
@@ -136,25 +138,28 @@ func NewDashboard(
 		panic("tui: nil dispatcher")
 	}
 	return &Dashboard{
-		activeTab:     tabLog,
-		events:        events,
-		eventLog:      newRingBuffer(1000),
-		config:        cfg,
-		registry:      reg,
-		dispatcher:    dispatcher,
-		cfgPath:       cfgPath,
-		host:          host,
-		port:          port,
-		verboseErrors: verboseErrors,
+		activeTab:       tabLog,
+		events:          events,
+		logs:            logs,
+		logBuffer:       newRingBuffer[proxy.LogEntry](1000),
+		currentLogLevel: filterAll,
+		config:          cfg,
+		registry:        reg,
+		dispatcher:      dispatcher,
+		cfgPath:         cfgPath,
+		host:            host,
+		port:            port,
+		verboseErrors:   verboseErrors,
 		stats: statsData{
 			startTime: time.Now(),
 		},
 	}
 }
 
-// Init returns the initial command that starts listening for proxy events.
+// Init returns the initial command that starts listening for proxy events
+// and log entries.
 func (d *Dashboard) Init() tea.Cmd {
-	return waitForEvent(d.events)
+	return tea.Batch(waitForEvent(d.events), waitForLog(d.logs))
 }
 
 // Update handles incoming messages: key presses for tab switching and quit,
@@ -220,7 +225,6 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// --- Request events ---
 	case requestEventMsg:
 		ev := proxy.RequestEvent(msg)
-		d.eventLog.push(ev)
 		d.stats.totalRequests++
 		if ev.Status >= 400 {
 			d.stats.errorCount++
@@ -229,6 +233,11 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Auto-scroll to bottom on a fresh event.
 		d.logScroll = 0
 		return d, waitForEvent(d.events)
+
+	// --- Log entries ---
+	case logEntryMsg:
+		d.logBuffer.push(proxy.LogEntry(msg))
+		return d, waitForLog(d.logs)
 	}
 	return d, nil
 }
@@ -491,9 +500,10 @@ func (d *Dashboard) View() tea.View {
 	if d.formMode != formNone {
 		content = renderForm(d, width, bodyHeight)
 	} else {
+		d.styleBody = d.activeTab != tabLog
 		switch d.activeTab {
 		case tabLog:
-			content = renderLogTab(d.eventLog.all(), width, bodyHeight, d.logScroll)
+			content = renderLogTab(d.logBuffer.all(), width, bodyHeight, d.logScroll, d.currentLogLevel)
 		case tabProviders:
 			content = renderProvidersTab(d.config, width, bodyHeight, d.providerScroll)
 		case tabConfig:
@@ -504,8 +514,13 @@ func (d *Dashboard) View() tea.View {
 	}
 
 	stats := renderStatsBar(d.stats, width)
-	tabs := renderTabs(d.activeTab, width)
-	body := windowStyle.Width(max(width-2, 0)).Render(content)
+	tabs := renderTabs(d.activeTab, width, d.currentLogLevel)
+	var body string
+	if d.styleBody {
+		body = windowStyle.Width(max(width-2, 0)).Render(content)
+	} else {
+		body = content
+	}
 
 	result := fmt.Sprintf("%s\n%s\n%s", stats, tabs, body)
 
@@ -529,6 +544,19 @@ func waitForEvent(ch <-chan proxy.RequestEvent) tea.Cmd {
 			return nil
 		}
 		return requestEventMsg(ev)
+	}
+}
+
+func waitForLog(ch <-chan proxy.LogEntry) tea.Cmd {
+	if ch == nil {
+		return nil
+	}
+	return func() tea.Msg {
+		entry, ok := <-ch
+		if !ok {
+			return nil
+		}
+		return logEntryMsg(entry)
 	}
 }
 

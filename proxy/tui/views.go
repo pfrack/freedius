@@ -3,7 +3,6 @@ package tui
 import (
 	"fmt"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -13,9 +12,9 @@ import (
 	"github.com/pfrack/freedius/proxy"
 )
 
-func renderTabs(active int, width int) string {
+func renderTabs(active int, width int, level LogFilter) string {
 	tabs := []string{
-		"[1] Log",
+		fmt.Sprintf("[1] Log [%s]", level.Label),
 		"[2] Providers",
 		"[3] Config (j/k=scroll Enter=edit a=+map p=+prov d=del)",
 	}
@@ -31,9 +30,9 @@ func renderTabs(active int, width int) string {
 	return tabBarStyle.Width(max(width-2, 0)).Render(joined)
 }
 
-func renderLogTab(events []proxy.RequestEvent, _ int, height, scroll int) string {
-	if len(events) == 0 {
-		return windowStyle.Render("No requests yet...")
+func renderLogTab(entries []proxy.LogEntry, _ int, height, scroll int, filter LogFilter) string {
+	if len(entries) == 0 {
+		return "No log entries yet..."
 	}
 
 	available := height - 4
@@ -41,49 +40,24 @@ func renderLogTab(events []proxy.RequestEvent, _ int, height, scroll int) string
 		available = 0
 	}
 	start := 0
-	if len(events) > available {
-		start = len(events) - available - scroll
+	if len(entries) > available {
+		start = len(entries) - available - scroll
 		if start < 0 {
 			start = 0
 		}
 	}
 	end := start + available
-	if end > len(events) {
-		end = len(events)
+	if end > len(entries) {
+		end = len(entries)
 	}
 
 	var b strings.Builder
 	for i := start; i < end; i++ {
-		e := events[i]
-		ts := e.Timestamp.Format("15:04:05")
-		statusStr := fmt.Sprintf("%d", e.Status)
-		var statusStyled string
-		switch {
-		case e.Status >= 500:
-			statusStyled = statusErrorStyle.Render(statusStr)
-		case e.Status >= 400:
-			statusStyled = statusClientErrStyle.Render(statusStr)
-		default:
-			statusStyled = statusOKStyle.Render(statusStr)
+		e := entries[i]
+		if !filter.Matches(e.Level) {
+			continue
 		}
-		duration := e.Latency.Milliseconds()
-		errSuffix := ""
-		if e.Status >= 400 && e.ErrorMessage != "" {
-			errSuffix = " error=" + strconv.Quote(e.ErrorMessage)
-		}
-		line := fmt.Sprintf(
-			"time=%s request_id=%s method=%s path=%s status=%s duration_ms=%d matched_provider=%s matched_model=%s%s",
-			ts,
-			e.RequestID,
-			e.Method,
-			e.Path,
-			statusStyled,
-			duration,
-			e.MatchedProvider,
-			e.MatchedModel,
-			errSuffix,
-		)
-		b.WriteString(line + "\n")
+		b.WriteString(e.Line + "\n")
 	}
 	return b.String()
 }

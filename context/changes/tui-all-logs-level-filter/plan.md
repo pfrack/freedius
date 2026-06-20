@@ -485,10 +485,10 @@ func (f LogFilter) Matches(level slog.Level) bool {
 
 #### Automated
 
-- [x] 1.1 `go build ./...` — compiles cleanly
-- [x] 1.2 `go vet ./...` — no new vet warnings
-- [x] 1.3 `go test -race ./proxy/...` — all proxy tests pass with the race detector on
-- [x] 1.4 `go test -run TestRingHandler ./proxy/...` — the new tests pass
+- [x] 1.1 `go build ./...` — compiles cleanly — 09e0355
+- [x] 1.2 `go vet ./...` — no new vet warnings — 09e0355
+- [x] 1.3 `go test -race ./proxy/...` — all proxy tests pass with the race detector on — 09e0355
+- [x] 1.4 `go test -run TestRingHandler ./proxy/...` — the new tests pass — 09e0355
 
 #### Manual
 
@@ -500,11 +500,11 @@ func (f LogFilter) Matches(level slog.Level) bool {
 
 #### Automated
 
-- [ ] 2.1 `go build ./...` — compiles cleanly
-- [ ] 2.2 `go vet ./...` — no new vet warnings
-- [ ] 2.3 `go test ./proxy/tui/...` — all TUI tests pass; rewritten render tests cover plain-text + filter behavior
-- [ ] 2.4 `go test -race ./...` — all tests pass with the race detector on
-- [ ] 2.5 `TestRenderLogTab_NoStyling` — body has zero ANSI escapes
+- [x] 2.1 `go build ./...` — compiles cleanly
+- [x] 2.2 `go vet ./...` — no new vet warnings
+- [x] 2.3 `go test ./proxy/tui/...` — all TUI tests pass; rewritten render tests cover plain-text + filter behavior
+- [x] 2.4 `go test -race ./...` — all tests pass with the race detector on
+- [x] 2.5 `TestRenderLogTab_NoStyling` — body has zero ANSI escapes
 
 #### Manual
 
