@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/pfrack/freedius/config"
+	"github.com/pfrack/freedius/proxy"
 )
 
 const minimalConfigYAML = "providers:\n" +
@@ -127,7 +128,7 @@ func TestCheckRequiredEnvVars_MappingDoesNotTriggerCheck(t *testing.T) {
 
 func TestNewLogger_JSONFormat(t *testing.T) {
 	var buf bytes.Buffer
-	logger, err := newLogger("json", &buf)
+	logger, err := newLogger("json", &buf, proxy.NewLogSink(10))
 	if err != nil {
 		t.Fatalf("newLogger(json): %v", err)
 	}
@@ -150,7 +151,7 @@ func TestNewLogger_JSONFormat(t *testing.T) {
 
 func TestNewLogger_TextFormat(t *testing.T) {
 	var buf bytes.Buffer
-	logger, err := newLogger("text", &buf)
+	logger, err := newLogger("text", &buf, proxy.NewLogSink(10))
 	if err != nil {
 		t.Fatalf("newLogger(text): %v", err)
 	}
@@ -167,7 +168,7 @@ func TestNewLogger_TextFormat(t *testing.T) {
 }
 
 func TestNewLogger_InvalidFormat(t *testing.T) {
-	_, err := newLogger("yaml", io.Discard)
+	_, err := newLogger("yaml", io.Discard, nil)
 	if err == nil {
 		t.Fatal("expected error for invalid log format")
 	}
