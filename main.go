@@ -184,12 +184,12 @@ func run(args []string) int {
 	dispatcher := proxy.NewDispatcher(cfg, registry, logger, verboseErrors)
 	bus := proxy.NewEventBus(1000)
 
-	mux := http.NewServeMux()
 	httpHandler := proxy.RecoverMiddleware(logger, verboseErrors, dispatcher)
 	httpHandler = proxy.EventBusMiddleware(bus, httpHandler)
 	httpHandler = proxy.AccessLogMiddleware(logger, httpHandler)
 	httpHandler = proxy.RequestIDMiddleware(httpHandler)
-	mux.Handle("/", httpHandler)
+
+	mux := newMux(httpHandler)
 
 	server := &http.Server{
 		Addr:              net.JoinHostPort(host, strconv.Itoa(port)),
@@ -337,4 +337,31 @@ func resolveConfigPath(explicit string) (string, error) {
 		return "", fmt.Errorf("cannot determine user config directory: %w", err)
 	}
 	return filepath.Join(xdg, "freedius", "config.yaml"), nil
+}
+
+func newMux(httpHandler http.Handler) *http.ServeMux {
+	mux := http.NewServeMux()
+	healthHandler := func() http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			if r.Method == http.MethodGet {
+				_, _ = w.Write([]byte(`{"status":"ok"}`))
+			}
+		})
+	}
+	rootHandler := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/" && (r.Method == http.MethodGet || r.Method == http.MethodHead) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusOK)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+	mux.Handle("GET /health", healthHandler())
+	mux.Handle("HEAD /health", healthHandler())
+	mux.Handle("/", rootHandler(httpHandler))
+	return mux
 }

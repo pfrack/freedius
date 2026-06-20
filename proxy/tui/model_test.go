@@ -834,6 +834,86 @@ func TestDashboard_Layout_StatsAboveTabs(t *testing.T) {
 	}
 }
 
+func TestDashboard_HelpModal_OpensWithQuestionMark(t *testing.T) {
+	d := newTestDashboard(nil, "", 0, false)
+	d.Update(tea.KeyPressMsg{Text: "?"})
+	if !d.showHelp {
+		t.Error("expected showHelp=true after pressing ?")
+	}
+}
+
+func TestDashboard_HelpModal_EscCloses(t *testing.T) {
+	d := newTestDashboard(nil, "", 0, false)
+	d.showHelp = true
+	d.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+	if d.showHelp {
+		t.Error("expected showHelp=false after Esc")
+	}
+}
+
+func TestDashboard_HelpModal_QuestionMarkToggles(t *testing.T) {
+	d := newTestDashboard(nil, "", 0, false)
+	d.Update(tea.KeyPressMsg{Text: "?"})
+	if !d.showHelp {
+		t.Fatal("expected showHelp=true after first ?")
+	}
+	d.Update(tea.KeyPressMsg{Text: "?"})
+	if d.showHelp {
+		t.Error("expected showHelp=false after second ?")
+	}
+}
+
+func TestDashboard_HelpModal_CapturesTabSwitchKey(t *testing.T) {
+	d := newTestDashboard(nil, "", 0, false)
+	d.showHelp = true
+	d.activeTab = tabLog
+
+	d.Update(tea.KeyPressMsg{Code: '2'})
+	if d.activeTab != tabLog {
+		t.Errorf("activeTab should remain tabLog when help is open, got %d", d.activeTab)
+	}
+	if d.quitting {
+		t.Error("quitting should not be set when pressing q while help is open")
+	}
+
+	d.Update(tea.KeyPressMsg{Text: "q"})
+	if d.quitting {
+		t.Error("quitting should not be set when pressing q while help is open")
+	}
+}
+
+func TestDashboard_HelpModal_ViewContainsTitle(t *testing.T) {
+	d := newTestDashboard(nil, "", 0, false)
+	d.width = 80
+	d.height = 24
+	d.showHelp = true
+
+	out := stripANSI(viewContent(d.View()))
+	if !strings.Contains(out, "Keyboard Shortcuts") {
+		t.Errorf("View() should contain 'Keyboard Shortcuts' when help is open, got:\n%s", out)
+	}
+}
+
+func TestDashboard_HelpModal_NotOpenedInForm(t *testing.T) {
+	d := newTestDashboard(&config.Config{
+		Providers: map[string]config.Provider{
+			"nim": {Behavior: "openai"},
+		},
+	}, "", 0, false)
+	d.activeTab = tabConfig
+	d.configCursor = 0
+	d.Update(tea.KeyPressMsg{Text: "e"})
+
+	if d.formMode == formNone {
+		t.Fatal("expected form to be open")
+	}
+
+	d.Update(tea.KeyPressMsg{Text: "?"})
+	if d.showHelp {
+		t.Error("showHelp should remain false when ? is pressed in form mode")
+	}
+}
+
 func viewContent(v tea.View) string {
 	return v.Content
 }

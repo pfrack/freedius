@@ -100,6 +100,7 @@ type Dashboard struct {
 	fieldErrors    map[int]string
 	showPicker     bool
 	picker         *providerPicker
+	showHelp       bool
 	cfgPath        string
 	configCursor   int
 	providerScroll int
@@ -183,6 +184,14 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// --- Key presses ---
 	case tea.KeyPressMsg:
+		if d.showHelp {
+			switch msg.String() {
+			case "?", "esc":
+				d.showHelp = false
+			}
+			return d, nil
+		}
+
 		// Esc always quits when no form is active.
 		if d.formMode == formNone && msg.String() == "esc" {
 			d.quitting = true
@@ -247,6 +256,9 @@ func (d *Dashboard) installShellRC() {
 
 func (d *Dashboard) handleTabModeKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
+	case "?":
+		d.showHelp = true
+		return d, nil
 	case "q", "ctrl+c":
 		d.quitting = true
 		return d, tea.Quit
@@ -496,6 +508,12 @@ func (d *Dashboard) View() tea.View {
 	body := windowStyle.Width(max(width-2, 0)).Render(content)
 
 	result := fmt.Sprintf("%s\n%s\n%s", stats, tabs, body)
+
+	if d.showHelp {
+		modal := renderHelpModal(width)
+		result = overlayModal(result, modal, width, height)
+	}
+
 	v := tea.NewView(result)
 	v.AltScreen = true
 	return v

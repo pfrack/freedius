@@ -379,3 +379,36 @@ func renderDeleteConfirm(d *Dashboard, width int) string {
 	content := statusErrorStyle.Render(msg)
 	return windowStyle.Width(max(width-2, 0)).Render(content)
 }
+
+func modalWidthFor(terminalWidth int) int {
+	w := terminalWidth * 60 / 100
+	return min(max(w, 40), 60)
+}
+
+func renderHelpModal(terminalWidth int) string {
+	mw := modalWidthFor(terminalWidth)
+	title := modalTitleStyle.Render(" Keyboard Shortcuts ")
+	var rows []string
+	for _, s := range helpShortcuts {
+		key := shortcutKeyStyle.Width(14).Render(s.key)
+		desc := shortcutDescStyle.Render(s.desc)
+		rows = append(rows, lipgloss.JoinHorizontal(lipgloss.Top, key, desc))
+	}
+	body := lipgloss.JoinVertical(lipgloss.Left, rows...)
+	footer := modalFooterStyle.Render("Press ? or Esc to close")
+	sep := separatorStyle.Render(strings.Repeat("─", mw-2))
+
+	return modalStyle.
+		Width(mw).
+		Render(lipgloss.JoinVertical(lipgloss.Left, title, sep, body, "", footer))
+}
+
+func overlayModal(_, modal string, width, height int) string {
+	return lipgloss.Place(width, height,
+		lipgloss.Center, lipgloss.Center,
+		modal,
+		lipgloss.WithWhitespaceStyle(
+			lipgloss.NewStyle().Background(lipgloss.Color("0")),
+		),
+	)
+}

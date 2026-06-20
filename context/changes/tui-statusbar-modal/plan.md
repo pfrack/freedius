@@ -385,20 +385,20 @@ None. The change is purely additive and does not modify any persisted data, on-d
 
 #### Manual
 
-- [x] 1.5 Launch freedius; verify stats bar at top, tabs below, content below
-- [x] 1.6 Press `1`/`2`/`3`; verify stats bar stays pinned at the top
-- [x] 1.7 Open edit form on Config tab; verify stats bar still at top, form footer no longer mentions `Ctrl+D=Delete`
+- [x] 1.5 Launch freedius; verify stats bar at top, tabs below, content below — 5bfeaa1
+- [x] 1.6 Press `1`/`2`/`3`; verify stats bar stays pinned at the top — 5bfeaa1
+- [x] 1.7 Open edit form on Config tab; verify stats bar still at top, form footer no longer mentions `Ctrl+D=Delete` — 5bfeaa1
 
 ### Phase 2: `?` keyboard shortcuts modal
 
 #### Automated
 
-- [ ] 2.1 `go build -o /tmp/freedius-build .` completes without errors
-- [ ] 2.2 `go test ./...` passes (existing suite + 1 from Phase 1 + 6 new modal tests)
-- [ ] 2.3 `go vet ./...` clean
-- [ ] 2.4 All 6 new modal tests are present in `model_test.go` and run green
-- [ ] 2.5 `proxy/tui/help.go` exists and contains the 18-row `helpShortcuts` data
-- [ ] 2.6 The 5 new styles are appended to the `var ( ... )` block in `proxy/tui/styles.go`
+- [x] 2.1 `go build -o /tmp/freedius-build .` completes without errors
+- [x] 2.2 `go test ./...` passes (existing suite + 1 from Phase 1 + 6 new modal tests)
+- [x] 2.3 `go vet ./...` clean
+- [x] 2.4 All 6 new modal tests are present in `model_test.go` and run green
+- [x] 2.5 `proxy/tui/help.go` exists and contains the 18-row `helpShortcuts` data
+- [x] 2.6 The 5 new styles are appended to the `var ( ... )` block in `proxy/tui/styles.go`
 
 #### Manual
 

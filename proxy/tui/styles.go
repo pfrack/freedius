@@ -46,6 +46,27 @@ var (
 
 	separatorStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("8"))
+
+	modalStyle = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("4")).
+			Padding(1, 2)
+
+	modalTitleStyle = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("4")).
+			Padding(0, 1)
+
+	modalFooterStyle = lipgloss.NewStyle().
+				Faint(true).
+				Italic(true)
+
+	shortcutKeyStyle = lipgloss.NewStyle().
+				Bold(true).
+				Foreground(lipgloss.Color("6"))
+
+	shortcutDescStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("7"))
 )
 
 const (
