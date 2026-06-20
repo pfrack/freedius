@@ -29,6 +29,7 @@ type Config struct {
 	mu        sync.RWMutex
 	Providers map[string]Provider `yaml:"providers"`
 	Mappings  map[string]Mapping  `yaml:"mappings,omitempty"`
+	Theme     string              `yaml:"theme,omitempty"`
 }
 
 // Provider describes a single upstream LLM endpoint. Its settings are

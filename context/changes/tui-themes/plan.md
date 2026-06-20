@@ -342,10 +342,10 @@ If `cfg.Theme` is empty string, `resolveTheme("")` in `NewDashboard` returns `De
 
 #### Automated
 
-- [ ] 3.1 `go test ./config/...` passes
-- [ ] 3.2 `go test ./...` passes
-- [ ] 3.3 `go vet ./...` passes
-- [ ] 3.4 `go build ./...` succeeds
+- [x] 3.1 `go test ./config/...` passes
+- [x] 3.2 `go test ./...` passes
+- [x] 3.3 `go vet ./...` passes
+- [x] 3.4 `go build ./...` succeeds
 
 #### Manual
 

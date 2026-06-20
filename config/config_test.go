@@ -753,3 +753,53 @@ mappings:
 		}
 	}
 }
+
+func TestConfig_ThemeRoundTrip(t *testing.T) {
+	input := `providers:
+  test:
+    behavior: openai
+theme: zenburn
+`
+	cfg, err := LoadFromBytes([]byte(input))
+	if err != nil {
+		t.Fatalf("LoadFromBytes: %v", err)
+	}
+	if cfg.Theme != "zenburn" {
+		t.Errorf("Theme = %q, want %q", cfg.Theme, "zenburn")
+	}
+
+	data, err := cfg.Marshal()
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+
+	cfg2, err := LoadFromBytes(data)
+	if err != nil {
+		t.Fatalf("round-trip LoadFromBytes: %v\nYAML:\n%s", err, string(data))
+	}
+	if cfg2.Theme != "zenburn" {
+		t.Errorf("round-trip Theme = %q, want %q", cfg2.Theme, "zenburn")
+	}
+}
+
+func TestConfig_ThemeOmitEmpty(t *testing.T) {
+	input := `providers:
+  test:
+    behavior: openai
+`
+	cfg, err := LoadFromBytes([]byte(input))
+	if err != nil {
+		t.Fatalf("LoadFromBytes: %v", err)
+	}
+	if cfg.Theme != "" {
+		t.Errorf("Theme = %q, want empty", cfg.Theme)
+	}
+
+	data, err := cfg.Marshal()
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+	if containsTheme := strings.Contains(string(data), "theme:"); containsTheme {
+		t.Errorf("marshaled YAML contains theme: field (should be omitted)\n%s", string(data))
+	}
+}
