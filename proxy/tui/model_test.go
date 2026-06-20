@@ -784,6 +784,28 @@ func viewContent(v tea.View) string {
 	return v.Content
 }
 
+func TestDashboard_ConfigTabEnterEdits(t *testing.T) {
+	// Enter on Tab 3 (Config) should open the edit form on the entry
+	// under the cursor — same as the legacy 'e' binding.
+	cfg := &config.Config{
+		Providers: map[string]config.Provider{
+			"nim": {Behavior: "openai"},
+		},
+	}
+	d := NewDashboard(nil, cfg, nil, nil, "", "", 0, false)
+	d.activeTab = tabConfig
+	d.configCursor = 0
+
+	d.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+
+	if d.formMode != formEditProvider {
+		t.Errorf("Enter should open edit form, got formMode=%d", d.formMode)
+	}
+	if d.formEntryName != "nim" {
+		t.Errorf("expected to edit nim, got %q", d.formEntryName)
+	}
+}
+
 func TestDashboard_ConfigTabScrollsToCursor(t *testing.T) {
 	// Build a config with many entries so the cursor scrolls past the visible
 	// window. After moving the cursor down, the rendered window must contain

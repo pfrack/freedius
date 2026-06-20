@@ -246,7 +246,7 @@ func (d *Dashboard) handleTabModeKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.C
 	case "down", "j":
 		d.scrollDown()
 		return d, nil
-	case "e":
+	case "e", "enter":
 		if d.activeTab == tabConfig {
 			d.openEditForm()
 		}

@@ -17,7 +17,7 @@ func renderTabs(active int, width int) string {
 	tabs := []string{
 		"[1] Log",
 		"[2] Providers",
-		"[3] Config (j/k=scroll e=edit a=+map p=+prov d=del)",
+		"[3] Config (j/k=scroll Enter=edit a=+map p=+prov d=del)",
 	}
 	styled := make([]string, len(tabs))
 	for i, t := range tabs {
