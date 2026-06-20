@@ -66,15 +66,20 @@ type formSubmittedMsg struct{}
 // Dashboard is the top-level Bubble Tea model for the freedius TUI.
 // It owns the event subscription channel, ring buffer, tabs, and stats.
 type Dashboard struct {
-	activeTab int
-	events    <-chan proxy.RequestEvent
-	eventLog  *ringBuffer
-	config    *config.Config
-	registry  *proxy.Registry
-	stats     statsData
-	width     int
-	height    int
-	quitting  bool
+	activeTab  int
+	events     <-chan proxy.RequestEvent
+	eventLog   *ringBuffer
+	config     *config.Config
+	registry   *proxy.Registry
+	dispatcher *proxy.Dispatcher
+	stats      statsData
+	width      int
+	height     int
+	quitting   bool
+
+	host          string
+	port          int
+	verboseErrors bool
 
 	formMode      int
 	formFields    []textinput.Model
@@ -90,20 +95,30 @@ type Dashboard struct {
 }
 
 // NewDashboard creates a new Dashboard model subscribed to the given event
-// channel, configuration, and adapter registry.
+// channel, configuration, and adapter registry. host, port, and
+// verboseErrors are stored for runtime use by the TUI shortcuts (Ctrl+E
+// toggles verbose errors; Ctrl+S uses host/port to install the shell RC).
 func NewDashboard(
 	events <-chan proxy.RequestEvent,
 	cfg *config.Config,
 	reg *proxy.Registry,
+	dispatcher *proxy.Dispatcher,
 	cfgPath string,
+	host string,
+	port int,
+	verboseErrors bool,
 ) *Dashboard {
 	return &Dashboard{
-		activeTab: tabLog,
-		events:    events,
-		eventLog:  newRingBuffer(1000),
-		config:    cfg,
-		registry:  reg,
-		cfgPath:   cfgPath,
+		activeTab:     tabLog,
+		events:        events,
+		eventLog:      newRingBuffer(1000),
+		config:        cfg,
+		registry:      reg,
+		dispatcher:    dispatcher,
+		cfgPath:       cfgPath,
+		host:          host,
+		port:          port,
+		verboseErrors: verboseErrors,
 		stats: statsData{
 			startTime: time.Now(),
 		},

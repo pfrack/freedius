@@ -54,21 +54,47 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("config: config file at %s contains no model mappings", path)
 	}
 
+	cfg, err := loadFromUnmarshaled(data)
+	if err != nil {
+		return nil, err
+	}
+	if err := cfg.validate(path); err != nil {
+		return nil, err
+	}
+	return cfg, nil
+}
+
+// LoadFromBytes parses, defaults, and validates a freedius configuration from
+// raw YAML bytes. It mirrors Load but skips the file-read step so the embedded
+// starter template can be used without writing to disk.
+func LoadFromBytes(data []byte) (*Config, error) {
+	if len(data) == 0 {
+		return nil, fmt.Errorf("config: empty config bytes")
+	}
+	cfg, err := loadFromUnmarshaled(data)
+	if err != nil {
+		return nil, err
+	}
+	if err := cfg.validate("<bytes>"); err != nil {
+		return nil, err
+	}
+	return cfg, nil
+}
+
+// loadFromUnmarshaled parses data, applies defaults, and asserts that the
+// result has at least one provider or mapping. The path argument is used
+// purely for error messages.
+func loadFromUnmarshaled(data []byte) (*Config, error) {
 	var cfg Config
-	if err := yamlUnmarshalStrict(path, data, &cfg); err != nil {
+	if err := yamlUnmarshalStrict("<bytes>", data, &cfg); err != nil {
 		return nil, err
 	}
 
 	if len(cfg.Providers) == 0 && len(cfg.Mappings) == 0 {
-		return nil, fmt.Errorf("config: config file at %s contains no model mappings", path)
+		return nil, fmt.Errorf("config: input contains no model mappings")
 	}
 
 	cfg.applyDefaults()
-
-	if err := cfg.validate(path); err != nil {
-		return nil, err
-	}
-
 	return &cfg, nil
 }
 
