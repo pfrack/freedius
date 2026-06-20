@@ -284,9 +284,18 @@ func (c *Config) Marshal() ([]byte, error) {
 	return yaml.Marshal(c)
 }
 
-// Save validates, marshals, and writes the config to path. If path exists,
-// it is backed up as path+".bak" before writing. On write failure, the
-// backup is restored.
+// Save validates, marshals, and writes the config to path atomically.
+//
+// The write is performed by writing to a sibling temp file (path+".tmp") and
+// then renaming it over path. The rename is atomic on POSIX file systems, so
+// a concurrent reader sees either the old or new content — never a half-
+// written file. If path exists before the write, it is first copied to
+// path+".bak" so the user can manually recover if the new content is bad.
+//
+// On write failure, the rename to path is not attempted, so the original
+// (and its .bak copy) remain untouched. If the temp-file write itself fails
+// midway, the .tmp file may be left behind; the next Save attempt overwrites
+// it.
 func (c *Config) Save(path string) error {
 	if err := c.validate(path); err != nil {
 		return err
@@ -297,7 +306,9 @@ func (c *Config) Save(path string) error {
 		return fmt.Errorf("config: marshal %s: %w", path, err)
 	}
 
+	existed := false
 	if _, statErr := os.Stat(path); statErr == nil {
+		existed = true
 		if err := os.Rename(path, path+".bak"); err != nil {
 			return fmt.Errorf("config: backup %s: %w", path, err)
 		}
@@ -310,10 +321,30 @@ func (c *Config) Save(path string) error {
 		}
 	}
 
+	tmpPath := path + ".tmp"
 	// #nosec G306 -- starter config is non-sensitive and should be readable by tooling
-	if err := os.WriteFile(path, data, 0o644); err != nil {
-		_ = os.Rename(path+".bak", path)
+	if err := os.WriteFile(tmpPath, data, 0o644); err != nil {
+		// Best-effort cleanup of half-written temp file.
+		_ = os.Remove(tmpPath)
+		// If the original existed and was backed up, restore from .bak.
+		if existed {
+			if rerr := os.Rename(path+".bak", path); rerr != nil {
+				return fmt.Errorf("config: write %s failed (%v); backup restore from %s also failed: %w",
+					path, err, path+".bak", rerr)
+			}
+		}
 		return fmt.Errorf("config: write %s: %w", path, err)
+	}
+
+	if err := os.Rename(tmpPath, path); err != nil {
+		_ = os.Remove(tmpPath)
+		if existed {
+			if rerr := os.Rename(path+".bak", path); rerr != nil {
+				return fmt.Errorf("config: rename %s -> %s failed (%v); backup restore also failed: %w",
+					tmpPath, path, err, rerr)
+			}
+		}
+		return fmt.Errorf("config: rename %s -> %s: %w", tmpPath, path, err)
 	}
 
 	return nil
