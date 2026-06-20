@@ -1046,3 +1046,107 @@ func TestDashboard_ProvidersTabScroll(t *testing.T) {
 }
 
 // TestConfig_SaveCreatesParentDir moved to config/config_test.go.
+
+func TestLogFilter_Matches(t *testing.T) {
+	tests := []struct {
+		name   string
+		filter LogFilter
+		level  slog.Level
+		want   bool
+	}{
+		{name: "All matches Debug", filter: filterAll, level: slog.LevelDebug, want: true},
+		{name: "Info rejects Debug", filter: filterInfo, level: slog.LevelDebug, want: false},
+		{name: "Info matches Info", filter: filterInfo, level: slog.LevelInfo, want: true},
+		{name: "Error rejects Warn", filter: filterError, level: slog.LevelWarn, want: false},
+		{name: "Error matches Error", filter: filterError, level: slog.LevelError, want: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.filter.Matches(tt.level); got != tt.want {
+				t.Errorf("Matches(%v) = %v, want %v", tt.level, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestDashboard_CycleLogLevel(t *testing.T) {
+	d := newTestDashboard(nil, "", 0, false)
+
+	if d.currentLogLevel.Label != "all" {
+		t.Fatalf("initial level = %q, want 'all'", d.currentLogLevel.Label)
+	}
+
+	d.cycleLogLevel()
+	if d.currentLogLevel.Label != "debug" {
+		t.Errorf("after cycle 1: Label = %q, want 'debug'", d.currentLogLevel.Label)
+	}
+	if d.logScroll != 0 {
+		t.Error("logScroll should be 0 after level cycle")
+	}
+
+	d.cycleLogLevel()
+	if d.currentLogLevel.Label != "info" {
+		t.Errorf("after cycle 2: Label = %q, want 'info'", d.currentLogLevel.Label)
+	}
+
+	d.cycleLogLevel()
+	if d.currentLogLevel.Label != "warn" {
+		t.Errorf("after cycle 3: Label = %q, want 'warn'", d.currentLogLevel.Label)
+	}
+
+	d.cycleLogLevel()
+	if d.currentLogLevel.Label != "error" {
+		t.Errorf("after cycle 4: Label = %q, want 'error'", d.currentLogLevel.Label)
+	}
+
+	d.cycleLogLevel()
+	if d.currentLogLevel.Label != "all" {
+		t.Errorf("after cycle 5: Label = %q, want 'all'", d.currentLogLevel.Label)
+	}
+}
+
+func TestDashboard_LKeyInTabMode(t *testing.T) {
+	d := newTestDashboard(nil, "", 0, false)
+	d.currentLogLevel = filterAll
+
+	d.Update(tea.KeyPressMsg{Text: "l"})
+	if d.currentLogLevel.Label != "debug" {
+		t.Errorf("after L: Label = %q, want 'debug'", d.currentLogLevel.Label)
+	}
+}
+
+func TestDashboard_LKeyInsertsInFormMode(t *testing.T) {
+	d := newTestDashboard(&config.Config{
+		Providers: map[string]config.Provider{
+			"nim": {Behavior: "openai"},
+		},
+	}, "", 0, false)
+	d.activeTab = tabConfig
+	d.configCursor = 0
+	d.Update(tea.KeyPressMsg{Text: "e"})
+	if d.formMode != formEditProvider {
+		t.Fatalf("expected form to open, got formMode=%d", d.formMode)
+	}
+	d.currentLogLevel = filterAll
+
+	d.Update(tea.KeyPressMsg{Text: "l"})
+	if d.formFields[0].Value() != "niml" {
+		t.Errorf("in form mode, L should insert 'l' into focused field, got %q", d.formFields[0].Value())
+	}
+	if d.currentLogLevel.Label != "all" {
+		t.Errorf("in form mode, L should NOT cycle level, got Label=%q", d.currentLogLevel.Label)
+	}
+}
+
+func TestHelpShortcuts_ContainsL(t *testing.T) {
+	found := false
+	for _, s := range helpShortcuts {
+		if s.key == "L" && s.desc == "Cycle log level filter" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("helpShortcuts should contain entry with key 'L' and desc 'Cycle log level filter'")
+	}
+}

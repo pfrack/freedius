@@ -500,11 +500,11 @@ func (f LogFilter) Matches(level slog.Level) bool {
 
 #### Automated
 
-- [x] 2.1 `go build ./...` — compiles cleanly
-- [x] 2.2 `go vet ./...` — no new vet warnings
-- [x] 2.3 `go test ./proxy/tui/...` — all TUI tests pass; rewritten render tests cover plain-text + filter behavior
-- [x] 2.4 `go test -race ./...` — all tests pass with the race detector on
-- [x] 2.5 `TestRenderLogTab_NoStyling` — body has zero ANSI escapes
+- [x] 2.1 `go build ./...` — compiles cleanly — 75e35f8
+- [x] 2.2 `go vet ./...` — no new vet warnings — 75e35f8
+- [x] 2.3 `go test ./proxy/tui/...` — all TUI tests pass; rewritten render tests cover plain-text + filter behavior — 75e35f8
+- [x] 2.4 `go test -race ./...` — all tests pass with the race detector on — 75e35f8
+- [x] 2.5 `TestRenderLogTab_NoStyling` — body has zero ANSI escapes — 75e35f8
 
 #### Manual
 
@@ -517,11 +517,11 @@ func (f LogFilter) Matches(level slog.Level) bool {
 
 #### Automated
 
-- [ ] 3.1 `go build ./...` — compiles cleanly
-- [ ] 3.2 `go vet ./...` — no new vet warnings
-- [ ] 3.3 `go test ./...` — all tests pass
-- [ ] 3.4 `go test -race ./...` — race detector clean
-- [ ] 3.5 `gofumpt -l .` — no unformatted files
+- [x] 3.1 `go build ./...` — compiles cleanly
+- [x] 3.2 `go vet ./...` — no new vet warnings
+- [x] 3.3 `go test ./...` — all tests pass
+- [x] 3.4 `go test -race ./...` — race detector clean
+- [x] 3.5 `gofumpt -l .` — no unformatted files
 
 #### Manual
 

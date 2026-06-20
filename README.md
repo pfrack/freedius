@@ -81,7 +81,7 @@ Flags:
   -version             Print version
 ```
 
-No subcommands — `freedius` always starts the TUI dashboard alongside the proxy. Use Tab 3 (Config) to edit and save config. Press `Ctrl+E` to toggle verbose errors and `Ctrl+S` in Config to install the shell env block.
+No subcommands — `freedius` always starts the TUI dashboard alongside the proxy. Use Tab 3 (Config) to edit and save config. Press `Ctrl+E` to toggle verbose errors, `Ctrl+S` in Config to install the shell env block, and `L` to cycle the Log tab's level filter.
 
 ### Environment variables
 

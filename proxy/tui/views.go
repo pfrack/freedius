@@ -378,7 +378,8 @@ func renderHelpModal(terminalWidth int) string {
 }
 
 func overlayModal(_, modal string, width, height int) string {
-	return lipgloss.Place(width, height,
+	return lipgloss.Place(
+		width, height,
 		lipgloss.Center, lipgloss.Center,
 		modal,
 		lipgloss.WithWhitespaceStyle(

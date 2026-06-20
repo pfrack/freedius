@@ -321,6 +321,9 @@ func (d *Dashboard) handleTabModeKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.C
 	case "ctrl+e":
 		d.toggleVerboseErrors()
 		return d, nil
+	case "l":
+		d.cycleLogLevel()
+		return d, nil
 	case "ctrl+s":
 		if d.activeTab != tabConfig {
 			return d, nil
@@ -381,6 +384,22 @@ func (d *Dashboard) toggleVerboseErrors() {
 	} else {
 		d.stats.message = "Verbose errors: OFF"
 	}
+}
+
+// cycleLogLevel advances the active log level filter through the cycle
+// All → Debug → Info → Warn → Error → All and resets the scroll position.
+func (d *Dashboard) cycleLogLevel() {
+	for i, f := range logFilterCycle {
+		if f.Label == d.currentLogLevel.Label {
+			next := (i + 1) % len(logFilterCycle)
+			d.currentLogLevel = logFilterCycle[next]
+			d.logScroll = 0
+			return
+		}
+	}
+	// Fallback: start from All.
+	d.currentLogLevel = filterAll
+	d.logScroll = 0
 }
 
 func (d *Dashboard) handleFormKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
