@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -349,5 +350,60 @@ func TestStarterTemplate_ValidConfig(t *testing.T) {
 	}
 	if len(cfg.Providers) == 0 && len(cfg.Mappings) == 0 {
 		t.Error("starter template should define at least one provider or mapping")
+	}
+}
+
+func TestRun_LazyConfigDoesNotWriteFile(t *testing.T) {
+	// When the resolved config path doesn't exist and --config wasn't passed,
+	// freedius must boot from the embedded default and NOT create a file on
+	// disk. Build a one-shot binary in /tmp (outside the test tempdir) and
+	// override HOME only for the binary so the test process retains its
+	// default GOPATH/GOMODCACHE and doesn't write build artifacts into
+	// t.TempDir.
+	dir := t.TempDir()
+	expectedXDGPath := filepath.Join(dir, ".config", "freedius", "config.yaml")
+
+	projectRoot, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	binDir, err := os.MkdirTemp("", "freedius-bin-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(binDir)
+	bin := filepath.Join(binDir, "freedius")
+	build := exec.Command("go", "build", "-o", bin, ".")
+	build.Dir = projectRoot
+	if out, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("go build: %v\n%s", err, out)
+	}
+
+	cmd := exec.Command(bin, "--port", "1", "--no-export-hint")
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	// Strip any inherited HOME from the test process before re-adding our
+	// override, so HOME points only at the empty dir we control.
+	env := os.Environ()
+	filtered := env[:0]
+	for _, e := range env {
+		if strings.HasPrefix(e, "HOME=") {
+			continue
+		}
+		filtered = append(filtered, e)
+	}
+	filtered = append(filtered, "HOME="+dir)
+	cmd.Env = filtered
+	cmd.Run()
+
+	if _, err := os.Stat(expectedXDGPath); err == nil {
+		t.Errorf("config file should NOT be created on disk during lazy startup, but found at %s", expectedXDGPath)
+	}
+
+	output := stderr.String()
+	if !strings.Contains(output, "freedius listening on") &&
+		!strings.Contains(output, "permission denied") &&
+		!strings.Contains(output, "address already in use") {
+		t.Errorf("expected startup or bind error in stderr, got:\n%s", output)
 	}
 }

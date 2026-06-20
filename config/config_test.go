@@ -364,6 +364,77 @@ func TestLoadMissingFile(t *testing.T) {
 	}
 }
 
+func TestLoadFromBytes(t *testing.T) {
+	tests := []struct {
+		name    string
+		yaml    string
+		wantErr bool
+	}{
+		{
+			name: "valid YAML",
+			yaml: `providers:
+  nim: { behavior: openai }
+mappings:
+  opus:
+    provider_name: nim
+    model_string: meta/llama
+`,
+		},
+		{
+			name:    "empty bytes",
+			yaml:    "",
+			wantErr: true,
+		},
+		{
+			name:    "no mappings or providers",
+			yaml:    "providers: {}\n",
+			wantErr: true,
+		},
+		{
+			name: "invalid behavior",
+			yaml: `providers:
+  nim: { behavior: bogus }
+`,
+			wantErr: true,
+		},
+		{
+			name:    "malformed YAML",
+			yaml:    "providers:\n  nim:\n   foo: bar\n",
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg, err := LoadFromBytes([]byte(tt.yaml))
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("expected error, got cfg=%+v", cfg)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if _, ok := cfg.Providers["nim"]; !ok {
+				t.Error("expected nim provider after LoadFromBytes")
+			}
+		})
+	}
+}
+
+func TestLoadFromBytes_DoesNotTouchFS(t *testing.T) {
+	// LoadFromBytes must not require any path on disk; ensure it works with a
+	// deliberately bogus working directory that would fail any os.Stat call.
+	t.Setenv("HOME", "/this/path/definitely/does/not/exist")
+	cfg, err := LoadFromBytes([]byte("providers:\n  nim: { behavior: openai }\n"))
+	if err != nil {
+		t.Fatalf("LoadFromBytes should not depend on filesystem, got: %v", err)
+	}
+	if cfg == nil || cfg.Providers["nim"].Behavior != "openai" {
+		t.Errorf("unexpected cfg: %+v", cfg)
+	}
+}
+
 func TestProviderDefaults(t *testing.T) {
 	expected := []string{"nim", "zen", "go", "custom", "openai", "anthropic", "mix"}
 	if len(providerDefaults) != len(expected) {

@@ -590,11 +590,11 @@ Remove leftover code, tests, and targets from the removed subcommand architectur
 
 #### Automated
 
-- [x] 3.1 `go build -o freedius .` produces working binary
-- [x] 3.2 `go test ./...` passes (dispatch/init/serve tests removed)
-- [x] 3.3 `./freedius --version` exits 0, prints version
-- [x] 3.4 `./freedius --help` exits 0, prints usage
-- [x] 3.5 `go vet ./...` clean
+- [x] 3.1 `go build -o freedius .` produces working binary — 10e690a
+- [x] 3.2 `go test ./...` passes (dispatch/init/serve tests removed) — 10e690a
+- [x] 3.3 `./freedius --version` exits 0, prints version — 10e690a
+- [x] 3.4 `./freedius --help` exits 0, prints usage — 10e690a
+- [x] 3.5 `go vet ./...` clean — 10e690a
 
 #### Manual
 
@@ -608,8 +608,8 @@ Remove leftover code, tests, and targets from the removed subcommand architectur
 
 #### Automated
 
-- [ ] 4.1 `go test ./...` passes
-- [ ] 4.2 `go build ./...` succeeds
+- [x] 4.1 `go test ./...` passes
+- [x] 4.2 `go build ./...` succeeds
 
 #### Manual
 
