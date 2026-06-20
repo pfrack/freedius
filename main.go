@@ -218,6 +218,7 @@ func run(args []string) int {
 		bus.Subscribe(),
 		logSink.Subscribe(),
 		cfg, registry, dispatcher, cfgPath, host, port, verboseErrors,
+		"",
 	)
 	prog := tea.NewProgram(model)
 	if _, err := prog.Run(); err != nil {

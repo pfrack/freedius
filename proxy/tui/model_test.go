@@ -27,7 +27,7 @@ func newTestDashboard(cfg *config.Config, host string, port int, verbose bool) *
 	if cfg == nil {
 		cfg = emptyConfig
 	}
-	return NewDashboard(nil, nil, cfg, emptyRegistry, emptyDispatcher, "", host, port, verbose)
+	return NewDashboard(nil, nil, cfg, emptyRegistry, emptyDispatcher, "", host, port, verbose, "")
 }
 
 func TestDashboard_Update_KeyPress(t *testing.T) {
@@ -133,7 +133,7 @@ func TestDashboard_Update_EventMsg(t *testing.T) {
 	ch := make(chan proxy.RequestEvent, 1)
 	defer close(ch)
 
-	d := NewDashboard(ch, nil, &config.Config{}, emptyRegistry, emptyDispatcher, "", "", 0, false)
+	d := NewDashboard(ch, nil, &config.Config{}, emptyRegistry, emptyDispatcher, "", "", 0, false, "")
 
 	ev := proxy.RequestEvent{
 		RequestID: "test-1",
@@ -177,7 +177,7 @@ func TestDashboard_LogBufferReceivesEntries(t *testing.T) {
 	ch := make(chan proxy.LogEntry, 1)
 	defer close(ch)
 
-	d := NewDashboard(nil, ch, &config.Config{}, emptyRegistry, emptyDispatcher, "", "", 0, false)
+	d := NewDashboard(nil, ch, &config.Config{}, emptyRegistry, emptyDispatcher, "", "", 0, false, "")
 
 	entry := proxy.LogEntry{Level: slog.LevelInfo, Line: "test log line"}
 	ch <- entry
@@ -514,7 +514,7 @@ mappings:
 		t.Fatalf("Load: %v", err)
 	}
 
-	d := NewDashboard(nil, nil, cfg, emptyRegistry, emptyDispatcher, cfgPath, "", 0, false)
+	d := NewDashboard(nil, nil, cfg, emptyRegistry, emptyDispatcher, cfgPath, "", 0, false, "")
 	d.activeTab = tabConfig
 	d.configCursor = 1 // the mapping
 
@@ -683,7 +683,8 @@ func TestRenderLogTab_AppliesFilter(t *testing.T) {
 }
 
 func TestRenderTabs_LabelIsLog(t *testing.T) {
-	out := stripANSI(renderTabs(0, 80, filterAll))
+	s := NewStyles(DefaultPalette(), true)
+	out := stripANSI(renderTabs(0, 80, filterAll, s))
 	if !strings.Contains(out, "[1] Log [all]") {
 		t.Errorf("expected '[1] Log [all]' tab label, got: %s", out)
 	}

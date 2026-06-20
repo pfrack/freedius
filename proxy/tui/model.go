@@ -13,6 +13,7 @@ import (
 	"charm.land/bubbles/v2/textinput"
 
 	tea "charm.land/bubbletea/v2"
+	lipgloss "charm.land/lipgloss/v2"
 
 	"github.com/pfrack/freedius/config"
 	"github.com/pfrack/freedius/internal/envinject"
@@ -107,6 +108,10 @@ type Dashboard struct {
 	providerScroll int
 	logScroll      int
 	formError      string
+
+	styles       Styles
+	isDark       bool
+	currentTheme *Theme
 }
 
 // NewDashboard creates a new Dashboard model subscribed to the given event
@@ -127,6 +132,7 @@ func NewDashboard(
 	host string,
 	port int,
 	verboseErrors bool,
+	themeName string,
 ) *Dashboard {
 	if cfg == nil {
 		panic("tui: nil config")
@@ -137,6 +143,8 @@ func NewDashboard(
 	if dispatcher == nil {
 		panic("tui: nil dispatcher")
 	}
+	isDark := lipgloss.HasDarkBackground(os.Stdin, os.Stdout)
+	theme := resolveTheme(themeName)
 	return &Dashboard{
 		activeTab:       tabLog,
 		events:          events,
@@ -153,6 +161,9 @@ func NewDashboard(
 		stats: statsData{
 			startTime: time.Now(),
 		},
+		isDark:       isDark,
+		currentTheme: theme,
+		styles:       NewStyles(theme.Palette, isDark),
 	}
 }
 
@@ -429,13 +440,13 @@ func (d *Dashboard) handleFormKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd)
 				if fieldName == "provider" && d.formMode == formAddMapping {
 					providers := d.config.ProvidersSnapshot()
 					names := sortedConfiguredProviderNames(providers)
-					d.picker = newProviderPicker(names, providers)
+					d.picker = newProviderPicker(names, providers, d.styles)
 					d.showPicker = true
 					return d, nil
 				}
 				if fieldName == "behavior" &&
 					(d.formMode == formAddProvider || d.formMode == formEditProvider) {
-					d.picker = newBehaviorPicker()
+					d.picker = newBehaviorPicker(d.styles)
 					d.showPicker = true
 					return d, nil
 				}
@@ -522,19 +533,19 @@ func (d *Dashboard) View() tea.View {
 		case tabLog:
 			content = renderLogTab(d.logBuffer.all(), width, bodyHeight, d.logScroll, d.currentLogLevel)
 		case tabProviders:
-			content = renderProvidersTab(d.config, width, bodyHeight, d.providerScroll)
+			content = renderProvidersTab(d.config, width, bodyHeight, d.providerScroll, d.styles)
 		case tabConfig:
-			content = renderConfigTab(d.config, d.configCursor, width, bodyHeight)
+			content = renderConfigTab(d.config, d.configCursor, width, bodyHeight, d.styles)
 		default:
 			content = fmt.Sprintf("Unknown tab: %d", d.activeTab)
 		}
 	}
 
-	stats := renderStatsBar(d.stats, width)
-	tabs := renderTabs(d.activeTab, width, d.currentLogLevel)
+	stats := renderStatsBar(d.stats, width, d.styles)
+	tabs := renderTabs(d.activeTab, width, d.currentLogLevel, d.styles)
 	var body string
 	if d.styleBody {
-		body = windowStyle.Width(max(width-2, 0)).Render(content)
+		body = d.styles.WindowStyle.Width(max(width-2, 0)).Render(content)
 	} else {
 		body = content
 	}
@@ -542,8 +553,8 @@ func (d *Dashboard) View() tea.View {
 	result := fmt.Sprintf("%s\n%s\n%s", stats, tabs, body)
 
 	if d.showHelp {
-		modal := renderHelpModal(width)
-		result = overlayModal(result, modal, width, height)
+		modal := renderHelpModal(width, d.styles)
+		result = overlayModal(result, modal, width, height, d.styles.OverlayBgStyle)
 	}
 
 	v := tea.NewView(result)

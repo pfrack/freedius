@@ -12,7 +12,7 @@ import (
 	"github.com/pfrack/freedius/proxy"
 )
 
-func renderTabs(active int, width int, level LogFilter) string {
+func renderTabs(active int, width int, level LogFilter, styles Styles) string {
 	tabs := []string{
 		fmt.Sprintf("[1] Log [%s]", level.Label),
 		"[2] Providers",
@@ -21,13 +21,13 @@ func renderTabs(active int, width int, level LogFilter) string {
 	styled := make([]string, len(tabs))
 	for i, t := range tabs {
 		if i == active {
-			styled[i] = activeTabStyle.Render(t)
+			styled[i] = styles.ActiveTabStyle.Render(t)
 		} else {
-			styled[i] = inactiveTabStyle.Render(t)
+			styled[i] = styles.InactiveTabStyle.Render(t)
 		}
 	}
 	joined := lipgloss.JoinHorizontal(lipgloss.Top, styled...)
-	return tabBarStyle.Width(max(width-2, 0)).Render(joined)
+	return styles.TabBarStyle.Width(max(width-2, 0)).Render(joined)
 }
 
 func renderLogTab(entries []proxy.LogEntry, _ int, height, scroll int, filter LogFilter) string {
@@ -62,18 +62,18 @@ func renderLogTab(entries []proxy.LogEntry, _ int, height, scroll int, filter Lo
 	return b.String()
 }
 
-func renderProvidersTab(cfg *config.Config, width, height, scroll int) string {
+func renderProvidersTab(cfg *config.Config, width, height, scroll int, styles Styles) string {
 	var b strings.Builder
-	b.WriteString(windowStyle.Render("Provider Configuration") + "\n\n")
+	b.WriteString(styles.WindowStyle.Render("Provider Configuration") + "\n\n")
 
-	header := providerTableHeaderStyle.Render(
+	header := styles.ProviderTableHeaderStyle.Render(
 		fmt.Sprintf(
 			"%-14s %-10s %-30s %-6s",
 			"Provider", "Behavior", "Base URL", "Mappings",
 		),
 	)
 	b.WriteString(header + "\n")
-	b.WriteString(separatorStyle.Render(strings.Repeat("─", max(width-4, 0))) + "\n")
+	b.WriteString(styles.SeparatorStyle.Render(strings.Repeat("─", max(width-4, 0))) + "\n")
 
 	available := height - 4
 	if available < 0 {
@@ -110,10 +110,10 @@ func renderProvidersTab(cfg *config.Config, width, height, scroll int) string {
 	return b.String()
 }
 
-func renderConfigTab(cfg *config.Config, cursor int, width, height int) string {
+func renderConfigTab(cfg *config.Config, cursor int, width, height int, styles Styles) string {
 	var b strings.Builder
-	b.WriteString(windowStyle.Render("Configuration") + "\n\n")
-	b.WriteString(separatorStyle.Render(strings.Repeat("─", max(width-4, 0))) + "\n")
+	b.WriteString(styles.WindowStyle.Render("Configuration") + "\n\n")
+	b.WriteString(styles.SeparatorStyle.Render(strings.Repeat("─", max(width-4, 0))) + "\n")
 
 	all := collectAllEntries(cfg)
 	// Each entry occupies ~6 lines (label + 4 fields + blank) for providers
@@ -150,47 +150,47 @@ func renderConfigTab(cfg *config.Config, cursor int, width, height int) string {
 
 	for i := start; i < end; i++ {
 		entry := all[i]
-		nameStyle := configKeyStyle
+		nameStyle := styles.ConfigKeyStyle
 		if i == cursor {
-			nameStyle = activeTabStyle
+			nameStyle = styles.ActiveTabStyle
 		}
 		label := nameStyle.Render(entry.name)
 		fmt.Fprintf(&b, "%s (%s):\n", label, entry.kind)
 		if entry.kind == "provider" {
 			provider := entry.provider
-			fmt.Fprintf(&b, "  behavior: %s\n", configValueStyle.Render(provider.Behavior))
+			fmt.Fprintf(&b, "  behavior: %s\n", styles.ConfigValueStyle.Render(provider.Behavior))
 			if provider.DefaultBaseURL != "" {
 				fmt.Fprintf(
 					&b,
 					"  base_url: %s\n",
-					configValueStyle.Render(provider.DefaultBaseURL),
+					styles.ConfigValueStyle.Render(provider.DefaultBaseURL),
 				)
 			}
 			if provider.DefaultAPIKeyEnv != "" {
 				fmt.Fprintf(
 					&b,
 					"  api_key:  %s\n",
-					configValueStyle.Render(provider.DefaultAPIKeyEnv),
+					styles.ConfigValueStyle.Render(provider.DefaultAPIKeyEnv),
 				)
 			}
 			if provider.AnthropicVersion != "" {
 				fmt.Fprintf(
 					&b,
 					"  api_ver:  %s\n",
-					configValueStyle.Render(provider.AnthropicVersion),
+					styles.ConfigValueStyle.Render(provider.AnthropicVersion),
 				)
 			}
 		} else {
 			mapping := entry.mapping
-			fmt.Fprintf(&b, "  provider_name: %s\n", configValueStyle.Render(mapping.ProviderName))
-			fmt.Fprintf(&b, "  model_string:  %s\n", configValueStyle.Render(mapping.ModelString))
+			fmt.Fprintf(&b, "  provider_name: %s\n", styles.ConfigValueStyle.Render(mapping.ProviderName))
+			fmt.Fprintf(&b, "  model_string:  %s\n", styles.ConfigValueStyle.Render(mapping.ModelString))
 		}
 		b.WriteString("\n")
 	}
 	return b.String()
 }
 
-func renderStatsBar(stats statsData, width int) string {
+func renderStatsBar(stats statsData, width int, styles Styles) string {
 	uptime := time.Since(stats.startTime).Round(time.Second).String()
 	total := stats.totalRequests
 	errors := stats.errorCount
@@ -211,7 +211,7 @@ func renderStatsBar(stats statsData, width int) string {
 	if len(line) > width {
 		line = line[:width]
 	}
-	return statsBarStyle.Render(line)
+	return styles.StatsBarStyle.Render(line)
 }
 
 type providerInfo struct {
@@ -315,11 +315,11 @@ func renderForm(d *Dashboard, width, _ int) string {
 	}
 
 	var b strings.Builder
-	b.WriteString(windowStyle.Render("Edit Configuration") + "\n\n")
+	b.WriteString(d.styles.WindowStyle.Render("Edit Configuration") + "\n\n")
 
 	labels := fieldLabelsForMode(d.formMode)
 	for i, label := range labels {
-		labelStr := configKeyStyle.Render(label + ":")
+		labelStr := d.styles.ConfigKeyStyle.Render(label + ":")
 		fieldView := d.formFields[i].View()
 
 		if d.showPicker && d.picker != nil {
@@ -332,26 +332,26 @@ func renderForm(d *Dashboard, width, _ int) string {
 		fmt.Fprintf(&b, "  %s\n  %s\n", labelStr, fieldView)
 
 		if errMsg, ok := d.fieldErrors[i]; ok {
-			fmt.Fprintf(&b, "  %s\n", statusErrorStyle.Render(errMsg))
+			fmt.Fprintf(&b, "  %s\n", d.styles.StatusErrorStyle.Render(errMsg))
 		}
 	}
 
 	if d.formError != "" {
-		fmt.Fprintf(&b, "\n  %s\n", statusErrorStyle.Render(d.formError))
+		fmt.Fprintf(&b, "\n  %s\n", d.styles.StatusErrorStyle.Render(d.formError))
 	}
 
 	b.WriteString("\n")
-	footer := statusClientErrStyle.Render("Enter=Save  Esc=Cancel  Tab=Next Field")
+	footer := d.styles.StatusClientErrStyle.Render("Enter=Save  Esc=Cancel  Tab=Next Field")
 	b.WriteString("  " + footer)
 
 	content := b.String()
-	return windowStyle.Width(max(width-2, 0)).Render(content)
+	return d.styles.WindowStyle.Width(max(width-2, 0)).Render(content)
 }
 
 func renderDeleteConfirm(d *Dashboard, width int) string {
 	msg := fmt.Sprintf("Delete %s '%s'? [y/N]", d.formKind, d.formEntryName)
-	content := statusErrorStyle.Render(msg)
-	return windowStyle.Width(max(width-2, 0)).Render(content)
+	content := d.styles.StatusErrorStyle.Render(msg)
+	return d.styles.WindowStyle.Width(max(width-2, 0)).Render(content)
 }
 
 func modalWidthFor(terminalWidth int) int {
@@ -359,31 +359,29 @@ func modalWidthFor(terminalWidth int) int {
 	return min(max(w, 40), 60)
 }
 
-func renderHelpModal(terminalWidth int) string {
+func renderHelpModal(terminalWidth int, styles Styles) string {
 	mw := modalWidthFor(terminalWidth)
-	title := modalTitleStyle.Render(" Keyboard Shortcuts ")
+	title := styles.ModalTitleStyle.Render(" Keyboard Shortcuts ")
 	var rows []string
 	for _, s := range helpShortcuts {
-		key := shortcutKeyStyle.Width(14).Render(s.key)
-		desc := shortcutDescStyle.Render(s.desc)
+		key := styles.ShortcutKeyStyle.Width(14).Render(s.key)
+		desc := styles.ShortcutDescStyle.Render(s.desc)
 		rows = append(rows, lipgloss.JoinHorizontal(lipgloss.Top, key, desc))
 	}
 	body := lipgloss.JoinVertical(lipgloss.Left, rows...)
-	footer := modalFooterStyle.Render("Press ? or Esc to close")
-	sep := separatorStyle.Render(strings.Repeat("─", mw-2))
+	footer := styles.ModalFooterStyle.Render("Press ? or Esc to close")
+	sep := styles.SeparatorStyle.Render(strings.Repeat("─", mw-2))
 
-	return modalStyle.
+	return styles.ModalStyle.
 		Width(mw).
 		Render(lipgloss.JoinVertical(lipgloss.Left, title, sep, body, "", footer))
 }
 
-func overlayModal(_, modal string, width, height int) string {
+func overlayModal(_, modal string, width, height int, bgStyle lipgloss.Style) string {
 	return lipgloss.Place(
 		width, height,
 		lipgloss.Center, lipgloss.Center,
 		modal,
-		lipgloss.WithWhitespaceStyle(
-			lipgloss.NewStyle().Background(lipgloss.Color("0")),
-		),
+		lipgloss.WithWhitespaceStyle(bgStyle),
 	)
 }

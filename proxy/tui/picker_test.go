@@ -9,6 +9,7 @@ import (
 )
 
 func TestProviderPicker_Selection(t *testing.T) {
+	s := NewStyles(DefaultPalette(), true)
 	providers := map[string]config.Provider{
 		"nim": {
 			Behavior:         "openai",
@@ -18,7 +19,7 @@ func TestProviderPicker_Selection(t *testing.T) {
 		"zen":  {Behavior: "mix"},
 		"anth": {Behavior: "anthropic"},
 	}
-	p := newProviderPicker(sortedConfiguredProviderNames(providers), providers)
+	p := newProviderPicker(sortedConfiguredProviderNames(providers), providers, s)
 	if p == nil {
 		t.Fatal("newProviderPicker returned nil")
 	}
@@ -50,8 +51,9 @@ func TestProviderPicker_Selection(t *testing.T) {
 }
 
 func TestProviderPicker_KeyPressEnterSelects(t *testing.T) {
+	s := NewStyles(DefaultPalette(), true)
 	providers := map[string]config.Provider{"nim": {Behavior: "openai"}}
-	p := newProviderPicker(sortedConfiguredProviderNames(providers), providers)
+	p := newProviderPicker(sortedConfiguredProviderNames(providers), providers, s)
 
 	_ = p.list.SetItem(0, providerItem{name: "test-provider", behavior: "test"})
 
@@ -62,8 +64,9 @@ func TestProviderPicker_KeyPressEnterSelects(t *testing.T) {
 }
 
 func TestProviderPicker_KeyPressEscCancels(t *testing.T) {
+	s := NewStyles(DefaultPalette(), true)
 	providers := map[string]config.Provider{"nim": {Behavior: "openai"}}
-	p := newProviderPicker(sortedConfiguredProviderNames(providers), providers)
+	p := newProviderPicker(sortedConfiguredProviderNames(providers), providers, s)
 
 	_, done := p.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
 	if !done {
@@ -72,12 +75,13 @@ func TestProviderPicker_KeyPressEscCancels(t *testing.T) {
 }
 
 func TestProviderPicker_Navigation(t *testing.T) {
+	s := NewStyles(DefaultPalette(), true)
 	providers := map[string]config.Provider{
 		"nim":  {Behavior: "openai"},
 		"zen":  {Behavior: "mix"},
 		"anth": {Behavior: "anthropic"},
 	}
-	p := newProviderPicker(sortedConfiguredProviderNames(providers), providers)
+	p := newProviderPicker(sortedConfiguredProviderNames(providers), providers, s)
 
 	initialIndex := p.list.Index()
 	_, done := p.Update(tea.KeyPressMsg{Code: tea.KeyDown})
@@ -90,7 +94,7 @@ func TestProviderPicker_Navigation(t *testing.T) {
 }
 
 func TestBehaviorPicker_Selection(t *testing.T) {
-	p := newBehaviorPicker()
+	p := newBehaviorPicker(NewStyles(DefaultPalette(), true))
 	if p == nil {
 		t.Fatal("newBehaviorPicker returned nil")
 	}
