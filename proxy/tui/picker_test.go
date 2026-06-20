@@ -9,7 +9,12 @@ import (
 )
 
 func TestProviderPicker_Selection(t *testing.T) {
-	p := newProviderPicker()
+	providers := map[string]config.Provider{
+		"nim":  {Behavior: "openai", DefaultBaseURL: "https://x/v1/chat/completions", DefaultAPIKeyEnv: "NVIDIA_NIM_API_KEY"},
+		"zen":  {Behavior: "mix"},
+		"anth": {Behavior: "anthropic"},
+	}
+	p := newProviderPicker(sortedConfiguredProviderNames(providers), providers)
 	if p == nil {
 		t.Fatal("newProviderPicker returned nil")
 	}
@@ -19,8 +24,8 @@ func TestProviderPicker_Selection(t *testing.T) {
 	}
 
 	items := p.list.Items()
-	if len(items) != len(config.KnownProviders) {
-		t.Errorf("items count = %d, want %d", len(items), len(config.KnownProviders))
+	if len(items) != len(providers) {
+		t.Errorf("items count = %d, want %d", len(items), len(providers))
 	}
 
 	found := false
@@ -41,7 +46,8 @@ func TestProviderPicker_Selection(t *testing.T) {
 }
 
 func TestProviderPicker_KeyPressEnterSelects(t *testing.T) {
-	p := newProviderPicker()
+	providers := map[string]config.Provider{"nim": {Behavior: "openai"}}
+	p := newProviderPicker(sortedConfiguredProviderNames(providers), providers)
 
 	_ = p.list.SetItem(0, providerItem{name: "test-provider", behavior: "test"})
 
@@ -52,7 +58,8 @@ func TestProviderPicker_KeyPressEnterSelects(t *testing.T) {
 }
 
 func TestProviderPicker_KeyPressEscCancels(t *testing.T) {
-	p := newProviderPicker()
+	providers := map[string]config.Provider{"nim": {Behavior: "openai"}}
+	p := newProviderPicker(sortedConfiguredProviderNames(providers), providers)
 
 	_, done := p.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
 	if !done {
@@ -61,7 +68,12 @@ func TestProviderPicker_KeyPressEscCancels(t *testing.T) {
 }
 
 func TestProviderPicker_Navigation(t *testing.T) {
-	p := newProviderPicker()
+	providers := map[string]config.Provider{
+		"nim":  {Behavior: "openai"},
+		"zen":  {Behavior: "mix"},
+		"anth": {Behavior: "anthropic"},
+	}
+	p := newProviderPicker(sortedConfiguredProviderNames(providers), providers)
 
 	initialIndex := p.list.Index()
 	_, done := p.Update(tea.KeyPressMsg{Code: tea.KeyDown})
@@ -73,96 +85,32 @@ func TestProviderPicker_Navigation(t *testing.T) {
 	}
 }
 
-func TestProviderInfo(t *testing.T) {
-	tests := []struct {
-		name            string
-		provider        string
-		wantBehavior    string
-		wantAPIKeyEnv   string
-		wantBaseURL     string
-		wantRequiresURL bool
-	}{
-		{
-			name:            "nim",
-			provider:        "nim",
-			wantBehavior:    "openai",
-			wantAPIKeyEnv:   "NVIDIA_NIM_API_KEY",
-			wantBaseURL:     "https://integrate.api.nvidia.com/v1/chat/completions",
-			wantRequiresURL: false,
-		},
-		{
-			name:            "openai",
-			provider:        "openai",
-			wantBehavior:    "openai",
-			wantAPIKeyEnv:   "",
-			wantBaseURL:     "",
-			wantRequiresURL: true,
-		},
-		{
-			name:            "anthropic",
-			provider:        "anthropic",
-			wantBehavior:    "anthropic",
-			wantAPIKeyEnv:   "ANTHROPIC_API_KEY",
-			wantBaseURL:     "",
-			wantRequiresURL: true,
-		},
-		{
-			name:            "mix",
-			provider:        "mix",
-			wantBehavior:    "mix",
-			wantAPIKeyEnv:   "",
-			wantBaseURL:     "",
-			wantRequiresURL: true,
-		},
-		{
-			name:            "zen",
-			provider:        "zen",
-			wantBehavior:    "mix",
-			wantAPIKeyEnv:   "OPENCODE_API_KEY",
-			wantBaseURL:     "",
-			wantRequiresURL: true,
-		},
-		{
-			name:            "go",
-			provider:        "go",
-			wantBehavior:    "mix",
-			wantAPIKeyEnv:   "OPENCODE_API_KEY",
-			wantBaseURL:     "",
-			wantRequiresURL: true,
-		},
-		{
-			name:            "custom",
-			provider:        "custom",
-			wantBehavior:    "mix",
-			wantAPIKeyEnv:   "",
-			wantBaseURL:     "",
-			wantRequiresURL: true,
-		},
-		{
-			name:            "unknown",
-			provider:        "unknown",
-			wantBehavior:    "",
-			wantAPIKeyEnv:   "",
-			wantBaseURL:     "",
-			wantRequiresURL: false,
-		},
+func TestBehaviorPicker_Selection(t *testing.T) {
+	p := newBehaviorPicker()
+	if p == nil {
+		t.Fatal("newBehaviorPicker returned nil")
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			behavior, apiKeyEnv, baseURL, requiresURL := config.ProviderInfo(tt.provider)
-			if behavior != tt.wantBehavior {
-				t.Errorf("behavior = %q, want %q", behavior, tt.wantBehavior)
-			}
-			if apiKeyEnv != tt.wantAPIKeyEnv {
-				t.Errorf("apiKeyEnv = %q, want %q", apiKeyEnv, tt.wantAPIKeyEnv)
-			}
-			if baseURL != tt.wantBaseURL {
-				t.Errorf("baseURL = %q, want %q", baseURL, tt.wantBaseURL)
-			}
-			if requiresURL != tt.wantRequiresURL {
-				t.Errorf("requiresURL = %v, want %v", requiresURL, tt.wantRequiresURL)
-			}
-		})
+	items := p.list.Items()
+	if len(items) != 3 {
+		t.Errorf("behavior picker items = %d, want 3", len(items))
+	}
+
+	wantBehaviors := map[string]bool{"openai": false, "anthropic": false, "mix": false}
+	for _, item := range items {
+		pi, ok := item.(providerItem)
+		if !ok {
+			t.Errorf("unexpected item type: %T", item)
+			continue
+		}
+		if _, expected := wantBehaviors[pi.name]; !expected {
+			t.Errorf("unexpected behavior in picker: %q", pi.name)
+		}
+		wantBehaviors[pi.name] = true
+	}
+	for name, seen := range wantBehaviors {
+		if !seen {
+			t.Errorf("expected behavior %q in picker, missing", name)
+		}
 	}
 }

@@ -15,7 +15,8 @@ type stubProvider struct {
 func (s *stubProvider) Handle(
 	w http.ResponseWriter,
 	_ *http.Request,
-	_ config.Model,
+	_ config.Provider,
+	_ config.Mapping,
 	_ []byte,
 ) error {
 	s.called = true

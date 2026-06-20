@@ -70,75 +70,44 @@ func TestIsCountTokensPathIgnoresQuery(t *testing.T) {
 }
 
 func TestSupportsCountTokens(t *testing.T) {
+	// supportsCountTokens is now a one-line read of Provider.SupportsCountTokens
+	// (set at config-load time by applyDefaults from generated providerDefaults).
+	// Behavior at request time is governed by the provider's runtime flag.
 	tests := []struct {
 		name string
-		m    config.Model
+		p    config.Provider
 		want bool
 	}{
 		{
-			name: "anthropic provider",
-			m:    config.Model{Provider: "anthropic"},
+			name: "anthropic behavior with SupportsCountTokens true",
+			p:    config.Provider{Behavior: "anthropic", SupportsCountTokens: true},
 			want: true,
 		},
 		{
-			name: "mix with anthropic protocol",
-			m:    config.Model{Provider: "mix", Protocol: "anthropic"},
+			name: "openai behavior with SupportsCountTokens false",
+			p:    config.Provider{Behavior: "openai", SupportsCountTokens: false},
+			want: false,
+		},
+		{
+			name: "mix behavior with SupportsCountTokens true (set by applyDefaults when base_url path is /v1/messages)",
+			p:    config.Provider{Behavior: "mix", DefaultBaseURL: "https://x/v1/messages", SupportsCountTokens: true},
 			want: true,
 		},
 		{
-			name: "mix with openai protocol",
-			m:    config.Model{Provider: "mix", Protocol: "openai"},
-			want: false,
-		},
-		{
-			name: "mix no protocol + /v1/messages URL sniff",
-			m: config.Model{
-				Provider: "mix",
-				BaseURL:  "https://api.minimax.io/anthropic/v1/messages",
-			},
-			want: true,
-		},
-		{
-			name: "mix no protocol + other URL",
-			m: config.Model{
-				Provider: "mix",
-				BaseURL:  "https://integrate.api.nvidia.com/v1/chat/completions",
-			},
-			want: false,
-		},
-		{
-			name: "mix no protocol + empty BaseURL",
-			m:    config.Model{Provider: "mix"},
-			want: false,
-		},
-		{
-			name: "mix no protocol + unparseable BaseURL",
-			m: config.Model{
-				Provider: "mix",
-				BaseURL:  "://bad",
-			},
-			want: false,
-		},
-		{
-			name: "nim provider",
-			m:    config.Model{Provider: "nim"},
-			want: false,
-		},
-		{
-			name: "openai provider",
-			m:    config.Model{Provider: "openai"},
+			name: "mix behavior with SupportsCountTokens false (set by applyDefaults when base_url path is /v1/chat/completions)",
+			p:    config.Provider{Behavior: "mix", DefaultBaseURL: "https://x/v1/chat/completions", SupportsCountTokens: false},
 			want: false,
 		},
 		{
 			name: "empty provider",
-			m:    config.Model{},
+			p:    config.Provider{},
 			want: false,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := supportsCountTokens(tt.m); got != tt.want {
-				t.Errorf("supportsCountTokens(%+v) = %v, want %v", tt.m, got, tt.want)
+			if got := supportsCountTokens(tt.p); got != tt.want {
+				t.Errorf("supportsCountTokens(%+v) = %v, want %v", tt.p, got, tt.want)
 			}
 		})
 	}

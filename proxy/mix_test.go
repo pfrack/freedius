@@ -69,12 +69,12 @@ func TestMixAdapter_AnthropicPassthrough(t *testing.T) {
 	err := a.Handle(
 		rec,
 		req,
-		config.Model{
-			Provider:  "mix",
-			Model:     "my-model",
-			BaseURL:   upstream.URL + "/v1/messages",
-			APIKeyEnv: "MIX_API_KEY",
+		config.Provider{
+			Behavior:         "mix",
+			DefaultBaseURL:   upstream.URL + "/v1/messages",
+			DefaultAPIKeyEnv: "MIX_API_KEY",
 		},
+		config.Mapping{ProviderName: "mix", ModelString: "my-model"},
 		[]byte(`{"model":"my-model"}`),
 	)
 	if err != nil {
@@ -128,12 +128,12 @@ func TestMixAdapter_OpenAITranslation(t *testing.T) {
 	err := a.Handle(
 		rec,
 		req,
-		config.Model{
-			Provider:  "mix",
-			Model:     "my-model",
-			BaseURL:   upstream.URL + "/v1/chat/completions",
-			APIKeyEnv: "MIX_API_KEY",
+		config.Provider{
+			Behavior:         "mix",
+			DefaultBaseURL:   upstream.URL + "/v1/chat/completions",
+			DefaultAPIKeyEnv: "MIX_API_KEY",
 		},
+		config.Mapping{ProviderName: "mix", ModelString: "my-model"},
 		body,
 	)
 	if err != nil {
@@ -185,12 +185,12 @@ func TestMixAdapter_OpenAIPathOmitsStreamOptions(t *testing.T) {
 	err := a.Handle(
 		rec,
 		req,
-		config.Model{
-			Provider:  "mix",
-			Model:     "my-model",
-			BaseURL:   upstream.URL + "/v1/chat/completions",
-			APIKeyEnv: "MIX_API_KEY",
+		config.Provider{
+			Behavior:         "mix",
+			DefaultBaseURL:   upstream.URL + "/v1/chat/completions",
+			DefaultAPIKeyEnv: "MIX_API_KEY",
 		},
+		config.Mapping{ProviderName: "mix", ModelString: "my-model"},
 		body,
 	)
 	if err != nil {
@@ -230,12 +230,12 @@ func TestMixAdapter_Upstream401_AnthropicPath(t *testing.T) {
 	err := a.Handle(
 		rec,
 		req,
-		config.Model{
-			Provider:  "mix",
-			Model:     "x",
-			BaseURL:   upstream.URL + "/v1/messages",
-			APIKeyEnv: "MIX_API_KEY",
+		config.Provider{
+			Behavior:         "mix",
+			DefaultBaseURL:   upstream.URL + "/v1/messages",
+			DefaultAPIKeyEnv: "MIX_API_KEY",
 		},
+		config.Mapping{ProviderName: "mix", ModelString: "x"},
 		[]byte(`{}`),
 	)
 	if err != nil {
@@ -263,12 +263,12 @@ func TestMixAdapter_Upstream401_OpenAIPath(t *testing.T) {
 	err := a.Handle(
 		rec,
 		req,
-		config.Model{
-			Provider:  "mix",
-			Model:     "x",
-			BaseURL:   upstream.URL + "/v1/chat/completions",
-			APIKeyEnv: "MIX_API_KEY",
+		config.Provider{
+			Behavior:         "mix",
+			DefaultBaseURL:   upstream.URL + "/v1/chat/completions",
+			DefaultAPIKeyEnv: "MIX_API_KEY",
 		},
+		config.Mapping{ProviderName: "mix", ModelString: "x"},
 		[]byte(`{}`),
 	)
 	if err != nil {
@@ -290,12 +290,12 @@ func TestMixAdapter_MissingEnvVar(t *testing.T) {
 	err := a.Handle(
 		rec,
 		req,
-		config.Model{
-			Provider:  "mix",
-			Model:     "x",
-			BaseURL:   "https://example.com/v1/messages",
-			APIKeyEnv: "MIX_API_KEY",
+		config.Provider{
+			Behavior:         "mix",
+			DefaultBaseURL:   "https://example.com/v1/messages",
+			DefaultAPIKeyEnv: "MIX_API_KEY",
 		},
+		config.Mapping{ProviderName: "mix", ModelString: "x"},
 		[]byte(`{}`),
 	)
 	if err == nil {
@@ -314,7 +314,8 @@ func TestMixAdapter_MissingBaseURL(t *testing.T) {
 	err := a.Handle(
 		rec,
 		req,
-		config.Model{Provider: "mix", Model: "x", APIKeyEnv: "MIX_API_KEY"},
+		config.Provider{Behavior: "mix", DefaultAPIKeyEnv: "MIX_API_KEY"},
+		config.Mapping{ProviderName: "mix", ModelString: "x"},
 		[]byte(`{}`),
 	)
 	if err == nil {
@@ -322,7 +323,10 @@ func TestMixAdapter_MissingBaseURL(t *testing.T) {
 	}
 }
 
-func TestMixAdapter_ProtocolAnthropicOverridesURL(t *testing.T) {
+func TestMixAdapter_URLAuthPathSniff(t *testing.T) {
+	// Provider-level behavior is "mix"; routing is decided by base_url path
+	// suffix ("/v1/messages" → anthropic). This exercises the sniff that
+	// replaces the old per-mapping Protocol override.
 	t.Setenv("MIX_API_KEY", "sk-test")
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("x-api-key") != "sk-test" {
@@ -337,13 +341,11 @@ func TestMixAdapter_ProtocolAnthropicOverridesURL(t *testing.T) {
 	a := newMixAdapter(t)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader([]byte(`{"model":"x"}`)))
-	err := a.Handle(rec, req, config.Model{
-		Provider:  "mix",
-		Model:     "x",
-		BaseURL:   upstream.URL + "/v1/chat/completions", // OpenAI-style URL
-		APIKeyEnv: "MIX_API_KEY",
-		Protocol:  "anthropic", // but protocol says anthropic
-	}, []byte(`{"model":"x"}`))
+	err := a.Handle(rec, req, config.Provider{
+		Behavior:         "mix",
+		DefaultBaseURL:   upstream.URL + "/v1/messages",
+		DefaultAPIKeyEnv: "MIX_API_KEY",
+	}, config.Mapping{ProviderName: "mix", ModelString: "x"}, []byte(`{"model":"x"}`))
 	if err != nil {
 		t.Fatalf("Handle returned err: %v", err)
 	}
@@ -352,7 +354,9 @@ func TestMixAdapter_ProtocolAnthropicOverridesURL(t *testing.T) {
 	}
 }
 
-func TestMixAdapter_ProtocolOpenAIOverridesURL(t *testing.T) {
+func TestMixAdapter_URLOpenAIPathSniff(t *testing.T) {
+	// URL path ending in /v1/chat/completions routes to OpenAI sub-adapter,
+	// even when the upstream happens to live at a /v1/messages-style host.
 	t.Setenv("MIX_API_KEY", "sk-test")
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "Bearer sk-test" {
@@ -385,13 +389,11 @@ func TestMixAdapter_ProtocolOpenAIOverridesURL(t *testing.T) {
 		`{"model":"claude-opus-4","max_tokens":50,"messages":[{"role":"user","content":"hi"}],"stream":true}`,
 	)
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader(body))
-	err := a.Handle(rec, req, config.Model{
-		Provider:  "mix",
-		Model:     "x",
-		BaseURL:   upstream.URL + "/v1/messages", // Anthropic-style URL
-		APIKeyEnv: "MIX_API_KEY",
-		Protocol:  "openai", // but protocol says openai
-	}, body)
+	err := a.Handle(rec, req, config.Provider{
+		Behavior:         "mix",
+		DefaultBaseURL:   upstream.URL + "/v1/chat/completions",
+		DefaultAPIKeyEnv: "MIX_API_KEY",
+	}, config.Mapping{ProviderName: "mix", ModelString: "x"}, body)
 	if err != nil {
 		t.Fatalf("Handle returned err: %v", err)
 	}
@@ -403,7 +405,7 @@ func TestMixAdapter_ProtocolOpenAIOverridesURL(t *testing.T) {
 	}
 }
 
-func TestMixAdapter_ProtocolAnthropic_ClientDisconnect(t *testing.T) {
+func TestMixAdapter_AnthropicPathClientDisconnect(t *testing.T) {
 	t.Setenv("MIX_API_KEY", "sk-test")
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -422,13 +424,12 @@ func TestMixAdapter_ProtocolAnthropic_ClientDisconnect(t *testing.T) {
 	err := a.Handle(
 		rec,
 		req,
-		config.Model{
-			Provider:  "mix",
-			Model:     "x",
-			BaseURL:   upstream.URL,
-			APIKeyEnv: "MIX_API_KEY",
-			Protocol:  "anthropic",
+		config.Provider{
+			Behavior:         "mix",
+			DefaultBaseURL:   upstream.URL + "/v1/messages",
+			DefaultAPIKeyEnv: "MIX_API_KEY",
 		},
+		config.Mapping{ProviderName: "mix", ModelString: "x"},
 		[]byte(`{"model":"x"}`),
 	)
 	if err != nil {

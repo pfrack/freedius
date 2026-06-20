@@ -148,13 +148,10 @@ func (d *Dispatcher) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	m, ok := d.Cfg.Models[req.Model]
+	mapping, ok := d.Cfg.Mappings[req.Model]
 	if !ok {
-		m, ok = d.Cfg.Mappings[req.Model]
-		if !ok {
-			if family, found := extractFamily(req.Model); found {
-				m, ok = d.Cfg.Mappings[family]
-			}
+		if family, found := extractFamily(req.Model); found {
+			mapping, ok = d.Cfg.Mappings[family]
 		}
 	}
 	if !ok {
@@ -175,6 +172,25 @@ func (d *Dispatcher) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	provider, ok := d.Cfg.Providers[mapping.ProviderName]
+	if !ok {
+		d.Logger.Error(
+			"provider not registered",
+			"request_id",
+			RequestIDFromContext(r.Context()),
+			"provider",
+			mapping.ProviderName,
+		)
+		d.writeErrorJSON(
+			w,
+			r,
+			http.StatusInternalServerError,
+			"provider_not_registered",
+			fmt.Sprintf("provider %q is not registered in this freedius build", mapping.ProviderName),
+		)
+		return
+	}
+
 	d.Logger.Debug(
 		"dispatch",
 		"request_id",
@@ -182,41 +198,41 @@ func (d *Dispatcher) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"model",
 		req.Model,
 		"provider",
-		originalOr(m),
+		mapping.ProviderName,
 		"target_model",
-		m.Model,
+		mapping.ModelString,
 	)
 	if isCountTokensPath(r.URL.Path) {
-		w.Header().Set("X-Freedius-Matched-Provider", originalOr(m))
-		w.Header().Set("X-Freedius-Matched-Model", m.Model)
-		if !supportsCountTokens(m) {
-			d.serveLocalCountTokens(w, r, m, body)
+		w.Header().Set("X-Freedius-Matched-Provider", mapping.ProviderName)
+		w.Header().Set("X-Freedius-Matched-Model", mapping.ModelString)
+		if !provider.SupportsCountTokens {
+			d.serveLocalCountTokens(w, r, mapping, body)
 			return
 		}
 	}
-	w.Header().Set("X-Freedius-Matched-Provider", originalOr(m))
-	w.Header().Set("X-Freedius-Matched-Model", m.Model)
+	w.Header().Set("X-Freedius-Matched-Provider", mapping.ProviderName)
+	w.Header().Set("X-Freedius-Matched-Model", mapping.ModelString)
 
-	adapter, ok := d.Registry.Lookup(m.Provider)
+	adapter, ok := d.Registry.Lookup(provider.Behavior)
 	if !ok {
 		d.Logger.Error(
-			"provider not registered",
+			"behavior not registered",
 			"request_id",
 			RequestIDFromContext(r.Context()),
-			"provider",
-			m.Provider,
+			"behavior",
+			provider.Behavior,
 		)
 		d.writeErrorJSON(
 			w,
 			r,
 			http.StatusInternalServerError,
 			"provider_not_registered",
-			fmt.Sprintf("provider %q is not registered in this freedius build", originalOr(m)),
+			fmt.Sprintf("behavior %q is not registered in this freedius build", provider.Behavior),
 		)
 		return
 	}
 	ww := &wroteHeaderResponseWriter{ResponseWriter: w}
-	if err := adapter.Handle(ww, r, m, body); err != nil {
+	if err := adapter.Handle(ww, r, provider, mapping, body); err != nil {
 		if !ww.wroteHeader {
 			// Pre-WriteHeader error — safe to forward to the client.
 			var ce *configError
@@ -226,7 +242,7 @@ func (d *Dispatcher) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					"request_id",
 					RequestIDFromContext(r.Context()),
 					"provider",
-					originalOr(m),
+					mapping.ProviderName,
 					"err",
 					err,
 				)
@@ -237,7 +253,7 @@ func (d *Dispatcher) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					"request_id",
 					RequestIDFromContext(r.Context()),
 					"provider",
-					originalOr(m),
+					mapping.ProviderName,
 					"err",
 					err,
 				)
@@ -252,19 +268,12 @@ func (d *Dispatcher) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				"request_id",
 				RequestIDFromContext(r.Context()),
 				"provider",
-				originalOr(m),
+				mapping.ProviderName,
 				"err",
 				err,
 			)
 		}
 	}
-}
-
-func originalOr(m config.Model) string {
-	if m.OriginalProvider != "" {
-		return m.OriginalProvider
-	}
-	return m.Provider
 }
 
 // ErrorOption mutates the internal errorJSON used by (*Dispatcher).writeErrorJSON.

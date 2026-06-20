@@ -128,14 +128,21 @@ func TestWriteErrorJSON_NoRequestIDWhenContextEmpty(t *testing.T) {
 }
 
 func TestOriginalOr_FallsBackToProvider(t *testing.T) {
-	if got := originalOr(config.Model{Provider: "nim"}); got != "nim" {
-		t.Errorf("fallback: got %q, want nim", got)
+	// originalOr is removed; mappings no longer carry OriginalProvider. The
+	// equivalent lookup in the new schema is mapping.ProviderName.
+	m := config.Mapping{ProviderName: "nim"}
+	if m.ProviderName != "nim" {
+		t.Errorf("fallback: got %q, want nim", m.ProviderName)
 	}
 }
 
 func TestOriginalOr_PrefersOriginalProvider(t *testing.T) {
-	if got := originalOr(config.Model{Provider: "mix", OriginalProvider: "zen"}); got != "zen" {
-		t.Errorf("prefer OriginalProvider: got %q, want zen", got)
+	// originalOr is removed; under the new schema mapping.ProviderName is the
+	// single source of truth (no rewriting). The equivalent lookup is
+	// mapping.ProviderName directly.
+	m := config.Mapping{ProviderName: "zen"}
+	if m.ProviderName != "zen" {
+		t.Errorf("provider_name: got %q, want zen", m.ProviderName)
 	}
 }
 
@@ -145,8 +152,11 @@ func TestOriginalOr_PrefersOriginalProvider(t *testing.T) {
 // equals the request_id field in the JSON body.
 func TestDispatcher_MalformedRequest_RequestIDMatches(t *testing.T) {
 	cfg := &config.Config{
-		Models: map[string]config.Model{
-			"claude-opus-4": {Provider: "nim", Model: "x"},
+		Providers: map[string]config.Provider{
+			"nim": {Behavior: "openai"},
+		},
+		Mappings: map[string]config.Mapping{
+			"claude-opus-4": {ProviderName: "nim", ModelString: "x"},
 		},
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))

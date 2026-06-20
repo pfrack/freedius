@@ -29,7 +29,7 @@ type countTokensContextManagement struct {
 func (d *Dispatcher) serveLocalCountTokens(
 	w http.ResponseWriter,
 	r *http.Request,
-	m config.Model,
+	mapping config.Mapping,
 	body []byte,
 ) {
 	n, err := translate.CountInputTokens(body)
@@ -37,7 +37,7 @@ func (d *Dispatcher) serveLocalCountTokens(
 		d.Logger.Debug(
 			"count_tokens: local count failed, returning 0",
 			"request_id", RequestIDFromContext(r.Context()),
-			"provider", originalOr(m),
+			"provider", mapping.ProviderName,
 			"err", err,
 		)
 		n = 0
@@ -45,8 +45,8 @@ func (d *Dispatcher) serveLocalCountTokens(
 	d.Logger.Debug(
 		"count_tokens: local estimate",
 		"request_id", RequestIDFromContext(r.Context()),
-		"provider", originalOr(m),
-		"target_model", m.Model,
+		"provider", mapping.ProviderName,
+		"target_model", mapping.ModelString,
 		"input_tokens", n,
 	)
 	resp := countTokensResponse{

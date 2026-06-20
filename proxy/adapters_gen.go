@@ -29,10 +29,11 @@ func NewNIMAdapter(logger *slog.Logger, streamTimeout time.Duration) *NIMAdapter
 func (a *NIMAdapter) Handle(
 	w http.ResponseWriter,
 	r *http.Request,
-	m config.Model,
+	provider config.Provider,
+	mapping config.Mapping,
 	body []byte,
 ) error {
-	return a.inner.Handle(w, r, m, body)
+	return a.inner.Handle(w, r, provider, mapping, body)
 }
 
 // NewDefaultRegistry returns a Registry wired with the default adapter set.

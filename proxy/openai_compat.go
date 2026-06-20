@@ -59,30 +59,31 @@ func NewOpenAICompatibleAdapterWithTimeout(
 func (a *OpenAICompatibleAdapter) Handle(
 	w http.ResponseWriter,
 	r *http.Request,
-	m config.Model,
+	provider config.Provider,
+	mapping config.Mapping,
 	body []byte,
 ) error {
-	if m.BaseURL == "" {
+	if provider.DefaultBaseURL == "" {
 		return &configError{
-			err:     fmt.Errorf("%s adapter (openai-compat): missing base_url", originalOr(m)),
+			err:     fmt.Errorf("%s adapter (openai-compat): missing base_url", mapping.ProviderName),
 			errType: "invalid_request_error",
 		}
 	}
-	apiKey := os.Getenv(m.APIKeyEnv)
+	apiKey := os.Getenv(provider.DefaultAPIKeyEnv)
 	if apiKey == "" {
 		return &configError{
 			err: fmt.Errorf(
 				"%s adapter (openai-compat): env var %s is not set",
-				originalOr(m),
-				m.APIKeyEnv,
+				mapping.ProviderName,
+				provider.DefaultAPIKeyEnv,
 			),
 			errType: "authentication_error",
 		}
 	}
-	upstreamBody, err := translate.Request(body, m.Model, a.translateOpts)
+	upstreamBody, err := translate.Request(body, mapping.ModelString, a.translateOpts)
 	if err != nil {
 		return &configError{
-			err:     fmt.Errorf("%s adapter (openai-compat): translate request: %w", originalOr(m), err),
+			err:     fmt.Errorf("%s adapter (openai-compat): translate request: %w", mapping.ProviderName, err),
 			errType: "invalid_request_error",
 		}
 	}
@@ -90,7 +91,7 @@ func (a *OpenAICompatibleAdapter) Handle(
 		upstreamBody, err = a.preSendHook(upstreamBody)
 		if err != nil {
 			return &configError{
-				err:     fmt.Errorf("%s adapter (openai-compat): sanitize body: %w", originalOr(m), err),
+				err:     fmt.Errorf("%s adapter (openai-compat): sanitize body: %w", mapping.ProviderName, err),
 				errType: "invalid_request_error",
 			}
 		}
@@ -102,12 +103,12 @@ func (a *OpenAICompatibleAdapter) Handle(
 	req, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodPost,
-		m.BaseURL,
+		provider.DefaultBaseURL,
 		bytes.NewReader(upstreamBody),
 	)
 	if err != nil {
 		return &configError{
-			err:     fmt.Errorf("%s adapter (openai-compat): build request: %w", originalOr(m), err),
+			err:     fmt.Errorf("%s adapter (openai-compat): build request: %w", mapping.ProviderName, err),
 			errType: "invalid_request_error",
 		}
 	}
@@ -117,7 +118,7 @@ func (a *OpenAICompatibleAdapter) Handle(
 
 	resp, err := a.client.Do(req)
 	if err != nil {
-		return fmt.Errorf("%s adapter (openai-compat): do request: %w", originalOr(m), err)
+		return fmt.Errorf("%s adapter (openai-compat): do request: %w", mapping.ProviderName, err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 

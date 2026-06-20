@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"sort"
+
 	"charm.land/bubbles/v2/list"
 
 	tea "charm.land/bubbletea/v2"
@@ -23,17 +25,18 @@ type providerPicker struct {
 	selected string
 }
 
-func newProviderPicker() *providerPicker {
-	items := make([]list.Item, 0, len(config.KnownProviders))
-	sorted := sortedProviderNames()
-	for _, name := range sorted {
-		behavior, apiKeyEnv, baseURL, requiresURL := config.ProviderInfo(name)
+// newProviderPicker builds a picker for selecting among the names of providers
+// the user has configured in d.config.Providers. Pass the sorted names list.
+func newProviderPicker(names []string, providers map[string]config.Provider) *providerPicker {
+	items := make([]list.Item, 0, len(names))
+	for _, name := range names {
+		p := providers[name]
 		items = append(items, providerItem{
 			name:        name,
-			behavior:    behavior,
-			apiKeyEnv:   apiKeyEnv,
-			baseURL:     baseURL,
-			requiresURL: requiresURL,
+			behavior:    p.Behavior,
+			apiKeyEnv:   p.DefaultAPIKeyEnv,
+			baseURL:     p.DefaultBaseURL,
+			requiresURL: p.RequireBaseURL,
 		})
 	}
 
@@ -48,6 +51,30 @@ func newProviderPicker() *providerPicker {
 	return &providerPicker{
 		list: l,
 	}
+}
+
+// newBehaviorPicker builds a picker for the Behavior field of a provider form.
+// The list is fixed to the three valid behavior values.
+func newBehaviorPicker() *providerPicker {
+	behaviors := []struct {
+		name string
+	}{
+		{name: "openai"},
+		{name: "anthropic"},
+		{name: "mix"},
+	}
+	items := make([]list.Item, 0, len(behaviors))
+	for _, b := range behaviors {
+		items = append(items, providerItem{name: b.name, behavior: b.name})
+	}
+	delegate := list.NewDefaultDelegate()
+	l := list.New(items, delegate, 40, len(behaviors)+2)
+	l.Title = "Select Behavior"
+	l.SetShowStatusBar(false)
+	l.SetFilteringEnabled(false)
+	l.SetShowHelp(false)
+	l.SetShowPagination(false)
+	return &providerPicker{list: l}
 }
 
 func (p *providerPicker) Update(msg tea.Msg) (tea.Cmd, bool) {
@@ -75,12 +102,13 @@ func (p *providerPicker) SelectedProvider() string {
 	return p.selected
 }
 
-func sortedProviderNames() []string {
-	sorted := make([]string, 0, len(config.KnownProviders))
-	for _, n := range []string{"anthropic", "custom", "go", "mix", "nim", "openai", "zen"} {
-		if _, ok := config.KnownProviders[n]; ok {
-			sorted = append(sorted, n)
-		}
+// sortedConfiguredProviderNames returns the names of d.config.Providers
+// sorted alphabetically. Used by the mapping form's provider picker.
+func sortedConfiguredProviderNames(providers map[string]config.Provider) []string {
+	names := make([]string, 0, len(providers))
+	for n := range providers {
+		names = append(names, n)
 	}
-	return sorted
+	sort.Strings(names)
+	return names
 }

@@ -10,8 +10,7 @@
 //
 // The generator emits one file per package:
 //
-//	config/providers_gen.go  — KnownProviders, knownProviderDefaults,
-//	                            requireBaseURL, PresetProviders, applyEntryDefaults
+//	config/providers_gen.go  — providerDefaults map (config.Provider values)
 //	proxy/adapters_gen.go    — thin wrapper adapters + NewDefaultRegistry
 //
 // Output is go/format-clean and ready to commit. CI runs the generator
@@ -24,6 +23,7 @@ import (
 	"fmt"
 	"go/format"
 	"log"
+	"net/url"
 	"os"
 	"sort"
 	"strings"
@@ -40,17 +40,11 @@ type Spec struct {
 // Provider declares one user-facing provider name and all of its metadata.
 //
 // The behavior field selects the runtime adapter class (openai / anthropic /
-// mix). RewriteTo optionally aliases the provider to another name during
-// applyDefaults. DefaultBaseURL and DefaultAPIKeyEnv are filled in when the
-// user does not set them on the model.
-//
-// The two-phase rewrite rule (see providers.yaml header for rationale):
-//
-//	Pre-lookup rewrites:  RewriteTo != "" AND no Default* fields set.
-//	Post-lookup rewrites: RewriteTo != "" AND at least one Default* field set.
+// mix). DefaultBaseURL and DefaultAPIKeyEnv are filled in when the user does
+// not set them on the provider. RequireBaseURL marks the provider as needing
+// a base_url (false when default_base_url is provided).
 type Provider struct {
 	Behavior         string         `yaml:"behavior"`
-	RewriteTo        string         `yaml:"rewrite_to,omitempty"`
 	DefaultBaseURL   string         `yaml:"default_base_url,omitempty"`
 	DefaultAPIKeyEnv string         `yaml:"default_api_key_env,omitempty"`
 	RequireBaseURL   bool           `yaml:"require_base_url"`
@@ -63,22 +57,6 @@ type Provider struct {
 type OpenAIOptions struct {
 	NoStreamUsage bool   `yaml:"no_stream_usage,omitempty"`
 	PreSendHook   string `yaml:"pre_send_hook,omitempty"`
-}
-
-func (p Provider) hasDefaults() bool {
-	return p.DefaultBaseURL != "" || p.DefaultAPIKeyEnv != ""
-}
-
-func (p Provider) hasAPIKeyEnvDefault() bool {
-	return p.DefaultAPIKeyEnv != ""
-}
-
-func (p Provider) isPreLookupRewrite() bool {
-	return p.RewriteTo != "" && !p.hasDefaults()
-}
-
-func (p Provider) isPostLookupRewrite() bool {
-	return p.RewriteTo != "" && p.hasDefaults()
 }
 
 func (p Provider) needsThinWrapper() bool {
@@ -94,26 +72,45 @@ func (p Provider) needsThinWrapper() bool {
 	return p.OpenAI.NoStreamUsage || p.OpenAI.PreSendHook != ""
 }
 
+// supportsCountTokens derives the runtime SupportsCountTokens flag from the
+// spec. The dispatcher consults this at /v1/messages/count_tokens to decide
+// between a local BPE estimate and a pass-through to the upstream.
+//
+// Rules:
+//   - anthropic behavior always supports count_tokens
+//   - mix behavior supports it iff the default_base_url path ends with /v1/messages
+//   - everything else does not
+func supportsCountTokens(p Provider) bool {
+	if p.Behavior == "anthropic" {
+		return true
+	}
+	if p.Behavior != "mix" {
+		return false
+	}
+	if p.DefaultBaseURL == "" {
+		return false
+	}
+	u, err := url.Parse(p.DefaultBaseURL)
+	if err != nil {
+		return false
+	}
+	return strings.HasSuffix(u.Path, "/v1/messages")
+}
+
 // --- Template data shapes ---
 
 type configTmplData struct {
-	KnownProviders     []string
-	Defaults           []defaultEntry
-	PreLookupRewrites  []rewriteEntry
-	PostLookupRewrites []rewriteEntry
-	RequireBaseURLSet  []string
-	PresetProviders    []string
+	ProviderDefaults []providerDefaultEntry
 }
 
-type defaultEntry struct {
-	Name      string
-	BaseURL   string
-	APIKeyEnv string
-}
-
-type rewriteEntry struct {
-	From string
-	To   string
+type providerDefaultEntry struct {
+	Name                string
+	Behavior            string
+	DefaultBaseURL      string
+	DefaultAPIKeyEnv    string
+	AnthropicVersion    string
+	RequireBaseURL      bool
+	SupportsCountTokens bool
 }
 
 type proxyTmplData struct {
@@ -139,44 +136,19 @@ type registryEntry struct {
 // from spec. The output is go/format-clean.
 func GenerateConfig(spec Spec) ([]byte, error) {
 	names := sortedProviderNames(spec)
-	data := configTmplData{KnownProviders: names}
+	var data configTmplData
 
 	for _, name := range names {
 		p := spec.Providers[name]
-		if p.hasDefaults() {
-			data.Defaults = append(data.Defaults, defaultEntry{
-				Name:      name,
-				BaseURL:   p.DefaultBaseURL,
-				APIKeyEnv: p.DefaultAPIKeyEnv,
-			})
-		}
-		if p.isPreLookupRewrite() {
-			data.PreLookupRewrites = append(data.PreLookupRewrites, rewriteEntry{
-				From: name,
-				To:   p.RewriteTo,
-			})
-		}
-		if p.isPostLookupRewrite() {
-			data.PostLookupRewrites = append(data.PostLookupRewrites, rewriteEntry{
-				From: name,
-				To:   p.RewriteTo,
-			})
-		}
-		if p.RequireBaseURL {
-			data.RequireBaseURLSet = append(data.RequireBaseURLSet, name)
-		}
-		if p.hasAPIKeyEnvDefault() {
-			data.PresetProviders = append(data.PresetProviders, name)
-		}
+		data.ProviderDefaults = append(data.ProviderDefaults, providerDefaultEntry{
+			Name:                name,
+			Behavior:            p.Behavior,
+			DefaultBaseURL:      p.DefaultBaseURL,
+			DefaultAPIKeyEnv:    p.DefaultAPIKeyEnv,
+			RequireBaseURL:      p.RequireBaseURL,
+			SupportsCountTokens: supportsCountTokens(p),
+		})
 	}
-
-	// Stable order for rewrites and presets.
-	sort.Slice(data.PreLookupRewrites, func(i, j int) bool {
-		return data.PreLookupRewrites[i].From < data.PreLookupRewrites[j].From
-	})
-	sort.Slice(data.PostLookupRewrites, func(i, j int) bool {
-		return data.PostLookupRewrites[i].From < data.PostLookupRewrites[j].From
-	})
 
 	return executeTemplate("config", configTemplate, data)
 }
@@ -202,8 +174,9 @@ func GenerateProxy(spec Spec) ([]byte, error) {
 		return data.Adapters[i].Name < data.Adapters[j].Name
 	})
 
-	// Registry entries wire the 4 runtime adapters. Aliases (custom, zen, go)
-	// are not wired — they rewrite to mix at config-load time.
+	// Registry entries wire the runtime adapters by behavior class. Under
+	// the providers/mappings schema there are no alias rewrites at load
+	// time; all 4 behaviors are wired unconditionally.
 	data.RegistryEntries = []registryEntry{
 		{Name: "nim", CtorCall: "NewNIMAdapter(logger, streamTimeout)"},
 		{Name: "openai", CtorCall: "NewOpenAICompatibleAdapterWithTimeout(logger, streamTimeout)"},
@@ -249,9 +222,6 @@ func providerTypeName(name string) string {
 	return strings.ToUpper(name[:1]) + name[1:] + "Adapter"
 }
 
-// addBuildTag prepends a build constraint to the output, followed by a blank
-// line. This is used in Phase 1 to prevent generated files from conflicting
-// with hand-written code that defines the same symbols.
 func addBuildTag(tag string, src []byte) []byte {
 	tagLine := "//go:build " + tag
 	return append([]byte(tagLine+"\n\n"), src...)
@@ -335,85 +305,27 @@ const configTemplate = `// Code generated by genproviders from providers.yaml. D
 
 package config
 
-// KnownProviders lists the provider names accepted by the validator.
-// This is a config-time validation surface — it includes aliases (zen, go,
-// custom) that rewrite to mix at applyDefaults time.
-var KnownProviders = map[string]struct{}{
-<% range .KnownProviders -%>
-	"<% . %>": {},
-<% end -%>
-}
-
-// knownProviderDefaults maps provider names to their default base_url and
-// api_key_env values. Used by applyEntryDefaults to fill in missing fields
-// before validation runs.
-var knownProviderDefaults = map[string]modelDefaults{
-<% range .Defaults -%>
+// providerDefaults is the metadata table for known providers, indexed by
+// user-facing provider name. It is merged into Config.Providers by
+// applyDefaults to fill in missing fields and to set the runtime-only
+// RequireBaseURL and SupportsCountTokens flags.
+//
+// Every provider is a first-class entry: there is no alias rewriting at
+// load time.
+var providerDefaults = map[string]Provider{
+<% range .ProviderDefaults -%>
 	"<% .Name %>": {
-<% if .BaseURL -%>
-		BaseURL:   "<% .BaseURL %>", // #nosec G101 -- URL, not a credential
+		Behavior:            "<% .Behavior %>",
+<% if .DefaultBaseURL -%>
+		DefaultBaseURL:      "<% .DefaultBaseURL %>", // #nosec G101 -- URL, not a credential
 <% end -%>
-<% if .APIKeyEnv -%>
-		APIKeyEnv: "<% .APIKeyEnv %>", // #nosec G101 -- env var name, not a credential
+<% if .DefaultAPIKeyEnv -%>
+		DefaultAPIKeyEnv:    "<% .DefaultAPIKeyEnv %>", // #nosec G101 -- env var name, not a credential
 <% end -%>
+		RequireBaseURL:      <% .RequireBaseURL %>,
+		SupportsCountTokens: <% .SupportsCountTokens %>,
 	},
 <% end -%>
-}
-
-// requireBaseURL is the set of provider names that must have an explicit
-// base_url after applyDefaults. (Providers with default_base_url are not
-// included — they fill in their own.)
-var requireBaseURL = map[string]struct{}{
-<% range .RequireBaseURLSet -%>
-	"<% . %>": {},
-<% end -%>
-}
-
-// PresetProviders returns the provider names that have a default
-// api_key_env, sorted alphabetically. Used by main.go's
-// checkRequiredEnvVars to decide which providers to validate env vars for.
-func PresetProviders() []string {
-	return []string{
-<% range .PresetProviders -%>
-		"<% . %>",
-<% end -%>
-	}
-}
-
-// applyEntryDefaults implements the two-phase rewrite pattern:
-//   Phase A (pre-lookup):  aliases with no defaults entry rewrite first,
-//     so the defaults lookup sees the canonical name.
-//   Phase B (post-lookup): aliases with defaults inherit their defaults
-//     before rewriting to the canonical adapter.
-//
-// custom → mix runs in Phase A (no defaults entry exists for "custom").
-// zen → mix and go → mix run in Phase B (defaults must apply first so
-// they inherit OPENCODE_API_KEY).
-func applyEntryDefaults(m Model) Model {
-	if m.OriginalProvider == "" {
-		m.OriginalProvider = m.Provider
-	}
-<% range .PreLookupRewrites -%>
-	if m.Provider == "<% .From %>" {
-		m.Provider = "<% .To %>"
-	}
-<% end -%>
-	d, ok := knownProviderDefaults[m.Provider]
-	if !ok {
-		return m
-	}
-	if m.BaseURL == "" {
-		m.BaseURL = d.BaseURL
-	}
-	if m.APIKeyEnv == "" {
-		m.APIKeyEnv = d.APIKeyEnv
-	}
-<% range .PostLookupRewrites -%>
-	if m.Provider == "<% .From %>" {
-		m.Provider = "<% .To %>"
-	}
-<% end -%>
-	return m
 }
 `
 
@@ -451,10 +363,11 @@ func New<% .TypeName %>(logger *slog.Logger, streamTimeout time.Duration) *<% .T
 func (a *<% .TypeName %>) Handle(
 	w http.ResponseWriter,
 	r *http.Request,
-	m config.Model,
+	provider config.Provider,
+	mapping config.Mapping,
 	body []byte,
 ) error {
-	return a.inner.Handle(w, r, m, body)
+	return a.inner.Handle(w, r, provider, mapping, body)
 }
 
 <% end -%>
