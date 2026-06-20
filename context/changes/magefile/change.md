@@ -3,5 +3,5 @@ id: magefile
 title: "Replace Makefile with Mage (Go-based build tool)"
 status: implementing
 created: 2026-06-17
-updated: 2026-06-20
+updated: 2026-06-21
 ---

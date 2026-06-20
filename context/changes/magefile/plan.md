@@ -212,32 +212,32 @@ None — Mage compiles targets on first run (cached thereafter). Cold start adds
 
 #### Automated
 
-- [x] 1.1 `mage ci` passes (vet + generate-check + test + build)
-- [x] 1.2 `mage -l` lists all 18 targets with descriptions
-- [x] 1.3 `go run mage.go ci` works (zero-install path)
-- [x] 1.4 `mage build` produces the `freedius` binary
-- [x] 1.5 `mage generateCheck` passes
-- [x] 1.6 `mage run` starts the server
-- [x] 1.7 `mage tidy` runs cleanly
-- [x] 1.8 `mage installHooks` installs the pre-commit hook
+- [x] 1.1 `mage ci` passes (vet + generate-check + test + build) — f1aabd1
+- [x] 1.2 `mage -l` lists all 18 targets with descriptions — f1aabd1
+- [x] 1.3 `go run mage.go ci` works (zero-install path) — f1aabd1
+- [x] 1.4 `mage build` produces the `freedius` binary — f1aabd1
+- [x] 1.5 `mage generateCheck` passes — f1aabd1
+- [x] 1.6 `mage run` starts the server — f1aabd1
+- [x] 1.7 `mage tidy` runs cleanly — f1aabd1
+- [x] 1.8 `mage installHooks` installs the pre-commit hook — f1aabd1
 
 #### Manual
 
-- [ ] 1.9 `mage -l` output is readable and covers all 18 targets
-- [ ] 1.10 `mage format` formats all Go files without error
-- [ ] 1.11 `mage format-changed` formats only changed Go files
-- [ ] 1.12 `mage verbose` starts the server with `--verbose-errors`
+- [x] 1.9 `mage -l` output is readable and covers all 18 targets
+- [x] 1.10 `mage format` formats all Go files without error
+- [x] 1.11 `mage format-changed` formats only changed Go files
+- [x] 1.12 `mage verbose` starts the server with `--verbose-errors`
 
 ### Phase 2: Cutover
 
 #### Automated
 
-- [ ] 2.1 `mage ci` passes
-- [ ] 2.2 Makefile no longer exists
-- [ ] 2.3 `scripts/pre-commit` contains `mage lint`
-- [ ] 2.4 `make` returns "command not found"
+- [x] 2.1 `mage ci` passes
+- [x] 2.2 Makefile no longer exists
+- [x] 2.3 `scripts/pre-commit` contains `mage lint`
+- [x] 2.4 `make` fails (no Makefile)
 
 #### Manual
 
-- [ ] 2.5 Pre-commit hook fires `mage lint` on commit
-- [ ] 2.6 `mage -l` still works after Makefile deletion
+- [x] 2.5 Pre-commit hook fires `mage lint` on commit
+- [x] 2.6 `mage -l` still works after Makefile deletion
