@@ -631,41 +631,22 @@ mappings:
 	}
 }
 
-func TestConfig_SaveRollbackOnWriteFailure(t *testing.T) {
+func TestConfig_SaveCreatesParentDir(t *testing.T) {
+	// Save must MkdirAll the parent dir so lazy startup works without a
+	// pre-existing ~/.config/freedius. This replaces the old
+	// TestConfig_SaveRollbackOnWriteFailure behavior.
 	dir := t.TempDir()
-	path := filepath.Join(dir, "freedius.yaml")
+	path := filepath.Join(dir, "deeply", "nested", "config", "freedius.yaml")
 
-	initial := `providers:
-  nim: { behavior: openai }
-mappings:
-  opus:
-    provider_name: nim
-    model_string: meta/llama-3.1-70b-instruct
-`
-	if err := os.WriteFile(path, []byte(initial), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	cfg, err := Load(path)
-	if err != nil {
-		t.Fatalf("Load: %v", err)
-	}
-
-	cfg.Mappings["opus"] = Mapping{ProviderName: "nim", ModelString: "meta/llama-4"}
-
-	// Try saving to a non-writable location to trigger rollback.
-	roPath := filepath.Join(dir, "readonly", "freedius.yaml")
-	if err := cfg.Save(roPath); err == nil {
-		t.Fatal("expected error saving to non-existent directory")
-	}
-
-	// Original file must remain intact.
-	data, err := os.ReadFile(path)
+	cfg, err := LoadFromBytes([]byte("providers:\n  nim: { behavior: openai }\n"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(data), "meta/llama-3.1-70b-instruct") {
-		t.Errorf("original file should remain unchanged after failed save, got:\n%s", string(data))
+	if err := cfg.Save(path); err != nil {
+		t.Fatalf("Save should create parent dirs, got: %v", err)
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Errorf("file should exist after Save: %v", err)
 	}
 }
 

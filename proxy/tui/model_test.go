@@ -622,7 +622,7 @@ func TestRenderLogTab_Format(t *testing.T) {
 		MatchedModel:    "step-3.5",
 		Timestamp:       time.Date(2026, 1, 1, 15, 4, 5, 0, time.UTC),
 	})
-	out := stripANSI(renderLogTab(d.eventLog.all(), 80, 24))
+	out := stripANSI(renderLogTab(d.eventLog.all(), 80, 24, 0))
 	for _, want := range []string{
 		"request_id=abc123",
 		"method=POST",
@@ -639,7 +639,7 @@ func TestRenderLogTab_Format(t *testing.T) {
 }
 
 func TestRenderLogTab_Empty(t *testing.T) {
-	out := stripANSI(renderLogTab(nil, 80, 24))
+	out := stripANSI(renderLogTab(nil, 80, 24, 0))
 	if !strings.Contains(out, "No requests yet") {
 		t.Errorf("expected empty-state message, got: %s", out)
 	}
@@ -656,7 +656,7 @@ func TestRenderLogTab_ErrorSuffix(t *testing.T) {
 		ErrorMessage: "boom",
 		Timestamp:    time.Date(2026, 1, 1, 15, 4, 5, 0, time.UTC),
 	})
-	out := stripANSI(renderLogTab(d.eventLog.all(), 80, 24))
+	out := stripANSI(renderLogTab(d.eventLog.all(), 80, 24, 0))
 	if !strings.Contains(out, `error="boom"`) {
 		t.Errorf("expected error= suffix in output, got: %s", out)
 	}
@@ -779,3 +779,110 @@ func TestDashboard_RequestEventClearsStatusMessage(t *testing.T) {
 		t.Errorf("status message should clear on next event, got %q", d.stats.message)
 	}
 }
+
+func viewContent(v tea.View) string {
+	return v.Content
+}
+
+func TestDashboard_ConfigTabScrollsToCursor(t *testing.T) {
+	// Build a config with many entries so the cursor scrolls past the visible
+	// window. After moving the cursor down, the rendered window must contain
+	// the cursor's entry name.
+	cfg := &config.Config{
+		Providers: map[string]config.Provider{
+			"nim":    {Behavior: "openai"},
+			"openai": {Behavior: "openai"},
+		},
+		Mappings: map[string]config.Mapping{
+			"opus":    {ProviderName: "nim", ModelString: "x"},
+			"sonnet":  {ProviderName: "nim", ModelString: "x"},
+			"haiku":   {ProviderName: "nim", ModelString: "x"},
+			"auto":    {ProviderName: "nim", ModelString: "x"},
+			"default": {ProviderName: "nim", ModelString: "x"},
+		},
+	}
+	d := NewDashboard(nil, cfg, nil, nil, "", "", 0, false)
+	d.activeTab = tabConfig
+	d.width = 80
+	d.height = 24
+
+	all := collectAllEntries(d.config)
+	if len(all) < 5 {
+		t.Fatalf("setup: need >= 5 entries, got %d", len(all))
+	}
+	// Move cursor to the last entry.
+	d.configCursor = len(all) - 1
+	d.Update(requestEventMsg(proxy.RequestEvent{Status: 200}))
+
+	out := stripANSI(viewContent(d.View()))
+	if !strings.Contains(out, all[len(all)-1].name) {
+		t.Errorf("last entry %q should be visible after cursor move, got:\n%s",
+			all[len(all)-1].name, out)
+	}
+}
+
+func TestDashboard_ProvidersTabScroll(t *testing.T) {
+	// Build a config with many providers so the table overflows the visible
+	// window. j/k should scroll the visible window back through history.
+	cfg := &config.Config{
+		Providers: map[string]config.Provider{
+			"nim":       {Behavior: "openai"},
+			"openai":    {Behavior: "openai"},
+			"anthropic": {Behavior: "anthropic"},
+			"zen":       {Behavior: "mix"},
+			"go":        {Behavior: "mix"},
+			"custom1":   {Behavior: "mix"},
+			"custom2":   {Behavior: "mix"},
+			"custom3":   {Behavior: "mix"},
+			"custom4":   {Behavior: "mix"},
+			"custom5":   {Behavior: "mix"},
+			"custom6":   {Behavior: "mix"},
+			"custom7":   {Behavior: "mix"},
+		},
+	}
+	d := NewDashboard(nil, cfg, nil, nil, "", "", 0, false)
+	d.activeTab = tabProviders
+	d.width = 80
+	// Small height forces overflow: 12 - 4 header lines = 8 visible rows.
+	d.height = 12
+
+	// First check the tail view shows the last providers.
+	out := stripANSI(viewContent(d.View()))
+	if !strings.Contains(out, "custom7") {
+		t.Errorf("tail view should show custom7, got:\n%s", out)
+	}
+	if !strings.Contains(out, "openai") {
+		t.Errorf("tail view should show openai (sorted after nim), got:\n%s", out)
+	}
+	if strings.Contains(out, "anthropic") {
+		t.Errorf("tail view should NOT show anthropic, got:\n%s", out)
+	}
+
+	// Scroll back (k = up = scroll older). Press k enough times to push
+	// custom7 off-screen: with 12 providers and ~5 visible rows, we need
+	// at least 7 presses to fully scroll to the top.
+	for i := 0; i < 7; i++ {
+		d.Update(tea.KeyPressMsg{Text: "k"})
+	}
+	if d.providerScroll == 0 {
+		t.Error("expected providerScroll to increment on k")
+	}
+	out = stripANSI(viewContent(d.View()))
+	if strings.Contains(out, "custom7") {
+		t.Errorf("after scroll back, custom7 should not be visible, got:\n%s", out)
+	}
+	if !strings.Contains(out, "anthropic") {
+		t.Errorf("after scroll back to top, anthropic should be visible, got:\n%s", out)
+	}
+
+	// Scroll forward (j = down = scroll newer) back to the tail.
+	for d.providerScroll > 0 {
+		d.Update(tea.KeyPressMsg{Text: "j"})
+	}
+	out = stripANSI(viewContent(d.View()))
+	if !strings.Contains(out, "custom7") {
+		t.Errorf("after scrolling forward, custom7 should be visible again, got:\n%s", out)
+	}
+}
+
+// TestConfig_SaveCreatesParentDir moved to config/config_test.go.

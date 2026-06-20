@@ -84,17 +84,19 @@ type Dashboard struct {
 	port          int
 	verboseErrors bool
 
-	formMode      int
-	formFields    []textinput.Model
-	formFocus     int
-	formKind      string
-	formEntryName string
-	fieldErrors   map[int]string
-	showPicker    bool
-	picker        *providerPicker
-	cfgPath       string
-	configCursor  int
-	formError     string
+	formMode       int
+	formFields     []textinput.Model
+	formFocus      int
+	formKind       string
+	formEntryName  string
+	fieldErrors    map[int]string
+	showPicker     bool
+	picker         *providerPicker
+	cfgPath        string
+	configCursor   int
+	providerScroll int
+	logScroll      int
+	formError      string
 }
 
 // NewDashboard creates a new Dashboard model subscribed to the given event
@@ -194,6 +196,8 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			d.stats.errorCount++
 		}
 		d.stats.message = ""
+		// Auto-scroll to bottom on a fresh event.
+		d.logScroll = 0
 		return d, waitForEvent(d.events)
 	}
 	return d, nil
@@ -237,21 +241,10 @@ func (d *Dashboard) handleTabModeKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.C
 		d.activeTab = (d.activeTab + 2) % 3
 		return d, nil
 	case "up", "k":
-		if d.activeTab == tabConfig {
-			d.configCursor--
-			if d.configCursor < 0 {
-				d.configCursor = 0
-			}
-		}
+		d.scrollUp()
 		return d, nil
 	case "down", "j":
-		if d.activeTab == tabConfig {
-			all := collectAllEntries(d.config)
-			d.configCursor++
-			if d.configCursor >= len(all) {
-				d.configCursor = len(all) - 1
-			}
-		}
+		d.scrollDown()
 		return d, nil
 	case "e":
 		if d.activeTab == tabConfig {
@@ -280,15 +273,7 @@ func (d *Dashboard) handleTabModeKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.C
 		}
 		return d, nil
 	case "ctrl+e":
-		d.verboseErrors = !d.verboseErrors
-		if d.dispatcher != nil {
-			d.dispatcher.VerboseErrors = d.verboseErrors
-		}
-		if d.verboseErrors {
-			d.stats.message = "Verbose errors: ON"
-		} else {
-			d.stats.message = "Verbose errors: OFF"
-		}
+		d.toggleVerboseErrors()
 		return d, nil
 	case "ctrl+s":
 		if d.activeTab != tabConfig {
@@ -298,6 +283,58 @@ func (d *Dashboard) handleTabModeKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.C
 		return d, nil
 	}
 	return d, nil
+}
+
+// scrollUp moves the active tab's cursor / scroll window one step toward
+// older entries. For tabs without scroll state (Log uses scroll, Providers
+// uses scroll, Config uses cursor) the per-tab helper applies.
+func (d *Dashboard) scrollUp() {
+	switch d.activeTab {
+	case tabConfig:
+		d.configCursor--
+		if d.configCursor < 0 {
+			d.configCursor = 0
+		}
+	case tabProviders:
+		d.providerScroll++
+	case tabLog:
+		d.logScroll++
+	}
+}
+
+// scrollDown moves the active tab's cursor / scroll window one step toward
+// newer entries.
+func (d *Dashboard) scrollDown() {
+	switch d.activeTab {
+	case tabConfig:
+		all := collectAllEntries(d.config)
+		d.configCursor++
+		if d.configCursor >= len(all) {
+			d.configCursor = len(all) - 1
+		}
+	case tabProviders:
+		if d.providerScroll > 0 {
+			d.providerScroll--
+		}
+	case tabLog:
+		if d.logScroll > 0 {
+			d.logScroll--
+		}
+	}
+}
+
+// toggleVerboseErrors flips the verbose-errors flag on both the dashboard and
+// the dispatcher, and surfaces the new state in the status bar.
+func (d *Dashboard) toggleVerboseErrors() {
+	d.verboseErrors = !d.verboseErrors
+	if d.dispatcher != nil {
+		d.dispatcher.VerboseErrors = d.verboseErrors
+	}
+	if d.verboseErrors {
+		d.stats.message = "Verbose errors: ON"
+	} else {
+		d.stats.message = "Verbose errors: OFF"
+	}
 }
 
 func (d *Dashboard) handleFormKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
@@ -411,11 +448,11 @@ func (d *Dashboard) View() tea.View {
 	} else {
 		switch d.activeTab {
 		case tabLog:
-			content = renderLogTab(d.eventLog.all(), width, bodyHeight)
+			content = renderLogTab(d.eventLog.all(), width, bodyHeight, d.logScroll)
 		case tabProviders:
-			content = renderProvidersTab(d.config, width)
+			content = renderProvidersTab(d.config, width, bodyHeight, d.providerScroll)
 		case tabConfig:
-			content = renderConfigTab(d.config, d.configCursor, width)
+			content = renderConfigTab(d.config, d.configCursor, width, bodyHeight)
 		default:
 			content = fmt.Sprintf("Unknown tab: %d", d.activeTab)
 		}

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -242,6 +243,13 @@ func (c *Config) Save(path string) error {
 	if _, statErr := os.Stat(path); statErr == nil {
 		if err := os.Rename(path, path+".bak"); err != nil {
 			return fmt.Errorf("config: backup %s: %w", path, err)
+		}
+	}
+
+	if parent := filepath.Dir(path); parent != "." && parent != "" {
+		// #nosec G301 -- user-owned config directory; group/other read keeps tools (e.g. Claude Code) compatible
+		if err := os.MkdirAll(parent, 0o755); err != nil {
+			return fmt.Errorf("config: create parent dir %s: %w", parent, err)
 		}
 	}
 
