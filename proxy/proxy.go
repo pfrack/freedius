@@ -488,6 +488,8 @@ func EventBusMiddleware(bus *EventBus, next http.Handler) http.Handler {
 		}
 		ev := RequestEvent{
 			RequestID:       id,
+			Method:          r.Method,
+			Path:            r.URL.Path,
 			Model:           modelName,
 			Provider:        matchedProvider,
 			Status:          status,

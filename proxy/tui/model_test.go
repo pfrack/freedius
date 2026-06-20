@@ -119,6 +119,8 @@ func TestDashboard_Update_EventMsg(t *testing.T) {
 
 	ev := proxy.RequestEvent{
 		RequestID: "test-1",
+		Method:    "POST",
+		Path:      "/v1/messages",
 		Model:     "opus",
 		Provider:  "nim",
 		Status:    200,
@@ -150,6 +152,8 @@ func TestDashboard_Update_EventMsgErrorCount(t *testing.T) {
 
 	errEv := proxy.RequestEvent{
 		RequestID: "err-1",
+		Method:    "POST",
+		Path:      "/v1/messages",
 		Status:    500,
 	}
 	d.Update(requestEventMsg(errEv))

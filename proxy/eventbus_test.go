@@ -12,6 +12,8 @@ func TestEventBus_EmitAndSubscribe(t *testing.T) {
 	events := []RequestEvent{
 		{
 			RequestID: "a",
+			Method:    "POST",
+			Path:      "/v1/messages",
 			Model:     "opus",
 			Provider:  "nim",
 			Status:    200,
@@ -19,6 +21,8 @@ func TestEventBus_EmitAndSubscribe(t *testing.T) {
 		},
 		{
 			RequestID: "b",
+			Method:    "POST",
+			Path:      "/v1/messages",
 			Model:     "sonnet",
 			Provider:  "anthropic",
 			Status:    200,
@@ -26,6 +30,8 @@ func TestEventBus_EmitAndSubscribe(t *testing.T) {
 		},
 		{
 			RequestID: "c",
+			Method:    "POST",
+			Path:      "/v1/messages",
 			Model:     "haiku",
 			Provider:  "openai",
 			Status:    500,
@@ -43,6 +49,12 @@ func TestEventBus_EmitAndSubscribe(t *testing.T) {
 		case got := <-ch:
 			if got.RequestID != expected.RequestID {
 				t.Errorf("event %d: RequestID = %q, want %q", i, got.RequestID, expected.RequestID)
+			}
+			if got.Method != expected.Method {
+				t.Errorf("event %d: Method = %q, want %q", i, got.Method, expected.Method)
+			}
+			if got.Path != expected.Path {
+				t.Errorf("event %d: Path = %q, want %q", i, got.Path, expected.Path)
 			}
 			if got.Model != expected.Model {
 				t.Errorf("event %d: Model = %q, want %q", i, got.Model, expected.Model)
