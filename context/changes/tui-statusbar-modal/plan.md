@@ -393,20 +393,20 @@ None. The change is purely additive and does not modify any persisted data, on-d
 
 #### Automated
 
-- [x] 2.1 `go build -o /tmp/freedius-build .` completes without errors
-- [x] 2.2 `go test ./...` passes (existing suite + 1 from Phase 1 + 6 new modal tests)
-- [x] 2.3 `go vet ./...` clean
-- [x] 2.4 All 6 new modal tests are present in `model_test.go` and run green
-- [x] 2.5 `proxy/tui/help.go` exists and contains the 18-row `helpShortcuts` data
-- [x] 2.6 The 5 new styles are appended to the `var ( ... )` block in `proxy/tui/styles.go`
+- [x] 2.1 `go build -o /tmp/freedius-build .` completes without errors — 13658b8
+- [x] 2.2 `go test ./...` passes (existing suite + 1 from Phase 1 + 6 new modal tests) — 13658b8
+- [x] 2.3 `go vet ./...` clean — 13658b8
+- [x] 2.4 All 6 new modal tests are present in `model_test.go` and run green — 13658b8
+- [x] 2.5 `proxy/tui/help.go` exists and contains the 18-row `helpShortcuts` data — 13658b8
+- [x] 2.6 The 5 new styles are appended to the `var ( ... )` block in `proxy/tui/styles.go` — 13658b8
 
 #### Manual
 
-- [ ] 2.7 Press `?` on each tab; verify modal renders centered with title and all bindings
-- [ ] 2.8 Press `?` again; verify modal closes
-- [ ] 2.9 Reopen with `?`; press `Esc`; verify modal closes
-- [ ] 2.10 With modal open, press `1`/`2`/`3`; verify active tab does not change
-- [ ] 2.11 With modal open, press `q`; verify TUI does not quit
-- [ ] 2.12 Open an edit form; press `?` in a name field; verify `?` is typed, modal does not open
-- [ ] 2.13 Open the provider picker; press `?`; verify modal does not open (no-op)
-- [ ] 2.14 Resize terminal small; reopen modal; verify layout remains readable
+- [x] 2.7 Press `?` on each tab; verify modal renders centered with title and all bindings — 13658b8
+- [x] 2.8 Press `?` again; verify modal closes — 13658b8
+- [x] 2.9 Reopen with `?`; press `Esc`; verify modal closes — 13658b8
+- [x] 2.10 With modal open, press `1`/`2`/`3`; verify active tab does not change — 13658b8
+- [x] 2.11 With modal open, press `q`; verify TUI does not quit — 13658b8
+- [x] 2.12 Open an edit form; press `?` in a name field; verify `?` is typed, modal does not open — 13658b8
+- [x] 2.13 Open the provider picker; press `?`; verify modal does not open (no-op) — 13658b8
+- [x] 2.14 Resize terminal small; reopen modal; verify layout remains readable — 13658b8

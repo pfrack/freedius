@@ -1,7 +1,7 @@
 ---
 change_id: tui-statusbar-modal
 title: "Pin stats bar to top, show tabs below it, add `?` keyboard shortcuts modal"
-status: implementing
+status: implemented
 created: 2026-06-20
 updated: 2026-06-20
 ---
