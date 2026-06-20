@@ -82,6 +82,7 @@ func run(args []string) int {
 
 	fs := flag.NewFlagSet("freedius", flag.ContinueOnError)
 	flagConfig := fs.String("config", "", "path to config file (auto-resolved if empty)")
+	flagConfigShorthand := fs.String("c", "", "shorthand for --config")
 	flagPort := fs.Int("port", 0, "port to listen on (overrides FREEDIUS_PORT; default 8082)")
 	flagHost := fs.String("host", "", "host to bind (127.0.0.1 or 0.0.0.0; default 127.0.0.1)")
 	flagVerboseErrors := fs.Bool(
@@ -148,12 +149,16 @@ func run(args []string) int {
 		return failf("freedius: invalid --host value: %s (allowed: 127.0.0.1, 0.0.0.0)", host)
 	}
 
-	cfgPath, err := resolveConfigPath(*flagConfig)
+	configFlag := *flagConfig
+	if configFlag == "" {
+		configFlag = *flagConfigShorthand
+	}
+	cfgPath, err := resolveConfigPath(configFlag)
 	if err != nil {
 		logger.Error("config path resolution failed", "err", err)
 		return 1
 	}
-	cfg, err := loadConfig(cfgPath, *flagConfig)
+	cfg, err := loadConfig(cfgPath, configFlag)
 	if err != nil {
 		return failf("freedius: %s", err)
 	}
@@ -242,6 +247,7 @@ Flags:
 	fs := flag.NewFlagSet("freedius", flag.ContinueOnError)
 	fs.SetOutput(w)
 	fs.String("config", "", "path to config file (auto-resolved if empty)")
+	fs.String("c", "", "shorthand for --config")
 	fs.Int("port", 0, "port to listen on (overrides FREEDIUS_PORT; default 8082)")
 	fs.String("host", "", "host to bind (127.0.0.1 or 0.0.0.0; default 127.0.0.1)")
 	fs.Bool("verbose-errors", false, "include upstream error detail in error responses")

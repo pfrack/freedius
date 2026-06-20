@@ -262,10 +262,31 @@ func TestRun_HelpFlag(t *testing.T) {
 		t.Fatalf("run --help: %v (output: %s)", err, stdout.String())
 	}
 	out := stdout.String()
-	for _, want := range []string{"Usage: freedius", "config", "port", "verbose-errors"} {
+	for _, want := range []string{"Usage: freedius", "config", "port", "verbose-errors", "-c"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("--help output missing %q\nfull output:\n%s", want, out)
 		}
+	}
+}
+
+func TestRun_CShorthandForConfig(t *testing.T) {
+	// Regression for F8: -c is the shorthand for --config.
+	dir := t.TempDir()
+	cfgPath := dir + "/freedius.yaml"
+	if err := os.WriteFile(cfgPath, []byte(minimalConfigYAML), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("NVIDIA_NIM_API_KEY", "test-key")
+
+	cmd := exec.Command("go", "run", ".", "-c", cfgPath, "--port", "1", "--no-export-hint")
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	cmd.Dir = "."
+	cmd.Run() // port 1 may bind or fail; the point is -c was accepted.
+
+	output := stderr.String()
+	if strings.Contains(output, "flag provided but not defined: -c") {
+		t.Errorf("-c shorthand not registered; stderr:\n%s", output)
 	}
 }
 
