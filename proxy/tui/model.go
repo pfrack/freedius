@@ -219,9 +219,13 @@ func (d *Dashboard) installShellRC() {
 	}
 	shell := os.Getenv("SHELL")
 	// WriteShellRC returns ("<path>", nil) on success; on already-installed it
-	// returns the path with an error so the caller can decide. We treat any
-	// non-nil error as a status-bar message regardless of path.
+	// returns the path with an error so the caller can decide. Recognize the
+	// already-installed case as a success/no-op rather than a failure.
 	if _, err := envinject.WriteShellRC(home, shell, d.host, d.port, false, false); err != nil {
+		if strings.Contains(err.Error(), "already installed") {
+			d.stats.message = "Shell RC already installed ✓"
+			return
+		}
 		d.stats.message = fmt.Sprintf("Shell install failed: %v", err)
 		return
 	}

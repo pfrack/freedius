@@ -755,7 +755,11 @@ func TestDashboard_CtrlSInConfigInstallsShellRC(t *testing.T) {
 	}
 }
 
-func TestDashboard_CtrlSAlreadyInstalledShowsError(t *testing.T) {
+func TestDashboard_CtrlSAlreadyInstalledShowsSuccess(t *testing.T) {
+	// Regression for F7: WriteShellRC returns an error when the block is
+	// already installed, but that condition is a success/no-op, not a
+	// failure. The status bar should say "already installed ✓", not
+	// "Shell install failed".
 	dir := t.TempDir()
 	t.Setenv("HOME", dir)
 	t.Setenv("SHELL", "/bin/zsh")
@@ -763,11 +767,14 @@ func TestDashboard_CtrlSAlreadyInstalledShowsError(t *testing.T) {
 	d := NewDashboard(nil, nil, nil, nil, "", "127.0.0.1", 8082, false)
 	d.activeTab = tabConfig
 	d.Update(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
-	// Second install should fail (already installed; force=false).
+	// Second install: should be detected as already-installed, not failure.
 	d.Update(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
 
-	if !strings.Contains(d.stats.message, "Shell install failed") {
-		t.Errorf("expected failure message on second install, got %q", d.stats.message)
+	if strings.Contains(d.stats.message, "Shell install failed") {
+		t.Errorf("already-installed should NOT be reported as failure, got %q", d.stats.message)
+	}
+	if !strings.Contains(d.stats.message, "already installed") {
+		t.Errorf("expected already-installed message, got %q", d.stats.message)
 	}
 }
 
