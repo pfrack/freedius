@@ -367,7 +367,11 @@ The SSE endpoint emits `event: replay\ndata: {"complete": false, ...}` whenever 
 
 **File**: `proxy/logtee.go`
 
-**Intent**: Same ring-buffer pattern as EventBus (F4 contract): add `ring []LogEntry`, `ringMu sync.RWMutex`, `ringSize int`, `seq atomic.Int64` fields. Mirror `Since(seq) (entries []LogEntry, currentSeq int64, evicted bool)`. **Do NOT change `Snapshot()` semantics** — it remains destructive (drains the channel) because logtee_test.go:101 and the TUI Log tab refresh at views.go:560 rely on that behavior. Add `SnapshotSince(seq int64) []LogEntry` for the IPC replay path that reads from the ring buffer copy (non-destructive).
+**Intent**: Same ring-buffer pattern as EventBus (F4 contract): add `ring []LogEntry`, `ringMu sync.RWMutex`, `ringSize int`, `seq atomic.Int64` fields. Mirror `Since(seq) (entries []LogEntry, currentSeq int64, evicted bool)`. **Do NOT change `Snapshot()` semantics** — it remains destructive (drains the channel) because logtee_test.go:101 and the TUI Log tab refresh at views.go:560 rely on that behavior. Add `SnapshotSince(seq int64) (entries []LogEntry, currentSeq int64, evicted bool)` for the IPC replay path that reads from the ring buffer copy (non-destructive). **Edge cases** (mirror the F6 EventBus Since contract):
+- `seq <= 0` (initial attach): return entire ring, evicted=false.
+- `seq > currentSeq`: return `nil, currentSeq, false`.
+- `seq == currentSeq`: return `nil, currentSeq, false`.
+- `seq < oldest_in_ring`: return what's left, evicted=true.
 
 #### 3. IPC server — Unix
 
