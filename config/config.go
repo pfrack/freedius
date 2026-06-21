@@ -39,6 +39,13 @@ type Provider struct {
 	DefaultBaseURL   string `yaml:"default_base_url,omitempty"`
 	DefaultAPIKeyEnv string `yaml:"default_api_key_env,omitempty"`
 	AnthropicVersion string `yaml:"anthropic_version,omitempty"`
+	// Protocol forces the wire protocol for mix providers ("openai" or
+	// "anthropic"). When set, the MixAdapter routes to the matching
+	// sub-adapter and normalizes the base URL (appending /v1/messages or
+	// /v1/chat/completions if the path doesn't already end with the
+	// expected suffix). When empty, the adapter falls back to URL path
+	// sniffing. Ignored for non-mix providers.
+	Protocol string `yaml:"protocol,omitempty"`
 	// RequireBaseURL and SupportsCountTokens are runtime-only flags populated
 	// by applyDefaults from the generated providerDefaults map. They do not
 	// round-trip through YAML.
@@ -230,6 +237,14 @@ func validateProvider(path, name string, p Provider) error {
 			"config: config file at %s: provider %q requires default_base_url but none is set",
 			path,
 			name,
+		)
+	}
+	if p.Protocol != "" && p.Protocol != "openai" && p.Protocol != "anthropic" {
+		return fmt.Errorf(
+			"config: config file at %s: provider %q has invalid protocol %q (allowed: openai, anthropic)",
+			path,
+			name,
+			p.Protocol,
 		)
 	}
 	return nil

@@ -288,6 +288,18 @@ func collectAllEntries(cfg *config.Config) []configEntry {
 	return entries
 }
 
+// findEntryIndex returns the index of the entry with the given name and kind,
+// or -1 if not found. Use this in tests instead of hardcoding cursor positions
+// so the test survives changes to the sort order in collectAllEntries.
+func findEntryIndex(cfg *config.Config, name, kind string) int {
+	for i, e := range collectAllEntries(cfg) {
+		if e.name == name && e.kind == kind {
+			return i
+		}
+	}
+	return -1
+}
+
 func truncate(s string, maxLen int) string {
 	if maxLen <= 0 {
 		return ""

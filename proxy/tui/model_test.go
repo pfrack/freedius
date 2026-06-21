@@ -516,14 +516,9 @@ mappings:
 
 	d := NewDashboard(nil, nil, cfg, emptyRegistry, emptyDispatcher, cfgPath, "", 0, false, "")
 	d.activeTab = tabConfig
-	// Find the index of the "opus" mapping in the config entries.
-	all := collectAllEntries(cfg)
-	for i, e := range all {
-		if e.kind == "mapping" && e.name == "opus" {
-			d.configCursor = i
-			break
-		}
-	}
+	// Use a lookup helper so the test survives changes to the sort order
+	// in collectAllEntries (e.g., when providers are auto-injected).
+	d.configCursor = findEntryIndex(cfg, "opus", "mapping")
 
 	// Open edit form on the mapping and modify the model field.
 	d.Update(tea.KeyPressMsg{Text: "e"})

@@ -319,6 +319,65 @@ mappings:
 			wantErr:   true,
 			errSubstr: "contains no model mappings",
 		},
+		{
+			name: "valid protocol openai",
+			yaml: `providers:
+  custom:
+    behavior: mix
+    default_base_url: https://example.com/v1
+    default_api_key_env: KEY
+    protocol: openai
+`,
+			check: func(t *testing.T, cfg *Config) {
+				p := cfg.Providers["custom"]
+				if p.Protocol != "openai" {
+					t.Errorf("protocol: got %q, want openai", p.Protocol)
+				}
+			},
+		},
+		{
+			name: "valid protocol anthropic",
+			yaml: `providers:
+  custom:
+    behavior: mix
+    default_base_url: https://example.com/v1
+    default_api_key_env: KEY
+    protocol: anthropic
+`,
+			check: func(t *testing.T, cfg *Config) {
+				p := cfg.Providers["custom"]
+				if p.Protocol != "anthropic" {
+					t.Errorf("protocol: got %q, want anthropic", p.Protocol)
+				}
+			},
+		},
+		{
+			name: "invalid protocol",
+			yaml: `providers:
+  custom:
+    behavior: mix
+    default_base_url: https://example.com/v1
+    default_api_key_env: KEY
+    protocol: grpc
+`,
+			wantErr:   true,
+			errSubstr: `invalid protocol "grpc"`,
+		},
+		{
+			name: "protocol omitted defaults to empty",
+			yaml: `providers:
+  custom:
+    behavior: mix
+    default_base_url: https://example.com/v1/messages
+    default_api_key_env: KEY
+`,
+			check: func(t *testing.T, cfg *Config) {
+				p := cfg.Providers["custom"]
+				if p.Protocol != "" {
+					t.Errorf("protocol: got %q, want empty", p.Protocol)
+				}
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -615,6 +674,9 @@ func TestConfig_MarshalOmitEmpty(t *testing.T) {
 	}
 	if strings.Contains(yamlStr, "default_api_key_env") {
 		t.Errorf("expected no default_api_key_env in output (empty, omitempty), got:\n%s", yamlStr)
+	}
+	if strings.Contains(yamlStr, "protocol") {
+		t.Errorf("expected no protocol in output (empty, omitempty), got:\n%s", yamlStr)
 	}
 }
 
