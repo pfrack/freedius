@@ -479,9 +479,9 @@ func (c *IPCClient) Close() error
 
 #### Automated
 
-- [x] 1.1 `go vet ./...` passes after adding ctrl+z handler
-- [x] 1.2 `go test ./proxy/tui/...` passes
-- [x] 1.3 `go build ./cmd/freedius` succeeds
+- [x] 1.1 `go vet ./...` passes after adding ctrl+z handler — e08a497
+- [x] 1.2 `go test ./proxy/tui/...` passes — e08a497
+- [x] 1.3 `go build ./cmd/freedius` succeeds — e08a497
 
 #### Manual
 
