@@ -311,9 +311,7 @@ Add a Unix socket IPC server to the daemon that streams events and logs via SSE.
 
 **File**: `proxy/logtee.go`
 
-**Intent**: Same pattern as EventBus. Add ring buffer with sequence numbers. Make `Snapshot()` non-destructive (read from ring, not channel). Add `Since(seq int64) ([]LogEntry, int64)` method.
-
-**Contract**: Mirror EventBus changes. `Snapshot()` reads from ring buffer copy, not from channel.
+**Intent**: Same ring-buffer pattern as EventBus (F4 contract): add `ring []LogEntry`, `ringMu sync.RWMutex`, `ringSize int`, `seq atomic.Int64` fields. Mirror `Since(seq) (entries []LogEntry, currentSeq int64, evicted bool)`. **Do NOT change `Snapshot()` semantics** — it remains destructive (drains the channel) because logtee_test.go:101 and the TUI Log tab refresh at views.go:560 rely on that behavior. Add `SnapshotSince(seq int64) []LogEntry` for the IPC replay path that reads from the ring buffer copy (non-destructive).
 
 #### 3. IPC server — Unix
 
