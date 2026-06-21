@@ -217,30 +217,30 @@ No data migration. No external consumers of the module path exist. The module pa
 
 #### Automated
 
-- [x] 1.1 `git status` shows only renames + the 5 edits
-- [x] 1.2 `ls cmd/freedius/` shows `main.go`, `main_test.go`, `templates/`
-- [x] 1.3 `ls templates/` at the repo root is empty (or removed)
-- [x] 1.4 `go vet ./...` exits 0
-- [x] 1.5 `go test -race -cover ./...` exits 0
-- [x] 1.6 `go build ./...` exits 0
-- [x] 1.7 `go build -o /tmp/freedius-build ./cmd/freedius` exits 0
-- [x] 1.8 `go build -o /tmp/freedius-build .` exits non-zero (confirms old path gone)
-- [x] 1.9 `go generate ./...` produces no diff
-- [x] 1.10 `mage CI` exits 0
-- [x] 1.11 `mage ManualTest` exits 0
+- [x] 1.1 `git status` shows only renames + the 5 edits — a5a8d53
+- [x] 1.2 `ls cmd/freedius/` shows `main.go`, `main_test.go`, `templates/` — a5a8d53
+- [x] 1.3 `ls templates/` at the repo root is empty (or removed) — a5a8d53
+- [x] 1.4 `go vet ./...` exits 0 — a5a8d53
+- [x] 1.5 `go test -race -cover ./...` exits 0 — a5a8d53
+- [x] 1.6 `go build ./...` exits 0 — a5a8d53
+- [x] 1.7 `go build -o /tmp/freedius-build ./cmd/freedius` exits 0 — a5a8d53
+- [x] 1.8 `go build -o /tmp/freedius-build .` exits non-zero (confirms old path gone) — a5a8d53
+- [x] 1.9 `go generate ./...` produces no diff — a5a8d53
+- [x] 1.10 `mage CI` exits 0 — a5a8d53
+- [x] 1.11 `mage ManualTest` exits 0 — a5a8d53
 
 #### Manual
 
 - [ ] 1.12 `go run ./cmd/freedius` launches; TUI renders; proxy listens on 127.0.0.1:8082
 - [ ] 1.13 Embedded starter template still loads (lazy-startup path verified)
-- [ ] 1.14 `git log --follow cmd/freedius/main.go` traces history through the rename
-- [ ] 1.15 `git blame cmd/freedius/main.go` preserves authorship
+- [x] 1.14 `git log --follow cmd/freedius/main.go` traces history through the rename — a5a8d53
+- [x] 1.15 `git blame cmd/freedius/main.go` preserves authorship — a5a8d53
 
 ### Phase 2: Final cleanup and follow-up notes
 
 #### Automated
 
-- [ ] 2.1 `git log --oneline -5` shows the new `refactor:` commit at HEAD
+- [x] 2.1 `git log --oneline -5` shows the new `refactor:` commit at HEAD
 
 #### Manual
 
