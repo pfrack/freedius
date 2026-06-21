@@ -156,7 +156,7 @@ func waitForShutdown(server *http.Server) error
 
 **File**: `cmd/freedius/signal_windows.go` (new)
 
-**Intent**: Implement `waitForShutdown` for Windows. Uses `signal.NotifyContext` with `os.Interrupt` only (SIGTERM/SIGHUP don't exist on Windows).
+**Intent**: Implement `waitForShutdown` for Windows. Uses `signal.NotifyContext` with `os.Interrupt` only (SIGTERM/SIGHUP don't exist on Windows). **The Windows signature MUST match the Unix signature** (per review F2): the second arg is a `cleanup func() error` that the Unix path uses for socket removal; on Windows, IPCServer is not built (no Unix socket), so the cleanup arg is always nil at the call site — discard it via `_`.
 
 **Contract**:
 
@@ -165,7 +165,7 @@ func waitForShutdown(server *http.Server) error
 
 package main
 
-func waitForShutdown(server *http.Server) error
+func waitForShutdown(server *http.Server, _ func() error) error
 ```
 
 #### 5. Log output for headless mode
