@@ -1,7 +1,7 @@
 ---
 id: mouse-support
 title: "Mouse Support for TUI"
-status: implemented
+status: impl_reviewed
 created: 2026-06-21
 updated: 2026-06-21
 ---
