@@ -356,6 +356,8 @@ Endpoints:
 | `/v1/stats` | GET | JSON: uptime, total requests, errors, port, host. |
 | `/v1/config` | GET | Full config JSON snapshot. |
 
+**SSE contract (lessons.md §1, §2)**: emission MUST use `json.Marshal` (NOT `json.NewEncoder`, which appends `\n` and corrupts the `data: ...\n\n` SSE framing). Reading the inbound `since=N` query parameter MUST use `net/http`'s `r.URL.Query()` (no SSE reader needed — that's the client side, per §4.9 below).
+
 #### 4. IPC server — Windows stub
 
 **File**: `cmd/freedius/ipc_windows.go` (new)
@@ -423,6 +425,12 @@ func (c *IPCClient) Stats() (StatsSnapshot, error)
 func (c *IPCClient) Config() (*config.Config, error)
 func (c *IPCClient) Close() error
 ```
+
+**SSE client contract (lessons.md §1, §2)**: SSE reading MUST use `bufio.Reader.ReadBytes('\n')` (NOT `bufio.Scanner` — its default 64 KB `MaxScanTokenSize` truncates large tool-use arguments). The reader loop:
+1. `bufio.NewReader(resp.Body)`.
+2. Loop `r.ReadBytes('\n')` — each line is either `event: <type>`, `data: <payload>`, blank (frame boundary), or `: comment` (skip).
+3. On `event: replay` with `data: {"complete": false, ...}` (per F6 contract), the attached TUI shows "showing recent events, earlier history unavailable".
+4. JSON decoding of `data:` lines uses `json.Unmarshal` (no trailing-newline issue at decode time, only at encode time per §1).
 
 ### Success Criteria:
 
