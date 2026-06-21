@@ -590,30 +590,30 @@ func (c *IPCClient) Close() error
 
 #### Automated
 
-- [x] 3.1 `go vet ./...` passes
-- [x] 3.2 `go test ./cmd/freedius/...` passes (PID file, daemon lifecycle)
-- [x] 3.3 `go build ./cmd/freedius` succeeds
+- [x] 3.1 `go vet ./...` passes — c6014a9
+- [x] 3.2 `go test ./cmd/freedius/...` passes (PID file, daemon lifecycle) — c6014a9
+- [x] 3.3 `go build ./cmd/freedius` succeeds — c6014a9
 
 #### Manual
 
-- [ ] 3.4 `freedius --daemon` forks, prints PID
-- [ ] 3.5 `freedius status` shows running
-- [ ] 3.6 `freedius stop` terminates daemon
-- [ ] 3.7 Stale PID detection works
-- [ ] 3.8 Already-running detection works
+- [x] 3.4 `freedius --daemon` forks, prints PID
+- [x] 3.5 `freedius status` shows running
+- [x] 3.6 `freedius stop` terminates daemon
+- [x] 3.7 Stale PID detection works
+- [x] 3.8 Already-running detection works
 
 ### Phase 4: IPC-Based TUI Attach
 
 #### Automated
 
-- [ ] 4.1 `go vet ./...` passes
-- [ ] 4.2 `go test ./proxy/...` passes (EventBus/LogSink Since methods)
-- [ ] 4.3 `go test ./cmd/freedius/...` passes (IPC server, client, attach)
-- [ ] 4.4 `go build ./cmd/freedius` succeeds
+- [x] 4.1 `go vet ./...` passes
+- [x] 4.2 `go test ./proxy/...` passes (EventBus/LogSink Since methods)
+- [x] 4.3 `go test ./cmd/freedius/...` passes (IPC server, client, attach)
+- [x] 4.4 `go build ./cmd/freedius` succeeds
 
 #### Manual
 
-- [ ] 4.5 `freedius attach` connects to running daemon, shows TUI
-- [ ] 4.6 Detach with `q` does not kill daemon
-- [ ] 4.7 Late attach shows replayed events
-- [ ] 4.8 Full lifecycle: daemon → attach → requests → detach → stop
+- [x] 4.5 `freedius attach` connects to running daemon, shows TUI
+- [x] 4.6 Detach with `q` does not kill daemon
+- [x] 4.7 Late attach shows replayed events
+- [x] 4.8 Full lifecycle: daemon → attach → requests → detach → stop

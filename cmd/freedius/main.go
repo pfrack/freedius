@@ -75,13 +75,15 @@ func run(args []string) int {
 		return code
 	}
 
-	// Subcommand dispatch (stop, status) — after help scan, before flag parsing.
+	// Subcommand dispatch (stop, status, attach) — after help scan, before flag parsing.
 	if len(args) > 0 {
 		switch args[0] {
 		case "stop":
 			return handleStop()
 		case "status":
 			return handleStatus()
+		case "attach":
+			return handleAttach(args[1:])
 		}
 	}
 
@@ -221,7 +223,14 @@ func run(args []string) int {
 	}
 
 	if *flagFg {
-		return runHeadless(server, logger)
+		socketPath := filepath.Join(runtimeDir(), "freedius.sock")
+		ipcServer := NewIPCServer(socketPath, bus, logSink, cfg, registry)
+		go func() { _ = ipcServer.ListenAndServe() }()
+		return runHeadless(server, logger, func() error {
+			ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+			defer cancel()
+			return ipcServer.Shutdown(ctx)
+		})
 	}
 
 	model := tui.NewDashboard(
@@ -253,8 +262,8 @@ func run(args []string) int {
 
 // runHeadless runs the proxy in foreground without the TUI. Blocks until a
 // shutdown signal is received, then gracefully shuts down.
-func runHeadless(server *http.Server, logger *slog.Logger) int {
-	if err := waitForShutdown(server, nil); err != nil {
+func runHeadless(server *http.Server, logger *slog.Logger, cleanup func() error) int {
+	if err := waitForShutdown(server, cleanup); err != nil {
 		logger.Error("shutdown error", "err", err)
 	}
 	logger.Info("shutdown complete")
@@ -301,6 +310,7 @@ Usage: freedius [flags]
 Subcommands:
   stop      Send SIGTERM to a running daemon
   status    Check if a daemon is running
+  attach    Connect TUI to a running daemon
 
 Flags:
 `

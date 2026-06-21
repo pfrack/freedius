@@ -112,6 +112,8 @@ type Dashboard struct {
 	styles       Styles
 	isDark       bool
 	currentTheme *Theme
+
+	detachOnQuit bool
 }
 
 // NewDashboard creates a new Dashboard model subscribed to the given event
@@ -171,6 +173,37 @@ func NewDashboard(
 // and log entries.
 func (d *Dashboard) Init() tea.Cmd {
 	return tea.Batch(waitForEvent(d.events), waitForLog(d.logs))
+}
+
+// NewAttachDashboard creates a Dashboard for IPC attach mode. It accepts nil
+// reg/dispatcher (the attach client only observes via SSE). detachOnQuit is
+// set to true so pressing 'q' detaches without killing the daemon.
+func NewAttachDashboard(
+	events <-chan proxy.RequestEvent,
+	logs <-chan proxy.LogEntry,
+	cfgPath string,
+	host string,
+	port int,
+) *Dashboard {
+	isDark := lipgloss.HasDarkBackground(os.Stdin, os.Stdout)
+	theme := resolveTheme("")
+	return &Dashboard{
+		activeTab:       tabLog,
+		events:          events,
+		logs:            logs,
+		logBuffer:       newRingBuffer[proxy.LogEntry](1000),
+		currentLogLevel: filterAll,
+		cfgPath:         cfgPath,
+		host:            host,
+		port:            port,
+		stats: statsData{
+			startTime: time.Now(),
+		},
+		isDark:       isDark,
+		currentTheme: theme,
+		styles:       NewStyles(theme.Palette, isDark),
+		detachOnQuit: true,
+	}
 }
 
 // Update handles incoming messages: key presses for tab switching and quit,
@@ -683,6 +716,9 @@ func (d *Dashboard) updateFormFocus() {
 }
 
 func (d *Dashboard) openEditForm() {
+	if d.detachOnQuit {
+		return
+	}
 	all := collectAllEntries(d.config)
 	if d.configCursor < 0 || d.configCursor >= len(all) {
 		return
@@ -719,6 +755,9 @@ func (d *Dashboard) openEditForm() {
 }
 
 func (d *Dashboard) openAddProviderForm() {
+	if d.detachOnQuit {
+		return
+	}
 	d.formKind = "provider"
 	d.formEntryName = ""
 
@@ -738,6 +777,9 @@ func (d *Dashboard) openAddProviderForm() {
 }
 
 func (d *Dashboard) openAddMappingForm() {
+	if d.detachOnQuit {
+		return
+	}
 	d.formKind = "mapping"
 	d.formEntryName = ""
 
