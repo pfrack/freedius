@@ -37,11 +37,10 @@ func TestDashboard_Update_KeyPress(t *testing.T) {
 		wantTab  int
 		wantQuit bool
 	}{
-		{name: "ctrl+p", key: tea.KeyPressMsg{Code: 'p', Mod: tea.ModCtrl}, wantTab: tabProviders},
-		{name: "ctrl+m", key: tea.KeyPressMsg{Code: 'm', Mod: tea.ModCtrl}, wantTab: tabConfig},
+		{name: "f1", key: tea.KeyPressMsg{Code: tea.KeyF1}, wantTab: tabProviders},
+		{name: "f2", key: tea.KeyPressMsg{Code: tea.KeyF2}, wantTab: tabConfig},
 		{name: "press q", key: tea.KeyPressMsg{Text: "q"}, wantQuit: true},
 		{name: "press ctrl+c", key: tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl}, wantQuit: true},
-		{name: "press esc", key: tea.KeyPressMsg{Code: tea.KeyEsc}, wantQuit: true},
 	}
 
 	for _, tt := range tests {
@@ -890,7 +889,7 @@ func TestDashboard_HelpModal_CapturesTabSwitchKey(t *testing.T) {
 	d.showHelp = true
 	d.activeTab = tabLog
 
-	d.Update(tea.KeyPressMsg{Code: 'p', Mod: tea.ModCtrl})
+	d.Update(tea.KeyPressMsg{Code: tea.KeyF1})
 	if d.activeTab != tabLog {
 		t.Errorf("activeTab should remain tabLog when help is open, got %d", d.activeTab)
 	}

@@ -281,19 +281,17 @@ func (d *Dashboard) handleTabModeKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.C
 		return d, tea.Quit
 	case "ctrl+z":
 		return d, tea.Suspend
-	case "ctrl+p":
+	case "f1":
 		d.activeTab = tabProviders
 		return d, nil
-	case "ctrl+m":
+	case "f2":
 		d.activeTab = tabConfig
 		return d, nil
 	case "esc":
 		if d.activeTab != tabLog {
 			d.activeTab = tabLog
-			return d, nil
 		}
-		d.quitting = true
-		return d, tea.Quit
+		return d, nil
 	case "tab":
 		d.activeTab = (d.activeTab + 1) % 3
 		return d, nil

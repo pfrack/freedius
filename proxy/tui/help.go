@@ -8,8 +8,8 @@ type shortcut struct {
 var helpShortcuts = []shortcut{
 	{"q / Ctrl+C", "Quit"},
 	{"?", "Show this help"},
-	{"Ctrl+P / Ctrl+M", "Switch to Providers / Config tab"},
-	{"Esc", "Back to Log (or quit from Log)"},
+	{"F1 / F2", "Switch to Providers / Config tab"},
+	{"Esc", "Back to Log"},
 	{"Tab / Shift+Tab", "Cycle tabs (or fields in a form)"},
 	{"↑ / k", "Scroll up"},
 	{"↓ / j", "Scroll down"},
