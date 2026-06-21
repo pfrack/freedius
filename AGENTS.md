@@ -4,15 +4,15 @@ freedius is a local HTTP proxy built with Go's standard library (`net/http`, `ht
 
 ## Build, Test, and Development Commands
 
-- **Run**: `go run .` — starts the proxy server locally.
-- **Build**: `go build -o freedius .` — produces a static binary.
+- **Run**: `go run ./cmd/freedius` — starts the proxy server locally.
+- **Build**: `go build -o freedius ./cmd/freedius` — produces a static binary.
 - **Test**: `go test ./...` — runs all tests.
 - **Lint**: `go vet ./...` — runs the Go static analysis checks.
 - **Audit**: `govulncheck ./...` — checks for known vulnerabilities in the module graph.
 
 ## Project Structure
 
-- `main.go` — entry point, HTTP server setup, proxy routing (@go.dev/doc/net/http for `http.Handler` patterns).
+- `cmd/freedius/` — entry point (single binary), HTTP server setup, proxy routing (@go.dev/doc/net/http for `http.Handler` patterns).
 - `proxy/` — reverse proxy logic using `httputil.ReverseProxy`.
 - `config/` — configuration loading (env, flags, or file-based).
 - `context/foundation/` — product requirements, tech-stack decisions, and plans (do not edit manually unless you are sure).

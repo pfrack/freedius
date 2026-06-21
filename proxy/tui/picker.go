@@ -23,11 +23,12 @@ func (i providerItem) FilterValue() string { return i.name }
 type providerPicker struct {
 	list     list.Model
 	selected string
+	styles   Styles
 }
 
 // newProviderPicker builds a picker for selecting among the names of providers
 // the user has configured in d.config.Providers. Pass the sorted names list.
-func newProviderPicker(names []string, providers map[string]config.Provider) *providerPicker {
+func newProviderPicker(names []string, providers map[string]config.Provider, styles Styles) *providerPicker {
 	items := make([]list.Item, 0, len(names))
 	for _, name := range names {
 		p := providers[name]
@@ -49,13 +50,14 @@ func newProviderPicker(names []string, providers map[string]config.Provider) *pr
 	l.SetShowPagination(false)
 
 	return &providerPicker{
-		list: l,
+		list:   l,
+		styles: styles,
 	}
 }
 
 // newBehaviorPicker builds a picker for the Behavior field of a provider form.
 // The list is fixed to the three valid behavior values.
-func newBehaviorPicker() *providerPicker {
+func newBehaviorPicker(styles Styles) *providerPicker {
 	behaviors := []struct {
 		name string
 	}{
@@ -74,7 +76,7 @@ func newBehaviorPicker() *providerPicker {
 	l.SetFilteringEnabled(false)
 	l.SetShowHelp(false)
 	l.SetShowPagination(false)
-	return &providerPicker{list: l}
+	return &providerPicker{list: l, styles: styles}
 }
 
 func (p *providerPicker) Update(msg tea.Msg) (tea.Cmd, bool) {
@@ -95,7 +97,7 @@ func (p *providerPicker) Update(msg tea.Msg) (tea.Cmd, bool) {
 }
 
 func (p *providerPicker) View() string {
-	return windowStyle.Render(p.list.View())
+	return p.styles.WindowStyle.Render(p.list.View())
 }
 
 func (p *providerPicker) SelectedProvider() string {

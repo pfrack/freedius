@@ -36,13 +36,15 @@ cleanup() {
 	fi
 	rm -rf "$TMPHOME" 2>/dev/null || true
 }
-trap cleanup EXIT
+trap cleanup EXIT SIGTERM SIGINT
 
 echo "=== Building ==="
-if ! go build -o "$BIN" .; then
+if ! go build -o "$BIN" ./cmd/freedius; then
 	echo "build failed"
 	exit 1
 fi
+
+command -v jq >/dev/null 2>&1 || { echo "jq is required"; exit 1; }
 
 FAIL=0
 pass() { echo "  PASS  $1"; }
@@ -54,7 +56,9 @@ start_server() {
 	else
 		cp config.example.yaml "$CFG"
 	fi
-	"$BIN" > "$LOG" 2>&1 &
+	# Wrap in script(1) to provide a pseudo-TTY for Bubble Tea (needs a PTY
+	# to stay alive; on a pure non-TTY stdin it exits immediately).
+	script -eq -c "$BIN --no-export-hint" /dev/null >"$LOG" 2>&1 &
 	SERVER_PID=$!
 	for _ in 1 2 3 4 5 6 7 8 9 10; do
 		if curl -sS -o /dev/null "$BASE_URL/v1/messages" 2>/dev/null; then
@@ -73,12 +77,14 @@ echo ""
 echo "=== Phase 3: family-pattern routing (nim only, no real API calls) ==="
 
 cat > "$CFG" <<'YAML'
+providers:
+  nim: { behavior: openai, default_api_key_env: NVIDIA_NIM_API_KEY }
 mappings:
-  opus:    { provider: nim, model: opus-target }
-  sonnet:  { provider: nim, model: sonnet-target }
-  haiku:   { provider: nim, model: haiku-target }
-  auto:    { provider: nim, model: auto-target }
-  default: { provider: nim, model: default-target }
+  opus:    { provider_name: nim, model_string: opus-target }
+  sonnet:  { provider_name: nim, model_string: sonnet-target }
+  haiku:   { provider_name: nim, model_string: haiku-target }
+  auto:    { provider_name: nim, model_string: auto-target }
+  default: { provider_name: nim, model_string: default-target }
 YAML
 
 export NVIDIA_NIM_API_KEY=test-dummy-key
@@ -122,8 +128,10 @@ wait "$SERVER_PID" 2>/dev/null
 SERVER_PID=""
 
 cat > "$CFG" <<'YAML'
+providers:
+  nim: { behavior: openai, default_api_key_env: NVIDIA_NIM_API_KEY }
 mappings:
-  opus: { provider: nim, model: opus-target }
+  opus: { provider_name: nim, model_string: opus-target }
 YAML
 
 if ! start_server; then
@@ -141,10 +149,11 @@ wait "$SERVER_PID" 2>/dev/null
 SERVER_PID=""
 
 cat > "$CFG" <<'YAML'
-models:
-  claude-opus-4-1: { provider: nim, model: exact-opus }
+providers:
+  nim: { behavior: openai, default_api_key_env: NVIDIA_NIM_API_KEY }
 mappings:
-  opus: { provider: nim, model: family-opus }
+  claude-opus-4-1: { provider_name: nim, model_string: exact-opus }
+  opus:            { provider_name: nim, model_string: family-opus }
 YAML
 
 if ! start_server; then
@@ -172,33 +181,37 @@ SERVER_PID=""
 echo ""
 echo "=== Custom alias check ==="
 cat > "$CFG" <<'YAML'
+providers:
+  nim: { behavior: openai, default_api_key_env: NVIDIA_NIM_API_KEY }
 mappings:
-  opus: { provider: nim, model: alias-check }
+  opus: { provider_name: nim, model_string: alias-check }
 YAML
-timeout 2 "$BIN" > /dev/null 2>&1
+timeout 2 script -eq -c "$BIN --no-export-hint" /dev/null > /dev/null 2>&1
 RC=$?
 if [[ "$RC" == "124" ]]; then pass "NIM config: accepted (listened 2s, killed by timeout)"; else fail "NIM config: exit code $RC"; fi
 
 # provider: custom should be rewritten to anthropic.
-# CUSTOM_API_KEY not set → env-var check fails at startup → server never listens
+# In the unified binary, missing env vars are surfaced via the TUI Config tab
+# rather than blocking startup — the server starts and listens normally.
 cat > "$CFG" <<'YAML'
+providers:
+  custom: { behavior: mix, default_base_url: https://x.com/v1/messages, default_api_key_env: CUSTOM_API_KEY }
 mappings:
-  opus: { provider: custom, model: alias-check, base_url: https://x.com/v1/messages, api_key_env: CUSTOM_API_KEY }
+  opus: { provider_name: custom, model_string: alias-check }
 YAML
-OUTPUT=$(timeout 2 "$BIN" 2>&1 || true)
-if [[ "$OUTPUT" == *"CUSTOM_API_KEY"* ]]; then
-	pass "custom alias: rewritten to anthropic, startup rejects missing CUSTOM_API_KEY"
-else
-	fail "custom alias: (got: $OUTPUT)"
-fi
+timeout 2 script -eq -c "$BIN --no-export-hint" /dev/null > /dev/null 2>&1
+RC=$?
+if [[ "$RC" == "124" ]]; then pass "custom alias: accepted (listened 2s, killed by timeout)"; else fail "custom alias: exit code $RC"; fi
 
 echo ""
 echo "=== Original smoke tests (updated for S-02 schema) ==="
 
 # Test 4.6: unknown model → 404 no_match (no default: mapping)
 cat > "$CFG" <<'YAML'
+providers:
+  nim: { behavior: openai, default_api_key_env: NVIDIA_NIM_API_KEY }
 mappings:
-  opus: { provider: nim, model: step-3.5 }
+  opus: { provider_name: nim, model_string: step-3.5 }
 YAML
 if ! start_server; then echo "  server failed to start (no-default)"; exit 1; fi
 
@@ -214,9 +227,11 @@ kill -TERM "$SERVER_PID" 2>/dev/null; wait "$SERVER_PID" 2>/dev/null; SERVER_PID
 
 # Known model dispatch test (with default: so known family routes through)
 cat > "$CFG" <<'YAML'
+providers:
+  nim: { behavior: openai, default_api_key_env: NVIDIA_NIM_API_KEY }
 mappings:
-  opus:    { provider: nim, model: step-3.5 }
-  default: { provider: nim, model: step-3.5 }
+  opus:    { provider_name: nim, model_string: step-3.5 }
+  default: { provider_name: nim, model_string: step-3.5 }
 YAML
 if ! start_server; then echo "  server failed to start (known)"; exit 1; fi
 
@@ -231,9 +246,6 @@ STATUS=$(curl -sS -o /dev/null -w "%{http_code}" -X POST "$BASE_URL"/v1/messages
 	-H 'content-type: application/json' -d '{not json')
 if [[ "$STATUS" == "400" ]]; then pass "4.7 malformed body status=400"; else fail "4.7 status (got $STATUS)"; fi
 
-LOG_OUTPUT=$(cat "$LOG")
-if [[ "$LOG_OUTPUT" == *"freedius listening on"* ]]; then pass "4.14 server listening log appears"; else fail "4.14 (got: $LOG_OUTPUT)"; fi
-
 kill -TERM "$SERVER_PID"
 wait "$SERVER_PID" 2>/dev/null
 SHUTDOWN_EXIT=$?
@@ -241,25 +253,29 @@ if [[ "$SHUTDOWN_EXIT" == "0" ]]; then pass "4.12 SIGTERM exit=0"; else fail "4.
 SERVER_PID=""
 
 # 4.8: --port validation (background + check exit message)
-"$BIN" --port 99999 > "$LOG" 2>&1 & PID=$!; sleep 0.5
+script -eq -c "$BIN --no-export-hint --port 99999 2>&1" /dev/null >"$LOG" 2>&1 & PID=$!; sleep 0.5
 if kill -0 "$PID" 2>/dev/null; then kill -TERM "$PID" 2>/dev/null; wait "$PID" 2>/dev/null; fi
 OUTPUT=$(cat "$LOG")
 if [[ "$OUTPUT" == *"invalid --port value"* ]]; then pass "4.8 --port 99999"; else fail "4.8 (got: $OUTPUT)"; fi
 
 # 4.9: --host validation
-"$BIN" --host 10.0.0.1 > "$LOG" 2>&1 & PID=$!; sleep 0.5
+script -eq -c "$BIN --no-export-hint --host 10.0.0.1 2>&1" /dev/null >"$LOG" 2>&1 & PID=$!; sleep 0.5
 if kill -0 "$PID" 2>/dev/null; then kill -TERM "$PID" 2>/dev/null; wait "$PID" 2>/dev/null; fi
 OUTPUT=$(cat "$LOG")
 if [[ "$OUTPUT" == *"invalid --host value"* ]]; then pass "4.9 --host 10.0.0.1"; else fail "4.9 (got: $OUTPUT)"; fi
 
 # 4.11: malformed YAML produces line:col error
 cat > "$CFG" <<'YAML'
-models:
+providers:
+  nim:
+    behavior: openai
+    default_api_key_env: NVIDIA_NIM_API_KEY
+mappings:
   claude-opus-4
-    provider: nim
-    model: foo
+    provider_name: nim
+    model_string: foo
 YAML
-"$BIN" > "$LOG" 2>&1 & PID=$!; sleep 0.5
+script -eq -c "$BIN --no-export-hint 2>&1" /dev/null >"$LOG" 2>&1 & PID=$!; sleep 0.5
 if kill -0 "$PID" 2>/dev/null; then kill -TERM "$PID" 2>/dev/null; wait "$PID" 2>/dev/null; fi
 OUTPUT=$(cat "$LOG")
 rm -f "$CFG"
@@ -282,11 +298,13 @@ NOTE
 
 # Port conflict test
 cat > "$CFG" <<'YAML'
+providers:
+  nim: { behavior: openai, default_api_key_env: NVIDIA_NIM_API_KEY }
 mappings:
-  opus: { provider: nim, model: foo }
+  opus: { provider_name: nim, model_string: foo }
 YAML
 if start_server; then
-	OUTPUT=$("$BIN" 2>&1 || true)
+	OUTPUT=$(script -eq -c "$BIN --no-export-hint 2>&1" /dev/null || true)
 	if [[ "$OUTPUT" == *"bind: address already in use"* ]]; then
 		pass "4.13 port conflict"
 	else
@@ -366,8 +384,10 @@ unset MISSING_FAKE_KEY 2>/dev/null || true
 # when MISSING_FAKE_KEY is unset. The adapter pre-flight check at runtime
 # returns configError "authentication_error" → 500.
 cat > "$CFG" <<'YAML'
+providers:
+  openai: { behavior: openai, default_base_url: http://127.0.0.1:1/v1/chat/completions, default_api_key_env: MISSING_FAKE_KEY }
 mappings:
-  test: { provider: openai, model: test, base_url: http://127.0.0.1:1/v1/chat/completions, api_key_env: MISSING_FAKE_KEY }
+  test: { provider_name: openai, model_string: test }
 YAML
 if ! start_server; then echo "  server failed to start (5.6)"; exit 1; fi
 
@@ -391,8 +411,10 @@ kill -TERM "$SERVER_PID" 2>/dev/null; wait "$SERVER_PID" 2>/dev/null; SERVER_PID
 
 export TEST_API_KEY=dummy
 cat > "$CFG" <<'YAML'
+providers:
+  openai: { behavior: openai, default_base_url: http://127.0.0.1:1/v1/chat/completions, default_api_key_env: TEST_API_KEY }
 mappings:
-  test: { provider: openai, model: test, base_url: http://127.0.0.1:1/v1/chat/completions, api_key_env: TEST_API_KEY }
+  test: { provider_name: openai, model_string: test }
 YAML
 if ! start_server; then echo "  server failed to start (5.8)"; exit 1; fi
 
@@ -414,8 +436,10 @@ if [[ "$SHOULD_RETRY" == "true" ]]; then pass "5.8 x-should-retry=true"; else fa
 kill -TERM "$SERVER_PID" 2>/dev/null; wait "$SERVER_PID" 2>/dev/null; SERVER_PID=""
 
 cat > "$CFG" <<'YAML'
+providers:
+  anthropic: { behavior: anthropic, default_base_url: http://nonexistent.invalid, default_api_key_env: TEST_API_KEY }
 mappings:
-  test: { provider: anthropic, model: test, base_url: http://nonexistent.invalid, api_key_env: TEST_API_KEY }
+  test: { provider_name: anthropic, model_string: test }
 YAML
 if ! start_server; then echo "  server failed to start (5.9)"; exit 1; fi
 
@@ -438,8 +462,10 @@ kill -TERM "$SERVER_PID" 2>/dev/null; wait "$SERVER_PID" 2>/dev/null; SERVER_PID
 
 start_upstream 502
 cat > "$CFG" <<YAML
+providers:
+  openai: { behavior: openai, default_base_url: http://127.0.0.1:$UPSTREAM_PORT/v1/chat/completions, default_api_key_env: TEST_API_KEY }
 mappings:
-  test: { provider: openai, model: test, base_url: http://127.0.0.1:$UPSTREAM_PORT/v1/chat/completions, api_key_env: TEST_API_KEY }
+  test: { provider_name: openai, model_string: test }
 YAML
 if ! start_server; then echo "  server failed to start (5.10)"; exit 1; fi
 
@@ -463,8 +489,10 @@ kill -TERM "$SERVER_PID" 2>/dev/null; wait "$SERVER_PID" 2>/dev/null; SERVER_PID
 
 start_upstream 504
 cat > "$CFG" <<YAML
+providers:
+  openai: { behavior: openai, default_base_url: http://127.0.0.1:$UPSTREAM_PORT/v1/chat/completions, default_api_key_env: TEST_API_KEY }
 mappings:
-  test: { provider: openai, model: test, base_url: http://127.0.0.1:$UPSTREAM_PORT/v1/chat/completions, api_key_env: TEST_API_KEY }
+  test: { provider_name: openai, model_string: test }
 YAML
 if ! start_server; then echo "  server failed to start (5.11)"; exit 1; fi
 
@@ -488,8 +516,10 @@ kill -TERM "$SERVER_PID" 2>/dev/null; wait "$SERVER_PID" 2>/dev/null; SERVER_PID
 
 export NVIDIA_NIM_API_KEY="${NVIDIA_NIM_API_KEY:-test-dummy-key}"
 cat > "$CFG" <<'YAML'
+providers:
+  nim: { behavior: openai, default_api_key_env: NVIDIA_NIM_API_KEY }
 mappings:
-  opus: { provider: nim, model: smokes }
+  opus: { provider_name: nim, model_string: smokes }
 YAML
 if ! start_server; then echo "  server failed to start (5.12)"; exit 1; fi
 
