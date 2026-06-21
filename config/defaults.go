@@ -10,14 +10,21 @@ import (
 // applyDefaults merges generated provider defaults into the user's Providers
 // map. It fills empty DefaultBaseURL / DefaultAPIKeyEnv fields and sets the
 // runtime-only RequireBaseURL / SupportsCountTokens flags from the generated
-// metadata.
+// metadata. Providers in providerDefaults that have a DefaultBaseURL but are
+// missing from the user's config are injected so they appear in the TUI and
+// provider picker.
 func (c *Config) applyDefaults() {
 	if c.Providers == nil {
-		return
+		c.Providers = make(map[string]Provider)
 	}
 	for name, defaults := range providerDefaults {
 		p, ok := c.Providers[name]
 		if !ok {
+			// Provider not in user's config — inject only if it has a
+			// default base URL (ready-to-use providers).
+			if defaults.DefaultBaseURL != "" {
+				c.Providers[name] = defaults
+			}
 			continue
 		}
 		if p.DefaultBaseURL == "" {

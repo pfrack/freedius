@@ -27,6 +27,9 @@ func TestCheckRequiredEnvVars_PresetEnvVarMissing(t *testing.T) {
 		Providers: map[string]config.Provider{
 			"nim": {Behavior: "openai", DefaultAPIKeyEnv: "NVIDIA_NIM_API_KEY"},
 		},
+		Mappings: map[string]config.Mapping{
+			"test": {ProviderName: "nim", ModelString: "test"},
+		},
 	}
 	err := checkRequiredEnvVars(cfg)
 	if err == nil {
@@ -44,6 +47,9 @@ func TestCheckRequiredEnvVars_PerProviderOverrideMissing(t *testing.T) {
 	cfg := &config.Config{
 		Providers: map[string]config.Provider{
 			"zen": {Behavior: "mix", DefaultAPIKeyEnv: "OPENCODE_API_KEY"},
+		},
+		Mappings: map[string]config.Mapping{
+			"test": {ProviderName: "zen", ModelString: "test"},
 		},
 	}
 	err := checkRequiredEnvVars(cfg)
@@ -63,6 +69,10 @@ func TestCheckRequiredEnvVars_AllSet(t *testing.T) {
 			"nim":    {Behavior: "openai", DefaultAPIKeyEnv: "NVIDIA_NIM_API_KEY"},
 			"openai": {Behavior: "openai", DefaultAPIKeyEnv: "OPENAI_API_KEY"},
 		},
+		Mappings: map[string]config.Mapping{
+			"m1": {ProviderName: "nim", ModelString: "test"},
+			"m2": {ProviderName: "openai", ModelString: "test"},
+		},
 	}
 	if err := checkRequiredEnvVars(cfg); err != nil {
 		t.Errorf("unexpected error: %v", err)
@@ -78,6 +88,9 @@ func TestCheckRequiredEnvVars_CustomNoDefault(t *testing.T) {
 				DefaultBaseURL:   "https://x",
 				DefaultAPIKeyEnv: "CUSTOM_KEY",
 			},
+		},
+		Mappings: map[string]config.Mapping{
+			"test": {ProviderName: "custom", ModelString: "test"},
 		},
 	}
 	t.Setenv("CUSTOM_KEY", "k2")
@@ -185,6 +198,9 @@ func TestCheckRequiredEnvVars_ProviderNameInError(t *testing.T) {
 		Providers: map[string]config.Provider{
 			"zen": {Behavior: "mix", DefaultAPIKeyEnv: "OPENCODE_API_KEY"},
 		},
+		Mappings: map[string]config.Mapping{
+			"test": {ProviderName: "zen", ModelString: "test"},
+		},
 	}
 	err := checkRequiredEnvVars(cfg)
 	if err == nil {
@@ -203,6 +219,9 @@ func TestCheckRequiredEnvVars_ReferencesConfiguredProvider(t *testing.T) {
 	cfg := &config.Config{
 		Providers: map[string]config.Provider{
 			"nim": {Behavior: "openai", DefaultAPIKeyEnv: "NVIDIA_NIM_API_KEY"},
+		},
+		Mappings: map[string]config.Mapping{
+			"test": {ProviderName: "nim", ModelString: "test"},
 		},
 	}
 	err := checkRequiredEnvVars(cfg)
