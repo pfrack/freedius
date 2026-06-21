@@ -569,30 +569,30 @@ func (c *IPCClient) Close() error
 
 #### Manual
 
-- [x] 1.4 Ctrl+Z suspends TUI, proxy keeps running, fg resumes with state
+- [x] 1.4 Ctrl+Z suspends TUI, proxy keeps running, fg resumes with state — b937b52
 
 ### Phase 2: --fg Headless Mode
 
 #### Automated
 
-- [x] 2.1 `go vet ./...` passes
-- [x] 2.2 `go test ./cmd/freedius/...` passes (new tests for --fg flag parsing)
-- [x] 2.3 `go build ./cmd/freedius` succeeds with platform-specific signal files
-- [x] 2.4 `./freedius --fg --port 0 &` starts, `/health` returns 200
+- [x] 2.1 `go vet ./...` passes — b937b52
+- [x] 2.2 `go test ./cmd/freedius/...` passes (new tests for --fg flag parsing) — b937b52
+- [x] 2.3 `go build ./cmd/freedius` succeeds with platform-specific signal files — b937b52
+- [x] 2.4 `./freedius --fg --port 0 &` starts, `/health` returns 200 — b937b52
 
 #### Manual
 
-- [x] 2.5 `freedius --fg` shows logs on stderr, no TUI
-- [x] 2.6 Ctrl+C shuts down gracefully
-- [x] 2.7 `freedius --daemon --fg` exits with mutual exclusion error
+- [x] 2.5 `freedius --fg` shows logs on stderr, no TUI — b937b52
+- [x] 2.6 Ctrl+C shuts down gracefully — b937b52
+- [x] 2.7 `freedius --daemon --fg` exits with mutual exclusion error — b937b52
 
 ### Phase 3: --daemon Background Mode
 
 #### Automated
 
-- [ ] 3.1 `go vet ./...` passes
-- [ ] 3.2 `go test ./cmd/freedius/...` passes (PID file, daemon lifecycle)
-- [ ] 3.3 `go build ./cmd/freedius` succeeds
+- [x] 3.1 `go vet ./...` passes
+- [x] 3.2 `go test ./cmd/freedius/...` passes (PID file, daemon lifecycle)
+- [x] 3.3 `go build ./cmd/freedius` succeeds
 
 #### Manual
 

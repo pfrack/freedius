@@ -71,15 +71,17 @@ func main() {
 // run is the unified entry point: freedius always starts the TUI+proxy, with
 // no subcommand dispatch. --version and --help are handled before flag parsing.
 func run(args []string) int {
-	// Short-circuit --version / --help so they work even without valid flags.
-	for _, a := range args {
-		if a == "--version" {
-			fmt.Printf("freedius %s\n", version)
-			return 0
-		}
-		if a == "--help" || a == "-h" {
-			printUsage(os.Stderr)
-			return 0
+	if code, done := handleEarlyArgs(args); done {
+		return code
+	}
+
+	// Subcommand dispatch (stop, status) — after help scan, before flag parsing.
+	if len(args) > 0 {
+		switch args[0] {
+		case "stop":
+			return handleStop()
+		case "status":
+			return handleStatus()
 		}
 	}
 
@@ -105,6 +107,8 @@ func run(args []string) int {
 	)
 	flagNoExportHint := fs.Bool("no-export-hint", false, "suppress the env-export hint on startup")
 	flagFg := fs.Bool("fg", false, "run headless in foreground (no TUI, for Docker/scripts)")
+	flagDaemon := fs.Bool("daemon", false, "run as background daemon (no TUI, forks to background)")
+	flagDaemonShort := fs.Bool("d", false, "shorthand for --daemon")
 	fs.Usage = func() { printUsage(os.Stderr) }
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -115,6 +119,16 @@ func run(args []string) int {
 
 	setFlags := map[string]bool{}
 	fs.Visit(func(f *flag.Flag) { setFlags[f.Name] = true })
+
+	daemon := *flagDaemon || *flagDaemonShort
+	if daemon && *flagFg {
+		return failf("freedius: --daemon and --fg are mutually exclusive")
+	}
+
+	// Handle --daemon by forking to background with --fg.
+	if daemon {
+		return handleDaemonStart()
+	}
 
 	verboseErrors := *flagVerboseErrors || os.Getenv("FREEDIUS_VERBOSE_ERRORS") == "1"
 
@@ -130,14 +144,7 @@ func run(args []string) int {
 	}
 	slog.SetDefault(logger)
 
-	streamTimeout := defaultStreamTimeout
-	if *flagStreamTimeout != 0 {
-		streamTimeout = *flagStreamTimeout
-	} else if v := os.Getenv("FREEDIUS_STREAM_TIMEOUT"); v != "" {
-		if d, err := time.ParseDuration(v); err == nil && d > 0 {
-			streamTimeout = d
-		}
-	}
+	streamTimeout := resolveStreamTimeout(*flagStreamTimeout)
 
 	port := resolveInt(*flagPort, setFlags["port"], "FREEDIUS_PORT", defaultPort)
 	if port < 1 || port > 65535 {
@@ -254,10 +261,46 @@ func runHeadless(server *http.Server, logger *slog.Logger) int {
 	return 0
 }
 
+func handleStop() int {
+	if err := stopDaemon(); err != nil {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		return 1
+	}
+	fmt.Fprintln(os.Stderr, "freedius: daemon stopped")
+	return 0
+}
+
+func handleStatus() int {
+	running, pid, err := daemonStatus()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "freedius: %v\n", err)
+		return 1
+	}
+	if running {
+		fmt.Fprintf(os.Stderr, "freedius: running (PID %d)\n", pid)
+		return 0
+	}
+	fmt.Fprintln(os.Stderr, "freedius: not running")
+	return 0
+}
+
+func handleDaemonStart() int {
+	if err := startDaemon(os.Args[1:]); err != nil {
+		return failf("%v", err)
+	}
+	return 0
+}
+
 func printUsage(w io.Writer) {
 	usage := `freedius — local Claude Code proxy
 
 Usage: freedius [flags]
+       freedius stop
+       freedius status
+
+Subcommands:
+  stop      Send SIGTERM to a running daemon
+  status    Check if a daemon is running
 
 Flags:
 `
@@ -277,6 +320,8 @@ Flags:
 	fs.Duration("stream-timeout", 0, "per-request upstream timeout (default 5m)")
 	fs.Bool("no-export-hint", false, "suppress the env-export hint on startup")
 	fs.Bool("fg", false, "run headless in foreground (no TUI, for Docker/scripts)")
+	fs.Bool("daemon", false, "run as background daemon (no TUI, forks to background)")
+	fs.Bool("d", false, "shorthand for --daemon")
 	fs.PrintDefaults()
 }
 
@@ -316,6 +361,22 @@ func failf(format string, args ...any) int {
 	return 1
 }
 
+// handleEarlyArgs checks for --version and --help before flag parsing.
+// Returns (code, true) if the arg was handled and run() should exit.
+func handleEarlyArgs(args []string) (int, bool) {
+	for _, a := range args {
+		if a == "--version" {
+			fmt.Printf("freedius %s\n", version)
+			return 0, true
+		}
+		if a == "--help" || a == "-h" {
+			printUsage(os.Stderr)
+			return 0, true
+		}
+	}
+	return 0, false
+}
+
 func resolveLogFormat(flagVal string) string {
 	if flagVal != "" {
 		return flagVal
@@ -324,6 +385,18 @@ func resolveLogFormat(flagVal string) string {
 		return v
 	}
 	return "text"
+}
+
+func resolveStreamTimeout(flagVal time.Duration) time.Duration {
+	if flagVal != 0 {
+		return flagVal
+	}
+	if v := os.Getenv("FREEDIUS_STREAM_TIMEOUT"); v != "" {
+		if d, err := time.ParseDuration(v); err == nil && d > 0 {
+			return d
+		}
+	}
+	return defaultStreamTimeout
 }
 
 func checkRequiredEnvVars(cfg *config.Config) error {
