@@ -24,7 +24,7 @@ func Vet() error {
 
 // Build compiles the freedius binary.
 func Build() error {
-	return sh.RunV("go", "build", "-o", "freedius", ".")
+	return sh.RunV("go", "build", "-o", "freedius", "./cmd/freedius")
 }
 
 // GenerateCheck ensures generated files are up to date.
@@ -42,7 +42,7 @@ func Tidy() error {
 
 // Run starts the server, passing through extra args via ARGS env var.
 func Run() error {
-	args := []string{"run", "."}
+	args := []string{"run", "./cmd/freedius"}
 	if extra := os.Getenv("ARGS"); extra != "" {
 		args = append(args, strings.Fields(extra)...)
 	}
@@ -51,7 +51,7 @@ func Run() error {
 
 // Verbose starts the server with verbose error output.
 func Verbose() error {
-	return sh.RunV("go", "run", ".", "--verbose-errors")
+	return sh.RunV("go", "run", "./cmd/freedius", "--verbose-errors")
 }
 
 // LintStatic runs staticcheck, installing it if missing.

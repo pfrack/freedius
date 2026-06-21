@@ -8,7 +8,7 @@ Single static binary. Zero external runtime dependencies.
 
 ```bash
 # Build
-go build -o freedius .
+go build -o freedius ./cmd/freedius
 
 # Start the proxy + TUI dashboard (defaults to 127.0.0.1:8082)
 ./freedius
