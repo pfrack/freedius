@@ -132,7 +132,15 @@ Add `--fg` flag to run the proxy in foreground without the TUI. Enables Docker, 
 
 **File**: `cmd/freedius/signal_unix.go` (new)
 
-**Intent**: Implement `waitForShutdown(server *http.Server)` for Unix. Uses `signal.NotifyContext` with `os.Interrupt`, `syscall.SIGTERM`, and `syscall.SIGINT`. Blocks on `<-ctx.Done()`, then calls `server.Shutdown` with 5-second timeout.
+**Intent**: Implement `waitForShutdown(server *http.Server, cleanup func() error) error` for Unix. Uses `signal.NotifyContext` with `os.Interrupt, syscall.SIGTERM` (drop `syscall.SIGINT` — `os.Interrupt` is the portable alias for SIGINT on every supported OS, so the third entry is redundant). The function:
+1. `ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)`
+2. `defer stop()` — required to restore default signal handling on exit.
+3. `<-ctx.Done()` — blocks until a signal arrives.
+4. `shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout); defer cancel()`.
+5. `server.Shutdown(shutdownCtx)`.
+6. If `cleanup != nil`, call `cleanup()` — this is the IPC server's `Shutdown` which removes the Unix socket file. Always called so a graceful stop also removes the socket.
+
+This contract guarantees that `freedius stop` (which sends SIGTERM) triggers both the proxy shutdown AND the socket cleanup.
 
 **Contract**:
 
