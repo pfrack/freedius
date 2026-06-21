@@ -1,7 +1,7 @@
 ---
 change_id: hide-tab-bar
 title: "Compact TUI: merge tabs into topbar, change shortcuts"
-status: implemented
+status: impl_reviewed
 created: 2026-06-21
 updated: 2026-06-21
 ---
