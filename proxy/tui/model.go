@@ -233,6 +233,11 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		d.height = msg.Height
 		return d, nil
 
+	// --- TUI resume after suspend ---
+	case tea.ResumeMsg:
+		d.stats.message = ""
+		return d, nil
+
 	// --- Request events ---
 	case requestEventMsg:
 		ev := proxy.RequestEvent(msg)
@@ -280,6 +285,8 @@ func (d *Dashboard) handleTabModeKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.C
 	case "q", "ctrl+c":
 		d.quitting = true
 		return d, tea.Quit
+	case "ctrl+z":
+		return d, tea.Suspend
 	case "1":
 		d.activeTab = tabLog
 		return d, nil
