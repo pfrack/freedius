@@ -208,12 +208,6 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return d, nil
 		}
 
-		// Esc always quits when no form is active.
-		if d.formMode == formNone && msg.String() == "esc" {
-			d.quitting = true
-			return d, tea.Quit
-		}
-
 		// --- Delete confirm mode key handling ---
 		if d.formMode == formDeleteConfirm {
 			return d.handleDeleteConfirmKeyPress(msg)
@@ -287,15 +281,19 @@ func (d *Dashboard) handleTabModeKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.C
 		return d, tea.Quit
 	case "ctrl+z":
 		return d, tea.Suspend
-	case "f1":
-		d.activeTab = tabLog
-		return d, nil
-	case "f2":
+	case "ctrl+p":
 		d.activeTab = tabProviders
 		return d, nil
-	case "f3":
+	case "ctrl+m":
 		d.activeTab = tabConfig
 		return d, nil
+	case "esc":
+		if d.activeTab != tabLog {
+			d.activeTab = tabLog
+			return d, nil
+		}
+		d.quitting = true
+		return d, tea.Quit
 	case "tab":
 		d.activeTab = (d.activeTab + 1) % 3
 		return d, nil
