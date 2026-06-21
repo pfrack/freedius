@@ -244,15 +244,15 @@ This requires extracting the visible-window computation into a shared helper, or
 
 #### Automated
 
-- [x] 1.1 `go vet ./...` passes
-- [x] 1.2 `go test ./proxy/tui/...` passes (existing + new mouse tests)
-- [x] 1.3 `go build ./cmd/freedius` compiles
+- [x] 1.1 `go vet ./...` passes — 9115904
+- [x] 1.2 `go test ./proxy/tui/...` passes (existing + new mouse tests) — 9115904
+- [x] 1.3 `go build ./cmd/freedius` compiles — 9115904
 
 #### Manual
 
-- [ ] 1.4 Scroll wheel scrolls content on all tabs
-- [ ] 1.5 Click on tab labels switches tabs
-- [ ] 1.6 Click on config entry opens edit form
-- [ ] 1.7 Click on help modal closes it
-- [ ] 1.8 Shift+click still selects text in terminal
-- [ ] 1.9 Help modal shows mouse shortcuts
+- [x] 1.4 Scroll wheel scrolls content on all tabs — 9115904
+- [x] 1.5 Click on tab labels switches tabs — 9115904
+- [x] 1.6 Click on config entry opens edit form — 9115904
+- [x] 1.7 Click on help modal closes it — 9115904
+- [x] 1.8 Shift+click still selects text in terminal — 9115904
+- [x] 1.9 Help modal shows mouse shortcuts — 9115904
