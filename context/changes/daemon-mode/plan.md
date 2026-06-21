@@ -389,6 +389,8 @@ func (s *IPCServer) ListenAndServe() error
 func (s *IPCServer) Shutdown(ctx context.Context) error
 ```
 
+`Shutdown(ctx)` MUST remove the Unix socket file at `socketPath` (use `defer os.Remove(socketPath)` inside the method body) and close the listener. The cleanup-on-shutdown contract is wired through Phase 2 §3's `waitForShutdown(server, cleanup func() error)` — see Phase 4 §6 for the call-site wiring.
+
 Endpoints:
 
 | Endpoint | Method | Purpose |
@@ -431,7 +433,16 @@ func (s *IPCServer) Shutdown(ctx context.Context) error { return nil }
 
 **Intent**: When running in daemon/fg mode, create and start the `IPCServer` alongside the HTTP server. Store socket path in PID file (or a companion `.sock` path file) for `attach` command to discover.
 
-**Contract**: IPC server goroutine starts after `waitForBind`. On shutdown, IPC server shuts down alongside HTTP server.
+**Contract**: IPC server goroutine starts after `waitForBind`. **Wire `ipcServer.Shutdown` as the `cleanup` arg to `waitForShutdown` (see Phase 2 §3).** On daemon child startup, the call site is:
+
+```go
+ipcServer := NewIPCServer(socketPath, bus, logSink, cfg, registry)
+go func() { _ = ipcServer.ListenAndServe() }()
+// ... waitForBind succeeds ...
+waitForShutdown(server, ipcServer.Shutdown)
+```
+
+This guarantees the socket file is removed on graceful SIGTERM-driven shutdown (the daemon child runs `--fg`, traps SIGTERM via Phase 2 §3, calls `server.Shutdown`, then `ipcServer.Shutdown(ctx)` which removes the socket — all in sequence).
 
 #### 7. TUI client for attach
 
