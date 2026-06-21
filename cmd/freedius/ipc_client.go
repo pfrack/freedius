@@ -22,8 +22,16 @@ type IPCClient struct {
 	httpClient *http.Client
 	events     chan proxy.RequestEvent
 	logs       chan proxy.LogEntry
+	replay     chan ReplayStatus
 	cancel     context.CancelFunc
 	wg         sync.WaitGroup
+}
+
+// ReplayStatus is sent on the Replay channel when the daemon indicates
+// that event history may be incomplete (evicted from ring buffer).
+type ReplayStatus struct {
+	Complete bool
+	Endpoint string // "events" or "logs"
 }
 
 // NewIPCClient creates a new IPC client connected to the daemon's Unix socket.
@@ -48,6 +56,7 @@ func NewIPCClient(socketPath string) (*IPCClient, error) {
 		httpClient: httpClient,
 		events:     make(chan proxy.RequestEvent, 1000),
 		logs:       make(chan proxy.LogEntry, 1000),
+		replay:     make(chan ReplayStatus, 10),
 		cancel:     cancel,
 	}
 
@@ -66,6 +75,11 @@ func (c *IPCClient) Events() <-chan proxy.RequestEvent {
 // Logs returns the channel of log entries from the daemon.
 func (c *IPCClient) Logs() <-chan proxy.LogEntry {
 	return c.logs
+}
+
+// Replay returns the channel of replay status updates from the daemon.
+func (c *IPCClient) Replay() <-chan ReplayStatus {
+	return c.replay
 }
 
 // Stats returns the current proxy stats from the daemon.
@@ -105,7 +119,7 @@ func (c *IPCClient) Close() error {
 
 func (c *IPCClient) streamEvents(ctx context.Context) {
 	defer c.wg.Done()
-	c.streamSSE(ctx, "http://localhost/v1/events?since=0", func(data []byte) {
+	c.streamSSE(ctx, "http://localhost/v1/events?since=0", "events", func(data []byte) {
 		var e proxy.RequestEvent
 		if err := json.Unmarshal(data, &e); err == nil {
 			select {
@@ -118,7 +132,7 @@ func (c *IPCClient) streamEvents(ctx context.Context) {
 
 func (c *IPCClient) streamLogs(ctx context.Context) {
 	defer c.wg.Done()
-	c.streamSSE(ctx, "http://localhost/v1/logs?since=0", func(data []byte) {
+	c.streamSSE(ctx, "http://localhost/v1/logs?since=0", "logs", func(data []byte) {
 		var e proxy.LogEntry
 		if err := json.Unmarshal(data, &e); err == nil {
 			select {
@@ -131,7 +145,7 @@ func (c *IPCClient) streamLogs(ctx context.Context) {
 
 // streamSSE connects to an SSE endpoint and reads events using
 // bufio.Reader.ReadBytes('\n') per lessons.md §2 (NOT bufio.Scanner).
-func (c *IPCClient) streamSSE(ctx context.Context, url string, onData func([]byte)) {
+func (c *IPCClient) streamSSE(ctx context.Context, url string, endpoint string, onData func([]byte)) {
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return
@@ -144,6 +158,7 @@ func (c *IPCClient) streamSSE(ctx context.Context, url string, onData func([]byt
 	defer func() { _ = resp.Body.Close() }()
 
 	reader := bufio.NewReader(resp.Body)
+	var eventType string
 	for {
 		line, err := reader.ReadBytes('\n')
 		if err != nil {
@@ -152,17 +167,32 @@ func (c *IPCClient) streamSSE(ctx context.Context, url string, onData func([]byt
 
 		line = bytes.TrimSpace(line)
 		if len(line) == 0 {
-			continue // Frame boundary.
+			eventType = "" // Reset on frame boundary.
+			continue
 		}
 		if line[0] == ':' {
 			continue // Comment.
 		}
 
+		if bytes.HasPrefix(line, []byte("event: ")) {
+			eventType = string(line[7:])
+			continue
+		}
+
 		if bytes.HasPrefix(line, []byte("data: ")) {
 			data := line[6:]
+			if eventType == "replay" {
+				var status ReplayStatus
+				if err := json.Unmarshal(data, &status); err == nil {
+					status.Endpoint = endpoint
+					select {
+					case c.replay <- status:
+					default:
+					}
+				}
+				continue
+			}
 			onData(data)
 		}
-		// We ignore "event:" lines — the daemon sends one event type
-		// per endpoint, so the data payload is sufficient.
 	}
 }

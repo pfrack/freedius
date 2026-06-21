@@ -39,6 +39,8 @@ type EventBus struct {
 	ring    []RequestEvent
 	ringMu  sync.RWMutex
 	ringCap int
+	head    int // Index of oldest entry.
+	ringLen int // Number of valid entries.
 	seq     atomic.Int64
 }
 
@@ -64,14 +66,15 @@ func (b *EventBus) Emit(e RequestEvent) {
 	e.Seq = b.seq.Add(1)
 	b.emitted.Add(1)
 
-	// Store in ring buffer for IPC replay.
+	// Store in ring buffer for IPC replay (circular buffer).
 	b.ringMu.Lock()
-	if len(b.ring) >= b.ringCap {
-		// Evict oldest: shift left by one.
-		copy(b.ring, b.ring[1:])
-		b.ring[len(b.ring)-1] = e
-	} else {
+	idx := (b.head + b.ringLen) % b.ringCap
+	if b.ringLen < b.ringCap {
 		b.ring = append(b.ring, e)
+		b.ringLen++
+	} else {
+		b.ring[idx] = e
+		b.head = (b.head + 1) % b.ringCap
 	}
 	b.ringMu.Unlock()
 
@@ -131,21 +134,24 @@ func (b *EventBus) Since(seq int64) ([]RequestEvent, int64, bool) {
 	b.ringMu.RLock()
 	defer b.ringMu.RUnlock()
 
-	if len(b.ring) == 0 {
+	if b.ringLen == 0 {
 		return nil, currentSeq, false
 	}
 
 	// seq <= 0 means initial attach: return entire ring.
 	if seq <= 0 {
-		out := make([]RequestEvent, len(b.ring))
-		copy(out, b.ring)
+		out := make([]RequestEvent, b.ringLen)
+		for i := 0; i < b.ringLen; i++ {
+			out[i] = b.ring[(b.head+i)%b.ringCap]
+		}
 		return out, currentSeq, false
 	}
 
 	// Find events with Seq >= seq.
 	evicted := false
 	var out []RequestEvent
-	for _, e := range b.ring {
+	for i := 0; i < b.ringLen; i++ {
+		e := b.ring[(b.head+i)%b.ringCap]
 		if e.Seq < seq {
 			continue
 		}
@@ -158,9 +164,6 @@ func (b *EventBus) Since(seq int64) ([]RequestEvent, int64, bool) {
 	}
 
 	if len(out) == 0 {
-		// All ring events have Seq < seq (client is ahead of ring but
-		// behind currentSeq). This shouldn't happen if seq <= currentSeq,
-		// but handle gracefully.
 		return nil, currentSeq, false
 	}
 

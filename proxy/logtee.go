@@ -31,6 +31,8 @@ type LogSink struct {
 	ring    []LogEntry
 	ringMu  sync.RWMutex
 	ringCap int
+	head    int // Index of oldest entry.
+	ringLen int // Number of valid entries.
 	seq     atomic.Int64
 }
 
@@ -99,19 +101,22 @@ func (s *LogSink) SnapshotSince(seq int64) ([]LogEntry, int64, bool) {
 	s.ringMu.RLock()
 	defer s.ringMu.RUnlock()
 
-	if len(s.ring) == 0 {
+	if s.ringLen == 0 {
 		return nil, currentSeq, false
 	}
 
 	if seq <= 0 {
-		out := make([]LogEntry, len(s.ring))
-		copy(out, s.ring)
+		out := make([]LogEntry, s.ringLen)
+		for i := 0; i < s.ringLen; i++ {
+			out[i] = s.ring[(s.head+i)%s.ringCap]
+		}
 		return out, currentSeq, false
 	}
 
 	evicted := false
 	var out []LogEntry
-	for _, e := range s.ring {
+	for i := 0; i < s.ringLen; i++ {
+		e := s.ring[(s.head+i)%s.ringCap]
 		if e.Seq < seq {
 			continue
 		}
@@ -191,13 +196,15 @@ func (h *ringHandler) Handle(ctx context.Context, r slog.Record) error {
 		Line:  line,
 	}
 
-	// Store in ring buffer for IPC replay.
+	// Store in ring buffer for IPC replay (circular buffer).
 	h.sink.ringMu.Lock()
-	if len(h.sink.ring) >= h.sink.ringCap {
-		copy(h.sink.ring, h.sink.ring[1:])
-		h.sink.ring[len(h.sink.ring)-1] = entry
-	} else {
+	idx := (h.sink.head + h.sink.ringLen) % h.sink.ringCap
+	if h.sink.ringLen < h.sink.ringCap {
 		h.sink.ring = append(h.sink.ring, entry)
+		h.sink.ringLen++
+	} else {
+		h.sink.ring[idx] = entry
+		h.sink.head = (h.sink.head + 1) % h.sink.ringCap
 	}
 	h.sink.ringMu.Unlock()
 

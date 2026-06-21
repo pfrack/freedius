@@ -224,7 +224,7 @@ func run(args []string) int {
 
 	if *flagFg {
 		socketPath := filepath.Join(runtimeDir(), "freedius.sock")
-		ipcServer := NewIPCServer(socketPath, bus, logSink, cfg, registry)
+		ipcServer := NewIPCServer(socketPath, bus, logSink, cfg, registry, host, port)
 		go func() { _ = ipcServer.ListenAndServe() }()
 		return runHeadless(server, logger, func() error {
 			ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)

@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/pfrack/freedius/config"
@@ -27,6 +28,8 @@ type IPCServer struct {
 	listener   net.Listener
 	server     *http.Server
 	startTime  time.Time
+	host       string
+	port       int
 }
 
 // StatsSnapshot is a JSON-serializable proxy stats summary.
@@ -45,6 +48,8 @@ func NewIPCServer(
 	logSink *proxy.LogSink,
 	cfg *config.Config,
 	registry *proxy.Registry,
+	host string,
+	port int,
 ) *IPCServer {
 	return &IPCServer{
 		socketPath: socketPath,
@@ -53,6 +58,8 @@ func NewIPCServer(
 		cfg:        cfg,
 		registry:   registry,
 		startTime:  time.Now(),
+		host:       host,
+		port:       port,
 	}
 }
 
@@ -201,6 +208,8 @@ func (s *IPCServer) handleStats(w http.ResponseWriter, _ *http.Request) {
 		Uptime:      time.Since(s.startTime).Round(time.Second).String(),
 		TotalEvents: s.bus.EventCount(),
 		TotalLogs:   s.logSink.EventCount(),
+		Port:        strconv.Itoa(s.port),
+		Host:        s.host,
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(stats)

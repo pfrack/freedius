@@ -28,8 +28,9 @@ func startDaemon(args []string) error {
 		return fmt.Errorf("freedius: cannot resolve executable path: %w", err)
 	}
 
-	// Refuse to start under go run (executable in temp directory).
-	if strings.HasPrefix(exePath, os.TempDir()) {
+	// Refuse to start under go run (executable in go-build temp directory).
+	// go run places binaries at paths like /tmp/go-build<hex>/exe/<name>.
+	if isGoRunExecutable(exePath) {
 		return fmt.Errorf("freedius: --daemon requires a built binary; run 'go build -o freedius ./cmd/freedius' first")
 	}
 
@@ -190,4 +191,18 @@ func acquireLock() (*os.File, error) {
 func releaseLock(f *os.File) {
 	_ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
 	_ = f.Close()
+}
+
+// isGoRunExecutable checks if the binary was launched via `go run`.
+// go run places binaries at paths like /tmp/go-build<hex>/exe/<name>.
+func isGoRunExecutable(exePath string) bool {
+	// Match /tmp/go-build*/exe/* pattern.
+	dir := filepath.Dir(exePath)
+	base := filepath.Base(dir)
+	if base != "exe" {
+		return false
+	}
+	parent := filepath.Dir(dir)
+	parentBase := filepath.Base(parent)
+	return strings.HasPrefix(parentBase, "go-build")
 }

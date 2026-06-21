@@ -18,6 +18,8 @@ func NewIPCServer(
 	logSink *proxy.LogSink,
 	cfg *config.Config,
 	registry *proxy.Registry,
+	host string,
+	port int,
 ) *IPCServer {
 	return &IPCServer{}
 }
