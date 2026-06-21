@@ -60,8 +60,8 @@ Platform-specific code lives in `cmd/freedius/signal_unix.go`, `cmd/freedius/dae
 
 - **Bubble Tea suspend**: On Unix, Bubble Tea's `suspend()` calls `releaseTerminal(true)` → sends `SIGTSTP` → blocks on `SIGCONT` → `RestoreTerminal()`. The `Dashboard` model survives in-process. On Windows, `suspendSupported=false` — `ctrl+z` handler should be a no-op or show "suspend not supported on Windows".
 - **Event replay gap**: While TUI is suspended or detached, events queue in buffered channels (1000 cap). If daemon produces >1000 events during detach, older events are dropped. The IPC replay ring buffer (Phase 4) uses a separate 10000-entry ring to survive longer detach periods.
-- **PID file race**: Two `freedius --daemon` invocations could race. The amended contract (Phase 3 §4) closes this via `syscall.Flock` on a sidecar `freedius.lock` file before the probe + `syscall.Kill(pid, 0)` liveness check + `<pid>\t<start_time_unix_nano>` file format (start time detects PID reuse after fast crash).
-- **Socket cleanup**: On daemon crash, the Unix socket file may be stale. The amended contract (Phase 4 §6) drives cleanup via `IPCServer.Shutdown` which removes `<runtimeDir>/freedius.sock`; the cleanup arg is wired through `waitForShutdown(server, ipcServer.Shutdown)` so SIGTERM-driven shutdown always removes the socket. On startup, the IPCServer attempts `net.Dial(socketPath)` — if fails, remove the stale socket and re-listen.
+- **PID file race**: Two `freedius --daemon` invocations could race. Check PID file existence + `process.Signal(0)` probe before writing. If process is alive, exit 1 with "already running" message.
+- **Socket cleanup**: On daemon crash, the Unix socket file may be stale. On startup, attempt `net.Dial` to the socket — if connection fails, remove stale socket and re-listen.
 
 ---
 
@@ -124,28 +124,20 @@ Add `--fg` flag to run the proxy in foreground without the TUI. Enables Docker, 
 
 **File**: `cmd/freedius/main.go`
 
-**Intent**: After server startup and `waitForBind` (line 213), branch on `fg`. When true, skip TUI creation entirely. Instead, call `waitForShutdown(server, ipcServer.Shutdown)` which blocks on signals. Pass `nil` as the cleanup arg when no IPCServer is running (in-process TUI mode without IPC). When false, proceed with existing TUI path.
+**Intent**: After server startup and `waitForBind` (line 213), branch on `fg`. When true, skip TUI creation entirely. Instead, call `waitForShutdown(server)` which blocks on signals. When false, proceed with existing TUI path.
 
-**Contract**: The `waitForShutdown` function is platform-specific (see below). It blocks until a shutdown signal is received, then calls `server.Shutdown()` followed by the cleanup arg (which removes the IPC socket in daemon mode — see Phase 4 §6).
+**Contract**: The `waitForShutdown` function is platform-specific (see below). It blocks until a shutdown signal is received, then calls `server.Shutdown()`.
 
 #### 3. Platform-specific signal handling — Unix
 
 **File**: `cmd/freedius/signal_unix.go` (new)
 
-**Intent**: Implement `waitForShutdown(server *http.Server, cleanup func() error) error` for Unix. Uses `signal.NotifyContext` with `os.Interrupt, syscall.SIGTERM` (drop `syscall.SIGINT` — `os.Interrupt` is the portable alias for SIGINT on every supported OS, so the third entry is redundant). The function:
-1. `ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)`
-2. `defer stop()` — required to restore default signal handling on exit.
-3. `<-ctx.Done()` — blocks until a signal arrives.
-4. `shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout); defer cancel()`.
-5. `server.Shutdown(shutdownCtx)`.
-6. If `cleanup != nil`, call `cleanup()` — this is the IPC server's `Shutdown` which removes the Unix socket file. Always called so a graceful stop also removes the socket.
-
-This contract guarantees that `freedius stop` (which sends SIGTERM) triggers both the proxy shutdown AND the socket cleanup.
+**Intent**: Implement `waitForShutdown(server *http.Server)` for Unix. Uses `signal.NotifyContext` with `os.Interrupt`, `syscall.SIGTERM`, and `syscall.SIGINT`. Blocks on `<-ctx.Done()`, then calls `server.Shutdown` with 5-second timeout.
 
 **Contract**:
 
 ```go
-//go:build !windows
+//go:build unix
 
 package main
 
@@ -156,7 +148,7 @@ func waitForShutdown(server *http.Server) error
 
 **File**: `cmd/freedius/signal_windows.go` (new)
 
-**Intent**: Implement `waitForShutdown` for Windows. Uses `signal.NotifyContext` with `os.Interrupt` only (SIGTERM/SIGHUP don't exist on Windows). **The Windows signature MUST match the Unix signature** (per review F2): the second arg is a `cleanup func() error` that the Unix path uses for socket removal; on Windows, IPCServer is not built (no Unix socket), so the cleanup arg is always nil at the call site — discard it via `_`.
+**Intent**: Implement `waitForShutdown` for Windows. Uses `signal.NotifyContext` with `os.Interrupt` only (SIGTERM/SIGHUP don't exist on Windows).
 
 **Contract**:
 
@@ -165,7 +157,7 @@ func waitForShutdown(server *http.Server) error
 
 package main
 
-func waitForShutdown(server *http.Server, _ func() error) error
+func waitForShutdown(server *http.Server) error
 ```
 
 #### 5. Log output for headless mode
@@ -214,12 +206,12 @@ Add `--daemon`/`-d` flags to fork the proxy to background. Re-exec self with `--
 
 **File**: `cmd/freedius/daemon_unix.go` (new)
 
-**Intent**: Implement `startDaemon(args []string) error` for Unix. Re-exec self with `--fg` appended to args. **Resolve the re-exec target via `os.Executable()` (NOT `os.Args[0]` — `os.Args[0]` is unreliable under `go run`, `go install`, and Homebrew; the error-hardening research at context/archive/error-hardening/research.md:287 explicitly rejected it).** Refuse to start under `go run`: if `os.Executable()` returns a path ending in `/go-build<hex>/exe/...` or any path under `os.TempDir()` that doesn't match the binary name, exit with: `freedius: --daemon requires a built binary; run 'go build -o freedius ./cmd/freedius' first`. Use `exec.Command` with `SysProcAttr.Setsid = true` to detach from terminal. Inherit env via the default (`exec.Command` propagates `os.Environ()` — do NOT set `cmd.Env`). Redirect stdout/stderr to `/dev/null`. Write PID file (PID + start_time, per F2). Print "daemon started (PID N)" to stderr.
+**Intent**: Implement `startDaemon(args []string) error` for Unix. Re-exec self with `--fg` appended to args. Use `exec.Command` with `SysProcAttr.Setsid = true` to detach from terminal. Redirect stdout/stderr to `/dev/null`. Write PID file. Print "daemon started (PID N)" to stderr.
 
 **Contract**:
 
 ```go
-//go:build !windows
+//go:build unix
 
 package main
 
@@ -227,12 +219,6 @@ func startDaemon(args []string) error
 func stopDaemon() error
 func daemonStatus() (running bool, pid int, err error)
 ```
-
-**`stopDaemon` contract**: (1) Read PID file via `readPIDFile()` — returns `(int, int64, error)` for `(pid, startTime, err)`. (2) If PID file not found, return `fmt.Errorf("freedius: not running (no PID file at %s)", pidFilePath)`. (3) Send `syscall.SIGTERM` via `syscall.Kill(pid, syscall.SIGTERM)`. (4) Poll process exit: try `syscall.Kill(pid, 0)` every 50ms, up to 200ms. (5) If process exits within 200ms, return nil (PID file cleanup is handled by the daemon's signal handler, which calls `waitForShutdown` → `removePIDFile()` — per Phase 3 §4 / Phase 4 §6). (6) If timeout: return `fmt.Errorf("freedius: daemon (PID %d) did not exit within 200ms", pid)` — the user may force-kill with `kill -9`.
-
-**`daemonStatus` contract**: (1) Read PID file via `readPIDFile()`. (2) If not found, return `(false, 0, nil)` — not an error, just "not running". (3) Attempt `syscall.Kill(pid, 0)`. (4) If `err == nil` (process exists, we have permission) or `errors.Is(err, syscall.EPERM)` (process exists, we lack permission to signal but it's alive): return `(true, pid, nil)`. (5) If `errors.Is(err, syscall.ESRCH)` (no such process): return `(false, pid, nil)` — stale PID file; the caller (handleStatus) may clean it up. (6) Other errors: return `(false, 0, err)`.
-
-**`handleStop()` and `handleStatus()` subcommand routing** (Phase 3 §5): both call the corresponding daemon_*.go function and print the result. `handleStop` prints either "freedius: daemon stopped" (on nil) or the error. `handleStatus` prints "freedius: running (PID N)" on running=true, or "freedius: not running" on running=false.
 
 #### 3. Platform-specific daemonization — Windows
 
@@ -256,9 +242,9 @@ func daemonStatus() (running bool, pid int, err error) // returns error
 
 **File**: `cmd/freedius/daemon_unix.go`
 
-**Intent**: Implement `pidFilePath() string` returning `$XDG_RUNTIME_DIR/freedius.pid` with fallback to `os.TempDir()/freedius.pid` (use `runtimeDir()` shared helper from F11). Implement `writePIDFile(pid int) error`, `readPIDFile() (int, error)`, `removePIDFile() error`, `isProcessAlive(pid int) bool`.
+**Intent**: Implement `pidFilePath() string` returning `$XDG_RUNTIME_DIR/freedius.pid` with fallback to `$TMPDIR/freedius.pid`. Implement `writePIDFile(pid int) error`, `readPIDFile() (int, error)`, `removePIDFile() error`, `isProcessAlive(pid int) bool` (signal-0 probe).
 
-**Contract**: PID file contains `<pid>\t<start_time_unix_nano>\n` (tab-separated; start_time detects PID reuse). Liveness check uses `syscall.Kill(pid, 0)` directly (NOT `os.FindProcess().Signal()` — the latter is lazy on macOS and yields false positives); accept `EPERM` as alive (process exists, no perm), reject `ESRCH` as dead. Race protection via `syscall.Flock(lockfile_fd, LOCK_EX|LOCK_NB)` on a sidecar `<runtimeDir>/freedius.lock` file: acquire before probe, release in `defer`. On Linux additionally `os.Stat(fmt.Sprintf("/proc/%d", pid))` to guard against PID recycling.
+**Contract**: PID file contains just the PID as ASCII text. `isProcessAlive` uses `os.FindProcess(pid)` + `process.Signal(syscall.Signal(0))`.
 
 #### 5. Subcommand dispatch
 
@@ -282,48 +268,6 @@ if len(args) > 0 {
 **File**: `cmd/freedius/main.go`
 
 **Intent**: Update `printUsage()` to document `--daemon`, `-d`, and subcommands (`stop`, `status`).
-
-#### 7. Shared `runtimeDir()` helper (per review F1)
-
-**File**: `cmd/freedius/paths_unix.go` (new) + `cmd/freedius/paths_windows.go` (new)
-
-**Intent**: Single source of truth for `$XDG_RUNTIME_DIR` vs `os.TempDir()` resolution. Used by both PID file path (§3.4) and socket path (§4.5) so they cannot diverge.
-
-**Contract**:
-
-```go
-//go:build !windows
-
-package main
-
-import "os"
-
-// runtimeDir returns the directory for daemon state files (PID,
-// socket). On Linux, $XDG_RUNTIME_DIR is set by systemd-logind
-// and is per-user + tmpfs (auto-cleaned on reboot). On macOS,
-// $XDG_RUNTIME_DIR is not standard, so fall back to os.TempDir()
-// which respects $TMPDIR (per-user on macOS).
-func runtimeDir() string {
-    if d := os.Getenv("XDG_RUNTIME_DIR"); d != "" {
-        return d
-    }
-    return os.TempDir()
-}
-```
-
-```go
-//go:build windows
-
-package main
-
-import "os"
-
-func runtimeDir() string {
-    return os.TempDir()
-}
-```
-
-Both PID path (`pidFilePath() = filepath.Join(runtimeDir(), "freedius.pid")`) and socket path (`socketPath() = filepath.Join(runtimeDir(), "freedius.sock")`) MUST call this helper.
 
 ### Success Criteria:
 
@@ -359,25 +303,17 @@ Add a Unix socket IPC server to the daemon that streams events and logs via SSE.
 
 **File**: `proxy/eventbus.go`
 
-**Intent**: Add a ring buffer alongside the existing channel. Every `Emit()` stores the event in the ring with a monotonically increasing sequence number. Add `Since(seq int64) ([]RequestEvent, int64, bool)` method that returns buffered events with `Seq >= seq` plus the current high-water mark and an `evicted` flag.
+**Intent**: Add a ring buffer alongside the existing channel. Every `Emit()` stores the event in the ring with a monotonically increasing sequence number. Add `Since(seq int64) ([]RequestEvent, int64)` method that returns buffered events with `Seq >= seq` plus the current high-water mark.
 
-**Contract**: Add fields to `EventBus`: `ring []RequestEvent`, `ringMu sync.RWMutex`, `ringSize int`, `seq atomic.Int64`. `Since` returns `(events []RequestEvent, currentSeq int64, evicted bool)`. `evicted == true` means the oldest buffered event has `Seq > seq` (i.e. requested seq is below the ring's low-water mark and partial history was lost). Edge cases:
-- `seq <= 0` (initial attach): return entire ring, evicted=false.
-- `seq > currentSeq` (client ahead of server): return `nil, currentSeq, false` (nothing to replay yet).
-- `seq == currentSeq`: return `nil, currentSeq, false` (caught up, switch to live).
-- `seq < oldest_in_ring`: return what's left, evicted=true.
-
-The SSE endpoint emits `event: replay\ndata: {"complete": false, ...}` whenever evicted=true so the attached TUI can show "showing recent events, earlier history unavailable". Ring buffer capacity: 10000.
+**Contract**: Add fields to `EventBus`: `ring []RequestEvent`, `ringMu sync.RWMutex`, `ringSize int`, `seq atomic.Int64`. `Since` returns `(events []RequestEvent, currentSeq int64, err error)`. Ring buffer capacity: 10000.
 
 #### 2. Event replay — LogSink
 
 **File**: `proxy/logtee.go`
 
-**Intent**: Same ring-buffer pattern as EventBus (F4 contract): add `ring []LogEntry`, `ringMu sync.RWMutex`, `ringSize int`, `seq atomic.Int64` fields. Mirror `Since(seq) (entries []LogEntry, currentSeq int64, evicted bool)`. **Do NOT change `Snapshot()` semantics** — it remains destructive (drains the channel) because logtee_test.go:45,75,101,131 assert Snapshot overflow behavior; the TUI Log tab reads from its own `d.logBuffer` (model.go:560), not from `sink.Snapshot()`. Add `SnapshotSince(seq int64) (entries []LogEntry, currentSeq int64, evicted bool)` for the IPC replay path that reads from the ring buffer copy (non-destructive). **Edge cases** (mirror the F6 EventBus Since contract):
-- `seq <= 0` (initial attach): return entire ring, evicted=false.
-- `seq > currentSeq`: return `nil, currentSeq, false`.
-- `seq == currentSeq`: return `nil, currentSeq, false`.
-- `seq < oldest_in_ring`: return what's left, evicted=true.
+**Intent**: Same pattern as EventBus. Add ring buffer with sequence numbers. Make `Snapshot()` non-destructive (read from ring, not channel). Add `Since(seq int64) ([]LogEntry, int64)` method.
+
+**Contract**: Mirror EventBus changes. `Snapshot()` reads from ring buffer copy, not from channel.
 
 #### 3. IPC server — Unix
 
@@ -388,7 +324,7 @@ The SSE endpoint emits `event: replay\ndata: {"complete": false, ...}` whenever 
 **Contract**:
 
 ```go
-//go:build !windows
+//go:build unix
 
 package main
 
@@ -399,8 +335,6 @@ func (s *IPCServer) ListenAndServe() error
 func (s *IPCServer) Shutdown(ctx context.Context) error
 ```
 
-`Shutdown(ctx)` MUST remove the Unix socket file at `socketPath` (use `defer os.Remove(socketPath)` inside the method body) and close the listener. The cleanup-on-shutdown contract is wired through Phase 2 §3's `waitForShutdown(server, cleanup func() error)` — see Phase 4 §6 for the call-site wiring.
-
 Endpoints:
 
 | Endpoint | Method | Purpose |
@@ -409,8 +343,6 @@ Endpoints:
 | `/v1/logs?since=N` | GET | SSE stream of `LogEntry` JSON. Same replay-then-live. |
 | `/v1/stats` | GET | JSON: uptime, total requests, errors, port, host. |
 | `/v1/config` | GET | Full config JSON snapshot. |
-
-**SSE contract (lessons.md §1, §2)**: emission MUST use `json.Marshal` (NOT `json.NewEncoder`, which appends `\n` and corrupts the `data: ...\n\n` SSE framing). Reading the inbound `since=N` query parameter MUST use `net/http`'s `r.URL.Query()` (no SSE reader needed — that's the client side, per §4.9 below).
 
 #### 4. IPC server — Windows stub
 
@@ -435,7 +367,7 @@ func (s *IPCServer) Shutdown(ctx context.Context) error { return nil }
 
 **File**: `cmd/freedius/ipc_unix.go`
 
-**Intent**: Socket file at `$XDG_RUNTIME_DIR/freedius.sock` (fallback: use `runtimeDir()` from Phase 3 §7 and append `freedius.sock`). On startup, check for stale socket (try `net.Dial` — if fails, remove and re-listen). On shutdown, `defer os.Remove(socketPath)` (also driven by `IPCServer.Shutdown` — see §6). Socket permissions: `0600` (owner-only).
+**Intent**: Socket file at `$XDG_RUNTIME_DIR/freedius.sock` (fallback: `$TMPDIR/freedius.sock`). On startup, check for stale socket (try `net.Dial` — if fails, remove and re-listen). On shutdown, `defer os.Remove(socketPath)`. Socket permissions: `0600` (owner-only).
 
 #### 6. Wire IPC server into daemon mode
 
@@ -443,24 +375,15 @@ func (s *IPCServer) Shutdown(ctx context.Context) error { return nil }
 
 **Intent**: When running in daemon/fg mode, create and start the `IPCServer` alongside the HTTP server. Store socket path in PID file (or a companion `.sock` path file) for `attach` command to discover.
 
-**Contract**: IPC server goroutine starts after `waitForBind`. **Wire `ipcServer.Shutdown` as the `cleanup` arg to `waitForShutdown` (see Phase 2 §3).** On daemon child startup, the call site is:
-
-```go
-ipcServer := NewIPCServer(socketPath, bus, logSink, cfg, registry)
-go func() { _ = ipcServer.ListenAndServe() }()
-// ... waitForBind succeeds ...
-waitForShutdown(server, ipcServer.Shutdown)
-```
-
-This guarantees the socket file is removed on graceful SIGTERM-driven shutdown (the daemon child runs `--fg`, traps SIGTERM via Phase 2 §3, calls `server.Shutdown`, then `ipcServer.Shutdown(ctx)` which removes the socket — all in sequence).
+**Contract**: IPC server goroutine starts after `waitForBind`. On shutdown, IPC server shuts down alongside HTTP server.
 
 #### 7. TUI client for attach
 
 **File**: `cmd/freedius/attach.go` (new)
 
-**Intent**: Implement `runAttach(args []string) int` that reads the socket path, dials the daemon, builds an `IPCClient`, and runs the TUI on top of it.
+**Intent**: Implement `runAttach(args []string) int` that reads the socket path, connects via `net.Dial("unix", path)`, creates a `Dashboard` backed by SSE client channels instead of in-memory channels, and runs `tea.NewProgram`.
 
-**Contract**: Reuse the existing `Dashboard` struct — do NOT create a parallel `DashboardIPC` type. **Add a new constructor `tui.NewAttachDashboard(events, logs, cfgPath, host, port) *Dashboard` in proxy/tui/model.go** that accepts nil reg/dispatcher (the attach client has neither — it only observes via SSE). The existing `tui.NewDashboard` keeps its hard nil-check contract for the in-process TUI path; `NewAttachDashboard` is the attach-specific entry point. The IPCClient's `Events()` and `Logs()` methods return `<-chan proxy.RequestEvent` and `<-chan proxy.LogEntry` (driven by SSE), which match Dashboard's existing `events`/`logs` channel fields (model.go:80–81) exactly. `runAttach()` calls `tui.NewAttachDashboard(...)` with `detachOnQuit: true` (a new Dashboard field, default false in in-process TUI). `runAttach()` runs `tea.NewProgram(model).Run()` and returns 0 on exit — it does NOT call `server.Shutdown()` (the daemon keeps running). In attach mode, the existing `q` handler at model.go:285–287 still returns `tea.Quit` (good — that's detach), but the openEditForm/openAddProviderForm/openAddMappingForm functions at model.go:634, 670, 689 must short-circuit with a no-op when `d.detachOnQuit` is true so config mutation is impossible from the attached TUI. **Also wrap `toggleVerboseErrors` at model.go:396-406 with `if d.dispatcher != nil`** so Ctrl+E in attach mode (which has no dispatcher) does not NPE.
+**Contract**: The attach client uses a `DashboardIPC` adapter that implements the same interface as `Dashboard` but reads from SSE connections instead of Go channels. On `q`/`esc`, the TUI closes but the daemon keeps running (detach, not quit).
 
 #### 8. Subcommand dispatch for attach
 
@@ -488,12 +411,6 @@ func (c *IPCClient) Stats() (StatsSnapshot, error)
 func (c *IPCClient) Config() (*config.Config, error)
 func (c *IPCClient) Close() error
 ```
-
-**SSE client contract (lessons.md §1, §2)**: SSE reading MUST use `bufio.Reader.ReadBytes('\n')` (NOT `bufio.Scanner` — its default 64 KB `MaxScanTokenSize` truncates large tool-use arguments). The reader loop:
-1. `bufio.NewReader(resp.Body)`.
-2. Loop `r.ReadBytes('\n')` — each line is either `event: <type>`, `data: <payload>`, blank (frame boundary), or `: comment` (skip).
-3. On `event: replay` with `data: {"complete": false, ...}` (per F6 contract), the attached TUI shows "showing recent events, earlier history unavailable".
-4. JSON decoding of `data:` lines uses `json.Unmarshal` (no trailing-newline issue at decode time, only at encode time per §1).
 
 ### Success Criteria:
 
@@ -556,15 +473,15 @@ func (c *IPCClient) Close() error
 
 ## Progress
 
-> Convention: `- [ ]` pending, `- [x]` done. Append ` — <commit sha>` when a step lands (each row may carry a different SHA if the phase is split across commits). Do not rename step titles.
+> Convention: `- [ ]` pending, `- [x]` done. Append ` — <commit sha>` when a step lands. Do not rename step titles.
 
 ### Phase 1: Ctrl+Z Suspend/Resume
 
 #### Automated
 
-- [x] 1.1 `go vet ./...` passes after adding ctrl+z handler — e08a497
-- [x] 1.2 `go test ./proxy/tui/...` passes — e08a497
-- [x] 1.3 `go build ./cmd/freedius` succeeds — e08a497
+- [x] 1.1 `go vet ./...` passes after adding ctrl+z handler
+- [x] 1.2 `go test ./proxy/tui/...` passes
+- [x] 1.3 `go build ./cmd/freedius` succeeds
 
 #### Manual
 
