@@ -44,6 +44,7 @@ func fullSpec() Spec {
 			},
 			"anthropic": {
 				Behavior:         "anthropic",
+				DefaultBaseURL:   "https://api.anthropic.com/v1/messages",
 				DefaultAPIKeyEnv: "ANTHROPIC_API_KEY",
 				RequireBaseURL:   false,
 			},
