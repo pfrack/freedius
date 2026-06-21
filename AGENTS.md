@@ -14,7 +14,9 @@ freedius is a local HTTP proxy built with Go's standard library (`net/http`, `ht
 
 - `cmd/freedius/` — entry point (single binary), HTTP server setup, proxy routing (@go.dev/doc/net/http for `http.Handler` patterns).
 - `proxy/` — reverse proxy logic using `httputil.ReverseProxy`.
-- `config/` — configuration loading (env, flags, or file-based).
+- `proxy/mix.go` — `MixAdapter`: routes to Anthropic or OpenAI sub-adapter based on `Provider.Protocol` field (if set) or URL path sniffing. `normalizeBaseURL` appends `/v1/messages` or `/v1/chat/completions` automatically when `protocol` is set.
+- `config/` — configuration loading, validation, and persistence. `Provider.Protocol` field (`""`, `"openai"`, `"anthropic"`) controls mix adapter routing.
+- `providers.yaml` — single source of truth for provider metadata; run `go generate ./...` after changes.
 - `context/foundation/` — product requirements, tech-stack decisions, and plans (do not edit manually unless you are sure).
 - `context/changes/` — change-by-change implementation plans and verification logs.
 

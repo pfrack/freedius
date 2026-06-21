@@ -72,15 +72,18 @@ func (a *OpenAICompatibleAdapter) Handle(
 			errType: "invalid_request_error",
 		}
 	}
-	apiKey := os.Getenv(provider.DefaultAPIKeyEnv)
-	if apiKey == "" {
-		return &configError{
-			err: fmt.Errorf(
-				"%s adapter (openai-compat): env var %s is not set",
-				mapping.ProviderName,
-				provider.DefaultAPIKeyEnv,
-			),
-			errType: "authentication_error",
+	var apiKey string
+	if provider.DefaultAPIKeyEnv != "" {
+		apiKey = os.Getenv(provider.DefaultAPIKeyEnv)
+		if apiKey == "" {
+			return &configError{
+				err: fmt.Errorf(
+					"%s adapter (openai-compat): env var %s is not set",
+					mapping.ProviderName,
+					provider.DefaultAPIKeyEnv,
+				),
+				errType: "authentication_error",
+			}
 		}
 	}
 	upstreamBody, err := translate.Request(body, mapping.ModelString, a.translateOpts)
@@ -127,9 +130,11 @@ func (a *OpenAICompatibleAdapter) Handle(
 			errType: "invalid_request_error",
 		}
 	}
-	req.Header.Set("Authorization", "Bearer "+apiKey)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "text/event-stream")
+	if apiKey != "" {
+		req.Header.Set("Authorization", "Bearer "+apiKey)
+	}
 
 	resp, err := a.client.Do(req)
 	if err != nil {

@@ -303,12 +303,18 @@ func failf(format string, args ...any) int {
 }
 
 func checkRequiredEnvVars(cfg *config.Config) error {
-	for name, p := range cfg.Providers {
+	providers := cfg.ProvidersSnapshot()
+	for name, m := range cfg.MappingsSnapshot() {
+		p, ok := providers[m.ProviderName]
+		if !ok {
+			continue
+		}
 		if p.DefaultAPIKeyEnv != "" && os.Getenv(p.DefaultAPIKeyEnv) == "" {
 			return fmt.Errorf(
-				"%s env var required (config provider %q references it)",
+				"%s env var required (mapping %q references provider %q)",
 				p.DefaultAPIKeyEnv,
 				name,
+				m.ProviderName,
 			)
 		}
 	}

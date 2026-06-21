@@ -26,8 +26,8 @@ func TestLoad(t *testing.T) {
     default_api_key_env: NVIDIA_NIM_API_KEY
 `,
 			check: func(t *testing.T, cfg *Config) {
-				if len(cfg.Providers) != 1 {
-					t.Fatalf("expected 1 provider, got %d", len(cfg.Providers))
+				if len(cfg.Providers) < 1 {
+					t.Fatalf("expected at least 1 provider, got %d", len(cfg.Providers))
 				}
 				p, ok := cfg.Providers["nim"]
 				if !ok {
@@ -65,8 +65,8 @@ mappings:
     model_string: my-sonnet-shim
 `,
 			check: func(t *testing.T, cfg *Config) {
-				if len(cfg.Providers) != 2 {
-					t.Fatalf("expected 2 providers, got %d", len(cfg.Providers))
+				if len(cfg.Providers) < 2 {
+					t.Fatalf("expected at least 2 providers, got %d", len(cfg.Providers))
 				}
 				if _, ok := cfg.Providers["nim"]; !ok {
 					t.Error("missing nim provider")
@@ -199,8 +199,7 @@ mappings:
     behavior: anthropic
     default_api_key_env: ANTHROPIC_API_KEY
 `,
-			wantErr:   true,
-			errSubstr: `requires default_base_url`,
+			wantErr: false,
 		},
 		{
 			name: "default_base_url with invalid scheme",
@@ -306,8 +305,8 @@ mappings:
     model_string: x
 `,
 			check: func(t *testing.T, cfg *Config) {
-				if len(cfg.Providers) != 1 {
-					t.Errorf("expected 1 provider, got %d", len(cfg.Providers))
+				if len(cfg.Providers) < 1 {
+					t.Errorf("expected at least 1 provider, got %d", len(cfg.Providers))
 				}
 				if len(cfg.Mappings) != 1 {
 					t.Errorf("expected 1 mapping, got %d", len(cfg.Mappings))
@@ -319,6 +318,65 @@ mappings:
 			yaml:      "providers: {}\nmappings: {}\n",
 			wantErr:   true,
 			errSubstr: "contains no model mappings",
+		},
+		{
+			name: "valid protocol openai",
+			yaml: `providers:
+  custom:
+    behavior: mix
+    default_base_url: https://example.com/v1
+    default_api_key_env: KEY
+    protocol: openai
+`,
+			check: func(t *testing.T, cfg *Config) {
+				p := cfg.Providers["custom"]
+				if p.Protocol != "openai" {
+					t.Errorf("protocol: got %q, want openai", p.Protocol)
+				}
+			},
+		},
+		{
+			name: "valid protocol anthropic",
+			yaml: `providers:
+  custom:
+    behavior: mix
+    default_base_url: https://example.com/v1
+    default_api_key_env: KEY
+    protocol: anthropic
+`,
+			check: func(t *testing.T, cfg *Config) {
+				p := cfg.Providers["custom"]
+				if p.Protocol != "anthropic" {
+					t.Errorf("protocol: got %q, want anthropic", p.Protocol)
+				}
+			},
+		},
+		{
+			name: "invalid protocol",
+			yaml: `providers:
+  custom:
+    behavior: mix
+    default_base_url: https://example.com/v1
+    default_api_key_env: KEY
+    protocol: grpc
+`,
+			wantErr:   true,
+			errSubstr: `invalid protocol "grpc"`,
+		},
+		{
+			name: "protocol omitted defaults to empty",
+			yaml: `providers:
+  custom:
+    behavior: mix
+    default_base_url: https://example.com/v1/messages
+    default_api_key_env: KEY
+`,
+			check: func(t *testing.T, cfg *Config) {
+				p := cfg.Providers["custom"]
+				if p.Protocol != "" {
+					t.Errorf("protocol: got %q, want empty", p.Protocol)
+				}
+			},
 		},
 	}
 
@@ -456,7 +514,11 @@ func TestLoad_FilePathInYAMLError(t *testing.T) {
 }
 
 func TestProviderDefaults(t *testing.T) {
-	expected := []string{"nim", "zen", "go", "custom", "openai", "anthropic", "mix"}
+	expected := []string{
+		"nim", "zen", "go", "custom", "openai", "anthropic", "mix",
+		"google", "mistral", "deepseek", "groq", "together", "fireworks", "cohere",
+		"ollama", "lmstudio",
+	}
 	if len(providerDefaults) != len(expected) {
 		t.Errorf("providerDefaults has %d entries, want %d", len(providerDefaults), len(expected))
 	}
@@ -479,6 +541,15 @@ func TestProviderDefaults_SupportsCountTokens(t *testing.T) {
 		{"zen", false},
 		{"go", false},
 		{"custom", false},
+		{"google", false},
+		{"mistral", false},
+		{"deepseek", false},
+		{"groq", false},
+		{"together", false},
+		{"fireworks", false},
+		{"cohere", false},
+		{"ollama", false},
+		{"lmstudio", false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -603,6 +674,9 @@ func TestConfig_MarshalOmitEmpty(t *testing.T) {
 	}
 	if strings.Contains(yamlStr, "default_api_key_env") {
 		t.Errorf("expected no default_api_key_env in output (empty, omitempty), got:\n%s", yamlStr)
+	}
+	if strings.Contains(yamlStr, "protocol") {
+		t.Errorf("expected no protocol in output (empty, omitempty), got:\n%s", yamlStr)
 	}
 }
 

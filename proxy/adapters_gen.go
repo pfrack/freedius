@@ -11,6 +11,54 @@ import (
 	"github.com/pfrack/freedius/proxy/translate"
 )
 
+// GoogleAdapter wraps OpenAICompatibleAdapter with provider-specific
+// options (no_stream_usage and pre_send_hook).
+type GoogleAdapter struct {
+	inner *OpenAICompatibleAdapter
+}
+
+// NewGoogleAdapter returns a "google" provider adapter.
+func NewGoogleAdapter(logger *slog.Logger, streamTimeout time.Duration) *GoogleAdapter {
+	inner := NewOpenAICompatibleAdapterWithTimeout(logger, streamTimeout)
+	inner.translateOpts = translate.Opts{NoStreamUsage: true}
+	return &GoogleAdapter{inner: inner}
+}
+
+// Handle delegates to the embedded OpenAICompatibleAdapter.
+func (a *GoogleAdapter) Handle(
+	w http.ResponseWriter,
+	r *http.Request,
+	provider config.Provider,
+	mapping config.Mapping,
+	body []byte,
+) error {
+	return a.inner.Handle(w, r, provider, mapping, body)
+}
+
+// LmstudioAdapter wraps OpenAICompatibleAdapter with provider-specific
+// options (no_stream_usage and pre_send_hook).
+type LmstudioAdapter struct {
+	inner *OpenAICompatibleAdapter
+}
+
+// NewLmstudioAdapter returns a "lmstudio" provider adapter.
+func NewLmstudioAdapter(logger *slog.Logger, streamTimeout time.Duration) *LmstudioAdapter {
+	inner := NewOpenAICompatibleAdapterWithTimeout(logger, streamTimeout)
+	inner.translateOpts = translate.Opts{NoStreamUsage: true}
+	return &LmstudioAdapter{inner: inner}
+}
+
+// Handle delegates to the embedded OpenAICompatibleAdapter.
+func (a *LmstudioAdapter) Handle(
+	w http.ResponseWriter,
+	r *http.Request,
+	provider config.Provider,
+	mapping config.Mapping,
+	body []byte,
+) error {
+	return a.inner.Handle(w, r, provider, mapping, body)
+}
+
 // NIMAdapter wraps OpenAICompatibleAdapter with provider-specific
 // options (no_stream_usage and pre_send_hook).
 type NIMAdapter struct {
@@ -27,6 +75,30 @@ func NewNIMAdapter(logger *slog.Logger, streamTimeout time.Duration) *NIMAdapter
 
 // Handle delegates to the embedded OpenAICompatibleAdapter.
 func (a *NIMAdapter) Handle(
+	w http.ResponseWriter,
+	r *http.Request,
+	provider config.Provider,
+	mapping config.Mapping,
+	body []byte,
+) error {
+	return a.inner.Handle(w, r, provider, mapping, body)
+}
+
+// OllamaAdapter wraps OpenAICompatibleAdapter with provider-specific
+// options (no_stream_usage and pre_send_hook).
+type OllamaAdapter struct {
+	inner *OpenAICompatibleAdapter
+}
+
+// NewOllamaAdapter returns a "ollama" provider adapter.
+func NewOllamaAdapter(logger *slog.Logger, streamTimeout time.Duration) *OllamaAdapter {
+	inner := NewOpenAICompatibleAdapterWithTimeout(logger, streamTimeout)
+	inner.translateOpts = translate.Opts{NoStreamUsage: true}
+	return &OllamaAdapter{inner: inner}
+}
+
+// Handle delegates to the embedded OpenAICompatibleAdapter.
+func (a *OllamaAdapter) Handle(
 	w http.ResponseWriter,
 	r *http.Request,
 	provider config.Provider,

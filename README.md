@@ -42,17 +42,33 @@ Supported providers (defined in `providers.yaml` as the single source of truth):
 | `zen`      | Mix*     | — (required) |
 | `custom`   | Mix*     | — (required) |
 
-\* Mix adapter auto-detects protocol from the URL path (`/v1/messages` → Anthropic, else OpenAI) or the explicit `protocol` field.
+\* Mix adapter auto-detects protocol from the URL path (`/v1/messages` → Anthropic, else OpenAI). Set `protocol: openai` or `protocol: anthropic` to override — the adapter appends the correct endpoint suffix (`/v1/messages` or `/v1/chat/completions`) automatically.
 
 ### Example config
 
 ```yaml
+providers:
+  nim:  { behavior: openai }
+  zen:  { behavior: mix, default_base_url: https://opencode.ai/zen/v1/messages, default_api_key_env: OPENCODE_API_KEY }
+  go:   { behavior: mix, default_base_url: https://opencode.ai/zen/go/v1/chat/completions, default_api_key_env: OPENCODE_API_KEY }
+
 mappings:
-  default: { provider: nim,   model: step-3.5 }
-  auto:    { provider: nim,   model: step-3.5 }
-  opus:    { provider: go,    model: deepseek-v4-pro,  base_url: https://opencode.ai/zen/go/v1/chat/completions }
-  sonnet:  { provider: go,    model: minimax-m3,       base_url: https://opencode.ai/zen/go/v1/messages }
-  haiku:   { provider: zen,   model: claude-sonnet-4-6, base_url: https://opencode.ai/zen/v1/messages }
+  default: { provider_name: nim, model_string: step-3.5 }
+  auto:    { provider_name: nim, model_string: step-3.5 }
+  opus:    { provider_name: go,  model_string: deepseek-v4-pro }
+  sonnet:  { provider_name: go,  model_string: minimax-m3 }
+  haiku:   { provider_name: zen, model_string: claude-sonnet-4-6 }
+```
+
+To use a mix provider without knowing the exact endpoint path, set `protocol`:
+
+```yaml
+providers:
+  my-gateway:
+    behavior: mix
+    default_base_url: https://api.example.com/v1
+    default_api_key_env: GATEWAY_KEY
+    protocol: anthropic    # auto-resolves to /v1/messages
 ```
 
 ### Mapping resolution
@@ -99,6 +115,7 @@ No subcommands — `freedius` always starts the TUI dashboard alongside the prox
 
 - **Multi-provider routing** — dispatch requests to different upstreams based on the `model` field
 - **Protocol auto-detection** — mix adapter sniffs URL path to choose OpenAI vs Anthropic format
+- **Explicit protocol control** — set `protocol: openai` or `protocol: anthropic` on mix providers; the adapter appends the correct endpoint suffix automatically
 - **Family-based matching** — `claude-sonnet-4-6-20250908` falls back to `claude-sonnet-4-6` mapping
 - **Request IDs** — every request gets a unique ID, returned in `X-Freedius-Request-ID` header
 - **Panic recovery** — catches panics, logs stack traces, returns 500 JSON errors

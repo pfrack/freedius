@@ -12,19 +12,68 @@ package config
 var providerDefaults = map[string]Provider{
 	"anthropic": {
 		Behavior:            "anthropic",
-		DefaultAPIKeyEnv:    "ANTHROPIC_API_KEY", // #nosec G101 -- env var name, not a credential
-		RequireBaseURL:      true,
+		DefaultBaseURL:      "https://api.anthropic.com/v1/messages", // #nosec G101 -- URL, not a credential
+		DefaultAPIKeyEnv:    "ANTHROPIC_API_KEY",                     // #nosec G101 -- env var name, not a credential
+		RequireBaseURL:      false,
 		SupportsCountTokens: true,
+	},
+	"cohere": {
+		Behavior:            "openai",
+		DefaultBaseURL:      "https://api.cohere.com/compatibility/v1/chat/completions", // #nosec G101 -- URL, not a credential
+		DefaultAPIKeyEnv:    "COHERE_API_KEY",                                           // #nosec G101 -- env var name, not a credential
+		RequireBaseURL:      false,
+		SupportsCountTokens: false,
 	},
 	"custom": {
 		Behavior:            "mix",
 		RequireBaseURL:      true,
 		SupportsCountTokens: false,
 	},
+	"deepseek": {
+		Behavior:            "openai",
+		DefaultBaseURL:      "https://api.deepseek.com/chat/completions", // #nosec G101 -- URL, not a credential
+		DefaultAPIKeyEnv:    "DEEPSEEK_API_KEY",                          // #nosec G101 -- env var name, not a credential
+		RequireBaseURL:      false,
+		SupportsCountTokens: false,
+	},
+	"fireworks": {
+		Behavior:            "openai",
+		DefaultBaseURL:      "https://api.fireworks.ai/inference/v1/chat/completions", // #nosec G101 -- URL, not a credential
+		DefaultAPIKeyEnv:    "FIREWORKS_API_KEY",                                      // #nosec G101 -- env var name, not a credential
+		RequireBaseURL:      false,
+		SupportsCountTokens: false,
+	},
 	"go": {
 		Behavior:            "mix",
 		DefaultAPIKeyEnv:    "OPENCODE_API_KEY", // #nosec G101 -- env var name, not a credential
 		RequireBaseURL:      true,
+		SupportsCountTokens: false,
+	},
+	"google": {
+		Behavior:            "openai",
+		DefaultBaseURL:      "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", // #nosec G101 -- URL, not a credential
+		DefaultAPIKeyEnv:    "GEMINI_API_KEY",                                                           // #nosec G101 -- env var name, not a credential
+		RequireBaseURL:      false,
+		SupportsCountTokens: false,
+	},
+	"groq": {
+		Behavior:            "openai",
+		DefaultBaseURL:      "https://api.groq.com/openai/v1/chat/completions", // #nosec G101 -- URL, not a credential
+		DefaultAPIKeyEnv:    "GROQ_API_KEY",                                    // #nosec G101 -- env var name, not a credential
+		RequireBaseURL:      false,
+		SupportsCountTokens: false,
+	},
+	"lmstudio": {
+		Behavior:            "openai",
+		DefaultBaseURL:      "http://localhost:1234/v1/chat/completions", // #nosec G101 -- URL, not a credential
+		RequireBaseURL:      false,
+		SupportsCountTokens: false,
+	},
+	"mistral": {
+		Behavior:            "openai",
+		DefaultBaseURL:      "https://api.mistral.ai/v1/chat/completions", // #nosec G101 -- URL, not a credential
+		DefaultAPIKeyEnv:    "MISTRAL_API_KEY",                            // #nosec G101 -- env var name, not a credential
+		RequireBaseURL:      false,
 		SupportsCountTokens: false,
 	},
 	"mix": {
@@ -39,9 +88,22 @@ var providerDefaults = map[string]Provider{
 		RequireBaseURL:      false,
 		SupportsCountTokens: false,
 	},
+	"ollama": {
+		Behavior:            "openai",
+		DefaultBaseURL:      "http://localhost:11434/v1/chat/completions", // #nosec G101 -- URL, not a credential
+		RequireBaseURL:      false,
+		SupportsCountTokens: false,
+	},
 	"openai": {
 		Behavior:            "openai",
 		RequireBaseURL:      true,
+		SupportsCountTokens: false,
+	},
+	"together": {
+		Behavior:            "openai",
+		DefaultBaseURL:      "https://api.together.xyz/v1/chat/completions", // #nosec G101 -- URL, not a credential
+		DefaultAPIKeyEnv:    "TOGETHER_API_KEY",                             // #nosec G101 -- env var name, not a credential
+		RequireBaseURL:      false,
 		SupportsCountTokens: false,
 	},
 	"zen": {

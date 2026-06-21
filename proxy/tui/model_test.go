@@ -516,7 +516,9 @@ mappings:
 
 	d := NewDashboard(nil, nil, cfg, emptyRegistry, emptyDispatcher, cfgPath, "", 0, false, "")
 	d.activeTab = tabConfig
-	d.configCursor = 1 // the mapping
+	// Use a lookup helper so the test survives changes to the sort order
+	// in collectAllEntries (e.g., when providers are auto-injected).
+	d.configCursor = findEntryIndex(cfg, "opus", "mapping")
 
 	// Open edit form on the mapping and modify the model field.
 	d.Update(tea.KeyPressMsg{Text: "e"})

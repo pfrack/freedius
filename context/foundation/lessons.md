@@ -53,3 +53,17 @@ The `custom` provider alias is rewritten to `mix` in `applyEntryDefaults()` (`co
 **Applies to**: Future Anthropic-shaped adapters
 
 **Source**: `proxy/anthropic_compat.go` — Handle method lines 38-46.
+
+## Adding New Providers: Auto-Inject + Env-Var Scope
+
+**Context**: Adding 9 new providers to `providers.yaml` and expecting them to appear in the TUI by default (`add-popular-providers` change).
+
+**Problem**: `applyDefaults` in `config/defaults.go` only fills missing fields for providers the user already declared — it does NOT inject new providers from `providerDefaults`. This means the TUI only shows providers the user explicitly configured. Also, `checkRequiredEnvVars` in `cmd/freedius/main.go` checks ALL providers in the config, so auto-injecting all providers would require all API keys to be set even for unused ones.
+
+**Rule**: When adding providers that should appear in the TUI by default:
+1. In `applyDefaults`, inject providers from `providerDefaults` that have a non-empty `DefaultBaseURL` (ready-to-use providers). Providers without a default URL (BYO-config like `openai`, `zen`) should NOT be auto-injected.
+2. In `checkRequiredEnvVars`, only check providers that are referenced by mappings — not all providers in the config. This prevents startup failures for auto-injected providers that aren't actively used.
+
+**Applies to**: Any future change that adds new providers to `providers.yaml` with the expectation they'll appear in the TUI by default.
+
+**Source**: `config/defaults.go:14-37`, `cmd/freedius/main.go:305-318`.

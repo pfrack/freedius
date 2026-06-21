@@ -44,12 +44,68 @@ func fullSpec() Spec {
 			},
 			"anthropic": {
 				Behavior:         "anthropic",
+				DefaultBaseURL:   "https://api.anthropic.com/v1/messages",
 				DefaultAPIKeyEnv: "ANTHROPIC_API_KEY",
-				RequireBaseURL:   true,
+				RequireBaseURL:   false,
 			},
 			"mix": {
 				Behavior:       "mix",
 				RequireBaseURL: true,
+			},
+			"google": {
+				Behavior:         "openai",
+				DefaultBaseURL:   "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+				DefaultAPIKeyEnv: "GEMINI_API_KEY",
+				RequireBaseURL:   false,
+				OpenAI:           &OpenAIOptions{NoStreamUsage: true},
+			},
+			"mistral": {
+				Behavior:         "openai",
+				DefaultBaseURL:   "https://api.mistral.ai/v1/chat/completions",
+				DefaultAPIKeyEnv: "MISTRAL_API_KEY",
+				RequireBaseURL:   false,
+			},
+			"deepseek": {
+				Behavior:         "openai",
+				DefaultBaseURL:   "https://api.deepseek.com/chat/completions",
+				DefaultAPIKeyEnv: "DEEPSEEK_API_KEY",
+				RequireBaseURL:   false,
+			},
+			"groq": {
+				Behavior:         "openai",
+				DefaultBaseURL:   "https://api.groq.com/openai/v1/chat/completions",
+				DefaultAPIKeyEnv: "GROQ_API_KEY",
+				RequireBaseURL:   false,
+			},
+			"together": {
+				Behavior:         "openai",
+				DefaultBaseURL:   "https://api.together.xyz/v1/chat/completions",
+				DefaultAPIKeyEnv: "TOGETHER_API_KEY",
+				RequireBaseURL:   false,
+			},
+			"fireworks": {
+				Behavior:         "openai",
+				DefaultBaseURL:   "https://api.fireworks.ai/inference/v1/chat/completions",
+				DefaultAPIKeyEnv: "FIREWORKS_API_KEY",
+				RequireBaseURL:   false,
+			},
+			"cohere": {
+				Behavior:         "openai",
+				DefaultBaseURL:   "https://api.cohere.com/compatibility/v1/chat/completions",
+				DefaultAPIKeyEnv: "COHERE_API_KEY",
+				RequireBaseURL:   false,
+			},
+			"ollama": {
+				Behavior:       "openai",
+				DefaultBaseURL: "http://localhost:11434/v1/chat/completions",
+				RequireBaseURL: false,
+				OpenAI:         &OpenAIOptions{NoStreamUsage: true},
+			},
+			"lmstudio": {
+				Behavior:       "openai",
+				DefaultBaseURL: "http://localhost:1234/v1/chat/completions",
+				RequireBaseURL: false,
+				OpenAI:         &OpenAIOptions{NoStreamUsage: true},
 			},
 		},
 	}
@@ -65,7 +121,7 @@ func TestGenerateConfig_CompilesAsGo(t *testing.T) {
 	}
 }
 
-func TestGenerateConfig_ProviderDefaultsHas7Entries(t *testing.T) {
+func TestGenerateConfig_ProviderDefaultsHas16Entries(t *testing.T) {
 	out, err := GenerateConfig(fullSpec())
 	if err != nil {
 		t.Fatalf("GenerateConfig: %v", err)
@@ -76,6 +132,8 @@ func TestGenerateConfig_ProviderDefaultsHas7Entries(t *testing.T) {
 	}
 	for _, name := range []string{
 		"nim", "zen", "go", "custom", "openai", "anthropic", "mix",
+		"google", "mistral", "deepseek", "groq", "together", "fireworks", "cohere",
+		"ollama", "lmstudio",
 	} {
 		// Each entry uses a quoted name as a map key.
 		if !strings.Contains(src, `"`+name+`": {`) {
@@ -243,7 +301,7 @@ func TestLoadSpec_RealFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadSpec: %v", err)
 	}
-	if got, want := len(spec.Providers), 7; got != want {
+	if got, want := len(spec.Providers), 16; got != want {
 		t.Errorf("providers count: got %d, want %d", got, want)
 	}
 }
@@ -263,6 +321,8 @@ func TestGenerateConfig_FromRealFile_CompilesAndMatches(t *testing.T) {
 	src := string(out)
 	for _, name := range []string{
 		"nim", "zen", "go", "custom", "openai", "anthropic", "mix",
+		"google", "mistral", "deepseek", "groq", "together", "fireworks", "cohere",
+		"ollama", "lmstudio",
 	} {
 		if !strings.Contains(src, `"`+name+`": {`) {
 			t.Errorf("providerDefaults missing %q", name)
