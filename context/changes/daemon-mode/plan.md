@@ -124,9 +124,9 @@ Add `--fg` flag to run the proxy in foreground without the TUI. Enables Docker, 
 
 **File**: `cmd/freedius/main.go`
 
-**Intent**: After server startup and `waitForBind` (line 213), branch on `fg`. When true, skip TUI creation entirely. Instead, call `waitForShutdown(server)` which blocks on signals. When false, proceed with existing TUI path.
+**Intent**: After server startup and `waitForBind` (line 213), branch on `fg`. When true, skip TUI creation entirely. Instead, call `waitForShutdown(server, ipcServer.Shutdown)` which blocks on signals. Pass `nil` as the cleanup arg when no IPCServer is running (in-process TUI mode without IPC). When false, proceed with existing TUI path.
 
-**Contract**: The `waitForShutdown` function is platform-specific (see below). It blocks until a shutdown signal is received, then calls `server.Shutdown()`.
+**Contract**: The `waitForShutdown` function is platform-specific (see below). It blocks until a shutdown signal is received, then calls `server.Shutdown()` followed by the cleanup arg (which removes the IPC socket in daemon mode — see Phase 4 §6).
 
 #### 3. Platform-specific signal handling — Unix
 
