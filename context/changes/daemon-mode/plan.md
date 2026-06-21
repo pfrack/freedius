@@ -60,8 +60,8 @@ Platform-specific code lives in `cmd/freedius/signal_unix.go`, `cmd/freedius/dae
 
 - **Bubble Tea suspend**: On Unix, Bubble Tea's `suspend()` calls `releaseTerminal(true)` → sends `SIGTSTP` → blocks on `SIGCONT` → `RestoreTerminal()`. The `Dashboard` model survives in-process. On Windows, `suspendSupported=false` — `ctrl+z` handler should be a no-op or show "suspend not supported on Windows".
 - **Event replay gap**: While TUI is suspended or detached, events queue in buffered channels (1000 cap). If daemon produces >1000 events during detach, older events are dropped. The IPC replay ring buffer (Phase 4) uses a separate 10000-entry ring to survive longer detach periods.
-- **PID file race**: Two `freedius --daemon` invocations could race. Check PID file existence + `process.Signal(0)` probe before writing. If process is alive, exit 1 with "already running" message.
-- **Socket cleanup**: On daemon crash, the Unix socket file may be stale. On startup, attempt `net.Dial` to the socket — if connection fails, remove stale socket and re-listen.
+- **PID file race**: Two `freedius --daemon` invocations could race. The amended contract (Phase 3 §4) closes this via `syscall.Flock` on a sidecar `freedius.lock` file before the probe + `syscall.Kill(pid, 0)` liveness check + `<pid>\t<start_time_unix_nano>` file format (start time detects PID reuse after fast crash).
+- **Socket cleanup**: On daemon crash, the Unix socket file may be stale. The amended contract (Phase 4 §6) drives cleanup via `IPCServer.Shutdown` which removes `<runtimeDir>/freedius.sock`; the cleanup arg is wired through `waitForShutdown(server, ipcServer.Shutdown)` so SIGTERM-driven shutdown always removes the socket. On startup, the IPCServer attempts `net.Dial(socketPath)` — if fails, remove the stale socket and re-listen.
 
 ---
 
