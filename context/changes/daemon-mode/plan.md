@@ -429,7 +429,7 @@ func (s *IPCServer) Shutdown(ctx context.Context) error { return nil }
 
 **File**: `cmd/freedius/ipc_unix.go`
 
-**Intent**: Socket file at `$XDG_RUNTIME_DIR/freedius.sock` (fallback: `$TMPDIR/freedius.sock`). On startup, check for stale socket (try `net.Dial` — if fails, remove and re-listen). On shutdown, `defer os.Remove(socketPath)`. Socket permissions: `0600` (owner-only).
+**Intent**: Socket file at `$XDG_RUNTIME_DIR/freedius.sock` (fallback: use `runtimeDir()` from Phase 3 §7 and append `freedius.sock`). On startup, check for stale socket (try `net.Dial` — if fails, remove and re-listen). On shutdown, `defer os.Remove(socketPath)` (also driven by `IPCServer.Shutdown` — see §6). Socket permissions: `0600` (owner-only).
 
 #### 6. Wire IPC server into daemon mode
 
