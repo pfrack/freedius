@@ -381,9 +381,9 @@ func (s *IPCServer) Shutdown(ctx context.Context) error { return nil }
 
 **File**: `cmd/freedius/attach.go` (new)
 
-**Intent**: Implement `runAttach(args []string) int` that reads the socket path, connects via `net.Dial("unix", path)`, creates a `Dashboard` backed by SSE client channels instead of in-memory channels, and runs `tea.NewProgram`.
+**Intent**: Implement `runAttach(args []string) int` that reads the socket path, dials the daemon, builds an `IPCClient`, and runs the TUI on top of it.
 
-**Contract**: The attach client uses a `DashboardIPC` adapter that implements the same interface as `Dashboard` but reads from SSE connections instead of Go channels. On `q`/`esc`, the TUI closes but the daemon keeps running (detach, not quit).
+**Contract**: Reuse the existing `Dashboard` struct — do NOT create a parallel `DashboardIPC` type. The IPCClient's `Events()` and `Logs()` methods return `<-chan proxy.RequestEvent` and `<-chan proxy.LogEntry` (driven by SSE), which match Dashboard's existing `events`/`logs` channel fields (model.go:80–81) exactly. `runAttach()` calls `tui.NewDashboard(...)` with `detachOnQuit: true` (a new Dashboard field, default false in in-process TUI). `runAttach()` runs `tea.NewProgram(model).Run()` and returns 0 on exit — it does NOT call `server.Shutdown()` (the daemon keeps running). In attach mode, the existing `q` handler at model.go:285–287 still returns `tea.Quit` (good — that's detach), but the openEditForm/openAddProviderForm/openAddMappingForm functions at model.go:634, 670, 689 must short-circuit with a no-op when `d.detachOnQuit` is true so config mutation is impossible from the attached TUI.
 
 #### 8. Subcommand dispatch for attach
 
