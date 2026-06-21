@@ -87,16 +87,16 @@ go vet ./...
 ### Phase 1: Add providers and auth skip
 
 #### Automated
-- [x] 1.1 Skip auth when DefaultAPIKeyEnv is empty in openai_compat.go — fe4741c
-- [x] 1.2 Add 9 new providers to providers.yaml (google, mistral, deepseek, groq, together, fireworks, cohere, ollama, lmstudio) — fe4741c
-- [x] 1.3 Fix anthropic require_base_url to false — fe4741c
-- [x] 1.4 Update test assertions (fullSpec, provider count, name lists) — fe4741c
-- [x] 1.5 Run go generate ./... — fe4741c
-- [x] 1.6 Run go test ./... and go vet ./... — fe4741c
+- [x] 1.1 Skip auth when DefaultAPIKeyEnv is empty in openai_compat.go
+- [x] 1.2 Add 9 new providers to providers.yaml (google, mistral, deepseek, groq, together, fireworks, cohere, ollama, lmstudio)
+- [x] 1.3 Fix anthropic require_base_url to false
+- [x] 1.4 Update test assertions (fullSpec, provider count, name lists)
+- [x] 1.5 Run go generate ./...
+- [x] 1.6 Run go test ./... and go vet ./...
 
 #### Manual
-- [x] 1.7 TUI shows all providers in the Providers tab — fe4741c
-- [x] 1.8 Local providers (Ollama, LM Studio) work without API key — fe4741c
+- [ ] 1.7 TUI shows all providers in the Providers tab
+- [ ] 1.8 Local providers (Ollama, LM Studio) work without API key
 
 ## Verification Criteria
 

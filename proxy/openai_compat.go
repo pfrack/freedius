@@ -72,9 +72,8 @@ func (a *OpenAICompatibleAdapter) Handle(
 			errType: "invalid_request_error",
 		}
 	}
-	var apiKey string
 	if provider.DefaultAPIKeyEnv != "" {
-		apiKey = os.Getenv(provider.DefaultAPIKeyEnv)
+		apiKey := os.Getenv(provider.DefaultAPIKeyEnv)
 		if apiKey == "" {
 			return &configError{
 				err: fmt.Errorf(
@@ -132,8 +131,8 @@ func (a *OpenAICompatibleAdapter) Handle(
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "text/event-stream")
-	if apiKey != "" {
-		req.Header.Set("Authorization", "Bearer "+apiKey)
+	if provider.DefaultAPIKeyEnv != "" {
+		req.Header.Set("Authorization", "Bearer "+os.Getenv(provider.DefaultAPIKeyEnv))
 	}
 
 	resp, err := a.client.Do(req)
