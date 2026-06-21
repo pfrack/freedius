@@ -12,7 +12,8 @@ package config
 var providerDefaults = map[string]Provider{
 	"anthropic": {
 		Behavior:            "anthropic",
-		DefaultAPIKeyEnv:    "ANTHROPIC_API_KEY", // #nosec G101 -- env var name, not a credential
+		DefaultBaseURL:      "https://api.anthropic.com/v1/messages", // #nosec G101 -- URL, not a credential
+		DefaultAPIKeyEnv:    "ANTHROPIC_API_KEY",                     // #nosec G101 -- env var name, not a credential
 		RequireBaseURL:      false,
 		SupportsCountTokens: true,
 	},
