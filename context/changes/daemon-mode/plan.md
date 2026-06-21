@@ -303,9 +303,15 @@ Add a Unix socket IPC server to the daemon that streams events and logs via SSE.
 
 **File**: `proxy/eventbus.go`
 
-**Intent**: Add a ring buffer alongside the existing channel. Every `Emit()` stores the event in the ring with a monotonically increasing sequence number. Add `Since(seq int64) ([]RequestEvent, int64)` method that returns buffered events with `Seq >= seq` plus the current high-water mark.
+**Intent**: Add a ring buffer alongside the existing channel. Every `Emit()` stores the event in the ring with a monotonically increasing sequence number. Add `Since(seq int64) ([]RequestEvent, int64, bool)` method that returns buffered events with `Seq >= seq` plus the current high-water mark and an `evicted` flag.
 
-**Contract**: Add fields to `EventBus`: `ring []RequestEvent`, `ringMu sync.RWMutex`, `ringSize int`, `seq atomic.Int64`. `Since` returns `(events []RequestEvent, currentSeq int64, err error)`. Ring buffer capacity: 10000.
+**Contract**: Add fields to `EventBus`: `ring []RequestEvent`, `ringMu sync.RWMutex`, `ringSize int`, `seq atomic.Int64`. `Since` returns `(events []RequestEvent, currentSeq int64, evicted bool)`. `evicted == true` means the oldest buffered event has `Seq > seq` (i.e. requested seq is below the ring's low-water mark and partial history was lost). Edge cases:
+- `seq <= 0` (initial attach): return entire ring, evicted=false.
+- `seq > currentSeq` (client ahead of server): return `nil, currentSeq, false` (nothing to replay yet).
+- `seq == currentSeq`: return `nil, currentSeq, false` (caught up, switch to live).
+- `seq < oldest_in_ring`: return what's left, evicted=true.
+
+The SSE endpoint emits `event: replay\ndata: {"complete": false, ...}` whenever evicted=true so the attached TUI can show "showing recent events, earlier history unavailable". Ring buffer capacity: 10000.
 
 #### 2. Event replay — LogSink
 
