@@ -438,33 +438,8 @@ func (d *Dashboard) handleConfigClick(y int) {
 		return
 	}
 
-	const approxEntryLines = 6
-	available := d.height - 1 - 3
-	if available < 0 {
-		available = 0
-	}
-	visibleEntries := available / approxEntryLines
-	if visibleEntries < 1 {
-		visibleEntries = 1
-	}
-	if visibleEntries > len(all) {
-		visibleEntries = len(all)
-	}
-	half := visibleEntries / 2
-	start := d.configCursor - half
-	if start < 0 {
-		start = 0
-	}
-	end := start + visibleEntries
-	if end > len(all) {
-		end = len(all)
-		start = end - visibleEntries
-		if start < 0 {
-			start = 0
-		}
-	}
-
-	idx := entryOffset/approxEntryLines + start
+	start, _ := configVisibleWindow(all, d.configCursor, d.height-1-3)
+	idx := entryOffset/6 + start
 	if idx >= 0 && idx < len(all) {
 		d.configCursor = idx
 		d.openEditForm()

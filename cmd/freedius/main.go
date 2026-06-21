@@ -104,6 +104,7 @@ func run(args []string) int {
 		"per-request upstream timeout (overrides FREEDIUS_STREAM_TIMEOUT; default 5m)",
 	)
 	flagNoExportHint := fs.Bool("no-export-hint", false, "suppress the env-export hint on startup")
+	flagFg := fs.Bool("fg", false, "run headless in foreground (no TUI, for Docker/scripts)")
 	fs.Usage = func() { printUsage(os.Stderr) }
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -117,15 +118,13 @@ func run(args []string) int {
 
 	verboseErrors := *flagVerboseErrors || os.Getenv("FREEDIUS_VERBOSE_ERRORS") == "1"
 
-	logFormat := *flagLogFormat
-	if logFormat == "" {
-		logFormat = os.Getenv("FREEDIUS_LOG")
-	}
-	if logFormat == "" {
-		logFormat = "text"
-	}
+	logFormat := resolveLogFormat(*flagLogFormat)
 	logSink := proxy.NewLogSink(1000)
-	logger, err := newLogger(logFormat, io.Discard, logSink)
+	logWriter := io.Discard
+	if *flagFg {
+		logWriter = os.Stderr
+	}
+	logger, err := newLogger(logFormat, logWriter, logSink)
 	if err != nil {
 		return failf("freedius: %v", err)
 	}
@@ -214,6 +213,10 @@ func run(args []string) int {
 		return failf("freedius: %v", err)
 	}
 
+	if *flagFg {
+		return runHeadless(server, logger)
+	}
+
 	model := tui.NewDashboard(
 		bus.Subscribe(),
 		logSink.Subscribe(),
@@ -241,6 +244,16 @@ func run(args []string) int {
 	return 0
 }
 
+// runHeadless runs the proxy in foreground without the TUI. Blocks until a
+// shutdown signal is received, then gracefully shuts down.
+func runHeadless(server *http.Server, logger *slog.Logger) int {
+	if err := waitForShutdown(server, nil); err != nil {
+		logger.Error("shutdown error", "err", err)
+	}
+	logger.Info("shutdown complete")
+	return 0
+}
+
 func printUsage(w io.Writer) {
 	usage := `freedius — local Claude Code proxy
 
@@ -263,6 +276,7 @@ Flags:
 	fs.String("log-format", "", "log output format: text, json (default text)")
 	fs.Duration("stream-timeout", 0, "per-request upstream timeout (default 5m)")
 	fs.Bool("no-export-hint", false, "suppress the env-export hint on startup")
+	fs.Bool("fg", false, "run headless in foreground (no TUI, for Docker/scripts)")
 	fs.PrintDefaults()
 }
 
@@ -300,6 +314,16 @@ func loadConfig(cfgPath, explicitFlag string) (*config.Config, error) {
 func failf(format string, args ...any) int {
 	fmt.Fprintf(os.Stderr, format+"\n", args...)
 	return 1
+}
+
+func resolveLogFormat(flagVal string) string {
+	if flagVal != "" {
+		return flagVal
+	}
+	if v := os.Getenv("FREEDIUS_LOG"); v != "" {
+		return v
+	}
+	return "text"
 }
 
 func checkRequiredEnvVars(cfg *config.Config) error {

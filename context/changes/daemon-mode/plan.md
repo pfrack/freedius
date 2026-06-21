@@ -264,15 +264,16 @@ func daemonStatus() (running bool, pid int, err error) // returns error
 
 **File**: `cmd/freedius/main.go`
 
-**Intent**: Before flag parsing in `run()`, check if the first arg is `stop` or `status`. If so, dispatch to the corresponding function and exit. This avoids needing a full subcommand framework.
+**Intent**: After the existing `--help`/`--version` scan (lines 75-84) but before `fs.Parse(args)`, check if the first arg is `stop`, `status`, or `attach`. If so, dispatch to the corresponding function and exit. This avoids needing a full subcommand framework. Placing the dispatch AFTER the help scan ensures `freedius stop --help` still shows usage (the `--help` arg is caught by the scan at lines 75-84 before dispatch runs). Placing it BEFORE `fs.Parse` ensures subcommand args aren't fed to the flag parser.
 
-**Contract**: In `run()`, before `fs.Parse(args)`:
+**Contract**: In `run()`, after the `--help`/`--version` loop (line 84) and before `fs := flag.NewFlagSet(...)` (line 86):
 
 ```go
 if len(args) > 0 {
     switch args[0] {
     case "stop": return handleStop()
     case "status": return handleStatus()
+    case "attach": return handleAttach(args[1:])
     }
 }
 ```
@@ -568,22 +569,22 @@ func (c *IPCClient) Close() error
 
 #### Manual
 
-- [ ] 1.4 Ctrl+Z suspends TUI, proxy keeps running, fg resumes with state
+- [x] 1.4 Ctrl+Z suspends TUI, proxy keeps running, fg resumes with state
 
 ### Phase 2: --fg Headless Mode
 
 #### Automated
 
-- [ ] 2.1 `go vet ./...` passes
-- [ ] 2.2 `go test ./cmd/freedius/...` passes (new tests for --fg flag parsing)
-- [ ] 2.3 `go build ./cmd/freedius` succeeds with platform-specific signal files
-- [ ] 2.4 `./freedius --fg --port 0 &` starts, `/health` returns 200
+- [x] 2.1 `go vet ./...` passes
+- [x] 2.2 `go test ./cmd/freedius/...` passes (new tests for --fg flag parsing)
+- [x] 2.3 `go build ./cmd/freedius` succeeds with platform-specific signal files
+- [x] 2.4 `./freedius --fg --port 0 &` starts, `/health` returns 200
 
 #### Manual
 
-- [ ] 2.5 `freedius --fg` shows logs on stderr, no TUI
-- [ ] 2.6 Ctrl+C shuts down gracefully
-- [ ] 2.7 `freedius --daemon --fg` exits with mutual exclusion error
+- [x] 2.5 `freedius --fg` shows logs on stderr, no TUI
+- [x] 2.6 Ctrl+C shuts down gracefully
+- [x] 2.7 `freedius --daemon --fg` exits with mutual exclusion error
 
 ### Phase 3: --daemon Background Mode
 

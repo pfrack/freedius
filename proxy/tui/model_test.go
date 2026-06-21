@@ -1197,28 +1197,43 @@ func TestHelpShortcuts_ContainsL(t *testing.T) {
 }
 
 func TestDashboard_MouseWheelScroll(t *testing.T) {
-	tests := []struct {
-		name   string
-		tab    int
-		button tea.MouseButton
-		wantUp bool
-	}{
-		{name: "log wheel up", tab: tabLog, button: tea.MouseWheelUp, wantUp: true},
-		{name: "log wheel down", tab: tabLog, button: tea.MouseWheelDown},
-		{name: "providers wheel up", tab: tabProviders, button: tea.MouseWheelUp, wantUp: true},
-		{name: "providers wheel down", tab: tabProviders, button: tea.MouseWheelDown},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			d := newTestDashboard(nil, "", 0, false)
-			d.activeTab = tt.tab
+	t.Run("log wheel up increments scroll", func(t *testing.T) {
+		d := newTestDashboard(nil, "", 0, false)
+		d.activeTab = tabLog
+		d.Update(tea.MouseWheelMsg{Button: tea.MouseWheelUp})
+		if d.logScroll != 1 {
+			t.Errorf("logScroll = %d, want 1", d.logScroll)
+		}
+	})
 
-			_, cmd := d.Update(tea.MouseWheelMsg{Button: tt.button})
-			if cmd != nil {
-				t.Error("mouse wheel should not produce a command")
-			}
-		})
-	}
+	t.Run("log wheel down decrements scroll", func(t *testing.T) {
+		d := newTestDashboard(nil, "", 0, false)
+		d.activeTab = tabLog
+		d.logScroll = 5
+		d.Update(tea.MouseWheelMsg{Button: tea.MouseWheelDown})
+		if d.logScroll != 4 {
+			t.Errorf("logScroll = %d, want 4", d.logScroll)
+		}
+	})
+
+	t.Run("providers wheel up increments scroll", func(t *testing.T) {
+		d := newTestDashboard(nil, "", 0, false)
+		d.activeTab = tabProviders
+		d.Update(tea.MouseWheelMsg{Button: tea.MouseWheelUp})
+		if d.providerScroll != 1 {
+			t.Errorf("providerScroll = %d, want 1", d.providerScroll)
+		}
+	})
+
+	t.Run("providers wheel down decrements scroll", func(t *testing.T) {
+		d := newTestDashboard(nil, "", 0, false)
+		d.activeTab = tabProviders
+		d.providerScroll = 5
+		d.Update(tea.MouseWheelMsg{Button: tea.MouseWheelDown})
+		if d.providerScroll != 4 {
+			t.Errorf("providerScroll = %d, want 4", d.providerScroll)
+		}
+	})
 
 	t.Run("config wheel up decrements cursor", func(t *testing.T) {
 		cfg := &config.Config{

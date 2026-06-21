@@ -122,18 +122,8 @@ func renderProvidersTab(cfg *config.Config, width, height, scroll int, styles St
 	return b.String()
 }
 
-func renderConfigTab(cfg *config.Config, cursor int, width, height int, styles Styles) string {
-	var b strings.Builder
-	b.WriteString(styles.WindowStyle.Render("Configuration") + "\n\n")
-	b.WriteString(styles.SeparatorStyle.Render(strings.Repeat("─", max(width-4, 0))) + "\n")
-
-	all := collectAllEntries(cfg)
-	// Each entry occupies ~6 lines (label + 4 fields + blank) for providers
-	// and ~4 lines (label + 2 fields + blank) for mappings. We don't try to
-	// measure precisely; instead we use a conservative per-entry height and
-	// clamp the visible window. The cursor auto-scrolls into view.
+func configVisibleWindow(all []configEntry, cursor, available int) (start, end int) {
 	const approxEntryLines = 6
-	available := height - 3
 	if available < 0 {
 		available = 0
 	}
@@ -144,14 +134,12 @@ func renderConfigTab(cfg *config.Config, cursor int, width, height int, styles S
 	if visibleEntries > len(all) {
 		visibleEntries = len(all)
 	}
-
-	// Center the cursor in the visible window.
 	half := visibleEntries / 2
-	start := cursor - half
+	start = cursor - half
 	if start < 0 {
 		start = 0
 	}
-	end := start + visibleEntries
+	end = start + visibleEntries
 	if end > len(all) {
 		end = len(all)
 		start = end - visibleEntries
@@ -159,6 +147,16 @@ func renderConfigTab(cfg *config.Config, cursor int, width, height int, styles S
 			start = 0
 		}
 	}
+	return start, end
+}
+
+func renderConfigTab(cfg *config.Config, cursor int, width, height int, styles Styles) string {
+	var b strings.Builder
+	b.WriteString(styles.WindowStyle.Render("Configuration") + "\n\n")
+	b.WriteString(styles.SeparatorStyle.Render(strings.Repeat("─", max(width-4, 0))) + "\n")
+
+	all := collectAllEntries(cfg)
+	start, end := configVisibleWindow(all, cursor, height-3)
 
 	for i := start; i < end; i++ {
 		entry := all[i]
