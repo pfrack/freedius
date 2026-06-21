@@ -37,9 +37,9 @@ func TestDashboard_Update_KeyPress(t *testing.T) {
 		wantTab  int
 		wantQuit bool
 	}{
-		{name: "press 1", key: tea.KeyPressMsg{Code: '1'}, wantTab: tabLog},
-		{name: "press 2", key: tea.KeyPressMsg{Code: '2'}, wantTab: tabProviders},
-		{name: "press 3", key: tea.KeyPressMsg{Code: '3'}, wantTab: tabConfig},
+		{name: "press F1", key: tea.KeyPressMsg{Code: tea.KeyF1}, wantTab: tabLog},
+		{name: "press F2", key: tea.KeyPressMsg{Code: tea.KeyF2}, wantTab: tabProviders},
+		{name: "press F3", key: tea.KeyPressMsg{Code: tea.KeyF3}, wantTab: tabConfig},
 		{name: "press q", key: tea.KeyPressMsg{Text: "q"}, wantQuit: true},
 		{name: "press ctrl+c", key: tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl}, wantQuit: true},
 		{name: "press esc", key: tea.KeyPressMsg{Code: tea.KeyEsc}, wantQuit: true},
@@ -822,33 +822,38 @@ func TestDashboard_RequestEventClearsStatusMessage(t *testing.T) {
 	}
 }
 
-func TestDashboard_Layout_StatsAboveTabs(t *testing.T) {
+func TestDashboard_Layout_TopbarContainsTabs(t *testing.T) {
 	d := newTestDashboard(nil, "", 0, false)
 	d.width = 80
 	d.height = 24
 
 	out := stripANSI(viewContent(d.View()))
 
-	// Stats bar must appear before the tab bar.
+	// Stats bar must contain tab indicators on the same line.
 	statsIdx := strings.Index(out, "uptime:")
-	tabIdx := strings.Index(out, "[1] Log")
+	tabIdx := strings.Index(out, "F1:Log")
 	if statsIdx == -1 {
 		t.Fatal("expected uptime in stats bar")
 	}
 	if tabIdx == -1 {
-		t.Fatal("expected [1] Log in tab bar")
+		t.Fatal("expected F1:Log tab indicator in topbar")
 	}
 	if statsIdx > tabIdx {
-		t.Error("stats bar should appear above tab bar, got stats at", statsIdx, "tab at", tabIdx)
+		t.Error("stats should appear before tab indicators, got stats at", statsIdx, "tab at", tabIdx)
 	}
 
-	// Tab bar must appear before body content.
+	// Tab indicators must appear before body content.
 	bodyIdx := strings.Index(out, "No log entries")
 	if bodyIdx == -1 {
-		t.Fatal("expected 'No requests' body content")
+		t.Fatal("expected 'No log entries' body content")
 	}
 	if tabIdx > bodyIdx {
-		t.Error("tab bar should appear above body content, got tab at", tabIdx, "body at", bodyIdx)
+		t.Error("tab indicators should appear above body content, got tab at", tabIdx, "body at", bodyIdx)
+	}
+
+	// No separate tab bar row — [1] Log must NOT appear.
+	if strings.Contains(out, "[1] Log") {
+		t.Error("old tab bar '[1] Log' should not appear in output")
 	}
 }
 
@@ -886,7 +891,7 @@ func TestDashboard_HelpModal_CapturesTabSwitchKey(t *testing.T) {
 	d.showHelp = true
 	d.activeTab = tabLog
 
-	d.Update(tea.KeyPressMsg{Code: '2'})
+	d.Update(tea.KeyPressMsg{Code: tea.KeyF2})
 	if d.activeTab != tabLog {
 		t.Errorf("activeTab should remain tabLog when help is open, got %d", d.activeTab)
 	}

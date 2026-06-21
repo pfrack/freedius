@@ -40,6 +40,7 @@ type Styles struct {
 	StatusClientErrStyle     lipgloss.Style
 	StatusErrorStyle         lipgloss.Style
 	StatsBarStyle            lipgloss.Style
+	StatsBarPartStyle        lipgloss.Style
 	TabBarStyle              lipgloss.Style
 	WindowStyle              lipgloss.Style
 	ProviderTableHeaderStyle lipgloss.Style
@@ -149,6 +150,8 @@ func NewStyles(p Palette, isDark bool) Styles {
 			Foreground(fn(p.Error.Light, p.Error.Dark)),
 		StatsBarStyle: lipgloss.NewStyle().
 			Padding(0, 1).
+			Background(fn(p.Accent.Light, p.Accent.Dark)),
+		StatsBarPartStyle: lipgloss.NewStyle().
 			Background(fn(p.Accent.Light, p.Accent.Dark)),
 		TabBarStyle: lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder(), false, false, true, false).

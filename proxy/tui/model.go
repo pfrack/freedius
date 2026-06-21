@@ -287,13 +287,13 @@ func (d *Dashboard) handleTabModeKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.C
 		return d, tea.Quit
 	case "ctrl+z":
 		return d, tea.Suspend
-	case "1":
+	case "f1":
 		d.activeTab = tabLog
 		return d, nil
-	case "2":
+	case "f2":
 		d.activeTab = tabProviders
 		return d, nil
-	case "3":
+	case "f3":
 		d.activeTab = tabConfig
 		return d, nil
 	case "tab":
@@ -543,12 +543,8 @@ func (d *Dashboard) View() tea.View {
 	if height <= 0 {
 		height = 24
 	}
-	// Reserve 3 rows for the chrome: 1 row for the stats bar + 1 row for the
-	// tab labels + 1 row for the tab bar's bottom border. The count is
-	// symmetric regardless of whether stats is at the top or bottom, so this
-	// budget works for both the old (tabs → body → stats) and new
-	// (stats → tabs → body) layouts.
-	bodyHeight := height - 3
+	// Reserve 1 row for the topbar (stats + tab indicators).
+	bodyHeight := height - 1
 
 	var content string
 	if d.formMode != formNone {
@@ -567,8 +563,7 @@ func (d *Dashboard) View() tea.View {
 		}
 	}
 
-	stats := renderStatsBar(d.stats, width, d.styles)
-	tabs := renderTabs(d.activeTab, width, d.currentLogLevel, d.styles)
+	stats := renderStatsBar(d.stats, width, d.activeTab, d.currentLogLevel, d.styles)
 	var body string
 	if d.styleBody {
 		body = d.styles.WindowStyle.Width(max(width-2, 0)).Render(content)
@@ -576,7 +571,7 @@ func (d *Dashboard) View() tea.View {
 		body = content
 	}
 
-	result := fmt.Sprintf("%s\n%s\n%s", stats, tabs, body)
+	result := fmt.Sprintf("%s\n%s", stats, body)
 
 	if d.showHelp {
 		modal := renderHelpModal(width, d.styles)
