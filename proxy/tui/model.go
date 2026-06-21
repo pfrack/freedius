@@ -563,7 +563,7 @@ func (d *Dashboard) View() tea.View {
 		}
 	}
 
-	stats := renderStatsBar(d.stats, width, d.activeTab, d.currentLogLevel, d.styles)
+	stats := renderStatsBar(d.stats, width, d.styles)
 	var body string
 	if d.styleBody {
 		body = d.styles.WindowStyle.Width(max(width-2, 0)).Render(content)

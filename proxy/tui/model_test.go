@@ -829,29 +829,29 @@ func TestDashboard_Layout_TopbarContainsTabs(t *testing.T) {
 
 	out := stripANSI(viewContent(d.View()))
 
-	// Stats bar must contain tab indicators on the same line.
+	// Stats bar must appear with "? for help" on the same line.
 	statsIdx := strings.Index(out, "uptime:")
-	tabIdx := strings.Index(out, "F1:Log")
+	helpIdx := strings.Index(out, "? for help")
 	if statsIdx == -1 {
 		t.Fatal("expected uptime in stats bar")
 	}
-	if tabIdx == -1 {
-		t.Fatal("expected F1:Log tab indicator in topbar")
+	if helpIdx == -1 {
+		t.Fatal("expected '? for help' in topbar")
 	}
-	if statsIdx > tabIdx {
-		t.Error("stats should appear before tab indicators, got stats at", statsIdx, "tab at", tabIdx)
+	if statsIdx > helpIdx {
+		t.Error("stats should appear before '? for help', got stats at", statsIdx, "help at", helpIdx)
 	}
 
-	// Tab indicators must appear before body content.
+	// Topbar must appear before body content.
 	bodyIdx := strings.Index(out, "No log entries")
 	if bodyIdx == -1 {
 		t.Fatal("expected 'No log entries' body content")
 	}
-	if tabIdx > bodyIdx {
-		t.Error("tab indicators should appear above body content, got tab at", tabIdx, "body at", bodyIdx)
+	if helpIdx > bodyIdx {
+		t.Error("'? for help' should appear above body content, got help at", helpIdx, "body at", bodyIdx)
 	}
 
-	// No separate tab bar row — [1] Log must NOT appear.
+	// No old tab bar row.
 	if strings.Contains(out, "[1] Log") {
 		t.Error("old tab bar '[1] Log' should not appear in output")
 	}

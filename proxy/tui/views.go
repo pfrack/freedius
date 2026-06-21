@@ -202,7 +202,7 @@ func renderConfigTab(cfg *config.Config, cursor int, width, height int, styles S
 	return b.String()
 }
 
-func renderStatsBar(stats statsData, width int, activeTab int, level LogFilter, styles Styles) string {
+func renderStatsBar(stats statsData, width int, styles Styles) string {
 	uptime := time.Since(stats.startTime).Round(time.Second).String()
 	total := stats.totalRequests
 	errors := stats.errorCount
@@ -210,53 +210,21 @@ func renderStatsBar(stats statsData, width int, activeTab int, level LogFilter, 
 	if total > 0 {
 		errRate = fmt.Sprintf("%.1f%%", float64(errors)/float64(total)*100)
 	}
-	statsText := fmt.Sprintf(
+	left := fmt.Sprintf(
 		" uptime: %s │ requests: %d │ errors: %d │ error rate: %s ",
 		uptime, total, errors, errRate,
 	)
 	if stats.message != "" {
-		statsText = statsText + "│ " + stats.message + " "
+		left = left + "│ " + stats.message + " "
 	}
+	right := "? for help "
 
-	// Tab indicators right-aligned in the stats bar.
-	tabLabels := []string{
-		fmt.Sprintf(" F1:Log[%s] ", level.Label),
-		" F2:Providers ",
-		" F3:Config ",
+	gap := width - len(left) - len(right)
+	if gap < 1 {
+		gap = 1
 	}
-	var tabParts []string
-	for i, label := range tabLabels {
-		if i == activeTab {
-			tabParts = append(tabParts, styles.ActiveTabStyle.Render(label))
-		} else {
-			tabParts = append(tabParts, styles.InactiveTabStyle.Render(label))
-		}
-	}
-	tabsStyled := lipgloss.JoinHorizontal(lipgloss.Top, tabParts...)
-
-	// Plain text version for width calculation (lipgloss styles add ANSI
-	// codes which confuse string width).
-	tabPlain := ""
-	for i, label := range tabLabels {
-		if i > 0 {
-			tabPlain += " "
-		}
-		tabPlain += label
-	}
-
-	statsWidth := width - len(tabPlain)
-	if statsWidth < 0 {
-		statsWidth = 0
-	}
-	if len(statsText) < statsWidth {
-		statsText += strings.Repeat(" ", statsWidth-len(statsText))
-	}
-	if len(statsText) > statsWidth {
-		statsText = statsText[:statsWidth]
-	}
-
-	statsStyled := styles.StatsBarPartStyle.Width(statsWidth).Render(statsText)
-	return lipgloss.JoinHorizontal(lipgloss.Top, statsStyled, tabsStyled)
+	left += strings.Repeat(" ", gap)
+	return styles.StatsBarPartStyle.Width(width).Render(left + right)
 }
 
 type providerInfo struct {
