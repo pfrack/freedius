@@ -137,7 +137,7 @@ Add `--fg` flag to run the proxy in foreground without the TUI. Enables Docker, 
 **Contract**:
 
 ```go
-//go:build unix
+//go:build !windows
 
 package main
 
@@ -206,12 +206,12 @@ Add `--daemon`/`-d` flags to fork the proxy to background. Re-exec self with `--
 
 **File**: `cmd/freedius/daemon_unix.go` (new)
 
-**Intent**: Implement `startDaemon(args []string) error` for Unix. Re-exec self with `--fg` appended to args. Use `exec.Command` with `SysProcAttr.Setsid = true` to detach from terminal. Redirect stdout/stderr to `/dev/null`. Write PID file. Print "daemon started (PID N)" to stderr.
+**Intent**: Implement `startDaemon(args []string) error` for Unix. Re-exec self with `--fg` appended to args. **Resolve the re-exec target via `os.Executable()` (NOT `os.Args[0]` — `os.Args[0]` is unreliable under `go run`, `go install`, and Homebrew; the error-hardening research at context/archive/error-hardening/research.md:287 explicitly rejected it).** Refuse to start under `go run`: if `os.Executable()` returns a path ending in `/go-build<hex>/exe/...` or any path under `os.TempDir()` that doesn't match the binary name, exit with: `freedius: --daemon requires a built binary; run 'go build -o freedius ./cmd/freedius' first`. Use `exec.Command` with `SysProcAttr.Setsid = true` to detach from terminal. Inherit env via the default (`exec.Command` propagates `os.Environ()` — do NOT set `cmd.Env`). Redirect stdout/stderr to `/dev/null`. Write PID file (PID + start_time, per F2). Print "daemon started (PID N)" to stderr.
 
 **Contract**:
 
 ```go
-//go:build unix
+//go:build !windows
 
 package main
 
@@ -324,7 +324,7 @@ Add a Unix socket IPC server to the daemon that streams events and logs via SSE.
 **Contract**:
 
 ```go
-//go:build unix
+//go:build !windows
 
 package main
 
