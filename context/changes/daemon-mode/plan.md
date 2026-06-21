@@ -228,6 +228,12 @@ func stopDaemon() error
 func daemonStatus() (running bool, pid int, err error)
 ```
 
+**`stopDaemon` contract**: (1) Read PID file via `readPIDFile()` — returns `(int, int64, error)` for `(pid, startTime, err)`. (2) If PID file not found, return `fmt.Errorf("freedius: not running (no PID file at %s)", pidFilePath)`. (3) Send `syscall.SIGTERM` via `syscall.Kill(pid, syscall.SIGTERM)`. (4) Poll process exit: try `syscall.Kill(pid, 0)` every 50ms, up to 200ms. (5) If process exits within 200ms, return nil (PID file cleanup is handled by the daemon's signal handler, which calls `waitForShutdown` → `removePIDFile()` — per Phase 3 §4 / Phase 4 §6). (6) If timeout: return `fmt.Errorf("freedius: daemon (PID %d) did not exit within 200ms", pid)` — the user may force-kill with `kill -9`.
+
+**`daemonStatus` contract**: (1) Read PID file via `readPIDFile()`. (2) If not found, return `(false, 0, nil)` — not an error, just "not running". (3) Attempt `syscall.Kill(pid, 0)`. (4) If `err == nil` (process exists, we have permission) or `errors.Is(err, syscall.EPERM)` (process exists, we lack permission to signal but it's alive): return `(true, pid, nil)`. (5) If `errors.Is(err, syscall.ESRCH)` (no such process): return `(false, pid, nil)` — stale PID file; the caller (handleStatus) may clean it up. (6) Other errors: return `(false, 0, err)`.
+
+**`handleStop()` and `handleStatus()` subcommand routing** (Phase 3 §5): both call the corresponding daemon_*.go function and print the result. `handleStop` prints either "freedius: daemon stopped" (on nil) or the error. `handleStatus` prints "freedius: running (PID N)" on running=true, or "freedius: not running" on running=false.
+
 #### 3. Platform-specific daemonization — Windows
 
 **File**: `cmd/freedius/daemon_windows.go` (new)
