@@ -223,9 +223,9 @@ In `TestDashboard_Update_TabCycle`:
 
 #### Automated
 
-- [x] 1.1 Build passes: `go build ./...`
-- [x] 1.2 All tests pass: `go test ./...`
-- [x] 1.3 `go vet ./...` clean
+- [x] 1.1 Build passes: `go build ./...` — 4343f3d
+- [x] 1.2 All tests pass: `go test ./...` — 4343f3d
+- [x] 1.3 `go vet ./...` clean — 4343f3d
 
 #### Manual
 
@@ -240,9 +240,9 @@ In `TestDashboard_Update_TabCycle`:
 
 #### Automated
 
-- [x] 2.1 Build passes: `go build ./...`
-- [x] 2.2 All tests pass: `go test ./...`
-- [x] 2.3 `go vet ./...` clean
+- [x] 2.1 Build passes: `go build ./...` — 4343f3d
+- [x] 2.2 All tests pass: `go test ./...` — 4343f3d
+- [x] 2.3 `go vet ./...` clean — 4343f3d
 
 #### Manual
 
