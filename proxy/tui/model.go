@@ -221,6 +221,12 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// --- Normal (tab) mode key handling ---
 		return d.handleTabModeKeyPress(msg)
 
+	// --- Mouse events ---
+	case tea.MouseClickMsg:
+		return d.handleMouseClick(msg)
+	case tea.MouseWheelMsg:
+		return d.handleMouseWheel(msg)
+
 	// --- Window resize ---
 	case tea.WindowSizeMsg:
 		d.width = msg.Width
@@ -384,6 +390,84 @@ func (d *Dashboard) scrollDown() {
 		if d.logScroll > 0 {
 			d.logScroll--
 		}
+	}
+}
+
+func (d *Dashboard) handleMouseWheel(msg tea.MouseWheelMsg) (tea.Model, tea.Cmd) {
+	if d.showHelp || d.formMode != formNone {
+		return d, nil
+	}
+	switch msg.Button {
+	case tea.MouseWheelUp:
+		d.scrollUp()
+	case tea.MouseWheelDown:
+		d.scrollDown()
+	}
+	return d, nil
+}
+
+func (d *Dashboard) handleMouseClick(msg tea.MouseClickMsg) (tea.Model, tea.Cmd) {
+	if msg.Button != tea.MouseLeft {
+		return d, nil
+	}
+	if d.showHelp {
+		d.showHelp = false
+		return d, nil
+	}
+	if d.formMode != formNone {
+		return d, nil
+	}
+	if msg.Y == 0 {
+		return d, nil
+	}
+	if d.activeTab == tabConfig {
+		d.handleConfigClick(msg.Y)
+	}
+	return d, nil
+}
+
+func (d *Dashboard) handleConfigClick(y int) {
+	all := collectAllEntries(d.config)
+	if len(all) == 0 {
+		return
+	}
+
+	bodyOffset := y - 1
+	entryOffset := bodyOffset - 2
+	if entryOffset < 0 {
+		return
+	}
+
+	const approxEntryLines = 6
+	available := d.height - 1 - 3
+	if available < 0 {
+		available = 0
+	}
+	visibleEntries := available / approxEntryLines
+	if visibleEntries < 1 {
+		visibleEntries = 1
+	}
+	if visibleEntries > len(all) {
+		visibleEntries = len(all)
+	}
+	half := visibleEntries / 2
+	start := d.configCursor - half
+	if start < 0 {
+		start = 0
+	}
+	end := start + visibleEntries
+	if end > len(all) {
+		end = len(all)
+		start = end - visibleEntries
+		if start < 0 {
+			start = 0
+		}
+	}
+
+	idx := entryOffset/approxEntryLines + start
+	if idx >= 0 && idx < len(all) {
+		d.configCursor = idx
+		d.openEditForm()
 	}
 }
 
@@ -576,6 +660,7 @@ func (d *Dashboard) View() tea.View {
 
 	v := tea.NewView(result)
 	v.AltScreen = true
+	v.MouseMode = tea.MouseModeCellMotion
 	return v
 }
 

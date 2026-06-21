@@ -27,4 +27,9 @@ var helpShortcuts = []shortcut{
 	{"Esc", "Cancel form"},
 	{"y / n", "Confirm / cancel delete"},
 	{"Enter / Esc", "Select / cancel (picker)"},
+	{"", ""},
+	{"Mouse", ""},
+	{"Scroll wheel", "Scroll content"},
+	{"Click entry", "Edit config entry (Config tab)"},
+	{"Click modal", "Close help"},
 }

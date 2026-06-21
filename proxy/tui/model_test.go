@@ -1195,3 +1195,176 @@ func TestHelpShortcuts_ContainsL(t *testing.T) {
 		t.Error("helpShortcuts should contain entry with key 'L' and desc 'Cycle log level filter'")
 	}
 }
+
+func TestDashboard_MouseWheelScroll(t *testing.T) {
+	tests := []struct {
+		name   string
+		tab    int
+		button tea.MouseButton
+		wantUp bool
+	}{
+		{name: "log wheel up", tab: tabLog, button: tea.MouseWheelUp, wantUp: true},
+		{name: "log wheel down", tab: tabLog, button: tea.MouseWheelDown},
+		{name: "providers wheel up", tab: tabProviders, button: tea.MouseWheelUp, wantUp: true},
+		{name: "providers wheel down", tab: tabProviders, button: tea.MouseWheelDown},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			d := newTestDashboard(nil, "", 0, false)
+			d.activeTab = tt.tab
+
+			_, cmd := d.Update(tea.MouseWheelMsg{Button: tt.button})
+			if cmd != nil {
+				t.Error("mouse wheel should not produce a command")
+			}
+		})
+	}
+
+	t.Run("config wheel up decrements cursor", func(t *testing.T) {
+		cfg := &config.Config{
+			Providers: map[string]config.Provider{
+				"nim": {Behavior: "openai"},
+			},
+		}
+		d := newTestDashboard(cfg, "", 0, false)
+		d.activeTab = tabConfig
+		d.configCursor = 1
+		d.Update(tea.MouseWheelMsg{Button: tea.MouseWheelUp})
+		if d.configCursor != 0 {
+			t.Errorf("configCursor = %d, want 0", d.configCursor)
+		}
+	})
+}
+
+func TestDashboard_MouseWheelInFormIgnored(t *testing.T) {
+	cfg := &config.Config{
+		Providers: map[string]config.Provider{
+			"nim": {Behavior: "openai"},
+		},
+	}
+	d := newTestDashboard(cfg, "", 0, false)
+	d.activeTab = tabConfig
+	d.configCursor = 0
+	d.Update(tea.KeyPressMsg{Text: "e"})
+	if d.formMode == formNone {
+		t.Fatal("expected form to be open")
+	}
+
+	d.Update(tea.MouseWheelMsg{Button: tea.MouseWheelUp})
+	if d.formMode != formEditProvider {
+		t.Error("mouse wheel in form mode should not close the form")
+	}
+}
+
+func TestDashboard_MouseClickHelpCloses(t *testing.T) {
+	d := newTestDashboard(nil, "", 0, false)
+	d.showHelp = true
+
+	d.Update(tea.MouseClickMsg{X: 10, Y: 10, Button: tea.MouseLeft})
+	if d.showHelp {
+		t.Error("expected showHelp=false after mouse click")
+	}
+}
+
+func TestDashboard_MouseClickInFormIgnored(t *testing.T) {
+	cfg := &config.Config{
+		Providers: map[string]config.Provider{
+			"nim": {Behavior: "openai"},
+		},
+	}
+	d := newTestDashboard(cfg, "", 0, false)
+	d.activeTab = tabConfig
+	d.configCursor = 0
+	d.Update(tea.KeyPressMsg{Text: "e"})
+	if d.formMode == formNone {
+		t.Fatal("expected form to be open")
+	}
+
+	d.Update(tea.MouseClickMsg{X: 10, Y: 5, Button: tea.MouseLeft})
+	if d.formMode != formEditProvider {
+		t.Error("mouse click in form mode should not close the form")
+	}
+}
+
+func TestDashboard_MouseClickConfigEntry(t *testing.T) {
+	cfg := &config.Config{
+		Providers: map[string]config.Provider{
+			"nim":    {Behavior: "openai"},
+			"openai": {Behavior: "openai"},
+		},
+	}
+	d := newTestDashboard(cfg, "", 0, false)
+	d.activeTab = tabConfig
+	d.width = 80
+	d.height = 24
+	d.configCursor = 0
+
+	// Body starts at Y=1. Header is 2 lines (title + separator).
+	// First entry starts at Y=1+2=3. Second entry at Y=3+6=9.
+	d.Update(tea.MouseClickMsg{X: 10, Y: 9, Button: tea.MouseLeft})
+	if d.formMode == formNone {
+		t.Error("expected edit form to open after clicking config entry")
+	}
+	if d.configCursor != 1 {
+		t.Errorf("configCursor = %d, want 1 (second entry)", d.configCursor)
+	}
+}
+
+func TestDashboard_MouseClickConfigEmptyNoOp(t *testing.T) {
+	d := newTestDashboard(&config.Config{}, "", 0, false)
+	d.activeTab = tabConfig
+	d.width = 80
+	d.height = 24
+
+	d.Update(tea.MouseClickMsg{X: 10, Y: 5, Button: tea.MouseLeft})
+	if d.formMode != formNone {
+		t.Error("click on empty config should not open form")
+	}
+}
+
+func TestDashboard_MouseClickStatsBarNoOp(t *testing.T) {
+	cfg := &config.Config{
+		Providers: map[string]config.Provider{
+			"nim": {Behavior: "openai"},
+		},
+	}
+	d := newTestDashboard(cfg, "", 0, false)
+	d.activeTab = tabConfig
+	d.width = 80
+	d.height = 24
+
+	d.Update(tea.MouseClickMsg{X: 10, Y: 0, Button: tea.MouseLeft})
+	if d.formMode != formNone {
+		t.Error("click on stats bar should not open form")
+	}
+}
+
+func TestDashboard_MouseRightClickIgnored(t *testing.T) {
+	d := newTestDashboard(nil, "", 0, false)
+	d.showHelp = true
+
+	d.Update(tea.MouseClickMsg{X: 10, Y: 10, Button: tea.MouseRight})
+	if !d.showHelp {
+		t.Error("right click should not close help")
+	}
+}
+
+func TestHelpShortcuts_ContainsMouse(t *testing.T) {
+	mouseShortcuts := []struct{ key, desc string }{
+		{"Scroll wheel", "Scroll content"},
+		{"Click entry", "Edit config entry (Config tab)"},
+		{"Click modal", "Close help"},
+	}
+	for _, want := range mouseShortcuts {
+		found := false
+		for _, s := range helpShortcuts {
+			if s.key == want.key && s.desc == want.desc {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("helpShortcuts missing mouse shortcut: key=%q desc=%q", want.key, want.desc)
+		}
+	}
+}
