@@ -277,6 +277,48 @@ if len(args) > 0 {
 
 **Intent**: Update `printUsage()` to document `--daemon`, `-d`, and subcommands (`stop`, `status`).
 
+#### 7. Shared `runtimeDir()` helper (per review F1)
+
+**File**: `cmd/freedius/paths_unix.go` (new) + `cmd/freedius/paths_windows.go` (new)
+
+**Intent**: Single source of truth for `$XDG_RUNTIME_DIR` vs `os.TempDir()` resolution. Used by both PID file path (§3.4) and socket path (§4.5) so they cannot diverge.
+
+**Contract**:
+
+```go
+//go:build !windows
+
+package main
+
+import "os"
+
+// runtimeDir returns the directory for daemon state files (PID,
+// socket). On Linux, $XDG_RUNTIME_DIR is set by systemd-logind
+// and is per-user + tmpfs (auto-cleaned on reboot). On macOS,
+// $XDG_RUNTIME_DIR is not standard, so fall back to os.TempDir()
+// which respects $TMPDIR (per-user on macOS).
+func runtimeDir() string {
+    if d := os.Getenv("XDG_RUNTIME_DIR"); d != "" {
+        return d
+    }
+    return os.TempDir()
+}
+```
+
+```go
+//go:build windows
+
+package main
+
+import "os"
+
+func runtimeDir() string {
+    return os.TempDir()
+}
+```
+
+Both PID path (`pidFilePath() = filepath.Join(runtimeDir(), "freedius.pid")`) and socket path (`socketPath() = filepath.Join(runtimeDir(), "freedius.sock")`) MUST call this helper.
+
 ### Success Criteria:
 
 #### Automated Verification:
