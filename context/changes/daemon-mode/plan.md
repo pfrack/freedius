@@ -596,24 +596,24 @@ func (c *IPCClient) Close() error
 
 #### Manual
 
-- [x] 3.4 `freedius --daemon` forks, prints PID
-- [x] 3.5 `freedius status` shows running
-- [x] 3.6 `freedius stop` terminates daemon
-- [x] 3.7 Stale PID detection works
-- [x] 3.8 Already-running detection works
+- [x] 3.4 `freedius --daemon` forks, prints PID — 0f4b1c5
+- [x] 3.5 `freedius status` shows running — 0f4b1c5
+- [x] 3.6 `freedius stop` terminates daemon — 0f4b1c5
+- [x] 3.7 Stale PID detection works — 0f4b1c5
+- [x] 3.8 Already-running detection works — 0f4b1c5
 
 ### Phase 4: IPC-Based TUI Attach
 
 #### Automated
 
-- [x] 4.1 `go vet ./...` passes
-- [x] 4.2 `go test ./proxy/...` passes (EventBus/LogSink Since methods)
-- [x] 4.3 `go test ./cmd/freedius/...` passes (IPC server, client, attach)
-- [x] 4.4 `go build ./cmd/freedius` succeeds
+- [x] 4.1 `go vet ./...` passes — 0f4b1c5
+- [x] 4.2 `go test ./proxy/...` passes (EventBus/LogSink Since methods) — 0f4b1c5
+- [x] 4.3 `go test ./cmd/freedius/...` passes (IPC server, client, attach) — 0f4b1c5
+- [x] 4.4 `go build ./cmd/freedius` succeeds — 0f4b1c5
 
 #### Manual
 
-- [x] 4.5 `freedius attach` connects to running daemon, shows TUI
-- [x] 4.6 Detach with `q` does not kill daemon
-- [x] 4.7 Late attach shows replayed events
-- [x] 4.8 Full lifecycle: daemon → attach → requests → detach → stop
+- [x] 4.5 `freedius attach` connects to running daemon, shows TUI — 0f4b1c5
+- [x] 4.6 Detach with `q` does not kill daemon — 0f4b1c5
+- [x] 4.7 Late attach shows replayed events — 0f4b1c5
+- [x] 4.8 Full lifecycle: daemon → attach → requests → detach → stop — 0f4b1c5

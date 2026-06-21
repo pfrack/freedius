@@ -1,7 +1,7 @@
 ---
 id: daemon-mode
 title: "Daemon mode with foreground attach"
-status: implementing
+status: implemented
 created: 2026-06-21
 updated: 2026-06-21
 owner: pawel
