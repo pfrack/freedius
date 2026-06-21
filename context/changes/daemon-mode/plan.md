@@ -373,7 +373,7 @@ The SSE endpoint emits `event: replay\ndata: {"complete": false, ...}` whenever 
 
 **File**: `proxy/logtee.go`
 
-**Intent**: Same ring-buffer pattern as EventBus (F4 contract): add `ring []LogEntry`, `ringMu sync.RWMutex`, `ringSize int`, `seq atomic.Int64` fields. Mirror `Since(seq) (entries []LogEntry, currentSeq int64, evicted bool)`. **Do NOT change `Snapshot()` semantics** — it remains destructive (drains the channel) because logtee_test.go:101 and the TUI Log tab refresh at views.go:560 rely on that behavior. Add `SnapshotSince(seq int64) (entries []LogEntry, currentSeq int64, evicted bool)` for the IPC replay path that reads from the ring buffer copy (non-destructive). **Edge cases** (mirror the F6 EventBus Since contract):
+**Intent**: Same ring-buffer pattern as EventBus (F4 contract): add `ring []LogEntry`, `ringMu sync.RWMutex`, `ringSize int`, `seq atomic.Int64` fields. Mirror `Since(seq) (entries []LogEntry, currentSeq int64, evicted bool)`. **Do NOT change `Snapshot()` semantics** — it remains destructive (drains the channel) because logtee_test.go:45,75,101,131 assert Snapshot overflow behavior; the TUI Log tab reads from its own `d.logBuffer` (model.go:560), not from `sink.Snapshot()`. Add `SnapshotSince(seq int64) (entries []LogEntry, currentSeq int64, evicted bool)` for the IPC replay path that reads from the ring buffer copy (non-destructive). **Edge cases** (mirror the F6 EventBus Since contract):
 - `seq <= 0` (initial attach): return entire ring, evicted=false.
 - `seq > currentSeq`: return `nil, currentSeq, false`.
 - `seq == currentSeq`: return `nil, currentSeq, false`.
@@ -556,7 +556,7 @@ func (c *IPCClient) Close() error
 
 ## Progress
 
-> Convention: `- [ ]` pending, `- [x]` done. Append ` — <commit sha>` when a step lands. Do not rename step titles.
+> Convention: `- [ ]` pending, `- [x]` done. Append ` — <commit sha>` when a step lands (each row may carry a different SHA if the phase is split across commits). Do not rename step titles.
 
 ### Phase 1: Ctrl+Z Suspend/Resume
 
