@@ -1,7 +1,7 @@
 ---
 id: go-package-layout
 title: "Move main package to cmd/freedius/ (Go convention)"
-status: implemented
+status: complete
 created: 2026-06-21
 updated: 2026-06-21
 ---

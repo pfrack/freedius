@@ -36,13 +36,15 @@ cleanup() {
 	fi
 	rm -rf "$TMPHOME" 2>/dev/null || true
 }
-trap cleanup EXIT
+trap cleanup EXIT SIGTERM SIGINT
 
 echo "=== Building ==="
 if ! go build -o "$BIN" ./cmd/freedius; then
 	echo "build failed"
 	exit 1
 fi
+
+command -v jq >/dev/null 2>&1 || { echo "jq is required"; exit 1; }
 
 FAIL=0
 pass() { echo "  PASS  $1"; }
