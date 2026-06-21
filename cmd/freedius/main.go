@@ -223,14 +223,7 @@ func run(args []string) int {
 	}
 
 	if *flagFg {
-		socketPath := filepath.Join(runtimeDir(), "freedius.sock")
-		ipcServer := NewIPCServer(socketPath, bus, logSink, cfg, registry, host, port)
-		go func() { _ = ipcServer.ListenAndServe() }()
-		return runHeadless(server, logger, func() error {
-			ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
-			defer cancel()
-			return ipcServer.Shutdown(ctx)
-		})
+		return startHeadlessWithIPC(server, bus, logSink, cfg, registry, host, port, logger)
 	}
 
 	model := tui.NewDashboard(
@@ -268,6 +261,32 @@ func runHeadless(server *http.Server, logger *slog.Logger, cleanup func() error)
 	}
 	logger.Info("shutdown complete")
 	return 0
+}
+
+// startHeadlessWithIPC starts the IPC server alongside the HTTP proxy and
+// blocks until shutdown. The IPC server's Shutdown is wired as the cleanup
+// arg to waitForShutdown so the socket file is removed on graceful exit.
+func startHeadlessWithIPC(
+	server *http.Server,
+	bus *proxy.EventBus,
+	logSink *proxy.LogSink,
+	cfg *config.Config,
+	registry *proxy.Registry,
+	host string,
+	port int,
+	logger *slog.Logger,
+) int {
+	ipcServer := NewIPCServer(socketPath(), bus, logSink, cfg, registry, host, port)
+	go func() {
+		if err := ipcServer.ListenAndServe(); err != nil {
+			logger.Error("IPC server error", "err", err)
+		}
+	}()
+	return runHeadless(server, logger, func() error {
+		ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+		defer cancel()
+		return ipcServer.Shutdown(ctx)
+	})
 }
 
 func handleStop() int {

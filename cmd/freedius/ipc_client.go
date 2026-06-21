@@ -119,6 +119,7 @@ func (c *IPCClient) Close() error {
 
 func (c *IPCClient) streamEvents(ctx context.Context) {
 	defer c.wg.Done()
+	defer close(c.events)
 	c.streamSSE(ctx, "http://localhost/v1/events?since=0", "events", func(data []byte) {
 		var e proxy.RequestEvent
 		if err := json.Unmarshal(data, &e); err == nil {
@@ -132,6 +133,7 @@ func (c *IPCClient) streamEvents(ctx context.Context) {
 
 func (c *IPCClient) streamLogs(ctx context.Context) {
 	defer c.wg.Done()
+	defer close(c.logs)
 	c.streamSSE(ctx, "http://localhost/v1/logs?since=0", "logs", func(data []byte) {
 		var e proxy.LogEntry
 		if err := json.Unmarshal(data, &e); err == nil {

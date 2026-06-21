@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -15,9 +14,9 @@ func handleAttach(args []string) int {
 }
 
 func runAttach(_ []string) int {
-	socketPath := filepath.Join(runtimeDir(), "freedius.sock")
+	sock := socketPath()
 
-	client, err := NewIPCClient(socketPath)
+	client, err := NewIPCClient(sock)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		return 1

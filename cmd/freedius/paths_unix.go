@@ -2,7 +2,10 @@
 
 package main
 
-import "os"
+import (
+	"os"
+	"path/filepath"
+)
 
 // runtimeDir returns the directory for daemon state files (PID,
 // socket). On Linux, $XDG_RUNTIME_DIR is set by systemd-logind
@@ -14,4 +17,9 @@ func runtimeDir() string {
 		return d
 	}
 	return os.TempDir()
+}
+
+// socketPath returns the path to the IPC Unix socket.
+func socketPath() string {
+	return filepath.Join(runtimeDir(), "freedius.sock")
 }
