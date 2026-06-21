@@ -242,9 +242,9 @@ func daemonStatus() (running bool, pid int, err error) // returns error
 
 **File**: `cmd/freedius/daemon_unix.go`
 
-**Intent**: Implement `pidFilePath() string` returning `$XDG_RUNTIME_DIR/freedius.pid` with fallback to `$TMPDIR/freedius.pid`. Implement `writePIDFile(pid int) error`, `readPIDFile() (int, error)`, `removePIDFile() error`, `isProcessAlive(pid int) bool` (signal-0 probe).
+**Intent**: Implement `pidFilePath() string` returning `$XDG_RUNTIME_DIR/freedius.pid` with fallback to `os.TempDir()/freedius.pid` (use `runtimeDir()` shared helper from F11). Implement `writePIDFile(pid int) error`, `readPIDFile() (int, error)`, `removePIDFile() error`, `isProcessAlive(pid int) bool`.
 
-**Contract**: PID file contains just the PID as ASCII text. `isProcessAlive` uses `os.FindProcess(pid)` + `process.Signal(syscall.Signal(0))`.
+**Contract**: PID file contains `<pid>\t<start_time_unix_nano>\n` (tab-separated; start_time detects PID reuse). Liveness check uses `syscall.Kill(pid, 0)` directly (NOT `os.FindProcess().Signal()` — the latter is lazy on macOS and yields false positives); accept `EPERM` as alive (process exists, no perm), reject `ESRCH` as dead. Race protection via `syscall.Flock(lockfile_fd, LOCK_EX|LOCK_NB)` on a sidecar `<runtimeDir>/freedius.lock` file: acquire before probe, release in `defer`. On Linux additionally `os.Stat(fmt.Sprintf("/proc/%d", pid))` to guard against PID recycling.
 
 #### 5. Subcommand dispatch
 
