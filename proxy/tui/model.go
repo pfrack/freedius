@@ -146,6 +146,9 @@ func NewDashboard(
 	if dispatcher == nil {
 		panic("tui: nil dispatcher")
 	}
+	// lipgloss.HasDarkBackground returns false on terminals without OSC 11
+	// support; the default theme's Light variants will then be used (brighter
+	// than the pre-theme TUI). Documented in O4 of the impl review.
 	isDark := lipgloss.HasDarkBackground(os.Stdin, os.Stdout)
 	theme := resolveTheme(themeName)
 	return &Dashboard{
@@ -185,9 +188,15 @@ func NewAttachDashboard(
 	cfgPath string,
 	host string,
 	port int,
+	themeName string,
 ) *Dashboard {
+	// lipgloss.HasDarkBackground returns false on terminals without OSC 11
+	// support; the default theme's Light variants will then be used. The
+	// attach TUI reads the daemon's theme via IPC, so colors will match the
+	// daemon session if the user's terminal supports OSC 11. Documented in
+	// O4 of the impl review.
 	isDark := lipgloss.HasDarkBackground(os.Stdin, os.Stdout)
-	theme := resolveTheme("")
+	theme := resolveTheme(themeName)
 	return &Dashboard{
 		activeTab:       tabLog,
 		config:          &config.Config{},
@@ -575,20 +584,23 @@ func (d *Dashboard) cycleLogLevel() {
 	d.logScroll = 0
 }
 
-// cycleTheme advances to the next theme in the registry and rebuilds styles.
+// cycleTheme advances to the next theme in themeOrder and rebuilds styles.
 func (d *Dashboard) cycleTheme() {
-	for i, t := range themeRegistry {
-		if t.Name == d.currentTheme.Name {
-			next := (i + 1) % len(themeRegistry)
-			d.currentTheme = &themeRegistry[next]
+	for i, label := range themeOrder {
+		if label == d.currentTheme.Label {
+			next := (i + 1) % len(themeOrder)
+			nextTheme := themeRegistry[themeOrder[next]]
+			d.currentTheme = &nextTheme
 			d.styles = NewStyles(d.currentTheme.Palette, d.isDark)
-			d.stats.message = fmt.Sprintf("Theme: %s", d.currentTheme.Name)
+			d.stats.message = fmt.Sprintf("Theme: %s", d.currentTheme.Label)
 			return
 		}
 	}
-	d.currentTheme = &themeRegistry[0]
+	// currentTheme not found in order — reset to first.
+	first := themeRegistry[themeOrder[0]]
+	d.currentTheme = &first
 	d.styles = NewStyles(d.currentTheme.Palette, d.isDark)
-	d.stats.message = fmt.Sprintf("Theme: %s", d.currentTheme.Name)
+	d.stats.message = fmt.Sprintf("Theme: %s", d.currentTheme.Label)
 }
 
 func (d *Dashboard) handleFormKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
@@ -741,7 +753,7 @@ func (d *Dashboard) View() tea.View {
 
 	var content string
 	if d.formMode != formNone && !d.showProviderModal {
-		content = renderForm(d, width, bodyHeight)
+		content = renderForm(d, width, bodyHeight, d.styles)
 	} else {
 		d.styleBody = d.activeTab != tabLog
 		switch d.activeTab {

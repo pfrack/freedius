@@ -1104,28 +1104,50 @@ func TestDashboard_CycleLogLevel(t *testing.T) {
 func TestDashboard_CycleTheme(t *testing.T) {
 	d := newTestDashboard(nil, "", 0, false)
 
-	if d.currentTheme.Name != "default" {
-		t.Fatalf("initial theme = %q, want 'default'", d.currentTheme.Name)
+	if d.currentTheme.Label != "default" {
+		t.Fatalf("initial theme = %q, want 'default'", d.currentTheme.Label)
 	}
 
 	d.cycleTheme()
-	if d.currentTheme.Name != "zenburn" {
-		t.Errorf("after cycle 1: Name = %q, want 'zenburn'", d.currentTheme.Name)
+	if d.currentTheme.Label != "zenburn" {
+		t.Errorf("after cycle 1: Label = %q, want 'zenburn'", d.currentTheme.Label)
 	}
 
 	d.cycleTheme()
-	if d.currentTheme.Name != "gruvbox-dark" {
-		t.Errorf("after cycle 2: Name = %q, want 'gruvbox-dark'", d.currentTheme.Name)
+	if d.currentTheme.Label != "gruvbox-dark" {
+		t.Errorf("after cycle 2: Label = %q, want 'gruvbox-dark'", d.currentTheme.Label)
 	}
 
 	d.cycleTheme()
-	if d.currentTheme.Name != "catppuccin-mocha" {
-		t.Errorf("after cycle 3: Name = %q, want 'catppuccin-mocha'", d.currentTheme.Name)
+	if d.currentTheme.Label != "catppuccin-mocha" {
+		t.Errorf("after cycle 3: Label = %q, want 'catppuccin-mocha'", d.currentTheme.Label)
 	}
 
 	d.cycleTheme()
-	if d.currentTheme.Name != "default" {
-		t.Errorf("after cycle 4 (wrap): Name = %q, want 'default'", d.currentTheme.Name)
+	if d.currentTheme.Label != "default" {
+		t.Errorf("after cycle 4 (wrap): Label = %q, want 'default'", d.currentTheme.Label)
+	}
+}
+
+func TestResolveTheme_UnknownFallsBackToDefault(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+	}{
+		{"empty string", ""},
+		{"typo", "zenburrn"},
+		{"unknown", "nonexistent"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			th := resolveTheme(tt.in)
+			if th == nil {
+				t.Fatal("resolveTheme returned nil")
+			}
+			if th.Label != "default" {
+				t.Errorf("resolveTheme(%q).Label = %q, want %q", tt.in, th.Label, "default")
+			}
+		})
 	}
 }
 

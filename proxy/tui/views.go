@@ -307,17 +307,17 @@ func fieldLabelsForMode(mode int) []string {
 	}
 }
 
-func renderForm(d *Dashboard, width, _ int) string {
+func renderForm(d *Dashboard, width, _ int, styles Styles) string {
 	if d.formMode == formDeleteConfirm {
-		return renderDeleteConfirm(d, width)
+		return renderDeleteConfirm(d, width, styles)
 	}
 
 	var b strings.Builder
-	b.WriteString(d.styles.WindowStyle.Render("Edit Configuration") + "\n\n")
+	b.WriteString(styles.WindowStyle.Render("Edit Configuration") + "\n\n")
 
 	labels := fieldLabelsForMode(d.formMode)
 	for i, label := range labels {
-		labelStr := d.styles.ConfigKeyStyle.Render(label + ":")
+		labelStr := styles.ConfigKeyStyle.Render(label + ":")
 		fieldView := d.formFields[i].View()
 
 		if d.showPicker && d.picker != nil {
@@ -330,26 +330,26 @@ func renderForm(d *Dashboard, width, _ int) string {
 		fmt.Fprintf(&b, "  %s\n  %s\n", labelStr, fieldView)
 
 		if errMsg, ok := d.fieldErrors[i]; ok {
-			fmt.Fprintf(&b, "  %s\n", d.styles.StatusErrorStyle.Render(errMsg))
+			fmt.Fprintf(&b, "  %s\n", styles.StatusErrorStyle.Render(errMsg))
 		}
 	}
 
 	if d.formError != "" {
-		fmt.Fprintf(&b, "\n  %s\n", d.styles.StatusErrorStyle.Render(d.formError))
+		fmt.Fprintf(&b, "\n  %s\n", styles.StatusErrorStyle.Render(d.formError))
 	}
 
 	b.WriteString("\n")
-	footer := d.styles.StatusClientErrStyle.Render("Enter=Save  Esc=Cancel  Tab=Next Field")
+	footer := styles.StatusClientErrStyle.Render("Enter=Save  Esc=Cancel  Tab=Next Field")
 	b.WriteString("  " + footer)
 
 	content := b.String()
-	return d.styles.WindowStyle.Width(max(width-2, 0)).Render(content)
+	return styles.WindowStyle.Width(max(width-2, 0)).Render(content)
 }
 
-func renderDeleteConfirm(d *Dashboard, width int) string {
+func renderDeleteConfirm(d *Dashboard, width int, styles Styles) string {
 	msg := fmt.Sprintf("Delete %s '%s'? [y/N]", d.formKind, d.formEntryName)
-	content := d.styles.StatusErrorStyle.Render(msg)
-	return d.styles.WindowStyle.Width(max(width-2, 0)).Render(content)
+	content := styles.StatusErrorStyle.Render(msg)
+	return styles.WindowStyle.Width(max(width-2, 0)).Render(content)
 }
 
 func modalWidthFor(terminalWidth int) int {
