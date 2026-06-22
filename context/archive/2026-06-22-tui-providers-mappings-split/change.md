@@ -1,9 +1,10 @@
 ---
 id: tui-providers-mappings-split
 title: "Split TUI Config tab into separate Providers and Mappings tabs"
-status: implemented
+status: archived
 created: 2026-06-22
 updated: 2026-06-22
+archived_at: 2026-06-22T11:52:15Z
 ---
 
 # Change: Split TUI Config tab into separate Providers and Mappings tabs
