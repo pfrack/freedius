@@ -190,6 +190,7 @@ func NewAttachDashboard(
 	theme := resolveTheme("")
 	return &Dashboard{
 		activeTab:       tabLog,
+		config:          &config.Config{},
 		events:          events,
 		logs:            logs,
 		logBuffer:       newRingBuffer[proxy.LogEntry](1000),
@@ -517,10 +518,10 @@ func (d *Dashboard) handleProvidersClick(y int) {
 	if start < 0 {
 		start = 0
 	}
-	idx := entryOffset/1 + start
+	idx := entryOffset + start
 	if idx >= 0 && idx < len(providers) {
 		d.providerCursor = idx
-		d.openEditProviderForm()
+		d.openEditProviderFormModal()
 	}
 }
 
@@ -659,27 +660,60 @@ func (d *Dashboard) handleDeleteConfirmKeyPress(msg tea.KeyPressMsg) (tea.Model,
 	switch msg.String() {
 	case "y":
 		d.config.Lock()
-		defer d.config.Unlock()
+
+		var (
+			saveNeeded bool
+			saveData   []byte
+			saveErr    error
+		)
+		type deleteRollbackFn func()
+		var rollback deleteRollbackFn
+
 		switch d.formKind {
 		case "provider":
 			old := d.config.Providers[d.formEntryName]
 			delete(d.config.Providers, d.formEntryName)
-			if d.cfgPath != "" {
-				if err := d.config.Save(d.cfgPath); err != nil {
+			saveNeeded = d.cfgPath != ""
+			if saveNeeded {
+				saveData, saveErr = d.config.Marshal()
+				rollback = func() {
 					d.config.Providers[d.formEntryName] = old
-					d.formError = fmt.Sprintf("save failed: %v", err)
 				}
 			}
 		case "mapping":
 			old := d.config.Mappings[d.formEntryName]
 			delete(d.config.Mappings, d.formEntryName)
-			if d.cfgPath != "" {
-				if err := d.config.Save(d.cfgPath); err != nil {
+			saveNeeded = d.cfgPath != ""
+			if saveNeeded {
+				saveData, saveErr = d.config.Marshal()
+				rollback = func() {
 					d.config.Mappings[d.formEntryName] = old
-					d.formError = fmt.Sprintf("save failed: %v", err)
 				}
 			}
 		}
+
+		d.config.Unlock()
+
+		if saveNeeded {
+			if saveErr != nil {
+				d.formError = fmt.Sprintf("save failed: %v", saveErr)
+				d.config.Lock()
+				if rollback != nil {
+					rollback()
+				}
+				d.config.Unlock()
+			} else {
+				if err := d.config.SaveData(d.cfgPath, saveData); err != nil {
+					d.formError = fmt.Sprintf("save failed: %v", err)
+					d.config.Lock()
+					if rollback != nil {
+						rollback()
+					}
+					d.config.Unlock()
+				}
+			}
+		}
+
 		d.resetForm()
 	case "n", "esc":
 		d.resetForm()
@@ -985,7 +1019,15 @@ func (d *Dashboard) submitForm() {
 	name := strings.TrimSpace(d.formFields[0].Value())
 
 	d.config.Lock()
-	defer d.config.Unlock()
+
+	var (
+		saveNeeded bool
+		saveData   []byte
+		saveErr    error
+	)
+	// Rollback captures the original state before mutation; called on save failure.
+	type rollbackFn func()
+	var rollback rollbackFn
 
 	switch d.formMode {
 	case formEditProvider:
@@ -996,13 +1038,14 @@ func (d *Dashboard) submitForm() {
 		}
 		delete(d.config.Providers, d.formEntryName)
 		d.config.Providers[name] = p
-		if d.cfgPath != "" {
-			if err := d.config.Save(d.cfgPath); err != nil {
+		saveNeeded = d.cfgPath != ""
+		if saveNeeded {
+			saveData, saveErr = d.config.Marshal()
+			rollback = func() {
 				delete(d.config.Providers, name)
 				if hadOld {
 					d.config.Providers[d.formEntryName] = oldP
 				}
-				d.formError = fmt.Sprintf("save failed: %v", err)
 			}
 		}
 	case formAddProvider:
@@ -1011,10 +1054,11 @@ func (d *Dashboard) submitForm() {
 			d.config.Providers = map[string]config.Provider{}
 		}
 		d.config.Providers[name] = p
-		if d.cfgPath != "" {
-			if err := d.config.Save(d.cfgPath); err != nil {
+		saveNeeded = d.cfgPath != ""
+		if saveNeeded {
+			saveData, saveErr = d.config.Marshal()
+			rollback = func() {
 				delete(d.config.Providers, name)
-				d.formError = fmt.Sprintf("save failed: %v", err)
 			}
 		}
 	case formEditMapping:
@@ -1025,13 +1069,14 @@ func (d *Dashboard) submitForm() {
 		}
 		delete(d.config.Mappings, d.formEntryName)
 		d.config.Mappings[name] = m
-		if d.cfgPath != "" {
-			if err := d.config.Save(d.cfgPath); err != nil {
+		saveNeeded = d.cfgPath != ""
+		if saveNeeded {
+			saveData, saveErr = d.config.Marshal()
+			rollback = func() {
 				delete(d.config.Mappings, name)
 				if hadOld {
 					d.config.Mappings[d.formEntryName] = oldM
 				}
-				d.formError = fmt.Sprintf("save failed: %v", err)
 			}
 		}
 	case formAddMapping:
@@ -1040,10 +1085,33 @@ func (d *Dashboard) submitForm() {
 			d.config.Mappings = map[string]config.Mapping{}
 		}
 		d.config.Mappings[name] = m
-		if d.cfgPath != "" {
-			if err := d.config.Save(d.cfgPath); err != nil {
+		saveNeeded = d.cfgPath != ""
+		if saveNeeded {
+			saveData, saveErr = d.config.Marshal()
+			rollback = func() {
 				delete(d.config.Mappings, name)
+			}
+		}
+	}
+
+	d.config.Unlock()
+
+	if saveNeeded {
+		if saveErr != nil {
+			d.formError = fmt.Sprintf("save failed: %v", saveErr)
+			d.config.Lock()
+			if rollback != nil {
+				rollback()
+			}
+			d.config.Unlock()
+		} else {
+			if err := d.config.SaveData(d.cfgPath, saveData); err != nil {
 				d.formError = fmt.Sprintf("save failed: %v", err)
+				d.config.Lock()
+				if rollback != nil {
+					rollback()
+				}
+				d.config.Unlock()
 			}
 		}
 	}

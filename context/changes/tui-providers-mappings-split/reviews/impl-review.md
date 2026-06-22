@@ -32,7 +32,7 @@
   - Tradeoff: None — modal path handles the same 6 fields with better UX.
   - Confidence: HIGH — identical pattern used at line 366 for Enter key.
   - Blind spot: None significant.
-- **Decision**: PENDING
+- **Decision**: FIXED
 
 ### F2 — Missing `TestDashboard_MouseClickProvidersTabEntry`
 
@@ -46,7 +46,7 @@
   - Tradeoff: Minor — a few lines of test code.
   - Confidence: HIGH
   - Blind spot: None.
-- **Decision**: PENDING
+- **Decision**: FIXED
 
 ### F3 — Missing `TestDashboard_ProvidersModal_BehaviorPicker`
 
@@ -60,7 +60,7 @@
   - Tradeoff: Minor test code addition.
   - Confidence: HIGH
   - Blind spot: None.
-- **Decision**: PENDING
+- **Decision**: FIXED
 
 ### F4 — Missing `TestDashboard_ProvidersModal_ProtocolPicker`
 
@@ -74,7 +74,7 @@
   - Tradeoff: Minor test code addition.
   - Confidence: HIGH
   - Blind spot: None.
-- **Decision**: PENDING
+- **Decision**: FIXED
 
 ### F5 — Nil config dereference in attach mode
 
@@ -97,7 +97,7 @@
   - Tradeoff: Many guard points to add; easy to miss one in future changes.
   - Confidence: MEDIUM — high touch surface, regression risk.
   - Blind spot: New config-accessing code in future changes still needs guards.
-- **Decision**: PENDING
+- **Decision**: FIXED
 
 ### F6 — Write lock held during file I/O
 
@@ -111,7 +111,7 @@
   - Tradeoff: Non-trivial refactor; the Save currently reads `d.config.Providers`/`d.config.Mappings` which are safe to snapshot.
   - Confidence: MEDIUM — the `ProvidersSnapshot()`/`MappingsSnapshot()` pattern already exists.
   - Blind spot: Ensures no concurrent modifications between release and Save.
-- **Decision**: PENDING
+- **Decision**: FIXED
 
 ### F7 — No-op division by 1 in index calculation
 
@@ -125,7 +125,7 @@
   - Tradeoff: None.
   - Confidence: HIGH
   - Blind spot: None.
-- **Decision**: PENDING
+- **Decision**: FIXED
 
 ### F8 — Stale comment references `collectAllEntries`
 
@@ -139,4 +139,4 @@
   - Tradeoff: None.
   - Confidence: HIGH
   - Blind spot: None.
-- **Decision**: PENDING
+- **Decision**: FIXED

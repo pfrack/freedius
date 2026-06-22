@@ -1432,3 +1432,101 @@ func TestDashboard_ProvidersModal_DetachModeBlocked(t *testing.T) {
 		t.Error("detach mode should block modal from opening")
 	}
 }
+
+func TestDashboard_MouseClickProvidersTabEntry(t *testing.T) {
+	cfg := &config.Config{
+		Providers: map[string]config.Provider{
+			"nim": {Behavior: "openai"},
+		},
+	}
+	d := newTestDashboard(cfg, "", 0, false)
+	d.activeTab = tabProviders
+	d.width = 80
+	d.height = 24
+	d.providerCursor = 0
+
+	// Body starts at Y=1. Header is 2 lines (title + separator).
+	// First provider row starts at Y=1+2=3.
+	d.Update(tea.MouseClickMsg{X: 10, Y: 3, Button: tea.MouseLeft})
+	if !d.showProviderModal {
+		t.Error("expected modal to open after clicking provider row")
+	}
+}
+
+func TestDashboard_ProvidersModal_BehaviorPicker(t *testing.T) {
+	cfg := &config.Config{
+		Providers: map[string]config.Provider{
+			"test": {Behavior: "openai"},
+		},
+	}
+	d := newTestDashboard(cfg, "", 0, false)
+	d.activeTab = tabProviders
+	d.providerCursor = 0
+
+	d.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if !d.showProviderModal {
+		t.Fatal("expected modal to open")
+	}
+
+	// Tab to behavior field (index 1).
+	for d.formFocus < 1 {
+		d.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	}
+
+	d.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if !d.showPicker {
+		t.Fatal("expected picker to open on behavior field")
+	}
+
+	// Select "mix" (index 2).
+	d.picker.list.Select(2)
+	_, cmd := d.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if cmd != nil {
+		if msg := cmd(); msg != nil {
+			d.Update(msg)
+		}
+	}
+
+	if d.formFields[1].Value() != "mix" {
+		t.Errorf("behavior field = %q, want 'mix'", d.formFields[1].Value())
+	}
+}
+
+func TestDashboard_ProvidersModal_ProtocolPicker(t *testing.T) {
+	cfg := &config.Config{
+		Providers: map[string]config.Provider{
+			"test": {Behavior: "openai"},
+		},
+	}
+	d := newTestDashboard(cfg, "", 0, false)
+	d.activeTab = tabProviders
+	d.providerCursor = 0
+
+	d.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if !d.showProviderModal {
+		t.Fatal("expected modal to open")
+	}
+
+	// Tab to protocol field (index 5).
+	for d.formFocus < 5 {
+		d.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	}
+
+	d.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if !d.showPicker {
+		t.Fatal("expected picker to open on protocol field")
+	}
+
+	// Select "anthropic" (index 2 in protocol picker: "", "openai", "anthropic").
+	d.picker.list.Select(2)
+	_, cmd := d.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if cmd != nil {
+		if msg := cmd(); msg != nil {
+			d.Update(msg)
+		}
+	}
+
+	if d.formFields[5].Value() != "anthropic" {
+		t.Errorf("protocol field = %q, want 'anthropic'", d.formFields[5].Value())
+	}
+}

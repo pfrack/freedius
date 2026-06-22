@@ -263,7 +263,7 @@ func collectMappingEntries(cfg *config.Config) []configEntry {
 
 // findEntryIndex returns the index of the entry with the given name and kind,
 // or -1 if not found. Use this in tests instead of hardcoding cursor positions
-// so the test survives changes to the sort order in collectAllEntries.
+// so the test survives changes to the sort order in collectMappingEntries.
 func findEntryIndex(cfg *config.Config, name, kind string) int {
 	for i, e := range collectMappingEntries(cfg) {
 		if e.name == name && e.kind == kind {
