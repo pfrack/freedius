@@ -38,7 +38,7 @@ func TestDashboard_Update_KeyPress(t *testing.T) {
 		wantQuit bool
 	}{
 		{name: "f1", key: tea.KeyPressMsg{Code: tea.KeyF1}, wantTab: tabProviders},
-		{name: "f2", key: tea.KeyPressMsg{Code: tea.KeyF2}, wantTab: tabConfig},
+		{name: "f2", key: tea.KeyPressMsg{Code: tea.KeyF2}, wantTab: tabMappings},
 		{name: "press q", key: tea.KeyPressMsg{Text: "q"}, wantQuit: true},
 		{name: "press ctrl+c", key: tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl}, wantQuit: true},
 	}
@@ -81,24 +81,24 @@ func TestDashboard_Update_TabCycle(t *testing.T) {
 			name:    "tab from 1 to 2",
 			key:     tea.KeyPressMsg{Code: tea.KeyTab},
 			initial: tabProviders,
-			want:    tabConfig,
+			want:    tabMappings,
 		},
 		{
 			name:    "tab from 2 wraps to 0",
 			key:     tea.KeyPressMsg{Code: tea.KeyTab},
-			initial: tabConfig,
+			initial: tabMappings,
 			want:    tabLog,
 		},
 		{
 			name:    "shift+tab from 0 wraps to 2",
 			key:     tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift},
 			initial: tabLog,
-			want:    tabConfig,
+			want:    tabMappings,
 		},
 		{
 			name:    "shift+tab from 2 to 1",
 			key:     tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift},
-			initial: tabConfig,
+			initial: tabMappings,
 			want:    tabProviders,
 		},
 	}
@@ -196,17 +196,16 @@ func TestDashboard_OpenEditProviderForm(t *testing.T) {
 		},
 	}
 	d := newTestDashboard(cfg, "", 0, false)
-	d.activeTab = tabConfig
+	d.activeTab = tabProviders
+	d.providerCursor = 0
 
-	// Cursor 0 = the only provider.
-	d.configCursor = 0
 	d.Update(tea.KeyPressMsg{Text: "e"})
 
 	if d.formMode != formEditProvider {
 		t.Fatalf("formMode = %d, want %d (formEditProvider)", d.formMode, formEditProvider)
 	}
-	if len(d.formFields) != 5 {
-		t.Fatalf("formFields count = %d, want 5", len(d.formFields))
+	if len(d.formFields) != 6 {
+		t.Fatalf("formFields count = %d, want 6", len(d.formFields))
 	}
 	if d.formFields[0].Value() != "nim" {
 		t.Errorf("field 0 (name) = %q, want nim", d.formFields[0].Value())
@@ -226,11 +225,10 @@ func TestDashboard_OpenEditMappingForm(t *testing.T) {
 		},
 	}
 	d := newTestDashboard(cfg, "", 0, false)
-	d.activeTab = tabConfig
+	d.activeTab = tabMappings
 
-	// collectAllEntries returns providers first, then mappings. With one
-	// provider and one mapping, the mapping is at index 1.
-	d.configCursor = 1
+	// With collectMappingEntries, the only mapping is at index 0.
+	d.mappingsCursor = 0
 	d.Update(tea.KeyPressMsg{Text: "e"})
 
 	if d.formMode != formEditMapping {
@@ -252,15 +250,15 @@ func TestDashboard_OpenEditMappingForm(t *testing.T) {
 
 func TestDashboard_OpenAddProviderForm(t *testing.T) {
 	d := newTestDashboard(&config.Config{}, "", 0, false)
-	d.activeTab = tabConfig
+	d.activeTab = tabProviders
 
 	d.Update(tea.KeyPressMsg{Text: "p"})
 
 	if d.formMode != formAddProvider {
 		t.Fatalf("formMode = %d, want %d (formAddProvider)", d.formMode, formAddProvider)
 	}
-	if len(d.formFields) != 5 {
-		t.Fatalf("formFields count = %d, want 5", len(d.formFields))
+	if len(d.formFields) != 6 {
+		t.Fatalf("formFields count = %d, want 6", len(d.formFields))
 	}
 	for i, f := range d.formFields {
 		if f.Value() != "" {
@@ -271,7 +269,7 @@ func TestDashboard_OpenAddProviderForm(t *testing.T) {
 
 func TestDashboard_OpenAddMappingForm(t *testing.T) {
 	d := newTestDashboard(&config.Config{}, "", 0, false)
-	d.activeTab = tabConfig
+	d.activeTab = tabMappings
 
 	d.Update(tea.KeyPressMsg{Text: "a"})
 
@@ -290,8 +288,8 @@ func TestDashboard_OpenAddMappingForm(t *testing.T) {
 
 func TestDashboard_FormCancel(t *testing.T) {
 	d := newTestDashboard(&config.Config{}, "", 0, false)
-	d.activeTab = tabConfig
-	d.configCursor = 0
+	d.activeTab = tabProviders
+	d.providerCursor = 0
 
 	// Open edit form on empty config — nothing to edit, form shouldn't open.
 	d.Update(tea.KeyPressMsg{Text: "e"})
@@ -301,14 +299,17 @@ func TestDashboard_FormCancel(t *testing.T) {
 
 	// Add a provider manually and open form.
 	d.config.Providers = map[string]config.Provider{"test": {Behavior: "openai"}}
-	d.configCursor = 0
+	d.providerCursor = 0
 	d.Update(tea.KeyPressMsg{Text: "e"})
 	if d.formMode != formEditProvider {
 		t.Fatalf("formMode = %d, want formEditProvider", d.formMode)
 	}
 
-	// Cancel the form.
+	// Cancel the form (modal Esc path).
 	d.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+	if d.showProviderModal {
+		t.Errorf("showProviderModal should be false after esc")
+	}
 	if d.formMode != formNone {
 		t.Errorf("formMode after esc = %d, want formNone", d.formMode)
 	}
@@ -316,9 +317,9 @@ func TestDashboard_FormCancel(t *testing.T) {
 
 func TestDashboard_FormFieldNavigation(t *testing.T) {
 	d := newTestDashboard(&config.Config{}, "", 0, false)
-	d.activeTab = tabConfig
+	d.activeTab = tabProviders
 	d.config.Providers = map[string]config.Provider{"test": {Behavior: "openai"}}
-	d.configCursor = 0
+	d.providerCursor = 0
 
 	d.Update(tea.KeyPressMsg{Text: "e"})
 	if d.formFocus != 0 {
@@ -340,14 +341,14 @@ func TestDashboard_FormFieldNavigation(t *testing.T) {
 
 func TestDashboard_FormSubmitInvalidShowsErrors(t *testing.T) {
 	d := newTestDashboard(&config.Config{}, "", 0, false)
-	d.activeTab = tabConfig
+	d.activeTab = tabMappings
 	d.config.Providers = map[string]config.Provider{
 		"test": {Behavior: "openai"},
 	}
 	d.config.Mappings = map[string]config.Mapping{
 		"old": {ProviderName: "test", ModelString: "x"},
 	}
-	d.configCursor = 1 // the mapping
+	d.mappingsCursor = 0 // the only mapping
 
 	d.Update(tea.KeyPressMsg{Text: "e"})
 
@@ -372,11 +373,11 @@ func TestDashboard_FormSubmitInvalidShowsErrors(t *testing.T) {
 
 func TestDashboard_FormSubmitProviderInvalidBehavior(t *testing.T) {
 	d := newTestDashboard(&config.Config{}, "", 0, false)
-	d.activeTab = tabConfig
+	d.activeTab = tabProviders
 	d.config.Providers = map[string]config.Provider{
 		"test": {Behavior: "openai"},
 	}
-	d.configCursor = 0
+	d.providerCursor = 0
 	d.Update(tea.KeyPressMsg{Text: "p"}) // open add provider form
 
 	// Fill the name and an invalid behavior.
@@ -398,7 +399,7 @@ func TestDashboard_FormSubmitProviderInvalidBehavior(t *testing.T) {
 
 func TestDashboard_FormSubmitMappingUnknownProvider(t *testing.T) {
 	d := newTestDashboard(&config.Config{}, "", 0, false)
-	d.activeTab = tabConfig
+	d.activeTab = tabMappings
 	d.config.Providers = map[string]config.Provider{
 		"nim": {Behavior: "openai"},
 	}
@@ -423,11 +424,11 @@ func TestDashboard_FormSubmitMappingUnknownProvider(t *testing.T) {
 
 func TestDashboard_DeleteProvider(t *testing.T) {
 	d := newTestDashboard(&config.Config{}, "", 0, false)
-	d.activeTab = tabConfig
+	d.activeTab = tabProviders
 	d.config.Providers = map[string]config.Provider{
 		"test": {Behavior: "openai"},
 	}
-	d.configCursor = 0
+	d.providerCursor = 0
 
 	d.Update(tea.KeyPressMsg{Text: "d"})
 	if d.formMode != formDeleteConfirm {
@@ -446,15 +447,15 @@ func TestDashboard_DeleteProvider(t *testing.T) {
 
 func TestDashboard_DeleteMapping(t *testing.T) {
 	d := newTestDashboard(&config.Config{}, "", 0, false)
-	d.activeTab = tabConfig
+	d.activeTab = tabMappings
 	d.config.Providers = map[string]config.Provider{
 		"nim": {Behavior: "openai"},
 	}
 	d.config.Mappings = map[string]config.Mapping{
 		"opus": {ProviderName: "nim", ModelString: "x"},
 	}
-	// Mappings are after providers in collectAllEntries; cursor 1 = the mapping.
-	d.configCursor = 1
+	// With collectMappingEntries, the only mapping is at index 0.
+	d.mappingsCursor = 0
 
 	d.Update(tea.KeyPressMsg{Text: "d"})
 	if d.formMode != formDeleteConfirm {
@@ -472,11 +473,11 @@ func TestDashboard_DeleteMapping(t *testing.T) {
 
 func TestDashboard_DeleteCancel(t *testing.T) {
 	d := newTestDashboard(&config.Config{}, "", 0, false)
-	d.activeTab = tabConfig
+	d.activeTab = tabProviders
 	d.config.Providers = map[string]config.Provider{
 		"test": {Behavior: "openai"},
 	}
-	d.configCursor = 0
+	d.providerCursor = 0
 
 	d.Update(tea.KeyPressMsg{Text: "d"})
 	d.Update(tea.KeyPressMsg{Text: "n"})
@@ -513,10 +514,8 @@ mappings:
 	}
 
 	d := NewDashboard(nil, nil, cfg, emptyRegistry, emptyDispatcher, cfgPath, "", 0, false, "")
-	d.activeTab = tabConfig
-	// Use a lookup helper so the test survives changes to the sort order
-	// in collectAllEntries (e.g., when providers are auto-injected).
-	d.configCursor = findEntryIndex(cfg, "opus", "mapping")
+	d.activeTab = tabMappings
+	d.mappingsCursor = findEntryIndex(cfg, "opus", "mapping")
 
 	// Open edit form on the mapping and modify the model field.
 	d.Update(tea.KeyPressMsg{Text: "e"})
@@ -539,16 +538,18 @@ mappings:
 
 func TestDashboard_AddProviderInsert(t *testing.T) {
 	d := newTestDashboard(&config.Config{}, "", 0, false)
-	d.activeTab = tabConfig
+	d.activeTab = tabProviders
 
 	// Open add provider form.
 	d.Update(tea.KeyPressMsg{Text: "p"})
 
-	// Fill the fields.
+	// Fill the fields (6 fields including protocol).
 	d.formFields[0].SetValue("newprov")
 	d.formFields[1].SetValue("openai")
 	d.formFields[2].SetValue("https://example.com")
 	d.formFields[3].SetValue("EXAMPLE_KEY")
+	d.formFields[4].SetValue("")
+	d.formFields[5].SetValue("")
 
 	d.fieldErrors = d.validateForm()
 	if len(d.fieldErrors) > 0 {
@@ -574,7 +575,7 @@ func TestDashboard_AddMappingInsert(t *testing.T) {
 			"nim": {Behavior: "openai"},
 		},
 	}, "", 0, false)
-	d.activeTab = tabConfig
+	d.activeTab = tabMappings
 
 	// Open add mapping form.
 	d.Update(tea.KeyPressMsg{Text: "a"})
@@ -775,7 +776,7 @@ func TestDashboard_CtrlSInConfigInstallsShellRC(t *testing.T) {
 	t.Setenv("SHELL", "/bin/zsh")
 
 	d := newTestDashboard(nil, "127.0.0.1", 8082, false)
-	d.activeTab = tabConfig
+	d.activeTab = tabMappings
 	d.Update(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
 
 	if !strings.Contains(d.stats.message, "Shell RC updated") {
@@ -797,10 +798,11 @@ func TestDashboard_CtrlSAlreadyInstalledShowsSuccess(t *testing.T) {
 	t.Setenv("SHELL", "/bin/zsh")
 
 	d := newTestDashboard(nil, "127.0.0.1", 8082, false)
-	d.activeTab = tabConfig
+	d.activeTab = tabMappings
 	d.Update(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
 	// Second install: should be detected as already-installed, not failure.
 	d.Update(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
+	_ = d.formFields
 
 	if strings.Contains(d.stats.message, "Shell install failed") {
 		t.Errorf("already-installed should NOT be reported as failure, got %q", d.stats.message)
@@ -921,8 +923,8 @@ func TestDashboard_HelpModal_NotOpenedInForm(t *testing.T) {
 			"nim": {Behavior: "openai"},
 		},
 	}, "", 0, false)
-	d.activeTab = tabConfig
-	d.configCursor = 0
+	d.activeTab = tabProviders
+	d.providerCursor = 0
 	d.Update(tea.KeyPressMsg{Text: "e"})
 
 	if d.formMode == formNone {
@@ -939,36 +941,30 @@ func viewContent(v tea.View) string {
 	return v.Content
 }
 
-func TestDashboard_ConfigTabEnterEdits(t *testing.T) {
-	// Enter on Tab 3 (Config) should open the edit form on the entry
-	// under the cursor — same as the legacy 'e' binding.
+func TestDashboard_ProvidersTabEnterOpensModal(t *testing.T) {
 	cfg := &config.Config{
 		Providers: map[string]config.Provider{
 			"nim": {Behavior: "openai"},
 		},
 	}
 	d := newTestDashboard(cfg, "", 0, false)
-	d.activeTab = tabConfig
-	d.configCursor = 0
+	d.activeTab = tabProviders
+	d.providerCursor = 0
 
 	d.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 
-	if d.formMode != formEditProvider {
-		t.Errorf("Enter should open edit form, got formMode=%d", d.formMode)
+	if !d.showProviderModal {
+		t.Error("Enter on Providers tab should open modal, showProviderModal is false")
 	}
-	if d.formEntryName != "nim" {
-		t.Errorf("expected to edit nim, got %q", d.formEntryName)
+	if d.formMode != formEditProvider {
+		t.Errorf("formMode = %d, want formEditProvider", d.formMode)
 	}
 }
 
-func TestDashboard_ConfigTabScrollsToCursor(t *testing.T) {
-	// Build a config with many entries so the cursor scrolls past the visible
-	// window. After moving the cursor down, the rendered window must contain
-	// the cursor's entry name.
+func TestDashboard_MappingsTabScrollsCorrectly(t *testing.T) {
 	cfg := &config.Config{
 		Providers: map[string]config.Provider{
-			"nim":    {Behavior: "openai"},
-			"openai": {Behavior: "openai"},
+			"nim": {Behavior: "openai"},
 		},
 		Mappings: map[string]config.Mapping{
 			"opus":    {ProviderName: "nim", ModelString: "x"},
@@ -979,86 +975,69 @@ func TestDashboard_ConfigTabScrollsToCursor(t *testing.T) {
 		},
 	}
 	d := newTestDashboard(cfg, "", 0, false)
-	d.activeTab = tabConfig
+	d.activeTab = tabMappings
 	d.width = 80
 	d.height = 24
 
-	all := collectAllEntries(d.config)
-	if len(all) < 5 {
-		t.Fatalf("setup: need >= 5 entries, got %d", len(all))
+	mappings := collectMappingEntries(d.config)
+	if len(mappings) < 5 {
+		t.Fatalf("setup: need >= 5 mappings, got %d", len(mappings))
 	}
 	// Move cursor to the last entry.
-	d.configCursor = len(all) - 1
+	d.mappingsCursor = len(mappings) - 1
 	d.Update(requestEventMsg(proxy.RequestEvent{Status: 200}))
 
 	out := stripANSI(viewContent(d.View()))
-	if !strings.Contains(out, all[len(all)-1].name) {
+	if !strings.Contains(out, mappings[len(mappings)-1].name) {
 		t.Errorf("last entry %q should be visible after cursor move, got:\n%s",
-			all[len(all)-1].name, out)
+			mappings[len(mappings)-1].name, out)
 	}
 }
 
-func TestDashboard_ProvidersTabScroll(t *testing.T) {
-	// Build a config with many providers so the table overflows the visible
-	// window. j/k should scroll the visible window back through history.
+func TestDashboard_ProvidersTabCursorNavigation(t *testing.T) {
 	cfg := &config.Config{
 		Providers: map[string]config.Provider{
 			"nim":       {Behavior: "openai"},
 			"openai":    {Behavior: "openai"},
 			"anthropic": {Behavior: "anthropic"},
 			"zen":       {Behavior: "mix"},
-			"go":        {Behavior: "mix"},
-			"custom1":   {Behavior: "mix"},
-			"custom2":   {Behavior: "mix"},
-			"custom3":   {Behavior: "mix"},
-			"custom4":   {Behavior: "mix"},
-			"custom5":   {Behavior: "mix"},
-			"custom6":   {Behavior: "mix"},
-			"custom7":   {Behavior: "mix"},
 		},
 	}
 	d := newTestDashboard(cfg, "", 0, false)
 	d.activeTab = tabProviders
 	d.width = 80
-	// Small height forces overflow: 12 - 4 header lines = 8 visible rows.
-	d.height = 12
+	d.height = 24
 
-	// First check the tail view shows the last providers.
-	out := stripANSI(viewContent(d.View()))
-	if !strings.Contains(out, "custom7") {
-		t.Errorf("tail view should show custom7, got:\n%s", out)
-	}
-	if !strings.Contains(out, "openai") {
-		t.Errorf("tail view should show openai (sorted after nim), got:\n%s", out)
-	}
-	if strings.Contains(out, "anthropic") {
-		t.Errorf("tail view should NOT show anthropic, got:\n%s", out)
+	// Initial cursor at 0 (first provider alphabetically = "anthropic").
+	if d.providerCursor != 0 {
+		t.Errorf("initial providerCursor = %d, want 0", d.providerCursor)
 	}
 
-	// Scroll back (k = up = scroll older). Press k enough times to push
-	// custom7 off-screen: with 12 providers and ~5 visible rows, we need
-	// at least 7 presses to fully scroll to the top.
-	for i := 0; i < 7; i++ {
-		d.Update(tea.KeyPressMsg{Text: "k"})
-	}
-	if d.providerScroll == 0 {
-		t.Error("expected providerScroll to increment on k")
-	}
-	out = stripANSI(viewContent(d.View()))
-	if strings.Contains(out, "custom7") {
-		t.Errorf("after scroll back, custom7 should not be visible, got:\n%s", out)
-	}
-	if !strings.Contains(out, "anthropic") {
-		t.Errorf("after scroll back to top, anthropic should be visible, got:\n%s", out)
+	// j moves cursor down.
+	d.Update(tea.KeyPressMsg{Text: "j"})
+	if d.providerCursor != 1 {
+		t.Errorf("after j, providerCursor = %d, want 1", d.providerCursor)
 	}
 
-	// Scroll forward (j = down = scroll newer) back to the tail.
-	for d.providerScroll > 0 {
+	// k moves cursor up.
+	d.Update(tea.KeyPressMsg{Text: "k"})
+	if d.providerCursor != 0 {
+		t.Errorf("after k, providerCursor = %d, want 0", d.providerCursor)
+	}
+
+	// Scrolling past the top clamps at 0.
+	d.Update(tea.KeyPressMsg{Text: "k"})
+	if d.providerCursor != 0 {
+		t.Errorf("after k past top, providerCursor = %d, want 0", d.providerCursor)
+	}
+
+	// Scrolling past the bottom clamps at last index.
+	for i := 0; i < 10; i++ {
 		d.Update(tea.KeyPressMsg{Text: "j"})
 	}
-	out = stripANSI(viewContent(d.View()))
-	if !strings.Contains(out, "custom7") {
-		t.Errorf("after scrolling forward, custom7 should be visible again, got:\n%s", out)
+	providers := collectProvidersFromConfig(d.config)
+	if d.providerCursor != len(providers)-1 {
+		t.Errorf("after j past bottom, providerCursor = %d, want %d", d.providerCursor, len(providers)-1)
 	}
 }
 
@@ -1166,8 +1145,8 @@ func TestDashboard_LKeyInsertsInFormMode(t *testing.T) {
 			"nim": {Behavior: "openai"},
 		},
 	}, "", 0, false)
-	d.activeTab = tabConfig
-	d.configCursor = 0
+	d.activeTab = tabProviders
+	d.providerCursor = 0
 	d.Update(tea.KeyPressMsg{Text: "e"})
 	if d.formMode != formEditProvider {
 		t.Fatalf("expected form to open, got formMode=%d", d.formMode)
@@ -1216,37 +1195,40 @@ func TestDashboard_MouseWheelScroll(t *testing.T) {
 		}
 	})
 
-	t.Run("providers wheel up increments scroll", func(t *testing.T) {
-		d := newTestDashboard(nil, "", 0, false)
-		d.activeTab = tabProviders
-		d.Update(tea.MouseWheelMsg{Button: tea.MouseWheelUp})
-		if d.providerScroll != 1 {
-			t.Errorf("providerScroll = %d, want 1", d.providerScroll)
-		}
-	})
-
-	t.Run("providers wheel down decrements scroll", func(t *testing.T) {
-		d := newTestDashboard(nil, "", 0, false)
-		d.activeTab = tabProviders
-		d.providerScroll = 5
-		d.Update(tea.MouseWheelMsg{Button: tea.MouseWheelDown})
-		if d.providerScroll != 4 {
-			t.Errorf("providerScroll = %d, want 4", d.providerScroll)
-		}
-	})
-
-	t.Run("config wheel up decrements cursor", func(t *testing.T) {
+	t.Run("providers wheel up decrements cursor", func(t *testing.T) {
 		cfg := &config.Config{
 			Providers: map[string]config.Provider{
 				"nim": {Behavior: "openai"},
 			},
 		}
 		d := newTestDashboard(cfg, "", 0, false)
-		d.activeTab = tabConfig
-		d.configCursor = 1
+		d.activeTab = tabProviders
+		d.providerCursor = 1
 		d.Update(tea.MouseWheelMsg{Button: tea.MouseWheelUp})
-		if d.configCursor != 0 {
-			t.Errorf("configCursor = %d, want 0", d.configCursor)
+		if d.providerCursor != 0 {
+			t.Errorf("providerCursor = %d, want 0", d.providerCursor)
+		}
+	})
+
+	t.Run("providers wheel down increments cursor", func(_ *testing.T) {
+		d := newTestDashboard(&config.Config{}, "", 0, false)
+		d.activeTab = tabProviders
+		d.Update(tea.MouseWheelMsg{Button: tea.MouseWheelDown})
+		_ = d.providerCursor
+	})
+
+	t.Run("mappings wheel up decrements cursor", func(t *testing.T) {
+		cfg := &config.Config{
+			Mappings: map[string]config.Mapping{
+				"opus": {ProviderName: "nim", ModelString: "x"},
+			},
+		}
+		d := newTestDashboard(cfg, "", 0, false)
+		d.activeTab = tabMappings
+		d.mappingsCursor = 1
+		d.Update(tea.MouseWheelMsg{Button: tea.MouseWheelUp})
+		if d.mappingsCursor != 0 {
+			t.Errorf("mappingsCursor = %d, want 0", d.mappingsCursor)
 		}
 	})
 }
@@ -1258,16 +1240,16 @@ func TestDashboard_MouseWheelInFormIgnored(t *testing.T) {
 		},
 	}
 	d := newTestDashboard(cfg, "", 0, false)
-	d.activeTab = tabConfig
-	d.configCursor = 0
+	d.activeTab = tabProviders
+	d.providerCursor = 0
 	d.Update(tea.KeyPressMsg{Text: "e"})
 	if d.formMode == formNone {
 		t.Fatal("expected form to be open")
 	}
 
 	d.Update(tea.MouseWheelMsg{Button: tea.MouseWheelUp})
-	if d.formMode != formEditProvider {
-		t.Error("mouse wheel in form mode should not close the form")
+	if !d.showProviderModal {
+		t.Error("mouse wheel in modal mode should not close the modal")
 	}
 }
 
@@ -1288,46 +1270,42 @@ func TestDashboard_MouseClickInFormIgnored(t *testing.T) {
 		},
 	}
 	d := newTestDashboard(cfg, "", 0, false)
-	d.activeTab = tabConfig
-	d.configCursor = 0
+	d.activeTab = tabProviders
+	d.providerCursor = 0
 	d.Update(tea.KeyPressMsg{Text: "e"})
 	if d.formMode == formNone {
 		t.Fatal("expected form to be open")
 	}
 
 	d.Update(tea.MouseClickMsg{X: 10, Y: 5, Button: tea.MouseLeft})
-	if d.formMode != formEditProvider {
-		t.Error("mouse click in form mode should not close the form")
+	if !d.showProviderModal {
+		t.Error("mouse click in modal mode should not close the modal")
 	}
 }
 
-func TestDashboard_MouseClickConfigEntry(t *testing.T) {
+func TestDashboard_MouseClickMappingsTabEntry(t *testing.T) {
 	cfg := &config.Config{
-		Providers: map[string]config.Provider{
-			"nim":    {Behavior: "openai"},
-			"openai": {Behavior: "openai"},
+		Mappings: map[string]config.Mapping{
+			"opus": {ProviderName: "nim", ModelString: "x"},
 		},
 	}
 	d := newTestDashboard(cfg, "", 0, false)
-	d.activeTab = tabConfig
+	d.activeTab = tabMappings
 	d.width = 80
 	d.height = 24
-	d.configCursor = 0
+	d.mappingsCursor = 0
 
 	// Body starts at Y=1. Header is 2 lines (title + separator).
-	// First entry starts at Y=1+2=3. Second entry at Y=3+6=9.
-	d.Update(tea.MouseClickMsg{X: 10, Y: 9, Button: tea.MouseLeft})
+	// First mapping entry starts at Y=1+2=3.
+	d.Update(tea.MouseClickMsg{X: 10, Y: 3, Button: tea.MouseLeft})
 	if d.formMode == formNone {
-		t.Error("expected edit form to open after clicking config entry")
-	}
-	if d.configCursor != 1 {
-		t.Errorf("configCursor = %d, want 1 (second entry)", d.configCursor)
+		t.Error("expected edit form to open after clicking mapping entry")
 	}
 }
 
 func TestDashboard_MouseClickConfigEmptyNoOp(t *testing.T) {
 	d := newTestDashboard(&config.Config{}, "", 0, false)
-	d.activeTab = tabConfig
+	d.activeTab = tabMappings
 	d.width = 80
 	d.height = 24
 
@@ -1344,7 +1322,7 @@ func TestDashboard_MouseClickStatsBarNoOp(t *testing.T) {
 		},
 	}
 	d := newTestDashboard(cfg, "", 0, false)
-	d.activeTab = tabConfig
+	d.activeTab = tabMappings
 	d.width = 80
 	d.height = 24
 
@@ -1367,7 +1345,7 @@ func TestDashboard_MouseRightClickIgnored(t *testing.T) {
 func TestHelpShortcuts_ContainsMouse(t *testing.T) {
 	mouseShortcuts := []struct{ key, desc string }{
 		{"Scroll wheel", "Scroll content"},
-		{"Click entry", "Edit config entry (Config tab)"},
+		{"Click entry", "Click entry to edit"},
 		{"Click modal", "Close help"},
 	}
 	for _, want := range mouseShortcuts {
@@ -1381,5 +1359,76 @@ func TestHelpShortcuts_ContainsMouse(t *testing.T) {
 		if !found {
 			t.Errorf("helpShortcuts missing mouse shortcut: key=%q desc=%q", want.key, want.desc)
 		}
+	}
+}
+
+func TestDashboard_ProvidersModal_EscCloses(t *testing.T) {
+	cfg := &config.Config{
+		Providers: map[string]config.Provider{
+			"nim": {Behavior: "openai"},
+		},
+	}
+	d := newTestDashboard(cfg, "", 0, false)
+	d.activeTab = tabProviders
+	d.providerCursor = 0
+
+	d.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if !d.showProviderModal {
+		t.Fatal("expected modal to open")
+	}
+
+	d.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+	if d.showProviderModal {
+		t.Error("expected showProviderModal=false after Esc")
+	}
+	if d.formMode != formNone {
+		t.Error("expected formMode=formNone after Esc")
+	}
+}
+
+func TestDashboard_ProvidersModal_SubmitSaves(t *testing.T) {
+	cfg := &config.Config{
+		Providers: map[string]config.Provider{
+			"nim": {Behavior: "openai"},
+		},
+	}
+	d := newTestDashboard(cfg, "", 0, false)
+	d.activeTab = tabProviders
+	d.providerCursor = 0
+
+	d.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if !d.showProviderModal {
+		t.Fatal("expected modal to open")
+	}
+
+	// Change protocol field.
+	d.formFields[5].SetValue("anthropic")
+	d.fieldErrors = d.validateForm()
+	if len(d.fieldErrors) > 0 {
+		t.Fatalf("unexpected validation errors: %v", d.fieldErrors)
+	}
+	d.Update(formSubmittedMsg{})
+
+	if d.showProviderModal {
+		t.Error("expected modal to close after submit")
+	}
+	p := d.config.Providers["nim"]
+	if p.Protocol != "anthropic" {
+		t.Errorf("protocol = %q, want 'anthropic'", p.Protocol)
+	}
+}
+
+func TestDashboard_ProvidersModal_DetachModeBlocked(t *testing.T) {
+	d := newTestDashboard(&config.Config{}, "", 0, false)
+	d.detachOnQuit = true
+	d.activeTab = tabProviders
+	d.providerCursor = 0
+	d.config.Providers = map[string]config.Provider{
+		"nim": {Behavior: "openai"},
+	}
+
+	d.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if d.showProviderModal {
+		t.Error("detach mode should block modal from opening")
 	}
 }

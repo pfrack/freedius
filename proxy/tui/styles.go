@@ -199,7 +199,7 @@ func NewStyles(p Palette, isDark bool) Styles {
 const (
 	tabLog       = 0
 	tabProviders = 1
-	tabConfig    = 2
+	tabMappings  = 2
 )
 
 const (

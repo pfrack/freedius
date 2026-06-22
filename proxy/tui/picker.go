@@ -79,6 +79,28 @@ func newBehaviorPicker(styles Styles) *providerPicker {
 	return &providerPicker{list: l, styles: styles}
 }
 
+func newProtocolPicker(styles Styles) *providerPicker {
+	protocols := []struct {
+		name string
+	}{
+		{name: ""},
+		{name: "openai"},
+		{name: "anthropic"},
+	}
+	items := make([]list.Item, 0, len(protocols))
+	for _, b := range protocols {
+		items = append(items, providerItem{name: b.name, behavior: b.name})
+	}
+	delegate := list.NewDefaultDelegate()
+	l := list.New(items, delegate, 40, len(protocols)+2)
+	l.Title = "Select Protocol"
+	l.SetShowStatusBar(false)
+	l.SetFilteringEnabled(false)
+	l.SetShowHelp(false)
+	l.SetShowPagination(false)
+	return &providerPicker{list: l, styles: styles}
+}
+
 func (p *providerPicker) Update(msg tea.Msg) (tea.Cmd, bool) {
 	if keyMsg, ok := msg.(tea.KeyPressMsg); ok {
 		switch keyMsg.String() {

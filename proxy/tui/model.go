@@ -94,20 +94,21 @@ type Dashboard struct {
 	verboseErrors   bool
 	currentLogLevel LogFilter
 
-	formMode       int
-	formFields     []textinput.Model
-	formFocus      int
-	formKind       string
-	formEntryName  string
-	fieldErrors    map[int]string
-	showPicker     bool
-	picker         *providerPicker
-	showHelp       bool
-	cfgPath        string
-	configCursor   int
-	providerScroll int
-	logScroll      int
-	formError      string
+	formMode          int
+	formFields        []textinput.Model
+	formFocus         int
+	formKind          string
+	formEntryName     string
+	fieldErrors       map[int]string
+	showPicker        bool
+	picker            *providerPicker
+	showHelp          bool
+	showProviderModal bool
+	cfgPath           string
+	providerCursor    int
+	mappingsCursor    int
+	logScroll         int
+	formError         string
 
 	styles       Styles
 	isDark       bool
@@ -218,7 +219,7 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		labels := fieldLabelsForMode(d.formMode)
 		if d.formFocus >= 0 && d.formFocus < len(labels) {
 			fieldName := labels[d.formFocus]
-			if fieldName == "provider" || fieldName == "behavior" {
+			if fieldName == "provider" || fieldName == "behavior" || fieldName == "protocol" {
 				if d.formFocus < len(d.formFields) {
 					d.formFields[d.formFocus].SetValue(provider)
 				}
@@ -239,6 +240,22 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				d.showHelp = false
 			}
 			return d, nil
+		}
+
+		// --- Provider modal key handling ---
+		if d.showProviderModal {
+			if d.showPicker {
+				return d.handleFormKeyPress(msg)
+			}
+			switch msg.String() {
+			case "esc":
+				d.closeProviderModal()
+				return d, nil
+			case "tab", "shift+tab", "enter":
+				return d.handleFormKeyPress(msg)
+			default:
+				return d.handleFormKeyPress(msg)
+			}
 		}
 
 		// --- Delete confirm mode key handling ---
@@ -310,7 +327,7 @@ func (d *Dashboard) installShellRC() {
 	d.stats.message = "Shell RC updated ✓"
 }
 
-func (d *Dashboard) handleTabModeKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+func (d *Dashboard) handleTabModeKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) { //nolint:gocyclo
 	switch msg.String() {
 	case "?":
 		d.showHelp = true
@@ -324,7 +341,7 @@ func (d *Dashboard) handleTabModeKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.C
 		d.activeTab = tabProviders
 		return d, nil
 	case "f2":
-		d.activeTab = tabConfig
+		d.activeTab = tabMappings
 		return d, nil
 	case "esc":
 		if d.activeTab != tabLog {
@@ -344,25 +361,36 @@ func (d *Dashboard) handleTabModeKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.C
 		d.scrollDown()
 		return d, nil
 	case "e", "enter":
-		if d.activeTab == tabConfig {
-			d.openEditForm()
+		switch d.activeTab {
+		case tabProviders:
+			d.openEditProviderFormModal()
+		case tabMappings:
+			d.openEditMappingForm()
 		}
 		return d, nil
 	case "a":
-		if d.activeTab == tabConfig {
+		if d.activeTab == tabMappings {
 			d.openAddMappingForm()
 		}
 		return d, nil
 	case "p":
-		if d.activeTab == tabConfig {
-			d.openAddProviderForm()
+		if d.activeTab == tabProviders {
+			d.openAddProviderFormModal()
 		}
 		return d, nil
 	case "d":
-		if d.activeTab == tabConfig {
-			all := collectAllEntries(d.config)
-			if d.configCursor >= 0 && d.configCursor < len(all) {
-				entry := all[d.configCursor]
+		switch d.activeTab {
+		case tabProviders:
+			providers := collectProvidersFromConfig(d.config)
+			if d.providerCursor >= 0 && d.providerCursor < len(providers) {
+				d.formEntryName = providers[d.providerCursor].name
+				d.formKind = "provider"
+				d.formMode = formDeleteConfirm
+			}
+		case tabMappings:
+			all := collectMappingEntries(d.config)
+			if d.mappingsCursor >= 0 && d.mappingsCursor < len(all) {
+				entry := all[d.mappingsCursor]
 				d.formEntryName = entry.name
 				d.formKind = entry.kind
 				d.formMode = formDeleteConfirm
@@ -376,7 +404,7 @@ func (d *Dashboard) handleTabModeKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.C
 		d.cycleLogLevel()
 		return d, nil
 	case "ctrl+s":
-		if d.activeTab != tabConfig {
+		if d.activeTab != tabMappings {
 			return d, nil
 		}
 		d.installShellRC()
@@ -393,13 +421,16 @@ func (d *Dashboard) handleTabModeKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.C
 // uses scroll, Config uses cursor) the per-tab helper applies.
 func (d *Dashboard) scrollUp() {
 	switch d.activeTab {
-	case tabConfig:
-		d.configCursor--
-		if d.configCursor < 0 {
-			d.configCursor = 0
+	case tabMappings:
+		d.mappingsCursor--
+		if d.mappingsCursor < 0 {
+			d.mappingsCursor = 0
 		}
 	case tabProviders:
-		d.providerScroll++
+		d.providerCursor--
+		if d.providerCursor < 0 {
+			d.providerCursor = 0
+		}
 	case tabLog:
 		d.logScroll++
 	}
@@ -409,15 +440,17 @@ func (d *Dashboard) scrollUp() {
 // newer entries.
 func (d *Dashboard) scrollDown() {
 	switch d.activeTab {
-	case tabConfig:
-		all := collectAllEntries(d.config)
-		d.configCursor++
-		if d.configCursor >= len(all) {
-			d.configCursor = len(all) - 1
+	case tabMappings:
+		all := collectMappingEntries(d.config)
+		d.mappingsCursor++
+		if d.mappingsCursor >= len(all) {
+			d.mappingsCursor = len(all) - 1
 		}
 	case tabProviders:
-		if d.providerScroll > 0 {
-			d.providerScroll--
+		providers := collectProvidersFromConfig(d.config)
+		d.providerCursor++
+		if d.providerCursor >= len(providers) {
+			d.providerCursor = len(providers) - 1
 		}
 	case tabLog:
 		if d.logScroll > 0 {
@@ -427,7 +460,7 @@ func (d *Dashboard) scrollDown() {
 }
 
 func (d *Dashboard) handleMouseWheel(msg tea.MouseWheelMsg) (tea.Model, tea.Cmd) {
-	if d.showHelp || d.formMode != formNone {
+	if d.showHelp || d.showProviderModal || d.formMode != formNone {
 		return d, nil
 	}
 	switch msg.Button {
@@ -447,20 +480,52 @@ func (d *Dashboard) handleMouseClick(msg tea.MouseClickMsg) (tea.Model, tea.Cmd)
 		d.showHelp = false
 		return d, nil
 	}
-	if d.formMode != formNone {
+	if d.showProviderModal || d.formMode != formNone {
 		return d, nil
 	}
 	if msg.Y == 0 {
 		return d, nil
 	}
-	if d.activeTab == tabConfig {
-		d.handleConfigClick(msg.Y)
+	switch d.activeTab {
+	case tabProviders:
+		d.handleProvidersClick(msg.Y)
+	case tabMappings:
+		d.handleMappingsClick(msg.Y)
 	}
 	return d, nil
 }
 
-func (d *Dashboard) handleConfigClick(y int) {
-	all := collectAllEntries(d.config)
+func (d *Dashboard) handleProvidersClick(y int) {
+	providers := collectProvidersFromConfig(d.config)
+	if len(providers) == 0 {
+		return
+	}
+
+	bodyOffset := y - 1
+	entryOffset := bodyOffset - 2
+	if entryOffset < 0 {
+		return
+	}
+
+	available := d.height - 1 - 3
+	visible := available
+	if visible > len(providers) {
+		visible = len(providers)
+	}
+	half := visible / 2
+	start := d.providerCursor - half
+	if start < 0 {
+		start = 0
+	}
+	idx := entryOffset/1 + start
+	if idx >= 0 && idx < len(providers) {
+		d.providerCursor = idx
+		d.openEditProviderForm()
+	}
+}
+
+func (d *Dashboard) handleMappingsClick(y int) {
+	all := collectMappingEntries(d.config)
 	if len(all) == 0 {
 		return
 	}
@@ -471,11 +536,11 @@ func (d *Dashboard) handleConfigClick(y int) {
 		return
 	}
 
-	start, _ := configVisibleWindow(all, d.configCursor, d.height-1-3)
-	idx := entryOffset/6 + start
+	start, _ := configVisibleWindow(all, d.mappingsCursor, d.height-1-3, 4)
+	idx := entryOffset/4 + start
 	if idx >= 0 && idx < len(all) {
-		d.configCursor = idx
-		d.openEditForm()
+		d.mappingsCursor = idx
+		d.openEditMappingForm()
 	}
 }
 
@@ -564,6 +629,12 @@ func (d *Dashboard) handleFormKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd)
 					d.showPicker = true
 					return d, nil
 				}
+				if fieldName == "protocol" &&
+					(d.formMode == formAddProvider || d.formMode == formEditProvider) {
+					d.picker = newProtocolPicker(d.styles)
+					d.showPicker = true
+					return d, nil
+				}
 			}
 		}
 		d.fieldErrors = d.validateForm()
@@ -635,7 +706,7 @@ func (d *Dashboard) View() tea.View {
 	bodyHeight := height - 1
 
 	var content string
-	if d.formMode != formNone {
+	if d.formMode != formNone && !d.showProviderModal {
 		content = renderForm(d, width, bodyHeight)
 	} else {
 		d.styleBody = d.activeTab != tabLog
@@ -643,9 +714,9 @@ func (d *Dashboard) View() tea.View {
 		case tabLog:
 			content = renderLogTab(d.logBuffer.all(), width, bodyHeight, d.logScroll, d.currentLogLevel, d.styles)
 		case tabProviders:
-			content = renderProvidersTab(d.config, width, bodyHeight, d.providerScroll, d.styles)
-		case tabConfig:
-			content = renderConfigTab(d.config, d.configCursor, width, bodyHeight, d.styles)
+			content = renderProvidersTab(d.config, d.providerCursor, width, bodyHeight, d.styles)
+		case tabMappings:
+			content = renderMappingsTab(d.config, d.mappingsCursor, width, bodyHeight, d.styles)
 		default:
 			content = fmt.Sprintf("Unknown tab: %d", d.activeTab)
 		}
@@ -660,6 +731,11 @@ func (d *Dashboard) View() tea.View {
 	}
 
 	result := fmt.Sprintf("%s\n%s", stats, body)
+
+	if d.showProviderModal {
+		modal := renderProviderEditModal(width, d)
+		result = overlayModal(result, modal, width, height, d.styles.OverlayBgStyle)
+	}
 
 	if d.showHelp {
 		modal := renderHelpModal(width, d.styles)
@@ -715,38 +791,54 @@ func (d *Dashboard) updateFormFocus() {
 	}
 }
 
-func (d *Dashboard) openEditForm() {
+func (d *Dashboard) openEditProviderForm() {
 	if d.detachOnQuit {
 		return
 	}
-	all := collectAllEntries(d.config)
-	if d.configCursor < 0 || d.configCursor >= len(all) {
+	providers := collectProvidersFromConfig(d.config)
+	if d.providerCursor < 0 || d.providerCursor >= len(providers) {
 		return
 	}
-	entry := all[d.configCursor]
+	p := providers[d.providerCursor]
+	d.formKind = "provider"
+	d.formEntryName = p.name
+
+	cfgP := d.config.ProvidersSnapshot()[p.name]
+	d.formFields = []textinput.Model{
+		d.newFormField(p.name, "provider name"),
+		d.newFormField(p.behavior, "behavior"),
+		d.newFormField(p.baseURL, "base_url"),
+		d.newFormField(cfgP.DefaultAPIKeyEnv, "api_key_env"),
+		d.newFormField(cfgP.AnthropicVersion, "anthropic_version"),
+		d.newFormField(cfgP.Protocol, "protocol (openai/anthropic)"),
+	}
+	d.formMode = formEditProvider
+	d.formFocus = 0
+	d.updateFormFocus()
+	d.fieldErrors = nil
+	d.formError = ""
+	d.showPicker = false
+}
+
+func (d *Dashboard) openEditMappingForm() {
+	if d.detachOnQuit {
+		return
+	}
+	all := collectMappingEntries(d.config)
+	if d.mappingsCursor < 0 || d.mappingsCursor >= len(all) {
+		return
+	}
+	entry := all[d.mappingsCursor]
 	d.formKind = entry.kind
 	d.formEntryName = entry.name
 
-	switch entry.kind {
-	case "provider":
-		p := entry.provider
-		d.formFields = []textinput.Model{
-			d.newFormField(entry.name, "provider name"),
-			d.newFormField(p.Behavior, "behavior"),
-			d.newFormField(p.DefaultBaseURL, "base_url"),
-			d.newFormField(p.DefaultAPIKeyEnv, "api_key_env"),
-			d.newFormField(p.AnthropicVersion, "anthropic_version"),
-		}
-		d.formMode = formEditProvider
-	case "mapping":
-		m := entry.mapping
-		d.formFields = []textinput.Model{
-			d.newFormField(entry.name, "mapping name"),
-			d.newFormField(m.ProviderName, "provider"),
-			d.newFormField(m.ModelString, "model"),
-		}
-		d.formMode = formEditMapping
+	m := entry.mapping
+	d.formFields = []textinput.Model{
+		d.newFormField(entry.name, "mapping name"),
+		d.newFormField(m.ProviderName, "provider"),
+		d.newFormField(m.ModelString, "model"),
 	}
+	d.formMode = formEditMapping
 	d.formFocus = 0
 	d.updateFormFocus()
 	d.fieldErrors = nil
@@ -767,6 +859,7 @@ func (d *Dashboard) openAddProviderForm() {
 		d.newFormField("", "base_url"),
 		d.newFormField("", "api_key_env"),
 		d.newFormField("", "anthropic_version"),
+		d.newFormField("", "protocol (openai/anthropic)"),
 	}
 	d.formFocus = 0
 	d.updateFormFocus()
@@ -796,6 +889,29 @@ func (d *Dashboard) openAddMappingForm() {
 	d.formMode = formAddMapping
 }
 
+func (d *Dashboard) openEditProviderFormModal() {
+	if d.detachOnQuit {
+		return
+	}
+	d.openEditProviderForm()
+	if d.formMode == formEditProvider {
+		d.showProviderModal = true
+	}
+}
+
+func (d *Dashboard) openAddProviderFormModal() {
+	if d.detachOnQuit {
+		return
+	}
+	d.openAddProviderForm()
+	d.showProviderModal = true
+}
+
+func (d *Dashboard) closeProviderModal() {
+	d.resetForm()
+	d.showProviderModal = false
+}
+
 func (d *Dashboard) resetForm() {
 	d.formMode = formNone
 	d.formFields = nil
@@ -806,6 +922,7 @@ func (d *Dashboard) resetForm() {
 	d.showPicker = false
 	d.picker = nil
 	d.formError = ""
+	d.showProviderModal = false
 }
 
 func (d *Dashboard) validateForm() map[int]string {
@@ -838,6 +955,13 @@ func (d *Dashboard) validateForm() map[int]string {
 		apiKeyEnv := strings.TrimSpace(d.formFields[3].Value())
 		if apiKeyEnv != "" && strings.ContainsAny(apiKeyEnv, "\r\n=") {
 			errs[3] = "api_key_env must not contain CR, LF, or ="
+		}
+		protocol := strings.TrimSpace(d.formFields[5].Value())
+		switch protocol {
+		case "", "openai", "anthropic":
+			// valid
+		default:
+			errs[5] = "protocol must be one of: openai, anthropic, or empty"
 		}
 	case formEditMapping, formAddMapping:
 		providerName := strings.TrimSpace(d.formFields[1].Value())
@@ -933,6 +1057,7 @@ func (d *Dashboard) collectProviderFromForm() config.Provider {
 		DefaultBaseURL:   strings.TrimSpace(d.formFields[2].Value()),
 		DefaultAPIKeyEnv: strings.TrimSpace(d.formFields[3].Value()),
 		AnthropicVersion: strings.TrimSpace(d.formFields[4].Value()),
+		Protocol:         strings.TrimSpace(d.formFields[5].Value()),
 	}
 }
 

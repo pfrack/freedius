@@ -16,8 +16,8 @@ import (
 func renderTabs(active int, width int, level LogFilter, styles Styles) string {
 	tabs := []string{
 		fmt.Sprintf("[1] Log [%s]", level.Label),
-		"[2] Providers",
-		"[3] Config (j/k=scroll Enter=edit a=+map p=+prov d=del)",
+		"[2] Providers (Enter=edit p=+prov d=del)",
+		"[3] Mappings (j/k=scroll Enter=edit a=+map d=del)",
 	}
 	styled := make([]string, len(tabs))
 	for i, t := range tabs {
@@ -74,7 +74,7 @@ func renderLogTab(entries []proxy.LogEntry, _ int, height, scroll int, filter Lo
 	return b.String()
 }
 
-func renderProvidersTab(cfg *config.Config, width, height, scroll int, styles Styles) string {
+func renderProvidersTab(cfg *config.Config, cursor, width, height int, styles Styles) string {
 	var b strings.Builder
 	b.WriteString(styles.WindowStyle.Render("Provider Configuration") + "\n\n")
 
@@ -87,22 +87,28 @@ func renderProvidersTab(cfg *config.Config, width, height, scroll int, styles St
 	b.WriteString(header + "\n")
 	b.WriteString(styles.SeparatorStyle.Render(strings.Repeat("─", max(width-4, 0))) + "\n")
 
+	providers := collectProvidersFromConfig(cfg)
 	available := height - 4
 	if available < 0 {
 		available = 0
 	}
 
-	providers := collectProvidersFromConfig(cfg)
-	start := 0
-	if len(providers) > available {
-		start = len(providers) - available - scroll
+	visible := available
+	if visible > len(providers) {
+		visible = len(providers)
+	}
+	half := visible / 2
+	start := cursor - half
+	if start < 0 {
+		start = 0
+	}
+	end := start + visible
+	if end > len(providers) {
+		end = len(providers)
+		start = end - visible
 		if start < 0 {
 			start = 0
 		}
-	}
-	end := start + available
-	if end > len(providers) {
-		end = len(providers)
 	}
 
 	for i := start; i < end; i++ {
@@ -114,6 +120,9 @@ func renderProvidersTab(cfg *config.Config, width, height, scroll int, styles St
 			truncate(p.baseURL, 30),
 			p.mappingCount,
 		)
+		if i == cursor {
+			line = styles.ActiveTabStyle.Render(line)
+		}
 		b.WriteString(line + "\n")
 	}
 	if len(providers) == 0 {
@@ -122,17 +131,16 @@ func renderProvidersTab(cfg *config.Config, width, height, scroll int, styles St
 	return b.String()
 }
 
-func configVisibleWindow(all []configEntry, cursor, available int) (start, end int) {
-	const approxEntryLines = 6
+func configVisibleWindow(entries []configEntry, cursor, available, entryLines int) (start, end int) {
 	if available < 0 {
 		available = 0
 	}
-	visibleEntries := available / approxEntryLines
+	visibleEntries := available / entryLines
 	if visibleEntries < 1 {
 		visibleEntries = 1
 	}
-	if visibleEntries > len(all) {
-		visibleEntries = len(all)
+	if visibleEntries > len(entries) {
+		visibleEntries = len(entries)
 	}
 	half := visibleEntries / 2
 	start = cursor - half
@@ -140,8 +148,8 @@ func configVisibleWindow(all []configEntry, cursor, available int) (start, end i
 		start = 0
 	}
 	end = start + visibleEntries
-	if end > len(all) {
-		end = len(all)
+	if end > len(entries) {
+		end = len(entries)
 		start = end - visibleEntries
 		if start < 0 {
 			start = 0
@@ -150,13 +158,13 @@ func configVisibleWindow(all []configEntry, cursor, available int) (start, end i
 	return start, end
 }
 
-func renderConfigTab(cfg *config.Config, cursor int, width, height int, styles Styles) string {
+func renderMappingsTab(cfg *config.Config, cursor int, width, height int, styles Styles) string {
 	var b strings.Builder
-	b.WriteString(styles.WindowStyle.Render("Configuration") + "\n\n")
+	b.WriteString(styles.WindowStyle.Render("Mappings") + "\n\n")
 	b.WriteString(styles.SeparatorStyle.Render(strings.Repeat("─", max(width-4, 0))) + "\n")
 
-	all := collectAllEntries(cfg)
-	start, end := configVisibleWindow(all, cursor, height-3)
+	all := collectMappingEntries(cfg)
+	start, end := configVisibleWindow(all, cursor, height-3, 4)
 
 	for i := start; i < end; i++ {
 		entry := all[i]
@@ -165,37 +173,14 @@ func renderConfigTab(cfg *config.Config, cursor int, width, height int, styles S
 			nameStyle = styles.ActiveTabStyle
 		}
 		label := nameStyle.Render(entry.name)
-		fmt.Fprintf(&b, "%s (%s):\n", label, entry.kind)
-		if entry.kind == "provider" {
-			provider := entry.provider
-			fmt.Fprintf(&b, "  behavior: %s\n", styles.ConfigValueStyle.Render(provider.Behavior))
-			if provider.DefaultBaseURL != "" {
-				fmt.Fprintf(
-					&b,
-					"  base_url: %s\n",
-					styles.ConfigValueStyle.Render(provider.DefaultBaseURL),
-				)
-			}
-			if provider.DefaultAPIKeyEnv != "" {
-				fmt.Fprintf(
-					&b,
-					"  api_key:  %s\n",
-					styles.ConfigValueStyle.Render(provider.DefaultAPIKeyEnv),
-				)
-			}
-			if provider.AnthropicVersion != "" {
-				fmt.Fprintf(
-					&b,
-					"  api_ver:  %s\n",
-					styles.ConfigValueStyle.Render(provider.AnthropicVersion),
-				)
-			}
-		} else {
-			mapping := entry.mapping
-			fmt.Fprintf(&b, "  provider_name: %s\n", styles.ConfigValueStyle.Render(mapping.ProviderName))
-			fmt.Fprintf(&b, "  model_string:  %s\n", styles.ConfigValueStyle.Render(mapping.ModelString))
-		}
+		fmt.Fprintf(&b, "%s (mapping):\n", label)
+		mapping := entry.mapping
+		fmt.Fprintf(&b, "  provider_name: %s\n", styles.ConfigValueStyle.Render(mapping.ProviderName))
+		fmt.Fprintf(&b, "  model_string:  %s\n", styles.ConfigValueStyle.Render(mapping.ModelString))
 		b.WriteString("\n")
+	}
+	if len(all) == 0 {
+		b.WriteString(styles.ConfigValueStyle.Render("(no mappings configured)") + "\n")
 	}
 	return b.String()
 }
@@ -257,31 +242,20 @@ func collectProvidersFromConfig(cfg *config.Config) []providerInfo {
 	return result
 }
 
-// configEntry is one row in the config tab. Exactly one of provider or mapping
-// is set, identified by kind.
+// configEntry is one row in the mappings tab.
 type configEntry struct {
-	name     string
-	kind     string // "provider" or "mapping"
-	provider config.Provider
-	mapping  config.Mapping
+	name    string
+	kind    string // "mapping"
+	mapping config.Mapping
 }
 
-func collectAllEntries(cfg *config.Config) []configEntry {
-	// Snapshot the maps so we don't race with the dispatcher's write lock.
-	providers := cfg.ProvidersSnapshot()
+func collectMappingEntries(cfg *config.Config) []configEntry {
 	mappings := cfg.MappingsSnapshot()
 	var entries []configEntry
-	for name, p := range providers {
-		entries = append(entries, configEntry{name: name, kind: "provider", provider: p})
-	}
 	for name, m := range mappings {
 		entries = append(entries, configEntry{name: name, kind: "mapping", mapping: m})
 	}
 	sort.Slice(entries, func(i, j int) bool {
-		if entries[i].kind != entries[j].kind {
-			// providers first, mappings second
-			return entries[i].kind > entries[j].kind
-		}
 		return entries[i].name < entries[j].name
 	})
 	return entries
@@ -291,7 +265,7 @@ func collectAllEntries(cfg *config.Config) []configEntry {
 // or -1 if not found. Use this in tests instead of hardcoding cursor positions
 // so the test survives changes to the sort order in collectAllEntries.
 func findEntryIndex(cfg *config.Config, name, kind string) int {
-	for i, e := range collectAllEntries(cfg) {
+	for i, e := range collectMappingEntries(cfg) {
 		if e.name == name && e.kind == kind {
 			return i
 		}
@@ -320,6 +294,7 @@ func fieldLabelsForMode(mode int) []string {
 			"base_url",
 			"api_key_env",
 			"anthropic_version",
+			"protocol",
 		}
 	case formEditMapping, formAddMapping:
 		return []string{
@@ -380,6 +355,44 @@ func renderDeleteConfirm(d *Dashboard, width int) string {
 func modalWidthFor(terminalWidth int) int {
 	w := terminalWidth * 60 / 100
 	return min(max(w, 40), 60)
+}
+
+func renderProviderEditModal(terminalWidth int, d *Dashboard) string {
+	mw := modalWidthFor(terminalWidth)
+	var title string
+	if d.formMode == formAddProvider {
+		title = d.styles.ModalTitleStyle.Render(" Add New Provider ")
+	} else {
+		title = d.styles.ModalTitleStyle.Render(" Edit Provider: " + d.formEntryName + " ")
+	}
+
+	labels := fieldLabelsForMode(d.formMode)
+	var rows []string
+	for i, label := range labels {
+		labelStr := d.styles.ConfigKeyStyle.Render(label + ":")
+		fieldView := d.formFields[i].View()
+
+		if d.showPicker && d.picker != nil {
+			if (label == "behavior" && (d.formMode == formAddProvider || d.formMode == formEditProvider)) ||
+				(label == "protocol" && (d.formMode == formAddProvider || d.formMode == formEditProvider)) {
+				fieldView = d.picker.View()
+			}
+		}
+
+		row := fmt.Sprintf("  %s\n  %s", labelStr, fieldView)
+		if errMsg, ok := d.fieldErrors[i]; ok {
+			row += fmt.Sprintf("\n  %s", d.styles.StatusErrorStyle.Render(errMsg))
+		}
+		rows = append(rows, row)
+	}
+
+	body := lipgloss.JoinVertical(lipgloss.Left, rows...)
+	footer := d.styles.ModalFooterStyle.Render("Enter=Save  Esc=Cancel  Tab=Next Field")
+	sep := d.styles.SeparatorStyle.Render(strings.Repeat("─", mw-2))
+
+	return d.styles.ModalStyle.
+		Width(mw).
+		Render(lipgloss.JoinVertical(lipgloss.Left, title, sep, body, "", footer))
 }
 
 func renderHelpModal(terminalWidth int, styles Styles) string {

@@ -83,7 +83,7 @@
 - **Location**: `cmd/freedius/main.go:226`, `cmd/freedius/attach.go:18`
 - **Detail**: `filepath.Join(runtimeDir(), "freedius.sock")` is written inline in both files. The plan created `pidFilePath()` and `lockFilePath()` helpers to prevent path divergence. The socket path has no equivalent helper.
 - **Fix**: Add `func socketPath() string` to `paths_unix.go` (and Windows stub), use in both call sites.
-- **Decision**: SKIPPED — low priority, paths are consistent via runtimeDir()
+- **Decision**: FIXED — added socketPath() to paths_unix.go and paths_windows.go
 
 ### F6 — IPC server goroutine started before bind confirmation
 
@@ -93,7 +93,7 @@
 - **Location**: `cmd/freedius/main.go:228`
 - **Detail**: `ipcServer.ListenAndServe()` goroutine starts before `waitForBind(serverErr)`. If the HTTP proxy fails to bind, the IPC socket is already listening. The error from `ListenAndServe()` is silently discarded. Low-risk since the IPC socket is cleaned up on shutdown, but it's a minor ordering inconsistency.
 - **Fix**: Move IPC server start to after `waitForBind` succeeds. Log the error instead of discarding.
-- **Decision**: SKIPPED — low risk, IPC socket cleaned up on shutdown
+- **Decision**: FIXED — IPC goroutine is already after waitForBind; logged error instead of discarding
 
 ### F7 — SSE client has no reconnection logic
 
@@ -103,7 +103,7 @@
 - **Location**: `cmd/freedius/ipc_client.go:134-167`
 - **Detail**: `streamSSE` returns silently on any read error. If the daemon restarts or the connection drops, the goroutine exits and the TUI stops receiving events with no user feedback. Acceptable for v1 of attach (single-user, local tool), but worth noting for future improvement.
 - **Fix**: Add retry loop with backoff, or close channels on exit so TUI can detect disconnect.
-- **Decision**: SKIPPED — acceptable for v1, defer to future iteration
+- **Decision**: FIXED — close events/logs channels on SSE exit so TUI detects disconnect
 
 ## Notes
 
