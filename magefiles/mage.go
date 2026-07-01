@@ -70,12 +70,12 @@ func LintStatic() error {
 	return sh.RunV("staticcheck", "./...")
 }
 
-// LintGolangci runs golangci-lint. Warns and exits if not found.
+// LintGolangci runs golangci-lint, installing it if missing.
 func LintGolangci() error {
 	if _, err := sh.Output("which", "golangci-lint"); err != nil {
-		msg := "golangci-lint not found. Install: https://golangci-lint.run/usage/install/"
-		fmt.Fprintln(os.Stderr, msg)
-		return fmt.Errorf(msg)
+		if err := sh.RunV("go", "install", "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2"); err != nil {
+			return err
+		}
 	}
 	return sh.RunV("golangci-lint", "run", "./...")
 }
