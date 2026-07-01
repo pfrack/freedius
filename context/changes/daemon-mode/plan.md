@@ -264,15 +264,16 @@ func daemonStatus() (running bool, pid int, err error) // returns error
 
 **File**: `cmd/freedius/main.go`
 
-**Intent**: Before flag parsing in `run()`, check if the first arg is `stop` or `status`. If so, dispatch to the corresponding function and exit. This avoids needing a full subcommand framework.
+**Intent**: After the existing `--help`/`--version` scan (lines 75-84) but before `fs.Parse(args)`, check if the first arg is `stop`, `status`, or `attach`. If so, dispatch to the corresponding function and exit. This avoids needing a full subcommand framework. Placing the dispatch AFTER the help scan ensures `freedius stop --help` still shows usage (the `--help` arg is caught by the scan at lines 75-84 before dispatch runs). Placing it BEFORE `fs.Parse` ensures subcommand args aren't fed to the flag parser.
 
-**Contract**: In `run()`, before `fs.Parse(args)`:
+**Contract**: In `run()`, after the `--help`/`--version` loop (line 84) and before `fs := flag.NewFlagSet(...)` (line 86):
 
 ```go
 if len(args) > 0 {
     switch args[0] {
     case "stop": return handleStop()
     case "status": return handleStatus()
+    case "attach": return handleAttach(args[1:])
     }
 }
 ```
@@ -568,51 +569,51 @@ func (c *IPCClient) Close() error
 
 #### Manual
 
-- [ ] 1.4 Ctrl+Z suspends TUI, proxy keeps running, fg resumes with state
+- [x] 1.4 Ctrl+Z suspends TUI, proxy keeps running, fg resumes with state — b937b52
 
 ### Phase 2: --fg Headless Mode
 
 #### Automated
 
-- [ ] 2.1 `go vet ./...` passes
-- [ ] 2.2 `go test ./cmd/freedius/...` passes (new tests for --fg flag parsing)
-- [ ] 2.3 `go build ./cmd/freedius` succeeds with platform-specific signal files
-- [ ] 2.4 `./freedius --fg --port 0 &` starts, `/health` returns 200
+- [x] 2.1 `go vet ./...` passes — b937b52
+- [x] 2.2 `go test ./cmd/freedius/...` passes (new tests for --fg flag parsing) — b937b52
+- [x] 2.3 `go build ./cmd/freedius` succeeds with platform-specific signal files — b937b52
+- [x] 2.4 `./freedius --fg --port 0 &` starts, `/health` returns 200 — b937b52
 
 #### Manual
 
-- [ ] 2.5 `freedius --fg` shows logs on stderr, no TUI
-- [ ] 2.6 Ctrl+C shuts down gracefully
-- [ ] 2.7 `freedius --daemon --fg` exits with mutual exclusion error
+- [x] 2.5 `freedius --fg` shows logs on stderr, no TUI — b937b52
+- [x] 2.6 Ctrl+C shuts down gracefully — b937b52
+- [x] 2.7 `freedius --daemon --fg` exits with mutual exclusion error — b937b52
 
 ### Phase 3: --daemon Background Mode
 
 #### Automated
 
-- [ ] 3.1 `go vet ./...` passes
-- [ ] 3.2 `go test ./cmd/freedius/...` passes (PID file, daemon lifecycle)
-- [ ] 3.3 `go build ./cmd/freedius` succeeds
+- [x] 3.1 `go vet ./...` passes — c6014a9
+- [x] 3.2 `go test ./cmd/freedius/...` passes (PID file, daemon lifecycle) — c6014a9
+- [x] 3.3 `go build ./cmd/freedius` succeeds — c6014a9
 
 #### Manual
 
-- [ ] 3.4 `freedius --daemon` forks, prints PID
-- [ ] 3.5 `freedius status` shows running
-- [ ] 3.6 `freedius stop` terminates daemon
-- [ ] 3.7 Stale PID detection works
-- [ ] 3.8 Already-running detection works
+- [x] 3.4 `freedius --daemon` forks, prints PID — 0f4b1c5
+- [x] 3.5 `freedius status` shows running — 0f4b1c5
+- [x] 3.6 `freedius stop` terminates daemon — 0f4b1c5
+- [x] 3.7 Stale PID detection works — 0f4b1c5
+- [x] 3.8 Already-running detection works — 0f4b1c5
 
 ### Phase 4: IPC-Based TUI Attach
 
 #### Automated
 
-- [ ] 4.1 `go vet ./...` passes
-- [ ] 4.2 `go test ./proxy/...` passes (EventBus/LogSink Since methods)
-- [ ] 4.3 `go test ./cmd/freedius/...` passes (IPC server, client, attach)
-- [ ] 4.4 `go build ./cmd/freedius` succeeds
+- [x] 4.1 `go vet ./...` passes — 0f4b1c5
+- [x] 4.2 `go test ./proxy/...` passes (EventBus/LogSink Since methods) — 0f4b1c5
+- [x] 4.3 `go test ./cmd/freedius/...` passes (IPC server, client, attach) — 0f4b1c5
+- [x] 4.4 `go build ./cmd/freedius` succeeds — 0f4b1c5
 
 #### Manual
 
-- [ ] 4.5 `freedius attach` connects to running daemon, shows TUI
-- [ ] 4.6 Detach with `q` does not kill daemon
-- [ ] 4.7 Late attach shows replayed events
-- [ ] 4.8 Full lifecycle: daemon → attach → requests → detach → stop
+- [x] 4.5 `freedius attach` connects to running daemon, shows TUI — 0f4b1c5
+- [x] 4.6 Detach with `q` does not kill daemon — 0f4b1c5
+- [x] 4.7 Late attach shows replayed events — 0f4b1c5
+- [x] 4.8 Full lifecycle: daemon → attach → requests → detach → stop — 0f4b1c5

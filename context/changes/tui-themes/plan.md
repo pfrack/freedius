@@ -57,7 +57,7 @@ Define the type hierarchy and mechanically move style ownership from package-lev
 - `AdaptiveColor` — `struct { Light, Dark lipgloss.Color }`
 - `Palette` — `struct { Error, Warning, Accent, KeyCap, Muted, Border, Background AdaptiveColor }`
 - `Theme` — `struct { Name string; Palette Palette }`
-- `Styles` — `struct` with 16 exported fields matching the current style names (PascalCase), plus `OverlayBgStyle lipgloss.Style` for the overlay whitespace.
+- `Styles` — `struct` with the original style names (PascalCase) plus `OverlayBgStyle`, `LogInfoStyle`, and `LogDebugStyle` (the latter two for log-level rendering in `renderLogTab`).
 - `DefaultPalette() Palette` — reproduces current ANSI colors in both light/dark. Light variant uses lighter versions; dark variant maps to the current ANSI values (since the TUI currently runs against a dark terminal).
 - `DefaultTheme() Theme` — `{Name: "default", Palette: DefaultPalette()}`
 - `NewStyles(p Palette, isDark bool) Styles` — calls `lipgloss.LightDark(isDark)` per slot, builds each of the 17 style fields.
@@ -190,7 +190,7 @@ Catppuccin-mocha (reference: catppuccin/catppuccin):
 
 **Intent**: Add the `Ctrl+T` shortcut to the help modal.
 
-**Contract**: Insert `{"Ctrl+T", "Cycle color theme"}` into `helpShortcuts` slice (before the form-specific entries like Tab/Enter/Esc, after `{"L", "Cycle log level filter"}`).
+**Contract**: Insert `{"Ctrl+T", "Cycle color theme"}` into `helpShortcuts` slice (after `{"L", "Cycle log level filter"}` and `{"Ctrl+S", "Install shell RC (Mappings tab)"}` — both are global, so placement among them is interchangeable).
 
 ### Success Criteria:
 

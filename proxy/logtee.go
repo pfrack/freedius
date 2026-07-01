@@ -13,6 +13,7 @@ import (
 
 // LogEntry is a single pre-rendered log line emitted through a LogSink.
 type LogEntry struct {
+	Seq   int64
 	Time  time.Time
 	Level slog.Level
 	Line  string
@@ -20,17 +21,27 @@ type LogEntry struct {
 
 // LogSink is a bounded channel of pre-rendered log entries. It mirrors the
 // EventBus pattern (proxy/eventbus.go): non-blocking sends, atomic counters,
-// and an atomic overflow flag for once-per-burst warnings.
+// and an atomic overflow flag for once-per-burst warnings. A ring buffer stores
+// recent entries for IPC replay.
 type LogSink struct {
 	ch       chan LogEntry
 	emitted  atomic.Int64
 	overflow atomic.Bool
+
+	ring    []LogEntry
+	ringMu  sync.RWMutex
+	ringCap int
+	head    int // Index of oldest entry.
+	ringLen int // Number of valid entries.
+	seq     atomic.Int64
 }
 
 // NewLogSink creates a LogSink with the given channel buffer capacity.
 func NewLogSink(capacity int) *LogSink {
 	return &LogSink{
-		ch: make(chan LogEntry, capacity),
+		ch:      make(chan LogEntry, capacity),
+		ring:    make([]LogEntry, 0, 10000),
+		ringCap: 10000,
 	}
 }
 
@@ -64,6 +75,64 @@ func (s *LogSink) EventCount() int64 {
 		return 0
 	}
 	return s.emitted.Load()
+}
+
+// SnapshotSince returns buffered log entries with Seq >= seq for IPC replay.
+// This is non-destructive (reads from ring buffer copy, not channel).
+// Returns (entries, currentSeq, evicted).
+//   - seq <= 0: return entire ring, evicted=false.
+//   - seq > currentSeq: return nil, currentSeq, false.
+//   - seq == currentSeq: return nil, currentSeq, false.
+//   - seq < oldest_in_ring: return what's left, evicted=true.
+func (s *LogSink) SnapshotSince(seq int64) ([]LogEntry, int64, bool) {
+	if s == nil {
+		return nil, 0, false
+	}
+
+	currentSeq := s.seq.Load()
+
+	if seq > currentSeq {
+		return nil, currentSeq, false
+	}
+	if seq == currentSeq {
+		return nil, currentSeq, false
+	}
+
+	s.ringMu.RLock()
+	defer s.ringMu.RUnlock()
+
+	if s.ringLen == 0 {
+		return nil, currentSeq, false
+	}
+
+	if seq <= 0 {
+		out := make([]LogEntry, s.ringLen)
+		for i := 0; i < s.ringLen; i++ {
+			out[i] = s.ring[(s.head+i)%s.ringCap]
+		}
+		return out, currentSeq, false
+	}
+
+	evicted := false
+	var out []LogEntry
+	for i := 0; i < s.ringLen; i++ {
+		e := s.ring[(s.head+i)%s.ringCap]
+		if e.Seq < seq {
+			continue
+		}
+		if len(out) == 0 && e.Seq > seq {
+			evicted = true
+		}
+		out = append(out, e)
+	}
+
+	if len(out) == 0 {
+		return nil, currentSeq, false
+	}
+
+	result := make([]LogEntry, len(out))
+	copy(result, out)
+	return result, currentSeq, evicted
 }
 
 // ringHandler is a slog.Handler that fans every record out to (a) the wrapped
@@ -120,8 +189,27 @@ func (h *ringHandler) Handle(ctx context.Context, r slog.Record) error {
 	}
 
 	h.sink.emitted.Add(1)
+	entry := LogEntry{
+		Seq:   h.sink.seq.Add(1),
+		Time:  r.Time,
+		Level: r.Level,
+		Line:  line,
+	}
+
+	// Store in ring buffer for IPC replay (circular buffer).
+	h.sink.ringMu.Lock()
+	idx := (h.sink.head + h.sink.ringLen) % h.sink.ringCap
+	if h.sink.ringLen < h.sink.ringCap {
+		h.sink.ring = append(h.sink.ring, entry)
+		h.sink.ringLen++
+	} else {
+		h.sink.ring[idx] = entry
+		h.sink.head = (h.sink.head + 1) % h.sink.ringCap
+	}
+	h.sink.ringMu.Unlock()
+
 	select {
-	case h.sink.ch <- LogEntry{Time: r.Time, Level: r.Level, Line: line}:
+	case h.sink.ch <- entry:
 		h.sink.overflow.Store(false)
 	default:
 		if !h.sink.overflow.Swap(true) {

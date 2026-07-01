@@ -322,6 +322,14 @@ func (c *Config) Save(path string) error {
 		return fmt.Errorf("config: marshal %s: %w", path, err)
 	}
 
+	return c.SaveData(path, data)
+}
+
+// SaveData writes the provided marshalled data to path using the same
+// atomic-write pattern as Save (backup, temp file, rename). Unlike Save,
+// SaveData does not call validate or Marshal — the caller is responsible
+// for providing valid, complete YAML data.
+func (c *Config) SaveData(path string, data []byte) error {
 	existed := false
 	if _, statErr := os.Stat(path); statErr == nil {
 		existed = true

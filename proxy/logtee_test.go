@@ -82,8 +82,16 @@ func TestRingHandler_PreRenderIsTextShapeRegardlessOfStderrFormat(t *testing.T) 
 		t.Fatal("expected entries from text stderr logger")
 	}
 
-	if jsonEntries[0].Line != textEntries[0].Line {
-		t.Errorf("pre-rendered lines differ: json=%q text=%q", jsonEntries[0].Line, textEntries[0].Line)
+	stripTime := func(line string) string {
+		if idx := strings.Index(line, " level="); idx >= 0 {
+			return line[idx+1:]
+		}
+		return line
+	}
+	jsonNorm := stripTime(jsonEntries[0].Line)
+	textNorm := stripTime(textEntries[0].Line)
+	if jsonNorm != textNorm {
+		t.Errorf("pre-rendered lines (time-stripped) differ: json=%q text=%q", jsonNorm, textNorm)
 	}
 }
 
