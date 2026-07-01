@@ -193,8 +193,8 @@ Replace raw `go` commands in `.github/workflows/ci.yml` with `mage ci` (after in
 
 #### Automated
 
-- [x] 2.1 `mage ci` completes successfully locally
-- [x] 2.2 `coverage.out` is generated when `COVERPROFILE` is set
+- [x] 2.1 `mage ci` completes successfully locally — 3dbc44a
+- [x] 2.2 `coverage.out` is generated when `COVERPROFILE` is set — 3dbc44a
 
 #### Manual
 
