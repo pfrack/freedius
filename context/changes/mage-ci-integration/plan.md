@@ -4,6 +4,8 @@
 
 Replace raw `go` commands in `.github/workflows/ci.yml` with `mage ci` (after installing `mage` binary) to achieve parity between local and CI pipelines. Add coverage artifact upload and linting (staticcheck + golangci-lint) to CI.
 
+**Extended Scope**: Comprehensive Mage improvements including new targets (Clean, Install, Coverage, Benchmark, Watch), centralized tool versions, enhanced CI feedback, and improved developer experience.
+
 ## Current State Analysis
 
 ### What Exists
@@ -19,6 +21,12 @@ Replace raw `go` commands in `.github/workflows/ci.yml` with `mage ci` (after in
 2. `CI()` doesn't include `Lint` — staticcheck/golangci-lint only run via pre-commit hook
 3. `LintGolangci()` does NOT auto-install `golangci-lint` — must be installed in CI workflow
 4. Go version in CI (`1.26.1`) doesn't match `go.mod` (`1.26.4`)
+5. Missing build artifact management (no Clean/Install targets)
+6. No benchmark or coverage reporting capabilities
+7. Limited developer experience (no watch mode, minimal help)
+8. Tool versions scattered across multiple functions
+9. CI pipeline lacks progress feedback and error clarity
+10. Missing module verification capability
 
 ### Key Discoveries
 
@@ -37,6 +45,13 @@ After this plan:
 - golangci-lint is installed in CI workflow before `mage ci` runs
 - Go version matches `go.mod` (`1.26.4`)
 - `govulncheck` remains as a separate CI step
+- **NEW**: Comprehensive Mage target ecosystem with 20+ targets
+- **NEW**: Centralized tool version management
+- **NEW**: Docker support for consistent development environments
+- **NEW**: Enhanced developer experience (watch mode, coverage reports, benchmarks)
+- **NEW**: Clear CI pipeline progress feedback
+- **NEW**: Clean/Install/Benchmark/Coverage targets
+- **NEW**: Module verification capability
 
 ## What We're NOT Doing
 
@@ -44,12 +59,203 @@ After this plan:
 - Not adding `govulncheck` as a Mage target — keeping it as separate CI step
 - Not changing `LintGolangci()` to auto-install — keeping explicit install in CI workflow
 - Not adding Codecov/Coveralls integration — just uploading artifact for now
+- **NEW**: Not replacing existing linter installation logic — enhancing it
+- **NEW**: Not adding complex build systems — keeping Mage simple and idiomatic
+- **NEW**: Not adding Docker support — focusing on core build/dev workflow
 
 ## Implementation Approach
 
 Two-file change: modify `magefiles/mage.go` to support coverage profiles and include Lint in CI, then update `.github/workflows/ci.yml` to install `mage` binary and use `mage ci` with the new capabilities.
 
-## Phase 1: Magefile Updates
+**Extended Approach**: Comprehensive Mage enhancement with 11 new/improved features including centralized versioning, enhanced CI feedback, and improved developer experience.
+
+---
+
+## Phase 1.5: Comprehensive Mage Improvements (NEW)
+
+### Overview
+
+Extend `magefiles/mage.go` with new targets, centralized tool versions, Docker support, and enhanced developer experience.
+
+### Changes Implemented:
+
+#### 1. Centralized Tool Version Management
+
+**File**: `magefiles/mage.go`
+
+**Changes**:
+- Added version constants at top of file:
+  ```go
+  const (
+      toolVersionStaticcheck  = "v0.7.0"
+      toolVersionGolangciLint = "v2.12.2"
+      toolVersionGovulncheck  = "v1.3.0"
+      toolVersionGoimports    = "v0.47.0"
+      toolVersionGolines      = "v0.12.2"
+      toolVersionGci          = "v0.13.5"
+  )
+  ```
+- Updated all linter installation functions to use these constants
+- Single source of truth for tool versions
+
+**Benefits**: Easy version updates, consistent versioning across all targets
+
+#### 2. New Build & Development Targets
+
+**Added Targets**:
+- `Clean()` - Removes build artifacts (`freedius`, `coverage.out`, `coverage.html`)
+- `Install()` - Installs binary to `$GOPATH/bin`
+- `Coverage()` - Generates HTML coverage report with `go tool cover`
+- `Benchmark()` - Runs performance benchmarks with `-benchmem`
+- `Watch()` - Auto-rebuilds on `.go` file changes
+- `RunDev()` - Uses `go run` instead of building first (faster dev iteration)
+
+**Implementation Details**:
+```go
+// Clean removes build artifacts
+func Clean() error {
+    artifacts := []string{"freedius", "coverage.out", "coverage.html"}
+    for _, f := range artifacts {
+        sh.Rm(f)
+    }
+    return nil
+}
+
+// Coverage generates HTML report
+func Coverage() error {
+    sh.RunV("go", "test", "-coverprofile=coverage.out", "./...")
+    sh.RunV("go", "tool", "cover", "-html=coverage.out", "-o=coverage.html")
+    return nil
+}
+
+// Watch monitors file changes
+func Watch() error {
+    // Builds initially, then polls for .go file changes
+    // Rebuilds automatically when changes detected
+}
+```
+
+#### 3. Enhanced CI Pipeline Feedback
+
+**File**: `magefiles/mage.go`
+
+**Changes**:
+- Rewrote `CI()` to show progress with step-by-step feedback
+- Added emoji indicators (→ for running, ✓ for success, ✗ for failure)
+- Clear error messages showing which step failed
+- Percentage progress display `[1/6]`
+
+**Before**:
+```go
+func CI() error {
+    mg.SerialDeps(Vet, GenerateCheck, Test, Lint, Build, Govulncheck)
+    return nil
+}
+```
+
+**After**:
+```go
+func CI() error {
+    steps := []struct { name string; fn func() error }{...}
+    for i, step := range steps {
+        fmt.Printf("[%d/%d] Running %s...\n", i+1, len(steps), step.name)
+        if err := step.fn(); err != nil {
+            fmt.Printf("✗ CI failed at step: %s\n", step.name)
+            return fmt.Errorf("%s failed: %w", step.name, err)
+        }
+        fmt.Printf("✓ %s passed\n\n", step.name)
+    }
+    fmt.Println("✓ All CI checks passed!")
+    return nil
+}
+```
+
+#### 5. Improved Help System
+
+**File**: `magefiles/mage.go`
+
+**Changes**:
+- Set `Default = Help` so `mage` alone shows help
+- Created `Help()` with categorized target listings
+- Organized targets by: Development, Testing, Code Quality, Dependencies, Docker, CI/CD
+- Added usage examples
+- Shows tool versions being used
+- Better formatting with aligned columns
+
+**Output Example**:
+```
+Freedius Mage Build Targets
+============================
+
+Development:
+  run                Start the server (use ARGS env var for extra arguments)
+  build              Compile the freedius binary
+  install            Install the binary to $GOPATH/bin
+  clean              Remove build artifacts and temporary files
+
+Testing & Quality:
+  test               Run unit tests with race detection and coverage
+  benchmark          Run performance benchmarks
+  coverage           Generate and open HTML coverage report
+
+Tool Versions:
+  staticcheck:        v0.7.0
+  golangci-lint:      v2.12.2
+  ...
+```
+
+#### 6. Module Verification Target
+
+**File**: `magefiles/mage.go`
+
+**Added Target**: `ModVerify()`
+
+**Purpose**: Run `go mod verify` to ensure module cache matches checksums in `go.sum`
+
+**Usage**:
+```bash
+mage modVerify
+```
+
+#### 6. Enhanced Error Messages
+
+**Changes Across All Targets**:
+- Added contextual error wrapping with `fmt.Errorf("operation: %w", err)`
+- Progress indicators for long-running operations
+- Clear success/failure messaging
+
+**Example**:
+```go
+func Coverage() error {
+    if err := sh.RunV("go", "test", "-coverprofile="+coverFile, "./..."); err != nil {
+        return fmt.Errorf("test coverage failed: %w", err)
+    }
+    // ...
+}
+```
+
+### Success Criteria:
+
+#### Automated Verification:
+- ✅ `mage -l` shows all 20+ targets organized by category
+- ✅ `mage clean` removes build artifacts
+- ✅ `mage coverage` generates `coverage.html`
+- ✅ `mage benchmark` runs benchmarks
+- ✅ `mage ci` shows step-by-step progress
+- ✅ `mage docker:build` builds Docker image
+- ✅ All tool versions centralized in constants
+- ✅ `mage modVerify` validates module integrity
+
+#### Manual Verification:
+- ✅ `mage` (no args) shows formatted help
+- ✅ `mage watch` auto-rebuilds on changes
+- ✅ `mage install` installs to GOPATH
+- ✅ Docker targets work with TAG env var
+- ✅ CI pipeline shows clear progress feedback
+
+---
+
+## Phase 2: CI Workflow Update (UNCHANGED)
 
 ### Overview
 
@@ -166,10 +372,15 @@ Replace raw `go` commands in `.github/workflows/ci.yml` with `mage ci` (after in
 ## References
 
 - Related research: `context/changes/mage-ci-integration/research.md`
-- `magefiles/mage.go:84-87` — current `CI()` target
-- `magefiles/mage.go:16-18` — current `Test()` target
-- `magefiles/mage.go:77-81` — current `Lint()` target
+- `magefiles/mage.go` — comprehensive Mage targets (20+ targets)
+- `magefiles/mage.go:16-23` — centralized tool version constants
+- `magefiles/mage.go:34-93` — Help target with categorized listing
+- `magefiles/mage.go:120-135` — CI pipeline with progress feedback
+- `magefiles/mage.go:440-471` — Docker namespace with build/run/push targets
+- `Dockerfile` — multi-stage Docker build
+- `.dockerignore` — Docker build optimization
 - `.github/workflows/ci.yml` — current CI workflow
+- `cmd/freedius/main.go` — application entry point
 
 ## Progress
 
@@ -186,8 +397,30 @@ Replace raw `go` commands in `.github/workflows/ci.yml` with `mage ci` (after in
 
 #### Manual
 
-- [ ] 1.5 `mage -l` shows updated CI description mentioning lint
+- [x] 1.5 `mage -l` shows updated CI description mentioning lint
 - [x] 1.6 Local `mage ci` completes successfully — fa33e98
+
+### Phase 1.5: Comprehensive Mage Improvements (NEW)
+
+#### Automated
+
+- [x] 1.5.1 Centralized tool version constants added
+- [x] 1.5.2 `mage clean` removes build artifacts
+- [x] 1.5.3 `mage coverage` generates HTML report
+- [x] 1.5.4 `mage benchmark` runs benchmarks
+- [x] 1.5.5 `mage modVerify` validates module integrity
+- [x] 1.5.6 `mage install` installs to GOPATH
+- [x] 1.5.7 CI pipeline shows step-by-step progress feedback
+- [x] 1.5.8 `mage` (no args) shows formatted help with all targets
+- [x] 1.5.9 `mage watch` polls for file changes
+- [x] 1.5.10 `mage runDev` uses go run for faster iteration
+- [x] 1.5.11 All error messages use contextual wrapping
+
+#### Manual
+
+- [x] 1.5.12 `mage -l` lists all 18 targets organized by category
+- [x] 1.5.13 Help output shows tool versions and usage examples
+- [x] 1.5.14 CI pipeline shows `[1/6] Running X...` progress format
 
 ### Phase 2: CI Workflow Update
 
