@@ -86,9 +86,19 @@ func Lint() error {
 	return nil
 }
 
-// CI runs the full CI pipeline: vet + generate-check + test + lint + build.
+// Govulncheck runs govulncheck, installing it if missing.
+func Govulncheck() error {
+	if _, err := sh.Output("which", "govulncheck"); err != nil {
+		if err := sh.RunV("go", "install", "golang.org/x/vuln/cmd/govulncheck@v1.3.0"); err != nil {
+			return err
+		}
+	}
+	return sh.RunV("govulncheck", "./...")
+}
+
+// CI runs the full CI pipeline: vet + generate-check + test + lint + build + govulncheck.
 func CI() error {
-	mg.SerialDeps(Vet, GenerateCheck, Test, Lint, Build)
+	mg.SerialDeps(Vet, GenerateCheck, Test, Lint, Build, Govulncheck)
 	return nil
 }
 
