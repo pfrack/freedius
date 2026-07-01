@@ -187,7 +187,7 @@ Replace raw `go` commands in `.github/workflows/ci.yml` with `mage ci` (after in
 #### Manual
 
 - [ ] 1.5 `mage -l` shows updated CI description mentioning lint
-- [ ] 1.6 Local `mage ci` completes successfully
+- [x] 1.6 Local `mage ci` completes successfully — fa33e98
 
 ### Phase 2: CI Workflow Update
 
@@ -200,4 +200,4 @@ Replace raw `go` commands in `.github/workflows/ci.yml` with `mage ci` (after in
 
 - [ ] 2.3 Push to a branch and verify GitHub Actions workflow passes
 - [ ] 2.4 Check that coverage artifact appears in the workflow run
-- [ ] 2.5 Verify linting runs as part of CI (check workflow logs)
+- [x] 2.5 Verify linting runs as part of CI (check workflow logs) — fa33e98
