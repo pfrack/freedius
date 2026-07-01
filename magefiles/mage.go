@@ -63,7 +63,7 @@ func Verbose() error {
 // LintStatic runs staticcheck, installing it if missing.
 func LintStatic() error {
 	if _, err := sh.Output("which", "staticcheck"); err != nil {
-		if err := sh.RunV("go", "install", "honnef.co/go/tools/cmd/staticcheck@latest"); err != nil {
+		if err := sh.RunV("go", "install", "honnef.co/go/tools/cmd/staticcheck@v0.7.0"); err != nil {
 			return err
 		}
 	}
@@ -115,7 +115,7 @@ func InstallHooks() error {
 // InstallGoimports installs goimports if missing.
 func InstallGoimports() error {
 	if _, err := sh.Output("which", "goimports"); err != nil {
-		return sh.RunV("go", "install", "golang.org/x/tools/cmd/goimports@latest")
+		return sh.RunV("go", "install", "golang.org/x/tools/cmd/goimports@v0.47.0")
 	}
 	return nil
 }
@@ -123,7 +123,7 @@ func InstallGoimports() error {
 // InstallGolines installs golines if missing.
 func InstallGolines() error {
 	if _, err := sh.Output("which", "golines"); err != nil {
-		return sh.RunV("go", "install", "github.com/segmentio/golines@latest")
+		return sh.RunV("go", "install", "github.com/segmentio/golines@v0.12.2")
 	}
 	return nil
 }
