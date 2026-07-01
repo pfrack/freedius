@@ -20,10 +20,6 @@ jobs:
           cache: true
       - name: Install Mage
         run: go install github.com/magefile/mage@v1.17.2
-      - name: Install golangci-lint
-        run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
-      - name: Install govulncheck
-        run: go install golang.org/x/vuln/cmd/govulncheck@v1.3.0
       - name: CI
         run: mage ci
         env:
@@ -36,5 +32,3 @@ jobs:
           path: coverage.out
           if-no-files-found: warn
           retention-days: 30
-      - name: govulncheck
-        run: govulncheck ./...

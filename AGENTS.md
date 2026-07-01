@@ -8,7 +8,7 @@ freedius is a local HTTP proxy built with Go's standard library (`net/http`, `ht
 - **Build**: `go build -o freedius ./cmd/freedius` — produces a static binary.
 - **Test**: `go test ./...` — runs all tests.
 - **Lint**: `go vet ./...` — runs the Go static analysis checks.
-- **Audit**: `govulncheck ./...` — checks for known vulnerabilities in the module graph.
+- **Audit**: `mage govulncheck` — checks for known vulnerabilities in the module graph.
 
 ## Project Structure
 
