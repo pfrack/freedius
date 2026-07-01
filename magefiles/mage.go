@@ -13,8 +13,14 @@ import (
 )
 
 // Test runs unit tests with race detection and coverage.
+// Set COVERPROFILE env var (e.g. "coverage.out") to write a coverage profile.
 func Test() error {
-	return sh.RunV("go", "test", "-race", "-cover", "./...")
+	args := []string{"test", "-race", "-cover"}
+	if out := os.Getenv("COVERPROFILE"); out != "" {
+		args = append(args, "-coverprofile="+out)
+	}
+	args = append(args, "./...")
+	return sh.RunV("go", args...)
 }
 
 // Vet runs go vet.
@@ -57,19 +63,19 @@ func Verbose() error {
 // LintStatic runs staticcheck, installing it if missing.
 func LintStatic() error {
 	if _, err := sh.Output("which", "staticcheck"); err != nil {
-		if err := sh.RunV("go", "install", "honnef.co/go/tools/cmd/staticcheck@latest"); err != nil {
+		if err := sh.RunV("go", "install", "honnef.co/go/tools/cmd/staticcheck@v0.7.0"); err != nil {
 			return err
 		}
 	}
 	return sh.RunV("staticcheck", "./...")
 }
 
-// LintGolangci runs golangci-lint. Warns and exits if not found.
+// LintGolangci runs golangci-lint, installing it if missing.
 func LintGolangci() error {
 	if _, err := sh.Output("which", "golangci-lint"); err != nil {
-		msg := "golangci-lint not found. Install: https://golangci-lint.run/usage/install/"
-		fmt.Fprintln(os.Stderr, msg)
-		return fmt.Errorf(msg)
+		if err := sh.RunV("go", "install", "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2"); err != nil {
+			return err
+		}
 	}
 	return sh.RunV("golangci-lint", "run", "./...")
 }
@@ -80,9 +86,9 @@ func Lint() error {
 	return nil
 }
 
-// CI runs the full CI pipeline: vet + generate-check + test + build.
+// CI runs the full CI pipeline: vet + generate-check + test + lint + build.
 func CI() error {
-	mg.SerialDeps(Vet, GenerateCheck, Test, Build)
+	mg.SerialDeps(Vet, GenerateCheck, Test, Lint, Build)
 	return nil
 }
 
@@ -109,7 +115,7 @@ func InstallHooks() error {
 // InstallGoimports installs goimports if missing.
 func InstallGoimports() error {
 	if _, err := sh.Output("which", "goimports"); err != nil {
-		return sh.RunV("go", "install", "golang.org/x/tools/cmd/goimports@latest")
+		return sh.RunV("go", "install", "golang.org/x/tools/cmd/goimports@v0.47.0")
 	}
 	return nil
 }
@@ -117,7 +123,7 @@ func InstallGoimports() error {
 // InstallGolines installs golines if missing.
 func InstallGolines() error {
 	if _, err := sh.Output("which", "golines"); err != nil {
-		return sh.RunV("go", "install", "github.com/segmentio/golines@latest")
+		return sh.RunV("go", "install", "github.com/segmentio/golines@v0.12.2")
 	}
 	return nil
 }
