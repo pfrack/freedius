@@ -13,8 +13,14 @@ import (
 )
 
 // Test runs unit tests with race detection and coverage.
+// Set COVERPROFILE env var (e.g. "coverage.out") to write a coverage profile.
 func Test() error {
-	return sh.RunV("go", "test", "-race", "-cover", "./...")
+	args := []string{"test", "-race", "-cover"}
+	if out := os.Getenv("COVERPROFILE"); out != "" {
+		args = append(args, "-coverprofile="+out)
+	}
+	args = append(args, "./...")
+	return sh.RunV("go", args...)
 }
 
 // Vet runs go vet.
@@ -80,9 +86,9 @@ func Lint() error {
 	return nil
 }
 
-// CI runs the full CI pipeline: vet + generate-check + test + build.
+// CI runs the full CI pipeline: vet + generate-check + test + lint + build.
 func CI() error {
-	mg.SerialDeps(Vet, GenerateCheck, Test, Build)
+	mg.SerialDeps(Vet, GenerateCheck, Test, Lint, Build)
 	return nil
 }
 
