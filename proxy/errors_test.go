@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -198,6 +199,90 @@ func TestTranslateUpstreamError(t *testing.T) {
 				t.Errorf("message should contain upstream body, got %q", msg)
 			}
 		})
+	}
+}
+
+func TestTranslateUpstreamError_LargeBody(t *testing.T) {
+	bigBody := strings.Repeat("x", 1024)
+	resp := &http.Response{
+		StatusCode: 500,
+		Header:     http.Header{},
+		Body:       io.NopCloser(strings.NewReader(bigBody)),
+	}
+	rec := httptest.NewRecorder()
+	translateUpstreamError(rec, resp)
+
+	if rec.Code != 500 {
+		t.Errorf("status: got %d, want 500", rec.Code)
+	}
+	var body map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	inner := body["error"].(map[string]any)
+	msg := inner["message"].(string)
+	if len(msg) > 256 {
+		t.Errorf("message length: got %d, want ≤ 256", len(msg))
+	}
+	if !strings.Contains(msg, strings.Repeat("x", 100)) {
+		t.Errorf("message should contain start of upstream body, got %q", msg)
+	}
+}
+
+func TestTranslateUpstreamError_BinaryBody(t *testing.T) {
+	binaryBody := []byte{0x00, 0x01, 0x02, 0xff, 0xfe, 0xfd, 'o', 'k', 0x00, 0x03}
+	resp := &http.Response{
+		StatusCode: 502,
+		Header:     http.Header{},
+		Body:       io.NopCloser(bytes.NewReader(binaryBody)),
+	}
+	rec := httptest.NewRecorder()
+	translateUpstreamError(rec, resp)
+
+	if rec.Code != 502 {
+		t.Errorf("status: got %d, want 502", rec.Code)
+	}
+	var body map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	inner := body["error"].(map[string]any)
+	msg := inner["message"].(string)
+	// sanitizePrintable strips non-printable chars. Binary bytes become U+FFFD
+	// replacement characters (printable) and "ok" is preserved.
+	if !strings.Contains(msg, "ok") {
+		t.Errorf("message should contain %q, got %q", "ok", msg)
+	}
+	if len(msg) < 2 {
+		t.Errorf("message too short; expected printable chars from binary input, got %q", msg)
+	}
+}
+
+func TestTranslateUpstreamError_HTMLErrorPage(t *testing.T) {
+	htmlBody := `<html><body><h1>Bad Gateway</h1><p>CDN error</p></body></html>`
+	resp := &http.Response{
+		StatusCode: 502,
+		Header:     http.Header{"Content-Type": []string{"text/html"}},
+		Body:       io.NopCloser(strings.NewReader(htmlBody)),
+	}
+	rec := httptest.NewRecorder()
+	translateUpstreamError(rec, resp)
+
+	if rec.Code != 502 {
+		t.Errorf("status: got %d, want 502", rec.Code)
+	}
+	var body map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	inner := body["error"].(map[string]any)
+	msg := inner["message"].(string)
+	// sanitizePrintable keeps HTML tags (they're printable chars).
+	if !strings.Contains(msg, "Bad Gateway") {
+		t.Errorf("message should contain HTML body content, got %q", msg)
+	}
+	if inner["type"] != "api_error" {
+		t.Errorf("error.type: got %v, want api_error", inner["type"])
 	}
 }
 

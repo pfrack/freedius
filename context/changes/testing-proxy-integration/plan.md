@@ -280,11 +280,11 @@ Implement API key redaction in `translateUpstreamError` and add runtime tests ve
 
 #### Automated
 
-- [x] 1.1 Anthropic response envelope test in `proxy/openai_compat_test.go` — decode JSON, assert field names/types
-- [x] 1.2 Anthropic-compat error passthrough test in `proxy/anthropic_compat_test.go` — upstream 401 forwarded with body
-- [x] 1.3 Multi-provider routing test in `proxy/proxy_test.go` — two httptest upstreams, verify correct one called
-- [x] 1.4 Missing/ambiguous mapping edge cases in `proxy/proxy_test.go` — extend table-driven tests
-- [x] 1.5 `mage test` passes — all new and existing tests green, race detector clean
+- [x] 1.1 Anthropic response envelope test in `proxy/openai_compat_test.go` — decode JSON, assert field names/types — 2a98605
+- [x] 1.2 Anthropic-compat error passthrough test in `proxy/anthropic_compat_test.go` — upstream 401 forwarded with body — 2a98605
+- [x] 1.3 Multi-provider routing test in `proxy/proxy_test.go` — two httptest upstreams, verify correct one called — 2a98605
+- [x] 1.4 Missing/ambiguous mapping edge cases in `proxy/proxy_test.go` — extend table-driven tests — 2a98605
+- [x] 1.5 `mage test` passes — all new and existing tests green, race detector clean — 2a98605
 
 #### Manual
 
@@ -294,11 +294,11 @@ Implement API key redaction in `translateUpstreamError` and add runtime tests ve
 
 #### Automated
 
-- [ ] 2.1 Large/malformed upstream error body cases in `proxy/errors_test.go` — truncation, binary, empty
-- [ ] 2.2 HTML error page test in `proxy/errors_test.go` — text/html upstream → reasonable message field
-- [ ] 2.3 Error body format through full dispatcher chain in `proxy/adapter_errors_test.go` — JSON decode + field assertions
-- [ ] 2.4 Config validation edge cases in `config/config_test.go` — empty mapping key, empty behavior
-- [ ] 2.5 `mage test` passes — all new and existing tests green, race detector clean
+- [x] 2.1 Large/malformed upstream error body cases in `proxy/errors_test.go` — truncation, binary, empty
+- [x] 2.2 HTML error page test in `proxy/errors_test.go` — text/html upstream → reasonable message field
+- [x] 2.3 Error body format through full dispatcher chain in `proxy/adapter_errors_test.go` — JSON decode + field assertions
+- [x] 2.4 Config validation edge cases in `config/config_test.go` — empty mapping key, empty behavior
+- [x] 2.5 `mage test` passes — all new and existing tests green, race detector clean
 
 #### Manual
 
