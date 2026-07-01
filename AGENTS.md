@@ -4,10 +4,10 @@ freedius is a local HTTP proxy built with Go's standard library (`net/http`, `ht
 
 ## Build, Test, and Development Commands
 
-- **Run**: `go run ./cmd/freedius` — starts the proxy server locally.
-- **Build**: `go build -o freedius ./cmd/freedius` — produces a static binary.
-- **Test**: `go test ./...` — runs all tests.
-- **Lint**: `go vet ./...` — runs the Go static analysis checks.
+- **Run**: `mage run` — starts the proxy server locally.
+- **Build**: `mage build` — produces a static binary.
+- **Test**: `mage test` — runs all tests with race detection.
+- **Lint**: `mage lint` — runs vet, staticcheck, and golangci-lint.
 - **Audit**: `mage govulncheck` — checks for known vulnerabilities in the module graph.
 
 ## Project Structure
@@ -33,10 +33,10 @@ freedius is a local HTTP proxy built with Go's standard library (`net/http`, `ht
 - Tests live in `*_test.go` next to the file they test.
 - Use `testing` stdlib + `httptest` for HTTP tests (`httptest.NewServer`, `httptest.NewRequest`, `httptest.ResponseRecorder`).
 - Table-driven tests preferred for handler logic.
-- Run `go test -cover ./...` before committing to check coverage.
+- Run `mage test` before committing to check coverage.
 
 ## CI & Commits
 
-- CI runs on GitHub Actions (`@.github/workflows/ci.yml`): `go vet`, `go test`, `go build`.
+- CI runs on GitHub Actions (`@.github/workflows/ci.yml`): `mage ci`.
 - Commits use conventional-commit prefixes observed in `git log`: `feat:`, `fix:`, `chore:`, `docs:`, `refactor:`.
 - Keep the module path `github.com/pfrack/freedius` in imports.
