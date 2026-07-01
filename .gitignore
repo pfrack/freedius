@@ -1,4 +1,5 @@
 /freedius
+coverage.out
 .bootstrap-scaffold/
 .DS_Store
 *.swp

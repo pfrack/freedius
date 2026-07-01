@@ -2,7 +2,7 @@
 
 ## Overview
 
-Replace raw `go` commands in `.github/workflows/ci.yml` with `go run mage.go ci` to achieve parity between local and CI pipelines. Add coverage artifact upload and linting (staticcheck + golangci-lint) to CI.
+Replace raw `go` commands in `.github/workflows/ci.yml` with `mage ci` (after installing `mage` binary) to achieve parity between local and CI pipelines. Add coverage artifact upload and linting (staticcheck + golangci-lint) to CI.
 
 ## Current State Analysis
 
@@ -26,13 +26,13 @@ Replace raw `go` commands in `.github/workflows/ci.yml` with `go run mage.go ci`
 - `magefiles/mage.go:58-65` — `LintStatic()` auto-installs staticcheck if missing
 - `magefiles/mage.go:68-75` — `LintGolangci()` errors if golangci-lint missing (no auto-install)
 - `magefiles/mage.go:16-18` — `Test()` needs `COVERPROFILE` env var support
-- `mage.go` (root) — zero-install bootstrap, no setup step needed
+- `mage.go` (root) — zero-install bootstrap (not used in CI, but available for local use)
 - `mg.SerialDeps` deduplicates — adding `Lint` alongside `Vet` is safe
 
 ## Desired End State
 
 After this plan:
-- CI runs `go run mage.go ci` which executes `Vet → GenerateCheck → Test → Lint → Build`
+- CI runs `mage ci` which executes `Vet → GenerateCheck → Test → Lint → Build`
 - Coverage profile is uploaded as a GitHub Actions artifact (30-day retention)
 - golangci-lint is installed in CI workflow before `mage ci` runs
 - Go version matches `go.mod` (`1.26.4`)
@@ -40,14 +40,14 @@ After this plan:
 
 ## What We're NOT Doing
 
-- Not installing `mage` binary globally — using zero-install `go run mage.go` approach
+- Not using zero-install `go run mage.go` approach — installing `mage` binary in CI for faster execution
 - Not adding `govulncheck` as a Mage target — keeping it as separate CI step
 - Not changing `LintGolangci()` to auto-install — keeping explicit install in CI workflow
 - Not adding Codecov/Coveralls integration — just uploading artifact for now
 
 ## Implementation Approach
 
-Two-file change: modify `magefiles/mage.go` to support coverage profiles and include Lint in CI, then update `.github/workflows/ci.yml` to use `mage ci` with the new capabilities.
+Two-file change: modify `magefiles/mage.go` to support coverage profiles and include Lint in CI, then update `.github/workflows/ci.yml` to install `mage` binary and use `mage ci` with the new capabilities.
 
 ## Phase 1: Magefile Updates
 
@@ -93,17 +93,17 @@ Update `magefiles/mage.go` to support coverage profile output and include Lint i
 
 ### Overview
 
-Replace raw `go` commands in `.github/workflows/ci.yml` with `go run mage.go ci`, add golangci-lint install, and add coverage artifact upload.
+Replace raw `go` commands in `.github/workflows/ci.yml` with `mage ci` (after installing `mage` binary), add golangci-lint install, and add coverage artifact upload.
 
 ### Changes Required:
 
-#### 1. Replace raw commands with `mage ci`
+#### 1. Install `mage` binary and replace raw commands
 
 **File**: `.github/workflows/ci.yml`
 
-**Intent**: Use `go run mage.go ci` instead of individual `go vet`, `go test`, `go build`, `go generate` commands. This ensures CI uses the same build logic as local development.
+**Intent**: Install `mage` via `go install` and use `mage ci` instead of individual `go vet`, `go test`, `go build`, `go generate` commands. This ensures CI uses the same build logic as local development.
 
-**Contract**: Single step: `go run mage.go ci` with `COVERPROFILE=coverage.out` env var set.
+**Contract**: Add `go install github.com/magefile/mage@v1.17.2` step, then `mage ci` with `COVERPROFILE=coverage.out` env var set.
 
 #### 2. Add golangci-lint install step
 
@@ -131,7 +131,7 @@ Replace raw `go` commands in `.github/workflows/ci.yml` with `go run mage.go ci`
 
 #### Automated Verification:
 
-- `go run mage.go ci` completes successfully locally
+- `mage ci` completes successfully locally
 - `coverage.out` file is generated after `mage ci`
 - `go vet ./...` passes on modified file
 - YAML is valid (no syntax errors)
@@ -169,7 +169,6 @@ Replace raw `go` commands in `.github/workflows/ci.yml` with `go run mage.go ci`
 - `magefiles/mage.go:84-87` — current `CI()` target
 - `magefiles/mage.go:16-18` — current `Test()` target
 - `magefiles/mage.go:77-81` — current `Lint()` target
-- `mage.go` — zero-install bootstrap
 - `.github/workflows/ci.yml` — current CI workflow
 
 ## Progress
@@ -180,10 +179,10 @@ Replace raw `go` commands in `.github/workflows/ci.yml` with `go run mage.go ci`
 
 #### Automated
 
-- [x] 1.1 `mage test` still works without `COVERPROFILE` set
-- [x] 1.2 `COVERPROFILE=coverage.out mage test` produces `coverage.out` file
-- [x] 1.3 `mage ci` runs Vet, GenerateCheck, Test, Lint, Build in order
-- [x] 1.4 `go vet ./...` passes on modified file
+- [x] 1.1 `mage test` still works without `COVERPROFILE` set — a350612
+- [x] 1.2 `COVERPROFILE=coverage.out mage test` produces `coverage.out` file — a350612
+- [x] 1.3 `mage ci` runs Vet, GenerateCheck, Test, Lint, Build in order — a350612
+- [x] 1.4 `go vet ./...` passes on modified file — a350612
 
 #### Manual
 
@@ -194,8 +193,8 @@ Replace raw `go` commands in `.github/workflows/ci.yml` with `go run mage.go ci`
 
 #### Automated
 
-- [ ] 2.1 `go run mage.go ci` completes successfully locally
-- [ ] 2.2 `coverage.out` is generated when `COVERPROFILE` is set
+- [x] 2.1 `mage ci` completes successfully locally
+- [x] 2.2 `coverage.out` is generated when `COVERPROFILE` is set
 
 #### Manual
 
