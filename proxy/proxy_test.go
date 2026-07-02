@@ -163,6 +163,75 @@ func TestServeHTTP(t *testing.T) {
 	}
 }
 
+func TestServeHTTPMultiProviderRouting(t *testing.T) {
+	var providerACalled, providerBCalled bool
+
+	upstreamA := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		providerACalled = true
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"ok":true,"provider":"A"}`))
+	}))
+	defer upstreamA.Close()
+
+	upstreamB := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		providerBCalled = true
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"ok":true,"provider":"B"}`))
+	}))
+	defer upstreamB.Close()
+
+	cfg := &config.Config{
+		Providers: map[string]config.Provider{
+			"providerA": {
+				Behavior:         "openai",
+				DefaultBaseURL:   upstreamA.URL,
+				DefaultAPIKeyEnv: "PROVIDER_A_KEY",
+			},
+			"providerB": {
+				Behavior:         "openai",
+				DefaultBaseURL:   upstreamB.URL,
+				DefaultAPIKeyEnv: "PROVIDER_B_KEY",
+			},
+		},
+		Mappings: map[string]config.Mapping{
+			"model-a": {ProviderName: "providerA", ModelString: "model-a"},
+			"model-b": {ProviderName: "providerB", ModelString: "model-b"},
+		},
+	}
+	t.Setenv("PROVIDER_A_KEY", "sk-a")
+	t.Setenv("PROVIDER_B_KEY", "sk-b")
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	registry := NewRegistry(map[string]Provider{
+		"openai": NewOpenAICompatibleAdapter(logger),
+	})
+	d := NewDispatcher(cfg, registry, logger, false)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/v1/messages",
+		strings.NewReader(`{"model":"model-a","max_tokens":10,"messages":[{"role":"user","content":"hi"}]}`),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	d.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("status: got %d, want %d (body: %s)", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	if !providerACalled {
+		t.Error("provider A was NOT called; expected it to receive the request")
+	}
+	if providerBCalled {
+		t.Error("provider B was called; expected it to be untouched")
+	}
+	if got := rec.Header().Get("X-Freedius-Matched-Provider"); got != "providerA" {
+		t.Errorf("X-Freedius-Matched-Provider: got %q, want providerA", got)
+	}
+}
+
 func TestServeHTTPOversizeBody(t *testing.T) {
 	d := newTestDispatcher(t)
 
@@ -477,6 +546,86 @@ func (r *recordingProvider) Handle(
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(`{"ok":true}`))
 	return nil
+}
+
+func TestServeHTTPMappingEdgeCases(t *testing.T) {
+	tests := []struct {
+		name         string
+		cfg          *config.Config
+		body         string
+		wantStatus   int
+		wantBody     []string
+		wantModel    string
+		wantProvider string
+	}{
+		{
+			name: "model matches no family and no exact mapping",
+			cfg: &config.Config{
+				Providers: map[string]config.Provider{
+					"nim": {Behavior: "openai", DefaultAPIKeyEnv: "NVIDIA_NIM_API_KEY"},
+				},
+				Mappings: map[string]config.Mapping{
+					"opus": {ProviderName: "nim", ModelString: "x"},
+				},
+			},
+			body:       `{"model":"gpt-4-turbo"}`,
+			wantStatus: http.StatusNotFound,
+			wantBody:   []string{"no_match", "no configured mapping"},
+		},
+		{
+			name: "family priority: opus wins over auto",
+			cfg: &config.Config{
+				Providers: map[string]config.Provider{
+					"nim": {Behavior: "openai", DefaultAPIKeyEnv: "NVIDIA_NIM_API_KEY"},
+				},
+				Mappings: map[string]config.Mapping{
+					"auto": {ProviderName: "nim", ModelString: "from-auto"},
+					"opus": {ProviderName: "nim", ModelString: "from-opus"},
+				},
+			},
+			body:         `{"model":"claude-opus-4-2025"}`,
+			wantStatus:   http.StatusOK,
+			wantModel:    "from-opus",
+			wantProvider: "nim",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			d := newTestDispatcherWithAdapter(t, tt.cfg, map[string]Provider{
+				"openai": &mockProvider{status: 200, body: `{"ok":true}`},
+			})
+
+			req := httptest.NewRequest(
+				http.MethodPost,
+				"/v1/messages",
+				strings.NewReader(tt.body),
+			)
+			req.Header.Set("Content-Type", "application/json")
+			rec := httptest.NewRecorder()
+			d.ServeHTTP(rec, req)
+
+			if rec.Code != tt.wantStatus {
+				t.Errorf("status: got %d, want %d (body: %s)", rec.Code, tt.wantStatus, rec.Body.String())
+			}
+			body := rec.Body.String()
+			for _, s := range tt.wantBody {
+				if !strings.Contains(body, s) {
+					t.Errorf("body %q does not contain %q", body, s)
+				}
+			}
+			if tt.wantModel != "" {
+				if got := rec.Header().Get("X-Freedius-Matched-Model"); got != tt.wantModel {
+					t.Errorf("X-Freedius-Matched-Model: got %q, want %q", got, tt.wantModel)
+				}
+			}
+			if tt.wantProvider != "" {
+				if got := rec.Header().Get("X-Freedius-Matched-Provider"); got != tt.wantProvider {
+					t.Errorf("X-Freedius-Matched-Provider: got %q, want %q", got, tt.wantProvider)
+				}
+			}
+		})
+	}
 }
 
 // TestServeHTTPCountTokens exercises the path-aware capability check that

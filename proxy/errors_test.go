@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -201,6 +202,90 @@ func TestTranslateUpstreamError(t *testing.T) {
 	}
 }
 
+func TestTranslateUpstreamError_LargeBody(t *testing.T) {
+	bigBody := strings.Repeat("x", 1024)
+	resp := &http.Response{
+		StatusCode: 500,
+		Header:     http.Header{},
+		Body:       io.NopCloser(strings.NewReader(bigBody)),
+	}
+	rec := httptest.NewRecorder()
+	translateUpstreamError(rec, resp)
+
+	if rec.Code != 500 {
+		t.Errorf("status: got %d, want 500", rec.Code)
+	}
+	var body map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	inner := body["error"].(map[string]any)
+	msg := inner["message"].(string)
+	if len(msg) > 256 {
+		t.Errorf("message length: got %d, want ≤ 256", len(msg))
+	}
+	if !strings.Contains(msg, strings.Repeat("x", 100)) {
+		t.Errorf("message should contain start of upstream body, got %q", msg)
+	}
+}
+
+func TestTranslateUpstreamError_BinaryBody(t *testing.T) {
+	binaryBody := []byte{0x00, 0x01, 0x02, 0xff, 0xfe, 0xfd, 'o', 'k', 0x00, 0x03}
+	resp := &http.Response{
+		StatusCode: 502,
+		Header:     http.Header{},
+		Body:       io.NopCloser(bytes.NewReader(binaryBody)),
+	}
+	rec := httptest.NewRecorder()
+	translateUpstreamError(rec, resp)
+
+	if rec.Code != 502 {
+		t.Errorf("status: got %d, want 502", rec.Code)
+	}
+	var body map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	inner := body["error"].(map[string]any)
+	msg := inner["message"].(string)
+	// sanitizePrintable strips non-printable chars. Binary bytes become U+FFFD
+	// replacement characters (printable) and "ok" is preserved.
+	if !strings.Contains(msg, "ok") {
+		t.Errorf("message should contain %q, got %q", "ok", msg)
+	}
+	if len(msg) < 2 {
+		t.Errorf("message too short; expected printable chars from binary input, got %q", msg)
+	}
+}
+
+func TestTranslateUpstreamError_HTMLErrorPage(t *testing.T) {
+	htmlBody := `<html><body><h1>Bad Gateway</h1><p>CDN error</p></body></html>`
+	resp := &http.Response{
+		StatusCode: 502,
+		Header:     http.Header{"Content-Type": []string{"text/html"}},
+		Body:       io.NopCloser(strings.NewReader(htmlBody)),
+	}
+	rec := httptest.NewRecorder()
+	translateUpstreamError(rec, resp)
+
+	if rec.Code != 502 {
+		t.Errorf("status: got %d, want 502", rec.Code)
+	}
+	var body map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	inner := body["error"].(map[string]any)
+	msg := inner["message"].(string)
+	// sanitizePrintable keeps HTML tags (they're printable chars).
+	if !strings.Contains(msg, "Bad Gateway") {
+		t.Errorf("message should contain HTML body content, got %q", msg)
+	}
+	if inner["type"] != "api_error" {
+		t.Errorf("error.type: got %v, want api_error", inner["type"])
+	}
+}
+
 func TestTranslateUpstreamError_EmptyBody(t *testing.T) {
 	resp := &http.Response{
 		StatusCode: 429,
@@ -224,5 +309,103 @@ func TestTranslateUpstreamError_EmptyBody(t *testing.T) {
 	// Empty body must produce empty message, not a trailing-space artifact.
 	if msg := inner["message"].(string); msg != "" {
 		t.Errorf("message: got %q, want empty string", msg)
+	}
+}
+
+func TestRedactSensitive(t *testing.T) {
+	cases := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{
+			name:  "OpenAI key",
+			input: "Invalid API key provided: sk-abc1234567890abcdef1234567890abcd",
+			want:  "Invalid API key provided: [REDACTED]",
+		},
+		{
+			name:  "Anthropic key",
+			input: "authentication failed: sk-ant-api03-abcdefghij-klmnopqrst-vwxyz1234567890",
+			want:  "authentication failed: [REDACTED]",
+		},
+		{
+			name:  "Bearer token",
+			input: "Authorization error: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0",
+			want:  "Authorization error: [REDACTED]",
+		},
+		{
+			name:  "normal error message unchanged",
+			input: "internal server error: database connection timeout",
+			want:  "internal server error: database connection timeout",
+		},
+		{
+			name:  "key-like string not adjacent to keyword unchanged",
+			input: "response id: abcdefghij1234567890abcdefghij1234567890",
+			want:  "response id: abcdefghij1234567890abcdefghij1234567890",
+		},
+		{
+			name:  "api_key with value",
+			input: "config error: api_key = abcdefghij1234567890abcdefghij1234567890abcdef",
+			want:  "config error: api_key = [REDACTED]",
+		},
+		{
+			name:  "short sk- key not redacted (under 20 chars)",
+			input: "key prefix: sk-short",
+			want:  "key prefix: sk-short",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := redactSensitive(tc.input)
+			if got != tc.want {
+				t.Errorf("redactSensitive(%q) = %q, want %q", tc.input, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestTranslateUpstreamError_RedactsAPIKey(t *testing.T) {
+	body := `{"error":"Invalid API key provided: sk-test1234567890abcdef1234567890"}`
+	resp := &http.Response{
+		StatusCode: 401,
+		Header:     http.Header{},
+		Body:       io.NopCloser(strings.NewReader(body)),
+	}
+	rec := httptest.NewRecorder()
+	translateUpstreamError(rec, resp)
+
+	if rec.Code != 401 {
+		t.Errorf("status: got %d, want 401", rec.Code)
+	}
+	var got map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&got); err != nil {
+		t.Fatal(err)
+	}
+	inner := got["error"].(map[string]any)
+	msg := inner["message"].(string)
+	if strings.Contains(msg, "sk-test1234567890abcdef1234567890") {
+		t.Errorf("message should NOT contain raw API key, got %q", msg)
+	}
+	if !strings.Contains(msg, "[REDACTED]") {
+		t.Errorf("message should contain [REDACTED], got %q", msg)
+	}
+}
+
+func TestTranslateUpstreamError_RedactsAPIKey_InHeader(t *testing.T) {
+	body := `{"error":"Invalid API key: sk-test1234567890abcdef1234567890"}`
+	resp := &http.Response{
+		StatusCode: 401,
+		Header:     http.Header{},
+		Body:       io.NopCloser(strings.NewReader(body)),
+	}
+	rec := httptest.NewRecorder()
+	translateUpstreamError(rec, resp)
+
+	headerMsg := rec.Header().Get("X-Freedius-Error-Message")
+	if strings.Contains(headerMsg, "sk-test1234567890abcdef1234567890") {
+		t.Errorf("X-Freedius-Error-Message should NOT contain raw API key, got %q", headerMsg)
+	}
+	if !strings.Contains(headerMsg, "[REDACTED]") {
+		t.Errorf("X-Freedius-Error-Message should contain [REDACTED], got %q", headerMsg)
 	}
 }

@@ -296,6 +296,26 @@ mappings:
 			errSubstr: "default_api_key_env with invalid characters",
 		},
 		{
+			name: "empty mapping key accepted (validation gap)",
+			yaml: `providers:
+  nim: { behavior: openai }
+mappings:
+  "":
+    provider_name: nim
+    model_string: x
+`,
+			wantErr: false,
+		},
+		{
+			name: "empty behavior string",
+			yaml: `providers:
+  nim:
+    behavior: ""
+`,
+			wantErr:   true,
+			errSubstr: `invalid behavior`,
+		},
+		{
 			name: "models empty but mappings non-empty",
 			yaml: `providers:
   nim: { behavior: openai }

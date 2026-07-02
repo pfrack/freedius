@@ -507,5 +507,115 @@ func TestFreediusErrorHandler_ConnectionRefused_Returns529(t *testing.T) {
 	}
 }
 
+func TestDispatcher_Upstream500_AnthropicErrorEnvelope(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`{"error":"internal failure","detail":"database timeout"}`))
+	}))
+	defer upstream.Close()
+
+	t.Setenv("TEST_API_KEY", "sk-test")
+	cfg := &config.Config{
+		Providers: map[string]config.Provider{
+			"test": {
+				Behavior:         "openai",
+				DefaultBaseURL:   upstream.URL,
+				DefaultAPIKeyEnv: "TEST_API_KEY",
+			},
+		},
+		Mappings: map[string]config.Mapping{
+			"claude-opus-4": {ProviderName: "test", ModelString: "x"},
+		},
+	}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	registry := NewRegistry(map[string]Provider{
+		"openai": NewOpenAICompatibleAdapter(logger),
+	})
+	d := NewDispatcher(cfg, registry, logger, false)
+	handler := RequestIDMiddleware(d)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages",
+		strings.NewReader(`{"model":"claude-opus-4","max_tokens":10,"messages":[{"role":"user","content":"hi"}]}`))
+	req.Header.Set("Content-Type", "application/json")
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("status: got %d, want %d (body: %s)", rec.Code, http.StatusInternalServerError, rec.Body.String())
+	}
+
+	var body map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if body["type"] != "error" {
+		t.Errorf("type: got %v, want error", body["type"])
+	}
+	inner, ok := body["error"].(map[string]any)
+	if !ok {
+		t.Fatalf("error field is not a map: %v", body["error"])
+	}
+	if inner["type"] != "api_error" {
+		t.Errorf("error.type: got %v, want api_error", inner["type"])
+	}
+	msg, ok := inner["message"].(string)
+	if !ok {
+		t.Fatalf("error.message is not a string: %v", inner["message"])
+	}
+	if !strings.Contains(msg, "internal failure") {
+		t.Errorf("message should contain upstream snippet, got %q", msg)
+	}
+	if got := rec.Header().Get("retry-after"); got != "15" {
+		t.Errorf("retry-after: got %q, want 15", got)
+	}
+	if got := rec.Header().Get("x-should-retry"); got != "true" {
+		t.Errorf("x-should-retry: got %q, want true", got)
+	}
+}
+
+func TestAdapter_ErrorResponse_NoAPIKeyInLog(t *testing.T) {
+	const fakeKey = "sk-test-log-leak-1234567890abcdef1234567890"
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"error":"Invalid API key provided: ` + fakeKey + `"}`))
+	}))
+	defer upstream.Close()
+
+	t.Setenv("LEAK_TEST_KEY", "sk-real-key")
+	logBuf := &bytes.Buffer{}
+	logger := slog.New(slog.NewTextHandler(logBuf, &slog.HandlerOptions{Level: slog.LevelDebug}))
+
+	cfg := &config.Config{
+		Providers: map[string]config.Provider{
+			"test": {
+				Behavior:         "openai",
+				DefaultBaseURL:   upstream.URL,
+				DefaultAPIKeyEnv: "LEAK_TEST_KEY",
+			},
+		},
+		Mappings: map[string]config.Mapping{
+			"claude-opus-4": {ProviderName: "test", ModelString: "x"},
+		},
+	}
+	registry := NewRegistry(map[string]Provider{
+		"openai": NewOpenAICompatibleAdapter(logger),
+	})
+	d := NewDispatcher(cfg, registry, logger, true)
+	handler := RequestIDMiddleware(d)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages",
+		strings.NewReader(`{"model":"claude-opus-4","max_tokens":10,"messages":[{"role":"user","content":"hi"}]}`))
+	req.Header.Set("Content-Type", "application/json")
+	handler.ServeHTTP(rec, req)
+
+	logOutput := logBuf.String()
+	if strings.Contains(logOutput, fakeKey) {
+		t.Errorf("log output should NOT contain API key, got:\n%s", logOutput)
+	}
+}
+
 // helper used by other tests in this file
 var _ = json.Unmarshal

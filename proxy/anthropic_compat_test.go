@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/pfrack/freedius/config"
@@ -60,6 +61,48 @@ func TestAnthropicCompat_PassthroughText(t *testing.T) {
 	}
 	if rec.Code != http.StatusOK {
 		t.Errorf("status: got %d, want %d", rec.Code, http.StatusOK)
+	}
+}
+
+func TestAnthropicCompat_Upstream401_ForwardsBody(t *testing.T) {
+	t.Setenv("ANTHROPIC_API_KEY", "sk-test")
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"type":"error","error":{"type":"authentication_error","message":"invalid api key"}}`))
+	}))
+	defer upstream.Close()
+
+	a := newAnthropicCompatAdapter(t)
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/v1/messages",
+		bytes.NewReader([]byte(`{"model":"x"}`)),
+	)
+	err := a.Handle(
+		rec,
+		req,
+		config.Provider{
+			Behavior:         "anthropic",
+			DefaultBaseURL:   upstream.URL,
+			DefaultAPIKeyEnv: "ANTHROPIC_API_KEY",
+		},
+		config.Mapping{ProviderName: "anthropic", ModelString: "x"},
+		[]byte(`{"model":"x"}`),
+	)
+	if err != nil {
+		t.Fatalf("Handle returned err: %v", err)
+	}
+	if rec.Code != http.StatusUnauthorized {
+		t.Errorf("status: got %d, want %d", rec.Code, http.StatusUnauthorized)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "authentication_error") {
+		t.Errorf("body should contain authentication_error, got %q", body)
+	}
+	if !strings.Contains(body, "invalid api key") {
+		t.Errorf("body should contain upstream error message, got %q", body)
 	}
 }
 
