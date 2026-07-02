@@ -1,9 +1,10 @@
 ---
 id: mage-ci-integration
 title: "Integrate Mage into GitHub Actions CI"
-status: impl_reviewed
+status: archived
 created: 2026-07-01
-updated: 2026-07-01
+archived_at: 2026-07-02T15:56:19Z
+updated: 2026-07-02
 ---
 
 # Change: Integrate Mage into GitHub Actions CI
