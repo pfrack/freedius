@@ -216,11 +216,11 @@ Expand the pre-commit hook to catch generated-file drift, fix stale documentatio
 
 #### Automated
 
-- [x] 1.1 `mage lint` passes without redundant vet
-- [x] 1.2 `mage test` passes
-- [x] 1.3 `mage build` passes
-- [x] 1.4 `mage ci` runs all 9 gates and passes
-- [x] 1.5 `golangci-lint fmt --diff` exits 0
+- [x] 1.1 `mage lint` passes without redundant vet — 43652db
+- [x] 1.2 `mage test` passes — 43652db
+- [x] 1.3 `mage build` passes — 43652db
+- [x] 1.4 `mage ci` runs all 9 gates and passes — 43652db
+- [x] 1.5 `golangci-lint fmt --diff` exits 0 — 43652db
 
 #### Manual
 
