@@ -114,15 +114,15 @@ func Coverage() error {
 	fmt.Println("→ Generating coverage report...")
 	coverFile := "coverage.out"
 	htmlFile := "coverage.html"
-	
+
 	if err := sh.RunV("go", "test", "-coverprofile="+coverFile, "./..."); err != nil {
 		return fmt.Errorf("test coverage failed: %w", err)
 	}
-	
+
 	if err := sh.RunV("go", "tool", "cover", "-html="+coverFile, "-o", htmlFile); err != nil {
 		return fmt.Errorf("generate HTML coverage: %w", err)
 	}
-	
+
 	fmt.Printf("✓ Coverage report generated: %s\n", htmlFile)
 	fmt.Println("  Open it in your browser to view detailed coverage")
 	return nil
@@ -149,13 +149,13 @@ func Install() error {
 // Clean removes build artifacts and temporary files.
 func Clean() error {
 	fmt.Println("→ Cleaning build artifacts...")
-	
+
 	artifacts := []string{
 		"freedius",
 		"coverage.out",
 		"coverage.html",
 	}
-	
+
 	for _, f := range artifacts {
 		if err := sh.Rm(f); err != nil {
 			// Ignore errors if file doesn't exist
@@ -163,7 +163,7 @@ func Clean() error {
 		}
 		fmt.Printf("  Removed: %s\n", f)
 	}
-	
+
 	fmt.Println("✓ Clean complete")
 	return nil
 }
@@ -191,6 +191,15 @@ func ModVerify() error {
 	}
 	fmt.Println("✓ All modules verified")
 	return nil
+}
+
+// TidyCheck verifies that go.mod and go.sum are tidy.
+func TidyCheck() error {
+	fmt.Println("→ Checking go.mod tidiness...")
+	if err := sh.RunV("go", "mod", "tidy"); err != nil {
+		return fmt.Errorf("go mod tidy failed: %w", err)
+	}
+	return sh.RunV("git", "diff", "--exit-code", "--", "go.mod", "go.sum")
 }
 
 // Run starts the server, passing through extra args via ARGS env var.
@@ -222,18 +231,38 @@ func Watch() error {
 	fmt.Println("→ Watching for changes... (Press Ctrl+C to stop)")
 	fmt.Println("  Watching: *.go files")
 	fmt.Println()
-	
+
 	// Initial build
 	if err := Build(); err != nil {
 		fmt.Printf("✗ Initial build failed: %v\n", err)
 	} else {
 		fmt.Println("✓ Initial build successful")
 	}
-	
+
 	// Simple watch loop - rebuild on any .go file change
 	lastCheck := ""
 	for {
-		out, err := sh.Output("find", ".", "-name", "*.go", "-type", "f", "-newer", "freedius", "-o", "-name", "*.go", "-type", "f", "!", "-path", "*/vendor/*", "!", "-path", "*/.*")
+		out, err := sh.Output(
+			"find",
+			".",
+			"-name",
+			"*.go",
+			"-type",
+			"f",
+			"-newer",
+			"freedius",
+			"-o",
+			"-name",
+			"*.go",
+			"-type",
+			"f",
+			"!",
+			"-path",
+			"*/vendor/*",
+			"!",
+			"-path",
+			"*/.*",
+		)
 		if err == nil && out != "" && out != lastCheck {
 			lastCheck = out
 			fmt.Println("\n→ Change detected, rebuilding...")
@@ -250,7 +279,7 @@ func Watch() error {
 // LintStatic runs staticcheck, installing it if missing.
 func LintStatic() error {
 	if _, err := sh.Output("which", "staticcheck"); err != nil {
-		if err := sh.RunV("go", "install", "honnef.co/go/tools/cmd/staticcheck@v0.7.0"); err != nil {
+		if err := sh.RunV("go", "install", "honnef.co/go/tools/cmd/staticcheck@"+toolVersionStaticcheck); err != nil {
 			return err
 		}
 	}
@@ -260,37 +289,50 @@ func LintStatic() error {
 // LintGolangci runs golangci-lint, installing it if missing.
 func LintGolangci() error {
 	if _, err := sh.Output("which", "golangci-lint"); err != nil {
-		if err := sh.RunV("go", "install", "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2"); err != nil {
+		if err := sh.RunV(
+			"go",
+			"install",
+			"github.com/golangci/golangci-lint/v2/cmd/golangci-lint@"+toolVersionGolangciLint,
+		); err != nil {
 			return err
 		}
 	}
 	return sh.RunV("golangci-lint", "run", "./...")
 }
 
-// Lint runs all linters (vet + staticcheck + golangci-lint).
+// Lint runs all linters (staticcheck + golangci-lint).
 func Lint() error {
-	mg.SerialDeps(Vet, LintStatic, LintGolangci)
+	mg.SerialDeps(LintStatic, LintGolangci)
 	return nil
 }
 
 // Govulncheck runs govulncheck, installing it if missing.
 func Govulncheck() error {
 	if _, err := sh.Output("which", "govulncheck"); err != nil {
-		if err := sh.RunV("go", "install", "golang.org/x/vuln/cmd/govulncheck@v1.3.0"); err != nil {
+		if err := sh.RunV("go", "install", "golang.org/x/vuln/cmd/govulncheck@"+toolVersionGovulncheck); err != nil {
 			return err
 		}
 	}
 	return sh.RunV("govulncheck", "./...")
 }
 
-// CI runs the full CI pipeline: vet + generate-check + test + lint + build + govulncheck.
+// FormatCheck verifies that all Go files are properly formatted.
+func FormatCheck() error {
+	fmt.Println("→ Checking formatting...")
+	return sh.RunV("golangci-lint", "fmt", "--diff")
+}
+
+// CI runs the full CI pipeline: vet + generate-check + mod-verify + tidy-check + format-check + test + lint + build + govulncheck.
 func CI() error {
 	steps := []struct {
 		name string
 		fn   func() error
 	}{
 		{"Vet", Vet},
+		{"Mod Verify", ModVerify},
+		{"Tidy Check", TidyCheck},
 		{"Generate Check", GenerateCheck},
+		{"Format Check", FormatCheck},
 		{"Test", Test},
 		{"Lint", Lint},
 		{"Build", Build},
@@ -336,7 +378,7 @@ func InstallHooks() error {
 // InstallGoimports installs goimports if missing.
 func InstallGoimports() error {
 	if _, err := sh.Output("which", "goimports"); err != nil {
-		return sh.RunV("go", "install", "golang.org/x/tools/cmd/goimports@v0.47.0")
+		return sh.RunV("go", "install", "golang.org/x/tools/cmd/goimports@"+toolVersionGoimports)
 	}
 	return nil
 }
@@ -344,7 +386,7 @@ func InstallGoimports() error {
 // InstallGolines installs golines if missing.
 func InstallGolines() error {
 	if _, err := sh.Output("which", "golines"); err != nil {
-		return sh.RunV("go", "install", "github.com/segmentio/golines@v0.12.2")
+		return sh.RunV("go", "install", "github.com/segmentio/golines@"+toolVersionGolines)
 	}
 	return nil
 }
@@ -352,7 +394,7 @@ func InstallGolines() error {
 // InstallGci installs gci if missing.
 func InstallGci() error {
 	if _, err := sh.Output("which", "gci"); err != nil {
-		return sh.RunV("go", "install", "github.com/daixiang0/gci@v0.13.5")
+		return sh.RunV("go", "install", "github.com/daixiang0/gci@"+toolVersionGci)
 	}
 	return nil
 }
@@ -447,7 +489,7 @@ func Help2() {
 	fmt.Println("Freedius Mage Build Targets")
 	fmt.Println("============================")
 	fmt.Println()
-	
+
 	sections := []struct {
 		name    string
 		targets []struct {

@@ -24,5 +24,5 @@ func NewIPCServer(
 	return &IPCServer{}
 }
 
-func (s *IPCServer) ListenAndServe() error { return fmt.Errorf("IPC not supported on Windows") }
+func (s *IPCServer) ListenAndServe() error              { return fmt.Errorf("IPC not supported on Windows") }
 func (s *IPCServer) Shutdown(ctx context.Context) error { return nil }
