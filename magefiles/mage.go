@@ -324,6 +324,15 @@ func Govulncheck() error {
 // FormatCheck verifies that all Go files are properly formatted.
 func FormatCheck() error {
 	fmt.Println("→ Checking formatting...")
+	if _, err := sh.Output("which", "golangci-lint"); err != nil {
+		if err := sh.RunV(
+			"go",
+			"install",
+			"github.com/golangci/golangci-lint/v2/cmd/golangci-lint@"+toolVersionGolangciLint,
+		); err != nil {
+			return err
+		}
+	}
 	return sh.RunV("golangci-lint", "fmt", "--diff")
 }
 
