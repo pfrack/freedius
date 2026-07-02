@@ -1,9 +1,10 @@
 ---
 id: add-popular-providers
 title: "Add popular AI providers to providers.yaml"
-status: implemented
+status: archived
 created: 2026-06-21
-updated: 2026-06-21
+updated: 2026-07-02
+archived_at: 2026-07-02T16:06:49Z
 ---
 
 # Change: Add Popular AI Providers
