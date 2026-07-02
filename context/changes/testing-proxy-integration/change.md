@@ -1,7 +1,7 @@
 ---
 change_id: testing-proxy-integration
 title: Testing proxy integration
-status: implementing
+status: implemented
 created: 2026-07-02
 updated: 2026-07-02
 archived_at: null

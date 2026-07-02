@@ -308,13 +308,13 @@ Implement API key redaction in `translateUpstreamError` and add runtime tests ve
 
 #### Automated
 
-- [x] 3.1 Implement `redactSensitive` function in `proxy/errors.go`
-- [x] 3.2 `TestRedactSensitive` table-driven test in `proxy/errors_test.go` — 7 cases (OpenAI, Anthropic, Bearer, normal, key-adjacent keyword, api_key=, short sk-)
-- [x] 3.3 Redaction integration test — upstream error body with fake key → `[REDACTED]` in client response
-- [x] 3.4 Log output leakage test — API key absent from captured log buffer
-- [x] 3.5 Response header leakage test — API key absent from `X-Freedius-Error-Message`
-- [x] 3.6 Update test-plan.md §6 cookbook patterns 6.4 and 6.5
-- [x] 3.7 `mage test` passes — all new and existing tests green, race detector clean
+- [x] 3.1 Implement `redactSensitive` function in `proxy/errors.go` — ed16033
+- [x] 3.2 `TestRedactSensitive` table-driven test in `proxy/errors_test.go` — 7 cases (OpenAI, Anthropic, Bearer, normal, key-adjacent keyword, api_key=, short sk-) — ed16033
+- [x] 3.3 Redaction integration test — upstream error body with fake key → `[REDACTED]` in client response — ed16033
+- [x] 3.4 Log output leakage test — API key absent from captured log buffer — ed16033
+- [x] 3.5 Response header leakage test — API key absent from `X-Freedius-Error-Message` — ed16033
+- [x] 3.6 Update test-plan.md §6 cookbook patterns 6.4 and 6.5 — ed16033
+- [x] 3.7 `mage test` passes — all new and existing tests green, race detector clean — ed16033
 
 #### Manual
 
