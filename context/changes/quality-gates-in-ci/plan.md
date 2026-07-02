@@ -232,9 +232,9 @@ Expand the pre-commit hook to catch generated-file drift, fix stale documentatio
 
 #### Automated
 
-- [x] 2.1 `scripts/pre-commit` runs lint + generateCheck without error
-- [x] 2.2 `mage lint` passes
-- [x] 2.3 `mage generateCheck` passes
+- [x] 2.1 `scripts/pre-commit` runs lint + generateCheck without error — 1934f10
+- [x] 2.2 `mage lint` passes — 1934f10
+- [x] 2.3 `mage generateCheck` passes — 1934f10
 
 #### Manual
 

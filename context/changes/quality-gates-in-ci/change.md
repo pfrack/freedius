@@ -1,7 +1,7 @@
 ---
 id: quality-gates-in-ci
 title: "Audit and harden quality gates in CI"
-status: implementing
+status: implemented
 created: 2026-07-02
 updated: 2026-07-02
 ---
