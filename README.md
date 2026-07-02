@@ -128,19 +128,19 @@ No subcommands — `freedius` always starts the TUI dashboard alongside the prox
 
 ```bash
 # Run tests with race detection
-make test
+mage test
 
-# Lint (vet + staticcheck + golangci-lint)
-make lint
+# Lint (staticcheck + golangci-lint)
+mage lint
 
-# Full CI check (vet, generate-check, test, build)
-make ci
+# Full CI check (vet, mod-verify, tidy-check, generate-check, format-check, test, lint, build, govulncheck)
+mage ci
 
 # Format code (requires goimports, golines, gci)
-make format
+mage format
 
 # Install git pre-commit hook
-make install-hooks
+mage installHooks
 ```
 
 ## API
