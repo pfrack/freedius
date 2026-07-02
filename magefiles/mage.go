@@ -199,7 +199,12 @@ func TidyCheck() error {
 	if err := sh.RunV("go", "mod", "tidy"); err != nil {
 		return fmt.Errorf("go mod tidy failed: %w", err)
 	}
-	return sh.RunV("git", "diff", "--exit-code", "--", "go.mod", "go.sum")
+	diff, _ := sh.Output("git", "diff", "--", "go.mod", "go.sum")
+	sh.RunV("git", "checkout", "--", "go.mod", "go.sum")
+	if diff != "" {
+		return fmt.Errorf("go.mod/go.sum are not tidy:\n%s", diff)
+	}
+	return nil
 }
 
 // Run starts the server, passing through extra args via ARGS env var.
