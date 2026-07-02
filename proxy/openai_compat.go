@@ -3,6 +3,7 @@ package proxy
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net"
@@ -152,12 +153,24 @@ func (a *OpenAICompatibleAdapter) Handle(
 	w.Header().Set("Connection", "keep-alive")
 	w.WriteHeader(http.StatusOK)
 	rc := http.NewResponseController(w)
-	var reasoning string
-	reasoning, err = translate.Stream(resp.Body, w, rc.Flush)
-	_ = reasoning
+	err = translate.Stream(resp.Body, w, rc.Flush)
 	if err != nil {
-		// Response already started; log the error but do not return it
-		a.logger.Error("stream translation error", "err", err)
+		// Response already started; write error event in-band
+		errPayload := map[string]any{
+			"type": "error",
+			"error": map[string]any{
+				"type":    "api_error",
+				"message": err.Error(),
+			},
+		}
+		errBytes, marshalErr := json.Marshal(errPayload)
+		if marshalErr == nil {
+			line := fmt.Sprintf("event: error\ndata: %s\n\n", errBytes)
+			if _, writeErr := w.Write([]byte(line)); writeErr == nil {
+				_ = rc.Flush()
+			}
+		}
+		a.logger.Warn("stream translation error", "err", err)
 	}
 	return nil
 }
