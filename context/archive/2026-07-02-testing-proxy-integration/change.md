@@ -1,10 +1,10 @@
 ---
 change_id: testing-proxy-integration
 title: Testing proxy integration
-status: impl_reviewed
+status: archived
 created: 2026-07-02
 updated: 2026-07-02
-archived_at: null
+archived_at: 2026-07-02T16:12:12Z
 ---
 
 ## Notes
