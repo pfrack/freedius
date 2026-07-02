@@ -134,7 +134,7 @@ var (
 	reOpenAIKey    = regexp.MustCompile(`\bsk-[a-zA-Z0-9]{20,}\b`)
 	reAnthropicKey = regexp.MustCompile(`\bsk-ant-[a-zA-Z0-9-]{20,}\b`)
 	reBearerToken  = regexp.MustCompile(`Bearer [a-zA-Z0-9._-]{20,}`)
-	reKeyAdjacent  = regexp.MustCompile(`(?i)(key|token|secret|api_key)[\s=:]+[a-zA-Z0-9]{40,}`)
+	reKeyAdjacent  = regexp.MustCompile(`(?i)(key|token|secret|api_key)[\s=:]+[a-zA-Z0-9._-]{40,}`)
 )
 
 // redactSensitive replaces API key patterns in s with [REDACTED].
@@ -142,7 +142,7 @@ var (
 //   - sk-... (OpenAI-style keys, 20+ alphanumeric chars)
 //   - sk-ant-... (Anthropic-style keys, 20+ alphanumeric chars)
 //   - Bearer ... (Bearer tokens, 20+ alphanumeric/dot/dash chars)
-//   - key/token/secret/api_key = <40+ alphanumeric chars>
+//   - key/token/secret/api_key = <40+ alphanumeric/dot/dash chars>
 func redactSensitive(s string) string {
 	s = reOpenAIKey.ReplaceAllString(s, "[REDACTED]")
 	s = reAnthropicKey.ReplaceAllString(s, "[REDACTED]")
