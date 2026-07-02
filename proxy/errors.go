@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"unicode"
@@ -73,6 +74,7 @@ func translateUpstreamError(w http.ResponseWriter, resp *http.Response) {
 	snippet := make([]byte, 256)
 	n, _ := io.ReadAtLeast(resp.Body, snippet, 1)
 	msg := sanitizePrintable(snippet[:n])
+	msg = redactSensitive(msg)
 
 	// Drain remaining body (capped) so the http.Transport can reuse the
 	// keep-alive connection. Caller still owns resp.Body.Close() via defer.
@@ -126,6 +128,44 @@ func sanitizePrintable(b []byte) string {
 		}
 	}
 	return out.String()
+}
+
+var (
+	reOpenAIKey    = regexp.MustCompile(`\bsk-[a-zA-Z0-9]{20,}\b`)
+	reAnthropicKey = regexp.MustCompile(`\bsk-ant-[a-zA-Z0-9-]{20,}\b`)
+	reBearerToken  = regexp.MustCompile(`Bearer [a-zA-Z0-9._-]{20,}`)
+	reKeyAdjacent  = regexp.MustCompile(`(?i)(key|token|secret|api_key)[\s=:]+[a-zA-Z0-9]{40,}`)
+)
+
+// redactSensitive replaces API key patterns in s with [REDACTED].
+// Patterns redacted:
+//   - sk-... (OpenAI-style keys, 20+ alphanumeric chars)
+//   - sk-ant-... (Anthropic-style keys, 20+ alphanumeric chars)
+//   - Bearer ... (Bearer tokens, 20+ alphanumeric/dot/dash chars)
+//   - key/token/secret/api_key = <40+ alphanumeric chars>
+func redactSensitive(s string) string {
+	s = reOpenAIKey.ReplaceAllString(s, "[REDACTED]")
+	s = reAnthropicKey.ReplaceAllString(s, "[REDACTED]")
+	s = reBearerToken.ReplaceAllString(s, "[REDACTED]")
+	s = reKeyAdjacent.ReplaceAllStringFunc(s, func(match string) string {
+		// Preserve the keyword prefix, redact only the value.
+		for _, kw := range []string{"key", "token", "secret", "api_key"} {
+			lower := strings.ToLower(match)
+			idx := strings.Index(lower, kw)
+			if idx >= 0 {
+				// Find where the keyword ends and the value begins.
+				rest := match[idx+len(kw):]
+				// Skip separator chars (spaces, =, :, etc.)
+				i := 0
+				for i < len(rest) && (rest[i] == ' ' || rest[i] == '=' || rest[i] == ':') {
+					i++
+				}
+				return match[:idx+len(kw)+i] + "[REDACTED]"
+			}
+		}
+		return "[REDACTED]"
+	})
+	return s
 }
 
 // isPermanentTransportError returns true when err is a permanent transport

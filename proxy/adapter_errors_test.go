@@ -574,5 +574,48 @@ func TestDispatcher_Upstream500_AnthropicErrorEnvelope(t *testing.T) {
 	}
 }
 
+func TestAdapter_ErrorResponse_NoAPIKeyInLog(t *testing.T) {
+	const fakeKey = "sk-test-log-leak-1234567890abcdef1234567890"
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"error":"Invalid API key provided: ` + fakeKey + `"}`))
+	}))
+	defer upstream.Close()
+
+	t.Setenv("LEAK_TEST_KEY", "sk-real-key")
+	logBuf := &bytes.Buffer{}
+	logger := slog.New(slog.NewTextHandler(logBuf, &slog.HandlerOptions{Level: slog.LevelDebug}))
+
+	cfg := &config.Config{
+		Providers: map[string]config.Provider{
+			"test": {
+				Behavior:         "openai",
+				DefaultBaseURL:   upstream.URL,
+				DefaultAPIKeyEnv: "LEAK_TEST_KEY",
+			},
+		},
+		Mappings: map[string]config.Mapping{
+			"claude-opus-4": {ProviderName: "test", ModelString: "x"},
+		},
+	}
+	registry := NewRegistry(map[string]Provider{
+		"openai": NewOpenAICompatibleAdapter(logger),
+	})
+	d := NewDispatcher(cfg, registry, logger, true)
+	handler := RequestIDMiddleware(d)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages",
+		strings.NewReader(`{"model":"claude-opus-4","max_tokens":10,"messages":[{"role":"user","content":"hi"}]}`))
+	req.Header.Set("Content-Type", "application/json")
+	handler.ServeHTTP(rec, req)
+
+	logOutput := logBuf.String()
+	if strings.Contains(logOutput, fakeKey) {
+		t.Errorf("log output should NOT contain API key, got:\n%s", logOutput)
+	}
+}
+
 // helper used by other tests in this file
 var _ = json.Unmarshal

@@ -294,11 +294,11 @@ Implement API key redaction in `translateUpstreamError` and add runtime tests ve
 
 #### Automated
 
-- [x] 2.1 Large/malformed upstream error body cases in `proxy/errors_test.go` — truncation, binary, empty
-- [x] 2.2 HTML error page test in `proxy/errors_test.go` — text/html upstream → reasonable message field
-- [x] 2.3 Error body format through full dispatcher chain in `proxy/adapter_errors_test.go` — JSON decode + field assertions
-- [x] 2.4 Config validation edge cases in `config/config_test.go` — empty mapping key, empty behavior
-- [x] 2.5 `mage test` passes — all new and existing tests green, race detector clean
+- [x] 2.1 Large/malformed upstream error body cases in `proxy/errors_test.go` — truncation, binary, empty — baeabe1
+- [x] 2.2 HTML error page test in `proxy/errors_test.go` — text/html upstream → reasonable message field — baeabe1
+- [x] 2.3 Error body format through full dispatcher chain in `proxy/adapter_errors_test.go` — JSON decode + field assertions — baeabe1
+- [x] 2.4 Config validation edge cases in `config/config_test.go` — empty mapping key, empty behavior — baeabe1
+- [x] 2.5 `mage test` passes — all new and existing tests green, race detector clean — baeabe1
 
 #### Manual
 
@@ -308,13 +308,13 @@ Implement API key redaction in `translateUpstreamError` and add runtime tests ve
 
 #### Automated
 
-- [ ] 3.1 Implement `redactSensitive` function in `proxy/errors.go`
-- [ ] 3.2 `TestRedactSensitive` table-driven test in `proxy/errors_test.go` — 5+ cases
-- [ ] 3.3 Redaction integration test — upstream error body with fake key → `[REDACTED]` in client response
-- [ ] 3.4 Log output leakage test — API key absent from captured log buffer
-- [ ] 3.5 Response header leakage test — API key absent from `X-Freedius-Error-Message`
-- [ ] 3.6 Update test-plan.md §6 cookbook patterns 6.4 and 6.5
-- [ ] 3.7 `mage test` passes — all new and existing tests green, race detector clean
+- [x] 3.1 Implement `redactSensitive` function in `proxy/errors.go`
+- [x] 3.2 `TestRedactSensitive` table-driven test in `proxy/errors_test.go` — 7 cases (OpenAI, Anthropic, Bearer, normal, key-adjacent keyword, api_key=, short sk-)
+- [x] 3.3 Redaction integration test — upstream error body with fake key → `[REDACTED]` in client response
+- [x] 3.4 Log output leakage test — API key absent from captured log buffer
+- [x] 3.5 Response header leakage test — API key absent from `X-Freedius-Error-Message`
+- [x] 3.6 Update test-plan.md §6 cookbook patterns 6.4 and 6.5
+- [x] 3.7 `mage test` passes — all new and existing tests green, race detector clean
 
 #### Manual
 

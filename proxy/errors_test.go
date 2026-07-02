@@ -311,3 +311,101 @@ func TestTranslateUpstreamError_EmptyBody(t *testing.T) {
 		t.Errorf("message: got %q, want empty string", msg)
 	}
 }
+
+func TestRedactSensitive(t *testing.T) {
+	cases := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{
+			name:  "OpenAI key",
+			input: "Invalid API key provided: sk-abc1234567890abcdef1234567890abcd",
+			want:  "Invalid API key provided: [REDACTED]",
+		},
+		{
+			name:  "Anthropic key",
+			input: "authentication failed: sk-ant-api03-abcdefghij-klmnopqrst-vwxyz1234567890",
+			want:  "authentication failed: [REDACTED]",
+		},
+		{
+			name:  "Bearer token",
+			input: "Authorization error: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0",
+			want:  "Authorization error: [REDACTED]",
+		},
+		{
+			name:  "normal error message unchanged",
+			input: "internal server error: database connection timeout",
+			want:  "internal server error: database connection timeout",
+		},
+		{
+			name:  "key-like string not adjacent to keyword unchanged",
+			input: "response id: abcdefghij1234567890abcdefghij1234567890",
+			want:  "response id: abcdefghij1234567890abcdefghij1234567890",
+		},
+		{
+			name:  "api_key with value",
+			input: "config error: api_key = abcdefghij1234567890abcdefghij1234567890abcdef",
+			want:  "config error: api_key = [REDACTED]",
+		},
+		{
+			name:  "short sk- key not redacted (under 20 chars)",
+			input: "key prefix: sk-short",
+			want:  "key prefix: sk-short",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := redactSensitive(tc.input)
+			if got != tc.want {
+				t.Errorf("redactSensitive(%q) = %q, want %q", tc.input, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestTranslateUpstreamError_RedactsAPIKey(t *testing.T) {
+	body := `{"error":"Invalid API key provided: sk-test1234567890abcdef1234567890"}`
+	resp := &http.Response{
+		StatusCode: 401,
+		Header:     http.Header{},
+		Body:       io.NopCloser(strings.NewReader(body)),
+	}
+	rec := httptest.NewRecorder()
+	translateUpstreamError(rec, resp)
+
+	if rec.Code != 401 {
+		t.Errorf("status: got %d, want 401", rec.Code)
+	}
+	var got map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&got); err != nil {
+		t.Fatal(err)
+	}
+	inner := got["error"].(map[string]any)
+	msg := inner["message"].(string)
+	if strings.Contains(msg, "sk-test1234567890abcdef1234567890") {
+		t.Errorf("message should NOT contain raw API key, got %q", msg)
+	}
+	if !strings.Contains(msg, "[REDACTED]") {
+		t.Errorf("message should contain [REDACTED], got %q", msg)
+	}
+}
+
+func TestTranslateUpstreamError_RedactsAPIKey_InHeader(t *testing.T) {
+	body := `{"error":"Invalid API key: sk-test1234567890abcdef1234567890"}`
+	resp := &http.Response{
+		StatusCode: 401,
+		Header:     http.Header{},
+		Body:       io.NopCloser(strings.NewReader(body)),
+	}
+	rec := httptest.NewRecorder()
+	translateUpstreamError(rec, resp)
+
+	headerMsg := rec.Header().Get("X-Freedius-Error-Message")
+	if strings.Contains(headerMsg, "sk-test1234567890abcdef1234567890") {
+		t.Errorf("X-Freedius-Error-Message should NOT contain raw API key, got %q", headerMsg)
+	}
+	if !strings.Contains(headerMsg, "[REDACTED]") {
+		t.Errorf("X-Freedius-Error-Message should contain [REDACTED], got %q", headerMsg)
+	}
+}

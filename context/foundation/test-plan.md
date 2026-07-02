@@ -134,11 +134,22 @@ the relevant rollout phase ships; before that, the sub-section reads
 
 ### 6.4 Adding a test for a new provider adapter
 
-- TBD — see §3 Phase 1 (translation, routing, error propagation pattern).
+- **Location**: `proxy/<adapter>_test.go` or `proxy/adapter_errors_test.go`.
+- **Mock upstream**: Use `httptest.NewServer(http.HandlerFunc(...))` to simulate provider responses (success, errors, timeouts).
+- **Registry pattern**: Create a `NewRegistry(map[string]Provider{...})` with the adapter under test.
+- **Dispatcher chain**: Use `NewDispatcher(cfg, registry, logger, false)` + `RequestIDMiddleware` for full request flow.
+- **Error body assertion**: Decode JSON response, assert `body["type"] == "error"`, then check `inner["type"]` and `inner["message"]` fields — never just status code.
+- **Reference test**: `proxy/adapter_errors_test.go` — `TestDispatcher_Upstream500_AnthropicErrorEnvelope`.
+- **Run locally**: `mage test`.
 
 ### 6.5 Adding a test for config validation
 
-- TBD — see §3 Phase 1 (config validation — invalid YAML, missing keys, invalid provider error messages).
+- **Location**: `config/config_test.go` — extend `TestLoad` table.
+- **Pattern**: Table-driven with `[]struct{ name string; yaml string; wantErr string }`.
+- **Error assertion**: Use `strings.Contains(err.Error(), tc.wantErr)` for substring match on validation error message.
+- **Edge cases to cover**: empty mapping key (`""`), empty behavior string (`""`), missing provider reference, invalid provider name.
+- **Reference test**: `config/config_test.go` — `TestLoad` (22 existing cases).
+- **Run locally**: `mage test`.
 
 ### 6.6 Per-rollout-phase notes
 
