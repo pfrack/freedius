@@ -1140,13 +1140,13 @@ existing `# freedius starter config` block).
 
 #### Automated
 
-- [x] 1.1 `mage vet` passes
-- [x] 1.2 `mage lint` passes
-- [x] 1.3 `mage test` passes
-- [x] 1.4 `mage build` produces binary (TUI default)
-- [x] 1.5 `mage modVerify` passes
-- [x] 1.6 `mage tidyCheck` passes
-- [x] 1.7 `mage govulncheck` passes
+- [x] 1.1 `mage vet` passes — 1229f03
+- [x] 1.2 `mage lint` passes — 1229f03
+- [x] 1.3 `mage test` passes — 1229f03
+- [x] 1.4 `mage build` produces binary (TUI default) — 1229f03
+- [x] 1.5 `mage modVerify` passes — 1229f03
+- [x] 1.6 `mage tidyCheck` passes — 1229f03
+- [x] 1.7 `mage govulncheck` passes — 1229f03
 
 #### Manual
 
