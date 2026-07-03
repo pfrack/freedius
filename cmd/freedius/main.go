@@ -113,6 +113,7 @@ func run(args []string) int {
 	flagFg := fs.Bool("fg", false, "run headless in foreground (no TUI, for Docker/scripts)")
 	flagDaemon := fs.Bool("daemon", false, "run as background daemon (no TUI, forks to background)")
 	flagDaemonShort := fs.Bool("d", false, "shorthand for --daemon")
+	flagTUI := fs.Bool("tui", false, "enable terminal dashboard (default: web UI)")
 	flagUIPort := fs.Int("ui-port", 0, "web UI port (overrides FREEDIUS_UI_PORT; default 8083)")
 	flagUIHost := fs.String("ui-host", "", "web UI bind address (127.0.0.1 or 0.0.0.0; default 127.0.0.1)")
 	fs.Usage = func() { printUsage(os.Stderr) }
@@ -140,10 +141,7 @@ func run(args []string) int {
 
 	logFormat := resolveLogFormat(*flagLogFormat)
 	logSink := proxy.NewLogSink(1000)
-	logWriter := io.Discard
-	if *flagFg {
-		logWriter = os.Stderr
-	}
+	logWriter := os.Stderr
 	logger, err := newLogger(logFormat, logWriter, logSink)
 	if err != nil {
 		return failf("freedius: %v", err)
@@ -226,35 +224,39 @@ func run(args []string) int {
 		}
 	}()
 
+	// TUI mode: explicit --tui flag or legacy --fg with IPC.
 	if *flagFg {
 		return startHeadlessWithIPC(server, bus, logSink, cfg, registry, host, port, logger)
 	}
-
-	model := tui.NewDashboard(
-		bus.Subscribe(),
-		logSink.Subscribe(),
-		cfg, registry, dispatcher, cfgPath, host, port, verboseErrors,
-		cfg.Theme,
-	)
-	prog := tea.NewProgram(model)
-	if _, err := prog.Run(); err != nil {
-		logger.Error("TUI program error", "err", err)
+	if *flagTUI {
+		model := tui.NewDashboard(
+			bus.Subscribe(),
+			logSink.Subscribe(),
+			cfg, registry, dispatcher, cfgPath, host, port, verboseErrors,
+			cfg.Theme,
+		)
+		prog := tea.NewProgram(model)
+		if _, err := prog.Run(); err != nil {
+			logger.Error("TUI program error", "err", err)
+		}
+		logger.Info("TUI shutdown, stopping proxy")
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+		defer cancel()
+		if err := server.Shutdown(shutdownCtx); err != nil {
+			logger.Error("proxy shutdown error", "err", err)
+		}
+		logger.Info("shutdown complete")
+		select {
+		case err := <-serverErr:
+			return failf("freedius: %v", err)
+		default:
+		}
+		return 0
 	}
 
-	logger.Info("TUI shutdown, stopping proxy")
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
-	defer cancel()
-	if err := server.Shutdown(shutdownCtx); err != nil {
-		logger.Error("proxy shutdown error", "err", err)
-	}
-	logger.Info("shutdown complete")
-
-	select {
-	case err := <-serverErr:
-		return failf("freedius: %v", err)
-	default:
-	}
-	return 0
+	// Default: web-only mode (no TUI). Block until shutdown signal.
+	logger.Info("web dashboard on http://" + net.JoinHostPort(uiHost, strconv.Itoa(uiPort)))
+	return waitForShutdownWithWeb(server, webServer, serverErr, logger)
 }
 
 // startProxyServer builds the proxy middleware stack, creates the HTTP server,
@@ -298,6 +300,30 @@ func runHeadless(server *http.Server, logger *slog.Logger, cleanup func() error)
 		logger.Error("shutdown error", "err", err)
 	}
 	logger.Info("shutdown complete")
+	return 0
+}
+
+// waitForShutdownWithWeb blocks until a shutdown signal, then gracefully shuts
+// down both the proxy and web servers.
+func waitForShutdownWithWeb(
+	server *http.Server,
+	webServer *web.Server,
+	serverErr <-chan error,
+	logger *slog.Logger,
+) int {
+	if err := waitForShutdown(server, func() error {
+		ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+		defer cancel()
+		return webServer.Shutdown(ctx)
+	}); err != nil {
+		logger.Error("shutdown error", "err", err)
+	}
+	logger.Info("shutdown complete")
+	select {
+	case err := <-serverErr:
+		return failf("freedius: %v", err)
+	default:
+	}
 	return 0
 }
 

@@ -7,12 +7,22 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/pfrack/freedius/config"
 	"github.com/pfrack/freedius/internal/eventstream"
+	"github.com/pfrack/freedius/proxy"
 )
 
 func newTestMux() http.Handler {
 	logger := slog.New(slog.NewTextHandler(sink{}, nil))
-	h := &eventstream.Handlers{}
+	cfg := &config.Config{
+		Providers: map[string]config.Provider{},
+		Mappings:  map[string]config.Mapping{},
+	}
+	h := &eventstream.Handlers{
+		Bus:     proxy.NewEventBus(10),
+		LogSink: proxy.NewLogSink(10),
+		Cfg:     cfg,
+	}
 	return SetupMux(h, logger)
 }
 

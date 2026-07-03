@@ -4,6 +4,11 @@
     --nav-bg: #f0f0f5;
     --nav-active: #4a6cf7;
     --border: #e0e0e8;
+    --table-hover: #f5f5fa;
+    --log-debug-bg: #f0f0f5;
+    --log-info-bg: transparent;
+    --log-warn-bg: #fff8e1;
+    --log-error-bg: #ffeef0;
 }
 @media (prefers-color-scheme: dark) {
     :root {
@@ -12,6 +17,11 @@
         --nav-bg: #16213e;
         --nav-active: #6c8cf7;
         --border: #333;
+        --table-hover: #1e2a45;
+        --log-debug-bg: #16213e;
+        --log-info-bg: transparent;
+        --log-warn-bg: #3d3200;
+        --log-error-bg: #3d0011;
     }
 }
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -41,4 +51,23 @@ main { max-width: 960px; margin: 0 auto; }
 table { width: 100%; border-collapse: collapse; }
 th, td { padding: 0.5rem; text-align: left; border-bottom: 1px solid var(--border); }
 th { font-weight: 600; }
-pre { font-family: 'Fira Code', 'Cascadia Code', monospace; }
+tr:hover { background: var(--table-hover); }
+pre {
+    font-family: 'Fira Code', 'Cascadia Code', monospace;
+    padding: 0.15rem 0.5rem;
+    border-radius: 0.25rem;
+    overflow-x: auto;
+}
+.log-debug { background: var(--log-debug-bg); color: #888; }
+.log-info { background: var(--log-info-bg); }
+.log-warn { background: var(--log-warn-bg); color: #b8860b; }
+.log-error { background: var(--log-error-bg); color: #c0392b; }
+select {
+    padding: 0.25rem 0.5rem;
+    border: 1px solid var(--border);
+    border-radius: 0.25rem;
+    background: var(--bg);
+    color: var(--text);
+    margin-bottom: 1rem;
+}
+label { margin-right: 0.5rem; }

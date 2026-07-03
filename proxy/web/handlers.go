@@ -6,8 +6,11 @@ package web
 import (
 	"log/slog"
 	"net/http"
+	"strings"
 
+	"github.com/pfrack/freedius/config"
 	"github.com/pfrack/freedius/internal/eventstream"
+	"github.com/pfrack/freedius/proxy"
 )
 
 // SetupMux builds the HTTP mux for the web server: page handlers, static
@@ -28,19 +31,129 @@ func SetupMux(h *eventstream.Handlers, logger *slog.Logger) *http.ServeMux {
 	// Eventstream SSE/JSON routes.
 	h.Register(mux)
 
-	// Page handlers.
+	// Page handlers — closures capture the shared dependencies.
 	mux.HandleFunc("GET /", func(w http.ResponseWriter, _ *http.Request) {
 		renderPage(w, "index.html", indexData{pageData: pageData{Active: "index"}}, logger)
 	})
-	mux.HandleFunc("GET /logs", func(w http.ResponseWriter, _ *http.Request) {
-		renderPage(w, "logs.html", logsData{pageData: pageData{Active: "logs"}}, logger)
+	mux.HandleFunc("GET /logs", func(w http.ResponseWriter, r *http.Request) {
+		handleLogs(w, r, h.LogSink, logger)
 	})
 	mux.HandleFunc("GET /providers", func(w http.ResponseWriter, _ *http.Request) {
-		renderPage(w, "providers.html", providersData{pageData: pageData{Active: "providers"}}, logger)
+		handleProviders(w, h.Cfg, logger)
 	})
 	mux.HandleFunc("GET /mappings", func(w http.ResponseWriter, _ *http.Request) {
-		renderPage(w, "mappings.html", mappingsData{pageData: pageData{Active: "mappings"}}, logger)
+		handleMappings(w, h.Cfg, logger)
 	})
 
 	return mux
+}
+
+// handleLogs renders the log page with server-rendered entries from the ring
+// buffer. The ?min= query parameter filters by minimum log level.
+func handleLogs(w http.ResponseWriter, r *http.Request, logSink *proxy.LogSink, logger *slog.Logger) {
+	minLevel := parseMinLevel(r.URL.Query().Get("min"))
+	entries, _, _ := logSink.SnapshotSince(0)
+
+	var filtered []logEntry
+	for _, e := range entries {
+		if minLevel != nil && e.Level < *minLevel {
+			continue
+		}
+		filtered = append(filtered, logEntry{
+			Level: levelLabel(e.Level),
+			Line:  e.Line,
+		})
+	}
+	// Cap to 200 most recent.
+	if len(filtered) > 200 {
+		filtered = filtered[len(filtered)-200:]
+	}
+
+	renderPage(w, "logs.html", logsData{
+		pageData: pageData{Active: "logs"},
+		Entries:  filtered,
+	}, logger)
+}
+
+// handleProviders renders the providers page with a read-only table.
+func handleProviders(w http.ResponseWriter, cfg *config.Config, logger *slog.Logger) {
+	providers := cfg.ProvidersSnapshot()
+	mappings := cfg.MappingsSnapshot()
+
+	// Count mappings per provider.
+	counts := make(map[string]int)
+	for _, m := range mappings {
+		counts[m.ProviderName]++
+	}
+
+	var rows []providerRow
+	for name, p := range providers {
+		rows = append(rows, providerRow{
+			Name:         name,
+			Behavior:     p.Behavior,
+			BaseURL:      p.DefaultBaseURL,
+			APIKeyEnv:    p.DefaultAPIKeyEnv,
+			Protocol:     p.Protocol,
+			MappingCount: counts[name],
+		})
+	}
+
+	renderPage(w, "providers.html", providersData{
+		pageData:  pageData{Active: "providers"},
+		Providers: rows,
+	}, logger)
+}
+
+// handleMappings renders the mappings page with a read-only table.
+func handleMappings(w http.ResponseWriter, cfg *config.Config, logger *slog.Logger) {
+	mappings := cfg.MappingsSnapshot()
+
+	var rows []mappingRow
+	for name, m := range mappings {
+		rows = append(rows, mappingRow{
+			Name:         name,
+			ProviderName: m.ProviderName,
+			Model:        m.ModelString,
+		})
+	}
+
+	renderPage(w, "mappings.html", mappingsData{
+		pageData: pageData{Active: "mappings"},
+		Mappings: rows,
+	}, logger)
+}
+
+// parseMinLevel parses a ?min= query parameter into a slog.Level.
+// Returns nil for empty/invalid values (no filtering).
+func parseMinLevel(s string) *slog.Level {
+	switch strings.ToLower(s) {
+	case "debug":
+		l := slog.LevelDebug
+		return &l
+	case "info":
+		l := slog.LevelInfo
+		return &l
+	case "warn":
+		l := slog.LevelWarn
+		return &l
+	case "error":
+		l := slog.LevelError
+		return &l
+	default:
+		return nil
+	}
+}
+
+// levelLabel returns a short label for a log level.
+func levelLabel(l slog.Level) string {
+	switch {
+	case l <= slog.LevelDebug:
+		return "debug"
+	case l <= slog.LevelInfo:
+		return "info"
+	case l <= slog.LevelWarn:
+		return "warn"
+	default:
+		return "error"
+	}
 }
