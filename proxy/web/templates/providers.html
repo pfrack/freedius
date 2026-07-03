@@ -1,0 +1,18 @@
+{{define "providers"}}{{template "layout" .}}{{end}}
+{{define "title"}}Providers — freedius{{end}}
+{{define "content"}}
+<h1>Providers</h1>
+<table>
+<thead><tr><th>Name</th><th>Behavior</th><th>Base URL</th><th>API Key Env</th><th>Protocol</th><th>Mappings</th></tr></thead>
+<tbody>
+{{range .Providers}}<tr>
+    <td>{{.Name}}</td>
+    <td>{{.Behavior}}</td>
+    <td>{{.BaseURL}}</td>
+    <td>{{.APIKeyEnv}}</td>
+    <td>{{.Protocol}}</td>
+    <td>{{.MappingCount}}</td>
+</tr>{{end}}
+</tbody>
+</table>
+{{end}}

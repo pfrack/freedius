@@ -1,0 +1,9 @@
+{{define "logs"}}{{template "layout" .}}{{end}}
+{{define "title"}}Logs — freedius{{end}}
+{{define "content"}}
+<h1>Logs</h1>
+<div id="log" hx-ext="sse" sse-connect="/v1/logs" sse-swap="log" hx-swap="beforeend">
+{{range .Entries}}<pre class="log-{{.Level}}">{{.Line}}</pre>{{end}}
+</div>
+{{end}}
+{{define "scripts"}}{{end}}

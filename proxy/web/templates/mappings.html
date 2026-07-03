@@ -1,0 +1,15 @@
+{{define "mappings"}}{{template "layout" .}}{{end}}
+{{define "title"}}Mappings — freedius{{end}}
+{{define "content"}}
+<h1>Mappings</h1>
+<table>
+<thead><tr><th>Name</th><th>Provider</th><th>Model</th></tr></thead>
+<tbody>
+{{range .Mappings}}<tr>
+    <td>{{.Name}}</td>
+    <td>{{.ProviderName}}</td>
+    <td>{{.Model}}</td>
+</tr>{{end}}
+</tbody>
+</table>
+{{end}}

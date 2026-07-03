@@ -22,8 +22,10 @@ import (
 
 	"github.com/pfrack/freedius/config"
 	"github.com/pfrack/freedius/internal/envinject"
+	"github.com/pfrack/freedius/internal/eventstream"
 	"github.com/pfrack/freedius/proxy"
 	"github.com/pfrack/freedius/proxy/tui"
+	"github.com/pfrack/freedius/proxy/web"
 )
 
 const (
@@ -111,6 +113,8 @@ func run(args []string) int {
 	flagFg := fs.Bool("fg", false, "run headless in foreground (no TUI, for Docker/scripts)")
 	flagDaemon := fs.Bool("daemon", false, "run as background daemon (no TUI, forks to background)")
 	flagDaemonShort := fs.Bool("d", false, "shorthand for --daemon")
+	flagUIPort := fs.Int("ui-port", 0, "web UI port (overrides FREEDIUS_UI_PORT; default 8083)")
+	flagUIHost := fs.String("ui-host", "", "web UI bind address (127.0.0.1 or 0.0.0.0; default 127.0.0.1)")
 	fs.Usage = func() { printUsage(os.Stderr) }
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -196,31 +200,31 @@ func run(args []string) int {
 	dispatcher := proxy.NewDispatcher(cfg, registry, logger, verboseErrors)
 	bus := proxy.NewEventBus(1000)
 
-	httpHandler := proxy.RecoverMiddleware(logger, verboseErrors, dispatcher)
-	httpHandler = proxy.EventBusMiddleware(bus, httpHandler)
-	httpHandler = proxy.AccessLogMiddleware(logger, httpHandler)
-	httpHandler = proxy.RequestIDMiddleware(httpHandler)
-
-	mux := newMux(httpHandler)
-
-	server := &http.Server{
-		Addr:              net.JoinHostPort(host, strconv.Itoa(port)),
-		Handler:           mux,
-		ReadHeaderTimeout: readHeaderTimeout,
-		ReadTimeout:       readTimeout,
-		IdleTimeout:       idleTimeout,
-	}
-
-	serverErr := make(chan error, 1)
-	go func() {
-		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			serverErr <- err
-		}
-	}()
-
+	server, serverErr := startProxyServer(host, port, bus, dispatcher, logger, verboseErrors)
 	if err := waitForBind(serverErr); err != nil {
 		return failf("freedius: %v", err)
 	}
+
+	// Start web server (always — even in TUI mode — runs on :8083).
+	uiPort := resolveUIPort(*flagUIPort, setFlags["ui-port"])
+	uiHost := resolveUIHost(*flagUIHost)
+
+	h := &eventstream.Handlers{
+		Bus:       bus,
+		LogSink:   logSink,
+		Cfg:       cfg,
+		Registry:  registry,
+		Host:      uiHost,
+		Port:      uiPort,
+		StartTime: time.Now(),
+		AuthToken: os.Getenv("FREEDIUS_UI_TOKEN"),
+	}
+	webServer := web.NewServer(uiHost, uiPort, h, logger)
+	go func() {
+		if err := webServer.ListenAndServe(); err != nil {
+			logger.Error("web server error", "err", err)
+		}
+	}()
 
 	if *flagFg {
 		return startHeadlessWithIPC(server, bus, logSink, cfg, registry, host, port, logger)
@@ -251,6 +255,40 @@ func run(args []string) int {
 	default:
 	}
 	return 0
+}
+
+// startProxyServer builds the proxy middleware stack, creates the HTTP server,
+// and starts listening in a background goroutine. Returns the server (for
+// shutdown) and an error channel for immediate bind failures.
+func startProxyServer(
+	host string,
+	port int,
+	bus *proxy.EventBus,
+	dispatcher *proxy.Dispatcher,
+	logger *slog.Logger,
+	verboseErrors bool,
+) (*http.Server, <-chan error) {
+	httpHandler := proxy.RecoverMiddleware(logger, verboseErrors, dispatcher)
+	httpHandler = proxy.EventBusMiddleware(bus, httpHandler)
+	httpHandler = proxy.AccessLogMiddleware(logger, httpHandler)
+	httpHandler = proxy.RequestIDMiddleware(httpHandler)
+
+	server := &http.Server{
+		Addr:              net.JoinHostPort(host, strconv.Itoa(port)),
+		Handler:           newMux(httpHandler),
+		ReadHeaderTimeout: readHeaderTimeout,
+		ReadTimeout:       readTimeout,
+		IdleTimeout:       idleTimeout,
+	}
+
+	serverErr := make(chan error, 1)
+	go func() {
+		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			serverErr <- err
+		}
+	}()
+
+	return server, serverErr
 }
 
 // runHeadless runs the proxy in foreground without the TUI. Blocks until a
@@ -457,6 +495,30 @@ func resolveInt(flagVal int, flagSet bool, envKey string, def int) int {
 		}
 	}
 	return def
+}
+
+func resolveUIPort(flagVal int, flagSet bool) int {
+	if flagSet {
+		return flagVal
+	}
+	if v := os.Getenv("FREEDIUS_UI_PORT"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			return n
+		}
+	}
+	return 8083
+}
+
+var defaultUIHost = "127.0.0.1"
+
+func resolveUIHost(flagVal string) string {
+	if flagVal != "" {
+		return flagVal
+	}
+	if v := os.Getenv("FREEDIUS_UI_HOST"); v != "" {
+		return v
+	}
+	return defaultUIHost
 }
 
 func resolveConfigPath(explicit string) (string, error) {

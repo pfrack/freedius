@@ -1,0 +1,22 @@
+{{define "layout"}}<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{block "title" .}}{{end}} — freedius</title>
+    <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+    <nav>
+        <a href="/" class="{{if eq .Active "index"}}active{{end}}">Dashboard</a>
+        <a href="/logs" class="{{if eq .Active "logs"}}active{{end}}">Logs</a>
+        <a href="/providers" class="{{if eq .Active "providers"}}active{{end}}">Providers</a>
+        <a href="/mappings" class="{{if eq .Active "mappings"}}active{{end}}">Mappings</a>
+    </nav>
+    <main>
+        {{block "content" .}}{{end}}
+    </main>
+    {{block "scripts" .}}{{end}}
+    <script src="/static/htmx.min.js"></script>
+</body>
+</html>{{end}}
