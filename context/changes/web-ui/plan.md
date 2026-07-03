@@ -1187,12 +1187,12 @@ existing `# freedius starter config` block).
 
 #### Automated
 
-- [x] 4.1 `mage test` passes
-- [x] 4.2 `mage vet`, `mage lint`, `mage govulncheck` pass
-- [x] 4.3 `mage tidyCheck` passes; `go.mod` no `charm.land/*`
-- [x] 4.4 `mage build` produces smaller binary (size delta recorded)
-- [x] 4.5 `mage dockerBuild` produces working image
-- [x] 4.6 `mage dockerRun` starts container; logs on `docker logs`
+- [x] 4.1 `mage test` passes — b504e82
+- [x] 4.2 `mage vet`, `mage lint`, `mage govulncheck` pass — b504e82
+- [x] 4.3 `mage tidyCheck` passes; `go.mod` no `charm.land/*` — b504e82
+- [x] 4.4 `mage build` produces smaller binary (size delta recorded) — b504e82
+- [x] 4.5 `mage dockerBuild` produces working image — b504e82
+- [x] 4.6 `mage dockerRun` starts container; logs on `docker logs` — b504e82
 
 #### Manual
 
