@@ -216,6 +216,7 @@ func run(args []string) int {
 		Port:      uiPort,
 		StartTime: time.Now(),
 		AuthToken: os.Getenv("FREEDIUS_UI_TOKEN"),
+		CfgPath:   cfgPath,
 	}
 	webServer := web.NewServer(uiHost, uiPort, h, logger)
 	go func() {

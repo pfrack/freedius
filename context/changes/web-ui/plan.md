@@ -1173,8 +1173,8 @@ existing `# freedius starter config` block).
 
 #### Automated
 
-- [ ] 3.1 `mage test` passes (~30 new cases)
-- [ ] 3.2 `mage vet`, `mage lint`, `mage govulncheck` pass
+- [x] 3.1 `mage test` passes (~30 new cases)
+- [x] 3.2 `mage vet`, `mage lint`, `mage govulncheck` pass
 
 #### Manual
 

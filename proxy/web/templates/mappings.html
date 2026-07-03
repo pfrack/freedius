@@ -1,15 +1,50 @@
 {{define "mappings"}}{{template "layout" .}}{{end}}
-{{define "title"}}Mappings — freedius{{end}}
+{{define "title"}}Mappings{{end}}
 {{define "content"}}
 <h1>Mappings</h1>
-<table>
-<thead><tr><th>Name</th><th>Provider</th><th>Model</th></tr></thead>
+<button class="btn-primary" onclick="document.getElementById('mapping-dialog').showModal()">+ Add Mapping</button>
+<div id="mapping-form-error" class="form-error"></div>
+<table id="mappings">
+<thead><tr><th>Name</th><th>Provider</th><th>Model</th><th>Actions</th></tr></thead>
 <tbody>
 {{range .Mappings}}<tr>
     <td>{{.Name}}</td>
     <td>{{.ProviderName}}</td>
     <td>{{.Model}}</td>
+    <td>
+        <button class="btn-sm" onclick="editMapping('{{.Name}}','{{.ProviderName}}','{{.Model}}')">Edit</button>
+        <button class="btn-danger btn-sm" hx-delete="/v1/mappings/{{.Name}}" hx-confirm="Delete mapping '{{.Name}}?" hx-target="#mappings" hx-swap="outerHTML">Delete</button>
+    </td>
 </tr>{{end}}
 </tbody>
 </table>
+
+<dialog id="mapping-dialog">
+<form id="mapping-form" hx-post="/v1/mappings" hx-target="#mappings" hx-swap="outerHTML" hx-on::after-request="if(event.detail.successful) this.closest('dialog').close()">
+    <h2 id="mapping-dialog-title">Add Mapping</h2>
+    <div id="mapping-form-error-dialog" class="form-error"></div>
+    <label>Name <input name="name" required></label>
+    <label>Provider <select name="provider_name"></select></label>
+    <label>Model <input name="model_string" required></label>
+    <div class="form-actions">
+        <button type="submit" class="btn-primary">Save</button>
+        <button type="button" class="btn-cancel" onclick="this.closest('dialog').close()">Cancel</button>
+    </div>
+</form>
+</dialog>
+
+<script>
+function editMapping(name, provider, model) {
+    var d = document.getElementById('mapping-dialog');
+    var f = document.getElementById('mapping-form');
+    f.setAttribute('hx-put', '/v1/mappings/' + name);
+    f.removeAttribute('hx-post');
+    f.elements.name.value = name;
+    f.elements.name.readOnly = true;
+    f.elements.provider_name.value = provider;
+    f.elements.model_string.value = model;
+    document.getElementById('mapping-dialog-title').textContent = 'Edit Mapping';
+    d.showModal();
+}
+</script>
 {{end}}

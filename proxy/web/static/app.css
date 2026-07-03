@@ -70,4 +70,15 @@ select {
     color: var(--text);
     margin-bottom: 1rem;
 }
-label { margin-right: 0.5rem; }
+label { margin-right: 0.5rem; display: block; margin-bottom: 0.5rem; }
+input, select { padding: 0.25rem 0.5rem; border: 1px solid var(--border); border-radius: 0.25rem; background: var(--bg); color: var(--text); width: 100%; }
+dialog { border: 1px solid var(--border); border-radius: 0.5rem; padding: 1.5rem; background: var(--bg); color: var(--text); max-width: 500px; }
+dialog::backdrop { background: rgba(0,0,0,0.5); }
+.form-error { color: #c0392b; margin-bottom: 0.5rem; }
+.form-actions { display: flex; gap: 0.5rem; margin-top: 1rem; }
+.btn-primary { background: var(--nav-active); color: #fff; border: none; padding: 0.5rem 1rem; border-radius: 0.25rem; cursor: pointer; }
+.btn-primary:hover { opacity: 0.9; }
+.btn-danger { background: #c0392b; color: #fff; border: none; padding: 0.5rem 1rem; border-radius: 0.25rem; cursor: pointer; }
+.btn-danger:hover { opacity: 0.9; }
+.btn-cancel { background: transparent; color: var(--text); border: 1px solid var(--border); padding: 0.5rem 1rem; border-radius: 0.25rem; cursor: pointer; }
+.btn-sm { padding: 0.2rem 0.5rem; font-size: 0.85rem; }

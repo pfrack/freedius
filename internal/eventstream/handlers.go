@@ -27,6 +27,7 @@ type Handlers struct {
 	Port      int
 	StartTime time.Time
 	AuthToken string
+	CfgPath   string
 }
 
 // Register mounts the four event-stream routes (GET /v1/events, GET /v1/logs,
