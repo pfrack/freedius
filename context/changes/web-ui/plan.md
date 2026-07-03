@@ -1158,8 +1158,8 @@ existing `# freedius starter config` block).
 
 #### Automated
 
-- [x] 2.1 `mage test` passes (auth + filter tests)
-- [x] 2.2 `mage vet`, `mage lint`, `mage govulncheck` pass
+- [x] 2.1 `mage test` passes (auth + filter tests) — c62fb19
+- [x] 2.2 `mage vet`, `mage lint`, `mage govulncheck` pass — c62fb19
 
 #### Manual
 
