@@ -180,7 +180,7 @@ data: [DONE]
 	var downstream bytes.Buffer
 	flushes := 0
 	flush := func() error { flushes++; return nil }
-	if _, err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
+	if err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
 		t.Fatal(err)
 	}
 	out := downstream.String()
@@ -229,7 +229,7 @@ data: [DONE]
 `
 	var downstream bytes.Buffer
 	flush := func() error { return nil }
-	if _, err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
+	if err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
 		t.Fatal(err)
 	}
 	out := downstream.String()
@@ -257,7 +257,7 @@ data: [DONE]
 `
 	var downstream bytes.Buffer
 	flush := func() error { return nil }
-	if _, err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
+	if err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
 		t.Fatal(err)
 	}
 	out := downstream.String()
@@ -276,7 +276,7 @@ data: [DONE]
 `
 	var downstream bytes.Buffer
 	flush := func() error { return nil }
-	if _, err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
+	if err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
 		t.Fatal(err)
 	}
 	out := downstream.String()
@@ -297,7 +297,7 @@ data: [DONE]
 `
 	var downstream bytes.Buffer
 	flush := func() error { return nil }
-	if _, err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
+	if err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
 		t.Fatal(err)
 	}
 	out := downstream.String()
@@ -310,7 +310,7 @@ func TestStream_JustDone(t *testing.T) {
 	upstream := "data: [DONE]\n\n"
 	var downstream bytes.Buffer
 	flush := func() error { return nil }
-	if _, err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
+	if err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(downstream.String(), "event: message_stop") {
@@ -322,7 +322,7 @@ func TestStream_DoubleDone_Idempotent(t *testing.T) {
 	upstream := "data: [DONE]\n\ndata: [DONE]\n\n"
 	var downstream bytes.Buffer
 	flush := func() error { return nil }
-	if _, err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
+	if err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -332,7 +332,7 @@ func TestStream_NonDataLine_Ignored(t *testing.T) {
 		"data: [DONE]\n\n"
 	var downstream bytes.Buffer
 	flush := func() error { return nil }
-	if _, err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
+	if err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(downstream.String(), "event: message_stop") {
@@ -346,7 +346,7 @@ func TestStream_FinishBeforeUsage_UsesPendingFinish(t *testing.T) {
 		"data: [DONE]\n\n"
 	var downstream bytes.Buffer
 	flush := func() error { return nil }
-	if _, err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
+	if err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
 		t.Fatal(err)
 	}
 	out := downstream.String()
@@ -366,7 +366,7 @@ func TestStream_FlushError_PropagatesErr(t *testing.T) {
 	var downstream bytes.Buffer
 	flushErr := "simulated flush failure"
 	flush := func() error { return errors.New(flushErr) }
-	_, err := Stream(strings.NewReader(upstream), &downstream, flush)
+	err := Stream(strings.NewReader(upstream), &downstream, flush)
 	if err == nil {
 		t.Fatal("expected error from flush")
 	}
@@ -672,7 +672,7 @@ data: [DONE]
 `
 	var downstream bytes.Buffer
 	flush := func() error { return nil }
-	if _, err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
+	if err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
 		t.Fatal(err)
 	}
 	out := downstream.String()
@@ -690,7 +690,7 @@ func TestStream_CloseBeforeDone(t *testing.T) {
 `
 	var downstream bytes.Buffer
 	flush := func() error { return nil }
-	if _, err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
+	if err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
 		t.Errorf("unexpected error on clean EOF: %v", err)
 	}
 }
@@ -709,7 +709,7 @@ data: [DONE]
 `
 	var downstream bytes.Buffer
 	flush := func() error { return nil }
-	if _, err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
+	if err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
 		t.Fatal(err)
 	}
 	out := downstream.String()
@@ -771,7 +771,7 @@ data: [DONE]
 `
 	var downstream bytes.Buffer
 	flush := func() error { return nil }
-	if _, err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
+	if err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
 		t.Fatal(err)
 	}
 	out := downstream.String()
@@ -828,7 +828,7 @@ data: [DONE]
 `
 	w := &failingWriter{}
 	flush := func() error { return nil }
-	if _, err := Stream(strings.NewReader(upstream), w, flush); err == nil {
+	if err := Stream(strings.NewReader(upstream), w, flush); err == nil {
 		t.Fatal("expected error from failing writer")
 	}
 }
@@ -849,7 +849,7 @@ func TestStream_MultilineData(t *testing.T) {
 	upstream := "data: {\"a\":1}\n\ndata: {\"b\":2}\n\ndata: [DONE]\n\n"
 	var downstream bytes.Buffer
 	flush := func() error { return nil }
-	if _, err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
+	if err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(downstream.String(), "event: message_stop") {
@@ -861,7 +861,7 @@ func TestStream_EOFOnPartialData(t *testing.T) {
 	upstream := "data: {\"a\":1}\n"
 	var downstream bytes.Buffer
 	flush := func() error { return nil }
-	if _, err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
+	if err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
 		t.Errorf("unexpected error on partial EOF: %v", err)
 	}
 }
@@ -876,7 +876,7 @@ data: [DONE]
 `
 	var downstream bytes.Buffer
 	flush := func() error { return nil }
-	if _, err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
+	if err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
 		t.Fatal(err)
 	}
 	out := downstream.String()
@@ -899,7 +899,7 @@ data: [DONE]
 `
 	var downstream bytes.Buffer
 	flush := func() error { return nil }
-	if _, err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
+	if err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
 		t.Fatal(err)
 	}
 	out := downstream.String()
@@ -919,7 +919,7 @@ data: [DONE]
 `
 	var downstream bytes.Buffer
 	flush := func() error { return io.ErrShortWrite }
-	if _, err := Stream(strings.NewReader(upstream), &downstream, flush); err == nil {
+	if err := Stream(strings.NewReader(upstream), &downstream, flush); err == nil {
 		t.Fatal("expected error when flush fails")
 	}
 }
@@ -982,7 +982,7 @@ data: [DONE]
 `
 	var downstream bytes.Buffer
 	flush := func() error { return nil }
-	if _, err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
+	if err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
 		t.Fatal(err)
 	}
 	out := downstream.String()
@@ -1011,7 +1011,7 @@ data: [DONE]
 `
 	var downstream bytes.Buffer
 	flush := func() error { return nil }
-	if _, err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
+	if err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
 		t.Fatal(err)
 	}
 	out := downstream.String()
@@ -1128,7 +1128,7 @@ data: not-json
 `
 	var downstream bytes.Buffer
 	flush := func() error { return nil }
-	if _, err := Stream(strings.NewReader(upstream), &downstream, flush); err == nil {
+	if err := Stream(strings.NewReader(upstream), &downstream, flush); err == nil {
 		t.Fatal("expected error for malformed chunk")
 	}
 }
@@ -1143,7 +1143,7 @@ data: [DONE]
 `
 	var downstream bytes.Buffer
 	flush := func() error { return nil }
-	if _, err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
+	if err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
 		t.Fatal(err)
 	}
 	out := downstream.String()
@@ -1167,7 +1167,7 @@ data: [DONE]
 `
 	var downstream bytes.Buffer
 	flush := func() error { return nil }
-	if _, err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
+	if err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
 		t.Fatal(err)
 	}
 	out := downstream.String()
@@ -1196,7 +1196,7 @@ data: [DONE]
 `
 	var downstream bytes.Buffer
 	flush := func() error { return nil }
-	if _, err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
+	if err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
 		t.Fatal(err)
 	}
 	out := downstream.String()
@@ -1228,7 +1228,7 @@ data: [DONE]
 `
 	var downstream bytes.Buffer
 	flush := func() error { return nil }
-	if _, err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
+	if err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
 		t.Fatal(err)
 	}
 	out := downstream.String()
@@ -1270,7 +1270,7 @@ data: [DONE]
 `
 	var downstream bytes.Buffer
 	flush := func() error { return nil }
-	if _, err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
+	if err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
 		t.Fatal(err)
 	}
 	out := downstream.String()
@@ -1478,31 +1478,50 @@ func TestRequest_NoInjectionOnAssistantWithoutToolCalls(t *testing.T) {
 	}
 }
 
-func TestRequest_EmptyThinkingBlockProducesPlaceholder(t *testing.T) {
-	in := []byte(`{
-		"model":"x",
-		"max_tokens":10,
-		"messages":[
-			{"role":"user","content":"hi"},
-			{"role":"assistant","content":[
-				{"type":"thinking","thinking":""},
-				{"type":"text","text":"answer"}
-			]}
-		]
-	}`)
-	out, err := Request(in, "x", Opts{})
-	if err != nil {
+func TestStream_MessageDelta_IncludesInputTokens(t *testing.T) {
+	upstream := `data: {"id":"x","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}
+
+data: {"id":"x","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":5,"completion_tokens":7,"total_tokens":12}}
+
+data: [DONE]
+
+`
+	var downstream bytes.Buffer
+	flush := func() error { return nil }
+	if err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
 		t.Fatal(err)
 	}
-	var got map[string]any
-	_ = json.Unmarshal(out, &got)
-	msgs := got["messages"].([]any)
-	assistant := msgs[1].(map[string]any)
-	rc, ok := assistant["reasoning_content"]
-	if !ok {
-		t.Fatal("reasoning_content missing — empty thinking should still produce field")
+	out := downstream.String()
+	if !strings.Contains(out, `"input_tokens":5`) {
+		t.Errorf("expected input_tokens in usage, got: %q", out)
 	}
-	if rc != " " {
-		t.Errorf("reasoning_content: got %q, want single space placeholder", rc)
+	if !strings.Contains(out, `"output_tokens":7`) {
+		t.Errorf("expected output_tokens in usage, got: %q", out)
+	}
+}
+
+func TestStream_BareDone_DetectsNoPrefix(t *testing.T) {
+	upstream := "[DONE]\n\n"
+	var downstream bytes.Buffer
+	flush := func() error { return nil }
+	if err := Stream(strings.NewReader(upstream), &downstream, flush); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(downstream.String(), "event: message_stop") {
+		t.Errorf("expected message_stop on [DONE], got: %q", downstream.String())
+	}
+}
+
+func TestEmitter_EmitError(t *testing.T) {
+	em := newAnthropicEmitter()
+	got := em.emitError("test error")
+	if !strings.Contains(string(got), "event: error") {
+		t.Errorf("expected event: error, got: %q", string(got))
+	}
+	if !strings.Contains(string(got), `"type":"api_error"`) {
+		t.Errorf("expected api_error type, got: %q", string(got))
+	}
+	if !strings.Contains(string(got), `"message":"test error"`) {
+		t.Errorf("expected test error message, got: %q", string(got))
 	}
 }

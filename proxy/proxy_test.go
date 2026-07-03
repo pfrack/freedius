@@ -317,47 +317,8 @@ func TestServeHTTPNeitherMatch(t *testing.T) {
 }
 
 func TestServeHTTPModelsWinsOverMappings(t *testing.T) {
-	cfg := &config.Config{
-		Providers: map[string]config.Provider{
-			"nim": {Behavior: "openai", DefaultAPIKeyEnv: "NVIDIA_NIM_API_KEY"},
-		},
-		Mappings: map[string]config.Mapping{
-			"shared-key":      {ProviderName: "nim", ModelString: "from-mappings"},
-			"shared-key-name": {ProviderName: "nim", ModelString: "from-models"},
-		},
-	}
-	_ = cfg
-	cfg = &config.Config{
-		Providers: map[string]config.Provider{
-			"nim": {Behavior: "openai", DefaultAPIKeyEnv: "NVIDIA_NIM_API_KEY"},
-		},
-		Mappings: map[string]config.Mapping{
-			"shared-key": {ProviderName: "nim", ModelString: "from-mappings"},
-		},
-	}
-	// Add a Models map that wins for a key that's also in Mappings.
-	// Note: under the new schema, Models map is removed at the dispatcher level —
-	// dispatcher only consults Mappings, so this regression test no longer
-	// applies. Kept here as a placeholder documenting the behavior change.
+	// Models map removed in providers-section-refactor; dispatcher consults Mappings only.
 	t.Skip("Models map removed in providers-section-refactor; dispatcher consults Mappings only")
-
-	t.Setenv("NVIDIA_NIM_API_KEY", "k1")
-	d := newTestDispatcherWithAdapter(t, cfg, map[string]Provider{
-		"openai": &recordingProvider{},
-	})
-
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/v1/messages",
-		strings.NewReader(`{"model":"shared-key"}`),
-	)
-	req.Header.Set("Content-Type", "application/json")
-	rec := httptest.NewRecorder()
-	d.ServeHTTP(rec, req)
-
-	if got := rec.Header().Get("X-Freedius-Matched-Model"); got != "from-mappings" {
-		t.Errorf("matched model: got %q, want from-mappings", got)
-	}
 }
 
 func TestServeHTTPFamilyMatch(t *testing.T) {

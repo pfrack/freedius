@@ -66,7 +66,7 @@ orchestrator updates Status as artifacts appear on disk.
 | # | Phase name | Goal (one line) | Risks covered | Test types | Status | Change folder |
 |---|-----------|-----------------|---------------|------------|--------|---------------|
 | 1 | Proxy integration — translation, routing, errors | Prove the proxy core correctly translates formats, routes by config, and propagates errors | #1, #3, #4, #5, #6 | integration + unit | planned | testing-proxy-integration |
-| 2 | Streaming edge cases | Prove streaming delivers complete, correctly ordered content including partial chunks and mid-stream errors | #2 | integration | not started | — |
+| 2 | Streaming edge cases | Prove streaming delivers complete, correctly ordered content including partial chunks and mid-stream errors | #2 | integration | done | streaming-edge-cases |
 | 3 | Quality gates in CI | Lock the floor — every PR must pass proxy integration + streaming tests | cross-cutting | CI gates | not started | — |
 
 ## 4. Stack
@@ -130,7 +130,13 @@ the relevant rollout phase ships; before that, the sub-section reads
 
 ### 6.3 Adding a streaming test
 
-- TBD — see §3 Phase 2 (streaming edge cases — partial chunks, mid-stream errors, SSE format quirks).
+- **Location**: `proxy/translate/anthropic_openai_test.go` (SSE parser + emitter tests) or `proxy/adapter_errors_test.go` (adapter integration tests).
+- **Mock upstream**: Build SSE strings inline with `strings.NewReader(upstream)`. No `httptest.NewServer` needed for `Stream()` unit tests — the function takes an `io.Reader`.
+- **Flush callback**: Pass a no-op `func() error { return nil }` or a counting wrapper to assert flush behavior.
+- **Downstream capture**: Use `bytes.Buffer` as the `io.Writer`; inspect via `strings.Contains(out, "event: ...")`.
+- **Error injection**: Use custom `io.Writer` that fails on `Write` (see `failingWriter` in test file) or a flush callback that returns an error.
+- **Reference test**: `proxy/translate/anthropic_openai_test.go` — `TestStream_TextStream`, `TestStream_BareDone_DetectsNoPrefix`, `TestStream_EmptyDataLine_Skipped`.
+- **Run locally**: `mage test`.
 
 ### 6.4 Adding a test for a new provider adapter
 

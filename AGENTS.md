@@ -22,7 +22,7 @@ freedius is a local HTTP proxy built with Go's standard library (`net/http`, `ht
 
 ## Coding Style
 
-- **Format**: `gofumpt` (stricter than `gofmt`) enforced in CI.
+- **Format**: `gofmt`, `goimports`, `gci`, `golines` (via golangci-lint) enforced in CI.
 - **Naming**: Go conventions — `camelCase` for unexported, `PascalCase` for exported, `ALL_CAPS` for env-var constants.
 - **Error handling**: Return errors; use `fmt.Errorf("context: %w", err)` for wrapping. Panic only at package init or `main()` entry.
 - **No external HTTP router**: Use the standard library's `http.ServeMux` (Go 1.22+ pattern matching, e.g. `GET /api/proxy/{target}`).

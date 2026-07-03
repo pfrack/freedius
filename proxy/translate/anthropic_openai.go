@@ -393,30 +393,41 @@ func stringifyContent(c any) string {
 
 // Stream reads OpenAI-format SSE chunks from upstream, translates
 // them into Anthropic-format SSE events, writes them to downstream, and
-// flushes after each event using the provided flush callback. The returned
-// string is the assistant text used as input_reasoning (if any) and a
-// non-nil error indicates the stream ended abnormally.
-func Stream(upstream io.Reader, downstream io.Writer, flush func() error) (string, error) {
+// flushes after each event using the provided flush callback. Returns
+// a non-nil error if the stream ended abnormally.
+func Stream(upstream io.Reader, downstream io.Writer, flush func() error) error {
 	br := bufio.NewReaderSize(upstream, 64*1024)
 	em := newAnthropicEmitter()
 	for {
 		chunk, err := readSSEEvent(br)
 		if err != nil {
 			if errors.Is(err, io.EOF) {
-				return "", nil
+				evts, flushErr := em.flushPending()
+				if flushErr != nil {
+					return flushErr
+				}
+				for _, ev := range evts {
+					if _, err := downstream.Write(ev); err != nil {
+						return err
+					}
+					if err := flush(); err != nil {
+						return err
+					}
+				}
+				return nil
 			}
-			return "", err
+			return err
 		}
 		events, err := em.consume(chunk)
 		if err != nil {
-			return "", err
+			return err
 		}
 		for _, ev := range events {
 			if _, err := downstream.Write(ev); err != nil {
-				return "", err
+				return err
 			}
 			if err := flush(); err != nil {
-				return "", err
+				return err
 			}
 		}
 	}
@@ -757,6 +768,7 @@ func (e *emitter) emitFinish(reason string) ([][]byte, error) {
 			"stop_sequence": nil,
 		},
 		"usage": map[string]int{
+			"input_tokens":  e.inputTokens,
 			"output_tokens": e.outputTokens,
 		},
 	}
@@ -765,6 +777,7 @@ func (e *emitter) emitFinish(reason string) ([][]byte, error) {
 		return nil, err
 	}
 	events = append(events, ev...)
+	e.pendingFinish = ""
 	return events, nil
 }
 
@@ -784,6 +797,21 @@ func (e *emitter) emitBlockStop() ([][]byte, error) {
 func (e *emitter) emitMessageStop() ([][]byte, error) {
 	payload := map[string]any{"type": "message_stop"}
 	return e.emit("message_stop", payload)
+}
+
+func (e *emitter) emitError(msg string) []byte {
+	payload := map[string]any{
+		"type": "error",
+		"error": map[string]any{
+			"type":    "api_error",
+			"message": msg,
+		},
+	}
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		return nil
+	}
+	return []byte(fmt.Sprintf("event: error\ndata: %s\n\n", raw))
 }
 
 func (e *emitter) emit(eventType string, payload any) ([][]byte, error) {

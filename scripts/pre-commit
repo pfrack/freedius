@@ -3,5 +3,6 @@ set -e
 
 echo "Running linters before commit..."
 mage lint
+mage generateCheck
 
 echo "All checks passed."
