@@ -1,0 +1,10 @@
+freedius
+coverage.*
+.git
+.idea
+node_modules
+context/
+*.md
+test-manual.sh
+.golangci.yaml
+.work.keys

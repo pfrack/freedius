@@ -282,7 +282,7 @@ func TestRun_HelpFlag(t *testing.T) {
 		t.Fatalf("run --help: %v (output: %s)", err, stdout.String())
 	}
 	out := stdout.String()
-	for _, want := range []string{"Usage: freedius", "config", "port", "verbose-errors", "-c"} {
+	for _, want := range []string{"Usage: freedius", "config", "port", "verbose-errors", "-c", "ui-port"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("--help output missing %q\nfull output:\n%s", want, out)
 		}
@@ -399,10 +399,9 @@ func TestStarterTemplate_ValidConfig(t *testing.T) {
 	}
 }
 
-func TestRun_BindFailureSurfacesBeforeTUI(t *testing.T) {
+func TestRun_BindFailureSurfaces(t *testing.T) {
 	// Regression for F3: when the bind fails (e.g., port already in use),
-	// the error must be surfaced immediately rather than hidden until the
-	// user quits the TUI. Use a port we hold from a side listener.
+	// the error must be surfaced immediately. Use a port we hold from a side listener.
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)

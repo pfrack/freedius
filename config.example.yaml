@@ -1,3 +1,6 @@
+# freedius starter config
+# View and edit at http://localhost:8083/providers
+
 # Supported providers are defined in providers.yaml
 providers:
   # Opencode Go — OpenAI-format base_url (DeepSeek, GLM, Kimi, etc.)

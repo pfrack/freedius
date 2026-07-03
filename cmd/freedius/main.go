@@ -1,5 +1,5 @@
-// Package main implements the freedius binary: a single static executable that
-// always starts the TUI dashboard together with the proxy server.
+// Package main implements the freedius binary: a single static executable
+// that runs the HTTP proxy and embedded web dashboard.
 package main
 
 import (
@@ -12,19 +12,17 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strconv"
 	"time"
 
 	_ "embed"
 
-	tea "charm.land/bubbletea/v2"
-
 	"github.com/pfrack/freedius/config"
 	"github.com/pfrack/freedius/internal/envinject"
 	"github.com/pfrack/freedius/internal/eventstream"
 	"github.com/pfrack/freedius/proxy"
-	"github.com/pfrack/freedius/proxy/tui"
 	"github.com/pfrack/freedius/proxy/web"
 )
 
@@ -48,45 +46,15 @@ var version = "dev"
 //go:embed templates/starter.yaml
 var starterTemplate string
 
-// newLogger constructs the process-wide logger. When format is "json", the
-// handler emits structured JSON lines; otherwise it emits the human-readable
-// text format.
-func newLogger(format string, w io.Writer, sink *proxy.LogSink) (*slog.Logger, error) {
-	opts := &slog.HandlerOptions{Level: slog.LevelInfo}
-	var inner slog.Handler
-	switch format {
-	case "json":
-		inner = slog.NewJSONHandler(w, opts)
-	case "text":
-		inner = slog.NewTextHandler(w, opts)
-	default:
-		return nil, fmt.Errorf("invalid log format %q (allowed: text, json)", format)
-	}
-	handler := proxy.NewRingHandler(inner, sink)
-	return slog.New(handler), nil
-}
-
 func main() {
 	os.Exit(run(os.Args[1:]))
 }
 
-// run is the unified entry point: freedius always starts the TUI+proxy, with
-// no subcommand dispatch. --version and --help are handled before flag parsing.
+// run is the entry point: starts the proxy and web dashboard, then blocks
+// until shutdown. --version and --help are handled before flag parsing.
 func run(args []string) int {
 	if code, done := handleEarlyArgs(args); done {
 		return code
-	}
-
-	// Subcommand dispatch (stop, status, attach) — after help scan, before flag parsing.
-	if len(args) > 0 {
-		switch args[0] {
-		case "stop":
-			return handleStop()
-		case "status":
-			return handleStatus()
-		case "attach":
-			return handleAttach(args[1:])
-		}
 	}
 
 	fs := flag.NewFlagSet("freedius", flag.ContinueOnError)
@@ -110,10 +78,6 @@ func run(args []string) int {
 		"per-request upstream timeout (overrides FREEDIUS_STREAM_TIMEOUT; default 5m)",
 	)
 	flagNoExportHint := fs.Bool("no-export-hint", false, "suppress the env-export hint on startup")
-	flagFg := fs.Bool("fg", false, "run headless in foreground (no TUI, for Docker/scripts)")
-	flagDaemon := fs.Bool("daemon", false, "run as background daemon (no TUI, forks to background)")
-	flagDaemonShort := fs.Bool("d", false, "shorthand for --daemon")
-	flagTUI := fs.Bool("tui", false, "enable terminal dashboard (default: web UI)")
 	flagUIPort := fs.Int("ui-port", 0, "web UI port (overrides FREEDIUS_UI_PORT; default 8083)")
 	flagUIHost := fs.String("ui-host", "", "web UI bind address (127.0.0.1 or 0.0.0.0; default 127.0.0.1)")
 	fs.Usage = func() { printUsage(os.Stderr) }
@@ -127,22 +91,11 @@ func run(args []string) int {
 	setFlags := map[string]bool{}
 	fs.Visit(func(f *flag.Flag) { setFlags[f.Name] = true })
 
-	daemon := *flagDaemon || *flagDaemonShort
-	if daemon && *flagFg {
-		return failf("freedius: --daemon and --fg are mutually exclusive")
-	}
-
-	// Handle --daemon by forking to background with --fg.
-	if daemon {
-		return handleDaemonStart()
-	}
-
 	verboseErrors := *flagVerboseErrors || os.Getenv("FREEDIUS_VERBOSE_ERRORS") == "1"
 
 	logFormat := resolveLogFormat(*flagLogFormat)
 	logSink := proxy.NewLogSink(1000)
-	logWriter := os.Stderr
-	logger, err := newLogger(logFormat, logWriter, logSink)
+	logger, err := newLogger(logFormat, os.Stderr, logSink)
 	if err != nil {
 		return failf("freedius: %v", err)
 	}
@@ -177,17 +130,13 @@ func run(args []string) int {
 		return failf("freedius: %s", err)
 	}
 
-	// In unified mode, missing env vars are surfaced to the user via the TUI
-	// Config tab rather than blocking startup.
 	_ = checkRequiredEnvVars(cfg)
 
 	serverLogger := logger.With("component", "server")
 	serverLogger.Info(
 		fmt.Sprintf("freedius listening on http://%s", net.JoinHostPort(host, strconv.Itoa(port))),
-		"host",
-		host,
-		"port",
-		port,
+		"host", host,
+		"port", port,
 	)
 
 	if !*flagNoExportHint {
@@ -203,7 +152,6 @@ func run(args []string) int {
 		return failf("freedius: %v", err)
 	}
 
-	// Start web server (always — even in TUI mode — runs on :8083).
 	uiPort := resolveUIPort(*flagUIPort, setFlags["ui-port"])
 	uiHost := resolveUIHost(*flagUIHost)
 
@@ -225,44 +173,25 @@ func run(args []string) int {
 		}
 	}()
 
-	// TUI mode: explicit --tui flag or legacy --fg with IPC.
-	if *flagFg {
-		return startHeadlessWithIPC(server, bus, logSink, cfg, registry, host, port, logger)
-	}
-	if *flagTUI {
-		model := tui.NewDashboard(
-			bus.Subscribe(),
-			logSink.Subscribe(),
-			cfg, registry, dispatcher, cfgPath, host, port, verboseErrors,
-			cfg.Theme,
-		)
-		prog := tea.NewProgram(model)
-		if _, err := prog.Run(); err != nil {
-			logger.Error("TUI program error", "err", err)
-		}
-		logger.Info("TUI shutdown, stopping proxy")
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
-		defer cancel()
-		if err := server.Shutdown(shutdownCtx); err != nil {
-			logger.Error("proxy shutdown error", "err", err)
-		}
-		logger.Info("shutdown complete")
-		select {
-		case err := <-serverErr:
-			return failf("freedius: %v", err)
-		default:
-		}
-		return 0
-	}
-
-	// Default: web-only mode (no TUI). Block until shutdown signal.
 	logger.Info("web dashboard on http://" + net.JoinHostPort(uiHost, strconv.Itoa(uiPort)))
 	return waitForShutdownWithWeb(server, webServer, serverErr, logger)
 }
 
-// startProxyServer builds the proxy middleware stack, creates the HTTP server,
-// and starts listening in a background goroutine. Returns the server (for
-// shutdown) and an error channel for immediate bind failures.
+func newLogger(format string, w io.Writer, sink *proxy.LogSink) (*slog.Logger, error) {
+	opts := &slog.HandlerOptions{Level: slog.LevelInfo}
+	var inner slog.Handler
+	switch format {
+	case "json":
+		inner = slog.NewJSONHandler(w, opts)
+	case "text":
+		inner = slog.NewTextHandler(w, opts)
+	default:
+		return nil, fmt.Errorf("invalid log format %q (allowed: text, json)", format)
+	}
+	handler := proxy.NewRingHandler(inner, sink)
+	return slog.New(handler), nil
+}
+
 func startProxyServer(
 	host string,
 	port int,
@@ -294,18 +223,24 @@ func startProxyServer(
 	return server, serverErr
 }
 
-// runHeadless runs the proxy in foreground without the TUI. Blocks until a
-// shutdown signal is received, then gracefully shuts down.
-func runHeadless(server *http.Server, logger *slog.Logger, cleanup func() error) int {
-	if err := waitForShutdown(server, cleanup); err != nil {
-		logger.Error("shutdown error", "err", err)
+// waitForShutdown blocks until SIGINT or SIGTERM, then gracefully shuts down
+// the server and runs any additional cleanup.
+func waitForShutdown(server *http.Server, cleanup func() error) error {
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, os.Interrupt)
+	<-sig
+
+	if cleanup != nil {
+		if err := cleanup(); err != nil {
+			return fmt.Errorf("cleanup: %w", err)
+		}
 	}
-	logger.Info("shutdown complete")
-	return 0
+
+	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	defer cancel()
+	return server.Shutdown(ctx)
 }
 
-// waitForShutdownWithWeb blocks until a shutdown signal, then gracefully shuts
-// down both the proxy and web servers.
 func waitForShutdownWithWeb(
 	server *http.Server,
 	webServer *web.Server,
@@ -328,81 +263,16 @@ func waitForShutdownWithWeb(
 	return 0
 }
 
-// startHeadlessWithIPC starts the IPC server alongside the HTTP proxy and
-// blocks until shutdown. The IPC server's Shutdown is wired as the cleanup
-// arg to waitForShutdown so the socket file is removed on graceful exit.
-func startHeadlessWithIPC(
-	server *http.Server,
-	bus *proxy.EventBus,
-	logSink *proxy.LogSink,
-	cfg *config.Config,
-	registry *proxy.Registry,
-	host string,
-	port int,
-	logger *slog.Logger,
-) int {
-	ipcServer := NewIPCServer(socketPath(), bus, logSink, cfg, registry, host, port)
-	go func() {
-		if err := ipcServer.ListenAndServe(); err != nil {
-			logger.Error("IPC server error", "err", err)
-		}
-	}()
-	return runHeadless(server, logger, func() error {
-		ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
-		defer cancel()
-		return ipcServer.Shutdown(ctx)
-	})
-}
-
-func handleStop() int {
-	if err := stopDaemon(); err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
-		return 1
-	}
-	fmt.Fprintln(os.Stderr, "freedius: daemon stopped")
-	return 0
-}
-
-func handleStatus() int {
-	running, pid, err := daemonStatus()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "freedius: %v\n", err)
-		return 1
-	}
-	if running {
-		fmt.Fprintf(os.Stderr, "freedius: running (PID %d)\n", pid)
-		return 0
-	}
-	fmt.Fprintln(os.Stderr, "freedius: not running")
-	return 0
-}
-
-func handleDaemonStart() int {
-	if err := startDaemon(os.Args[1:]); err != nil {
-		return failf("%v", err)
-	}
-	return 0
-}
-
 func printUsage(w io.Writer) {
 	usage := `freedius — local Claude Code proxy
 
 Usage: freedius [flags]
-       freedius stop
-       freedius status
-
-Subcommands:
-  stop      Send SIGTERM to a running daemon
-  status    Check if a daemon is running
-  attach    Connect TUI to a running daemon
 
 Flags:
 `
 	if _, err := io.WriteString(w, usage); err != nil {
 		return
 	}
-	// Print the same defaults as the flag set above. We rebuild a FlagSet so
-	// fs.PrintDefaults reflects the canonical flag declarations.
 	fs := flag.NewFlagSet("freedius", flag.ContinueOnError)
 	fs.SetOutput(w)
 	fs.String("config", "", "path to config file (auto-resolved if empty)")
@@ -413,17 +283,11 @@ Flags:
 	fs.String("log-format", "", "log output format: text, json (default text)")
 	fs.Duration("stream-timeout", 0, "per-request upstream timeout (default 5m)")
 	fs.Bool("no-export-hint", false, "suppress the env-export hint on startup")
-	fs.Bool("fg", false, "run headless in foreground (no TUI, for Docker/scripts)")
-	fs.Bool("daemon", false, "run as background daemon (no TUI, forks to background)")
-	fs.Bool("d", false, "shorthand for --daemon")
+	fs.Int("ui-port", 0, "web UI port (default 8083)")
+	fs.String("ui-host", "", "web UI bind address (default 127.0.0.1)")
 	fs.PrintDefaults()
 }
 
-// waitForBind polls serverErr for up to 50ms looking for an immediate bind
-// failure (port in use, permission denied, etc.). Returns the error if one
-// arrives in that window, or nil if no error fires — at which point the bind
-// has succeeded (or at least has not produced a synchronous error) and the
-// caller can proceed to start the TUI.
 func waitForBind(serverErr <-chan error) error {
 	deadline := time.Now().Add(50 * time.Millisecond)
 	for time.Now().Before(deadline) {
@@ -436,9 +300,6 @@ func waitForBind(serverErr <-chan error) error {
 	return nil
 }
 
-// loadConfig loads the config from cfgPath, falling back to the embedded
-// starter template when the resolved path does not exist and no explicit
-// --config flag was passed (lazy startup).
 func loadConfig(cfgPath, explicitFlag string) (*config.Config, error) {
 	cfg, err := config.Load(cfgPath)
 	if err == nil {
@@ -455,8 +316,6 @@ func failf(format string, args ...any) int {
 	return 1
 }
 
-// handleEarlyArgs checks for --version and --help before flag parsing.
-// Returns (code, true) if the arg was handled and run() should exit.
 func handleEarlyArgs(args []string) (int, bool) {
 	for _, a := range args {
 		if a == "--version" {
