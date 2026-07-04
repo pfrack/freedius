@@ -6,24 +6,40 @@ package web
 import (
 	"embed"
 	"fmt"
+	"html/template"
 	"io/fs"
 	"log/slog"
 	"net/http"
-	"text/template"
+	"sync"
 )
 
 //go:embed templates static
 var assets embed.FS
 
-// loadPageTemplate parses layout.html and a single page template together.
-// Each page gets its own template set so {{define "content"}} blocks don't
-// collide across pages.
+// pageTemplates caches one *template.Template per page file. The layout
+// defines `{{block "content" .}}` and each page overrides it, so pages
+// can't share a single template set — each page gets its own parsed set
+// (layout + that page only). Templates are parsed once at first render
+// and reused for the lifetime of the process. Per the plan's Performance
+// section: "Template parsing: at startup, once; cached in *template.Template
+// (avoid per-request ParseFiles)."
+var pageTemplates sync.Map // map[string]*template.Template
+
+// loadPageTemplate parses layout.html + a single page template together
+// and caches the result keyed by page file name. Each page defines its own
+// `{{define "content"}}` block (which overrides the layout's `{{block
+// "content"}}`), so pages must be parsed separately — they can't share a
+// single-template set.
 func loadPageTemplate(pageFile string) (*template.Template, error) {
+	if cached, ok := pageTemplates.Load(pageFile); ok {
+		return cached.(*template.Template), nil
+	}
 	tmpl, err := template.ParseFS(assets, "templates/layout.html", "templates/"+pageFile)
 	if err != nil {
 		return nil, fmt.Errorf("parse %s: %w", pageFile, err)
 	}
-	return tmpl, nil
+	actual, _ := pageTemplates.LoadOrStore(pageFile, tmpl)
+	return actual.(*template.Template), nil
 }
 
 // StaticFS returns the embedded static/ directory for serving static assets.

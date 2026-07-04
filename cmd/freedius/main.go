@@ -167,8 +167,14 @@ func run(args []string) int {
 		CfgPath:   cfgPath,
 	}
 	webServer := web.NewServer(uiHost, uiPort, h, logger)
+	// Bind synchronously so a port conflict on :8083 fails the process
+	// (mirrors the proxy server's waitForBind pattern). Dashboard silently
+	// disappearing when the port is taken is the failure mode this prevents.
+	if err := webServer.Listen(); err != nil {
+		return failf("freedius: web server bind: %v", err)
+	}
 	go func() {
-		if err := webServer.ListenAndServe(); err != nil {
+		if err := webServer.Serve(); err != nil {
 			logger.Error("web server error", "err", err)
 		}
 	}()

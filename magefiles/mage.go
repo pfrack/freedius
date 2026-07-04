@@ -507,7 +507,18 @@ func DockerBuild() error {
 // DockerRun runs the Docker container.
 func DockerRun() error {
 	fmt.Println("→ Running Docker container...")
-	return sh.RunV("docker", "run", "--rm", "-p", "8082:8082", "-p", "8083:8083", "--name", "freedius-dev", "freedius:dev")
+	return sh.RunV(
+		"docker",
+		"run",
+		"--rm",
+		"-p",
+		"8082:8082",
+		"-p",
+		"8083:8083",
+		"--name",
+		"freedius-dev",
+		"freedius:dev",
+	)
 }
 
 // DockerPush pushes the Docker image to a registry.

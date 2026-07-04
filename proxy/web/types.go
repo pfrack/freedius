@@ -20,6 +20,9 @@ type logEntry struct {
 type logsData struct {
 	pageData
 	Entries []logEntry
+	// Level is the active ?min= filter ("" when no filter). Used by logs.html
+	// to highlight the selected option in the dropdown — see plan §2.6.
+	Level string
 }
 
 // providerRow represents a single provider for template rendering.
@@ -48,5 +51,6 @@ type mappingRow struct {
 // mappingsData is the data for the mappings page.
 type mappingsData struct {
 	pageData
-	Mappings []mappingRow
+	Mappings  []mappingRow
+	Providers []providerRow
 }

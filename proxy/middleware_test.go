@@ -325,10 +325,14 @@ func TestEventBusMiddleware_PopulatesErrorFields(t *testing.T) {
 	handler := EventBusMiddleware(bus, errHandler)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+
+	// Subscribe before making the request.
+	ch := bus.Subscribe()
+
 	handler.ServeHTTP(rec, req)
 
 	select {
-	case ev := <-bus.Subscribe():
+	case ev := <-ch:
 		if ev.Status != http.StatusNotFound {
 			t.Errorf("Status = %d, want %d", ev.Status, http.StatusNotFound)
 		}
@@ -355,10 +359,14 @@ func TestEventBusMiddleware_SuccessHasNoErrorFields(t *testing.T) {
 	handler := EventBusMiddleware(bus, okHandler)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+
+	// Subscribe before making the request.
+	ch := bus.Subscribe()
+
 	handler.ServeHTTP(rec, req)
 
 	select {
-	case ev := <-bus.Subscribe():
+	case ev := <-ch:
 		if ev.Status != http.StatusOK {
 			t.Errorf("Status = %d, want %d", ev.Status, http.StatusOK)
 		}

@@ -24,9 +24,11 @@ type LogEntry struct {
 // and an atomic overflow flag for once-per-burst warnings. A ring buffer stores
 // recent entries for IPC replay.
 type LogSink struct {
-	ch       chan LogEntry
 	emitted  atomic.Int64
 	overflow atomic.Bool
+	mu       sync.Mutex
+	subs     map[int]chan LogEntry
+	subID    int
 
 	ring    []LogEntry
 	ringMu  sync.RWMutex
@@ -37,36 +39,60 @@ type LogSink struct {
 }
 
 // NewLogSink creates a LogSink with the given channel buffer capacity.
-func NewLogSink(capacity int) *LogSink {
+func NewLogSink(_ int) *LogSink {
 	return &LogSink{
-		ch:      make(chan LogEntry, capacity),
+		subs:    make(map[int]chan LogEntry),
 		ring:    make([]LogEntry, 0, 10000),
 		ringCap: 10000,
 	}
 }
 
-// Subscribe returns the read-only channel that the TUI consumes from.
+// Subscribe returns a new read-only channel for this subscriber.
 func (s *LogSink) Subscribe() <-chan LogEntry {
 	if s == nil {
 		return nil
 	}
-	return s.ch
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	ch := make(chan LogEntry, 100) // Per-subscriber buffer
+	s.subID++
+	id := s.subID
+	s.subs[id] = ch
+
+	return ch
 }
 
-// Snapshot drains the channel non-blockingly and returns all buffered entries.
+// Unsubscribe removes a subscriber channel from the sink.
+func (s *LogSink) Unsubscribe(ch <-chan LogEntry) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for id, sub := range s.subs {
+		if sub == ch {
+			delete(s.subs, id)
+			close(sub)
+			return
+		}
+	}
+}
+
+// Snapshot returns a copy of the ring buffer for IPC replay.
 func (s *LogSink) Snapshot() []LogEntry {
 	if s == nil {
 		return nil
 	}
-	out := make([]LogEntry, 0, cap(s.ch))
-	for {
-		select {
-		case e := <-s.ch:
-			out = append(out, e)
-		default:
-			return out
-		}
+	s.ringMu.RLock()
+	defer s.ringMu.RUnlock()
+
+	out := make([]LogEntry, s.ringLen)
+	for i := 0; i < s.ringLen; i++ {
+		out[i] = s.ring[(s.head+i)%s.ringCap]
 	}
+	return out
 }
 
 // EventCount returns the total number of log entries emitted (including drops).
@@ -208,14 +234,20 @@ func (h *ringHandler) Handle(ctx context.Context, r slog.Record) error {
 	}
 	h.sink.ringMu.Unlock()
 
-	select {
-	case h.sink.ch <- entry:
-		h.sink.overflow.Store(false)
-	default:
-		if !h.sink.overflow.Swap(true) {
-			fmt.Fprintln(os.Stderr, "log sink overflow, dropping entries")
+	// Broadcast to all subscribers.
+	h.sink.mu.Lock()
+	for id, ch := range h.sink.subs {
+		select {
+		case ch <- entry:
+			// Event delivered.
+		default:
+			// Channel full; drop for this subscriber.
+			if !h.sink.overflow.Swap(true) {
+				fmt.Fprintln(os.Stderr, "log sink subscriber overflow", "subscriber", id)
+			}
 		}
 	}
+	h.sink.mu.Unlock()
 
 	return nil
 }

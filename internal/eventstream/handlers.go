@@ -7,8 +7,11 @@ import (
 	"crypto/subtle"
 	"encoding/json"
 	"fmt"
+	"html"
+	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/pfrack/freedius/config"
@@ -40,18 +43,22 @@ func (h *Handlers) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/config", h.requireAuth(h.handleConfig))
 }
 
-// requireAuth wraps a handler with optional token authentication. When AuthToken
-// is zero-length, all requests pass through. Otherwise, the Authorization header
-// is compared using constant-time comparison (crypto/subtle). On mismatch, a
-// 401 JSON error is returned.
+// requireAuth wraps a HandlerFunc with optional token authentication. When
+// AuthToken is zero-length, all requests pass through. Otherwise, the
+// Authorization header is compared using crypto/subtle.ConstantTimeCompare
+// against two acceptable forms: "Bearer <token>" and "<token>". Accepting
+// both lets clients send either shape without a non-constant-time prefix
+// check (compare the whole header constant-time rather than byte-slice ==).
+// On mismatch, a 401 JSON error is returned.
 func (h *Handlers) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 	if h.AuthToken == "" {
 		return next
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
-		token := r.Header.Get("Authorization")
-		if len(token) > 7 && token[:7] == "Bearer " {
-			token = token[7:]
+		provided := r.Header.Get("Authorization")
+		token := provided
+		if strings.HasPrefix(provided, "Bearer ") {
+			token = provided[7:]
 		}
 		if subtle.ConstantTimeCompare([]byte(token), []byte(h.AuthToken)) == 1 {
 			next(w, r)
@@ -61,6 +68,19 @@ func (h *Handlers) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 		w.WriteHeader(http.StatusUnauthorized)
 		_, _ = w.Write([]byte(`{"error":"unauthorized","message":"invalid or missing token"}`))
 	}
+}
+
+// RequireAuth wraps any http.Handler with the same token authentication as
+// requireAuth but returns an http.Handler suitable for wrapping an entire mux
+// (or any subtree). Used by proxy/web.Server to gate all routes — pages,
+// writeback, and eventstream — behind one auth boundary when AuthToken is set.
+func (h *Handlers) RequireAuth(next http.Handler) http.Handler {
+	if h.AuthToken == "" {
+		return next
+	}
+	return h.requireAuth(func(w http.ResponseWriter, r *http.Request) {
+		next.ServeHTTP(w, r)
+	})
 }
 
 func (h *Handlers) handleEvents(w http.ResponseWriter, r *http.Request) {
@@ -135,7 +155,13 @@ func (h *Handlers) handleLogs(w http.ResponseWriter, r *http.Request) {
 		flusher.Flush()
 	}
 	for _, e := range entries {
-		h.writeSSE(w, "log", e)
+		// Pre-render HTML for the log entry.
+		htmlLine := fmt.Sprintf(
+			`<pre class="log-%s">%s</pre>`,
+			html.EscapeString(levelLabel(e.Level)),
+			html.EscapeString(e.Line),
+		)
+		h.writeSSE(w, "log", htmlLine)
 		flusher.Flush()
 	}
 	h.writeSSE(w, "replay", map[string]any{"complete": true, "current_seq": currentSeq})
@@ -151,7 +177,13 @@ func (h *Handlers) handleLogs(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			seq = e.Seq
-			h.writeSSE(w, "log", e)
+			// Pre-render HTML for the log entry.
+			htmlLine := fmt.Sprintf(
+				`<pre class="log-%s">%s</pre>`,
+				html.EscapeString(levelLabel(e.Level)),
+				html.EscapeString(e.Line),
+			)
+			h.writeSSE(w, "log", htmlLine)
 			flusher.Flush()
 		case <-r.Context().Done():
 			return
@@ -187,4 +219,19 @@ func (h *Handlers) writeSSE(w http.ResponseWriter, eventType string, data any) {
 		return
 	}
 	_, _ = fmt.Fprintf(w, "event: %s\ndata: %s\n\n", eventType, buf)
+	w.(http.Flusher).Flush()
+}
+
+// levelLabel returns a short label for a log level.
+func levelLabel(l slog.Level) string {
+	switch {
+	case l <= slog.LevelDebug:
+		return "debug"
+	case l <= slog.LevelInfo:
+		return "info"
+	case l <= slog.LevelWarn:
+		return "warn"
+	default:
+		return "error"
+	}
 }

@@ -1,84 +1,202 @@
 :root {
-    --bg: #ffffff;
-    --text: #1a1a2e;
-    --nav-bg: #f0f0f5;
-    --nav-active: #4a6cf7;
-    --border: #e0e0e8;
-    --table-hover: #f5f5fa;
-    --log-debug-bg: #f0f0f5;
-    --log-info-bg: transparent;
-    --log-warn-bg: #fff8e1;
-    --log-error-bg: #ffeef0;
+  --bg: #ffffff;
+  --text: #1a1a2e;
+  --nav-bg: #f0f0f5;
+  --nav-active: #4a6cf7;
+  --border: #e0e0e8;
+  --table-hover: #f5f5fa;
+  --log-debug-bg: #f0f0f5;
+  --log-info-bg: transparent;
+  --log-warn-bg: #fff8e1;
+  --log-error-bg: #ffeef0;
 }
+
 @media (prefers-color-scheme: dark) {
-    :root {
-        --bg: #1a1a2e;
-        --text: #e0e0e8;
-        --nav-bg: #16213e;
-        --nav-active: #6c8cf7;
-        --border: #333;
-        --table-hover: #1e2a45;
-        --log-debug-bg: #16213e;
-        --log-info-bg: transparent;
-        --log-warn-bg: #3d3200;
-        --log-error-bg: #3d0011;
-    }
+  :root {
+    --bg: #1a1a2e;
+    --text: #e0e0e8;
+    --nav-bg: #16213e;
+    --nav-active: #6c8cf7;
+    --border: #333;
+    --table-hover: #1e2a45;
+    --log-debug-bg: #16213e;
+    --log-info-bg: transparent;
+    --log-warn-bg: #3d3200;
+    --log-error-bg: #3d0011;
+  }
 }
-* { margin: 0; padding: 0; box-sizing: border-box; }
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
 body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background: var(--bg);
-    color: var(--text);
-    line-height: 1.6;
-    padding: 1rem;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  padding: 1rem;
 }
+
 nav {
-    display: flex;
-    gap: 1rem;
-    padding: 0.5rem 1rem;
-    background: var(--nav-bg);
-    border-radius: 0.5rem;
-    margin-bottom: 1rem;
+  display: flex;
+  gap: 1rem;
+  padding: 0.5rem 1rem;
+  background: var(--nav-bg);
+  border-radius: 0.5rem;
+  margin-bottom: 1rem;
 }
+
 nav a {
-    text-decoration: none;
-    color: var(--text);
-    padding: 0.25rem 0.5rem;
-    border-radius: 0.25rem;
+  text-decoration: none;
+  color: var(--text);
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
 }
-nav a.active { background: var(--nav-active); color: #fff; }
-main { max-width: 960px; margin: 0 auto; }
-table { width: 100%; border-collapse: collapse; }
-th, td { padding: 0.5rem; text-align: left; border-bottom: 1px solid var(--border); }
-th { font-weight: 600; }
-tr:hover { background: var(--table-hover); }
+
+nav a.active {
+  background: var(--nav-active);
+  color: #fff;
+}
+
+main {
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  padding: 0.5rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+th {
+  font-weight: 600;
+}
+
+tr:hover {
+  background: var(--table-hover);
+}
+
 pre {
-    font-family: 'Fira Code', 'Cascadia Code', monospace;
-    padding: 0.15rem 0.5rem;
-    border-radius: 0.25rem;
-    overflow-x: auto;
+  font-family: 'Fira Code', 'Cascadia Code', monospace;
+  padding: 0.15rem 0.5rem;
+  border-radius: 0.25rem;
+  overflow-x: auto;
 }
-.log-debug { background: var(--log-debug-bg); color: #888; }
-.log-info { background: var(--log-info-bg); }
-.log-warn { background: var(--log-warn-bg); color: #b8860b; }
-.log-error { background: var(--log-error-bg); color: #c0392b; }
+
+.log-debug {
+  background: var(--log-debug-bg);
+  color: #888;
+}
+
+.log-info {
+  background: var(--log-info-bg);
+}
+
+.log-warn {
+  background: var(--log-warn-bg);
+  color: #b8860b;
+}
+
+.log-error {
+  background: var(--log-error-bg);
+  color: #c0392b;
+}
+
 select {
-    padding: 0.25rem 0.5rem;
-    border: 1px solid var(--border);
-    border-radius: 0.25rem;
-    background: var(--bg);
-    color: var(--text);
-    margin-bottom: 1rem;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 0.25rem;
+  background: var(--bg);
+  color: var(--text);
+  margin-bottom: 1rem;
 }
-label { margin-right: 0.5rem; display: block; margin-bottom: 0.5rem; }
-input, select { padding: 0.25rem 0.5rem; border: 1px solid var(--border); border-radius: 0.25rem; background: var(--bg); color: var(--text); width: 100%; }
-dialog { border: 1px solid var(--border); border-radius: 0.5rem; padding: 1.5rem; background: var(--bg); color: var(--text); max-width: 500px; }
-dialog::backdrop { background: rgba(0,0,0,0.5); }
-.form-error { color: #c0392b; margin-bottom: 0.5rem; }
-.form-actions { display: flex; gap: 0.5rem; margin-top: 1rem; }
-.btn-primary { background: var(--nav-active); color: #fff; border: none; padding: 0.5rem 1rem; border-radius: 0.25rem; cursor: pointer; }
-.btn-primary:hover { opacity: 0.9; }
-.btn-danger { background: #c0392b; color: #fff; border: none; padding: 0.5rem 1rem; border-radius: 0.25rem; cursor: pointer; }
-.btn-danger:hover { opacity: 0.9; }
-.btn-cancel { background: transparent; color: var(--text); border: 1px solid var(--border); padding: 0.5rem 1rem; border-radius: 0.25rem; cursor: pointer; }
-.btn-sm { padding: 0.2rem 0.5rem; font-size: 0.85rem; }
+
+label {
+  margin-right: 0.5rem;
+  display: block;
+  margin-bottom: 0.5rem;
+}
+
+input,
+select {
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 0.25rem;
+  background: var(--bg);
+  color: var(--text);
+  width: 100%;
+}
+
+dialog {
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  padding: 1.5rem;
+  background: var(--bg);
+  color: var(--text);
+  max-width: 500px;
+}
+
+dialog::backdrop {
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.form-error {
+  color: #c0392b;
+  margin-bottom: 0.5rem;
+}
+
+.form-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.btn-primary {
+  background: var(--nav-active);
+  color: #fff;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 0.25rem;
+  cursor: pointer;
+}
+
+.btn-primary:hover {
+  opacity: 0.9;
+}
+
+.btn-danger {
+  background: #c0392b;
+  color: #fff;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 0.25rem;
+  cursor: pointer;
+}
+
+.btn-danger:hover {
+  opacity: 0.9;
+}
+
+.btn-cancel {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+  padding: 0.5rem 1rem;
+  border-radius: 0.25rem;
+  cursor: pointer;
+}
+
+.btn-sm {
+  padding: 0.2rem 0.5rem;
+  font-size: 0.85rem;
+}

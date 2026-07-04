@@ -145,6 +145,46 @@ func TestUpdateProvider_NotFound(t *testing.T) {
 	}
 }
 
+// TestUpdateProvider_SaveFailure asserts that when SaveData fails after the
+// in-memory mutation, the previous provider state is restored before the
+// mutex is released (plan §3.7 rollback contract).
+func TestUpdateProvider_SaveFailure(t *testing.T) {
+	_, cfg, _ := newWriteMux(t)
+
+	// Capture original behavior so we can assert rollback post-failure.
+	cfg.RLock()
+	original := cfg.Providers["nim"]
+	cfg.RUnlock()
+
+	// Force SaveData to fail by swapping in a read-only cfgPath.
+	h := &eventstream.Handlers{
+		Bus:     proxy.NewEventBus(10),
+		LogSink: proxy.NewLogSink(10),
+		Cfg:     cfg,
+		CfgPath: "/dev/null/cannot-create-subdir/freedius.yaml",
+	}
+	mux := SetupMux(h, slog.New(slog.NewTextHandler(sink{}, nil)))
+
+	body := "name=nim&behavior=anthropic&default_base_url=https://api.anthropic.com"
+	req := httptest.NewRequest(http.MethodPut, "/v1/providers/nim", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != 500 {
+		t.Errorf("status = %d, want 500; body: %s", rec.Code, rec.Body.String())
+	}
+	cfg.RLock()
+	rolled := cfg.Providers["nim"]
+	cfg.RUnlock()
+	if rolled.Behavior != original.Behavior {
+		t.Errorf("behavior = %q, want %q (rollback should restore original)", rolled.Behavior, original.Behavior)
+	}
+	if rolled.DefaultBaseURL != original.DefaultBaseURL {
+		t.Errorf("default_base_url = %q, want %q (rollback)", rolled.DefaultBaseURL, original.DefaultBaseURL)
+	}
+}
+
 func TestDeleteProvider(t *testing.T) {
 	mux, cfg, _ := newWriteMux(t)
 
@@ -189,6 +229,38 @@ func TestDeleteProvider_NotFound(t *testing.T) {
 
 	if rec.Code != 404 {
 		t.Errorf("status = %d, want 404", rec.Code)
+	}
+}
+
+// TestDeleteProvider_SaveFailure asserts that when SaveData fails after the
+// in-memory delete, the provider is restored before the mutex is released
+// (plan §3.7 rollback contract). The deleted provider must survive in
+// cfg.Providers after the save error.
+func TestDeleteProvider_SaveFailure(t *testing.T) {
+	_, cfg, _ := newWriteMux(t)
+
+	// Add a provider with no mappings so the in-use check passes.
+	cfg.Lock()
+	cfg.Providers["lonely"] = config.Provider{Behavior: "openai"}
+	cfg.Unlock()
+
+	h := &eventstream.Handlers{
+		Bus:     proxy.NewEventBus(10),
+		LogSink: proxy.NewLogSink(10),
+		Cfg:     cfg,
+		CfgPath: "/dev/null/cannot-create-subdir/freedius.yaml",
+	}
+	mux := SetupMux(h, slog.New(slog.NewTextHandler(sink{}, nil)))
+
+	req := httptest.NewRequest(http.MethodDelete, "/v1/providers/lonely", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != 500 {
+		t.Errorf("status = %d, want 500; body: %s", rec.Code, rec.Body.String())
+	}
+	if !cfg.HasProvider("lonely") {
+		t.Error("provider should be restored after save failure (rollback)")
 	}
 }
 

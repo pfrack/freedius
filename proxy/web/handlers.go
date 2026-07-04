@@ -5,6 +5,7 @@ package web
 
 import (
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -39,11 +40,11 @@ func SetupMux(h *eventstream.Handlers, logger *slog.Logger) *http.ServeMux {
 	mux.HandleFunc("GET /logs", func(w http.ResponseWriter, r *http.Request) {
 		handleLogs(w, r, h.LogSink, logger)
 	})
-	mux.HandleFunc("GET /providers", func(w http.ResponseWriter, _ *http.Request) {
-		handleProviders(w, h.Cfg, logger)
+	mux.HandleFunc("GET /providers", func(w http.ResponseWriter, r *http.Request) {
+		handleProviders(w, r, h.Cfg, logger)
 	})
-	mux.HandleFunc("GET /mappings", func(w http.ResponseWriter, _ *http.Request) {
-		handleMappings(w, h.Cfg, logger)
+	mux.HandleFunc("GET /mappings", func(w http.ResponseWriter, r *http.Request) {
+		handleMappings(w, r, h.Cfg, logger)
 	})
 
 	// Writeback: providers CRUD.
@@ -74,7 +75,12 @@ func SetupMux(h *eventstream.Handlers, logger *slog.Logger) *http.ServeMux {
 // handleLogs renders the log page with server-rendered entries from the ring
 // buffer. The ?min= query parameter filters by minimum log level.
 func handleLogs(w http.ResponseWriter, r *http.Request, logSink *proxy.LogSink, logger *slog.Logger) {
-	minLevel := parseMinLevel(r.URL.Query().Get("min"))
+	minRaw := r.URL.Query().Get("min")
+	minLevel, err := parseMinLevel(minRaw)
+	if err != nil {
+		writeJSONError(w, http.StatusBadRequest, "invalid_filter", err.Error())
+		return
+	}
 	entries, _, _ := logSink.SnapshotSince(0)
 
 	var filtered []logEntry
@@ -92,14 +98,41 @@ func handleLogs(w http.ResponseWriter, r *http.Request, logSink *proxy.LogSink, 
 		filtered = filtered[len(filtered)-200:]
 	}
 
-	renderPage(w, "logs.html", logsData{
-		pageData: pageData{Active: "logs"},
-		Entries:  filtered,
-	}, logger)
+	// Selected-level label for the dropdown; "" when no filter (logs.html's
+	// `{{if not .Level}}selected{{end}}` highlights "All").
+	levelSel := ""
+	if minLevel != nil {
+		levelSel = levelLabel(*minLevel)
+	}
+
+	if r.Header.Get("HX-Request") == "true" {
+		// HTMX request: render only the log fragment.
+		tmpl, err := loadPageTemplate("logs.html")
+		if err != nil {
+			logger.Error("load template", "template", "logs.html", "error", err)
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+		err = tmpl.ExecuteTemplate(w, "logs.html", logsData{
+			Entries: filtered,
+			Level:   levelSel,
+		})
+		if err != nil {
+			logger.Error("execute template", "template", "logs.html", "error", err)
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		}
+	} else {
+		// Direct visit: render full page.
+		renderPage(w, "logs.html", logsData{
+			pageData: pageData{Active: "logs"},
+			Entries:  filtered,
+			Level:    levelSel,
+		}, logger)
+	}
 }
 
 // handleProviders renders the providers page with a read-only table.
-func handleProviders(w http.ResponseWriter, cfg *config.Config, logger *slog.Logger) {
+func handleProviders(w http.ResponseWriter, r *http.Request, cfg *config.Config, logger *slog.Logger) {
 	providers := cfg.ProvidersSnapshot()
 	mappings := cfg.MappingsSnapshot()
 
@@ -121,14 +154,20 @@ func handleProviders(w http.ResponseWriter, cfg *config.Config, logger *slog.Log
 		})
 	}
 
-	renderPage(w, "providers.html", providersData{
-		pageData:  pageData{Active: "providers"},
-		Providers: rows,
-	}, logger)
+	// HTMX request: render only the table fragment.
+	if r.Header.Get("HX-Request") == "true" {
+		renderProvidersTable(w, r, cfg)
+	} else {
+		// Direct visit: render full page.
+		renderPage(w, "providers.html", providersData{
+			pageData:  pageData{Active: "providers"},
+			Providers: rows,
+		}, logger)
+	}
 }
 
 // handleMappings renders the mappings page with a read-only table.
-func handleMappings(w http.ResponseWriter, cfg *config.Config, logger *slog.Logger) {
+func handleMappings(w http.ResponseWriter, r *http.Request, cfg *config.Config, logger *slog.Logger) {
 	mappings := cfg.MappingsSnapshot()
 
 	var rows []mappingRow
@@ -140,30 +179,58 @@ func handleMappings(w http.ResponseWriter, cfg *config.Config, logger *slog.Logg
 		})
 	}
 
-	renderPage(w, "mappings.html", mappingsData{
-		pageData: pageData{Active: "mappings"},
-		Mappings: rows,
-	}, logger)
+	// Provider list for the Add Mapping dropdown.
+	providers := cfg.ProvidersSnapshot()
+	mappingCounts := make(map[string]int)
+	for _, m := range mappings {
+		mappingCounts[m.ProviderName]++
+	}
+	var providerRows []providerRow
+	for name, p := range providers {
+		providerRows = append(providerRows, providerRow{
+			Name:         name,
+			Behavior:     p.Behavior,
+			BaseURL:      p.DefaultBaseURL,
+			APIKeyEnv:    p.DefaultAPIKeyEnv,
+			Protocol:     p.Protocol,
+			MappingCount: mappingCounts[name],
+		})
+	}
+
+	// HTMX request: render only the table fragment.
+	if r.Header.Get("HX-Request") == "true" {
+		renderMappingsTable(w, r, cfg)
+	} else {
+		// Direct visit: render full page.
+		renderPage(w, "mappings.html", mappingsData{
+			pageData:  pageData{Active: "mappings"},
+			Mappings:  rows,
+			Providers: providerRows,
+		}, logger)
+	}
 }
 
-// parseMinLevel parses a ?min= query parameter into a slog.Level.
-// Returns nil for empty/invalid values (no filtering).
-func parseMinLevel(s string) *slog.Level {
+// parseMinLevel parses a ?min= query parameter into a slog.Level. Returns nil
+// for the empty string (no filtering). Returns an error for non-empty unknown
+// values per plan §2.9 ("?min=invalid returns 400 with JSON error").
+func parseMinLevel(s string) (*slog.Level, error) {
 	switch strings.ToLower(s) {
+	case "":
+		return nil, nil
 	case "debug":
 		l := slog.LevelDebug
-		return &l
+		return &l, nil
 	case "info":
 		l := slog.LevelInfo
-		return &l
+		return &l, nil
 	case "warn":
 		l := slog.LevelWarn
-		return &l
+		return &l, nil
 	case "error":
 		l := slog.LevelError
-		return &l
+		return &l, nil
 	default:
-		return nil
+		return nil, fmt.Errorf("min must be one of debug|info|warn|error, got %q", s)
 	}
 }
 
@@ -178,6 +245,87 @@ func levelLabel(l slog.Level) string {
 		return "warn"
 	default:
 		return "error"
+	}
+}
+
+// renderProvidersTable renders the `<table>` fragment for providers.
+func renderProvidersTable(w http.ResponseWriter, _ *http.Request, cfg *config.Config) {
+	providers := cfg.ProvidersSnapshot()
+	mappings := cfg.MappingsSnapshot()
+
+	// Count mappings per provider.
+	counts := make(map[string]int)
+	for _, m := range mappings {
+		counts[m.ProviderName]++
+	}
+
+	var rows []providerRow
+	for name, p := range providers {
+		rows = append(rows, providerRow{
+			Name:         name,
+			Behavior:     p.Behavior,
+			BaseURL:      p.DefaultBaseURL,
+			APIKeyEnv:    p.DefaultAPIKeyEnv,
+			Protocol:     p.Protocol,
+			MappingCount: counts[name],
+		})
+	}
+
+	tmpl, err := loadPageTemplate("providers-table.html")
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, "template_failed", err.Error())
+		return
+	}
+	err = tmpl.ExecuteTemplate(w, "providers-table.html", providersData{
+		Providers: rows,
+	})
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, "template_failed", err.Error())
+	}
+}
+
+// renderMappingsTable renders the `<table>` fragment for mappings.
+func renderMappingsTable(w http.ResponseWriter, _ *http.Request, cfg *config.Config) {
+	mappings := cfg.MappingsSnapshot()
+
+	var rows []mappingRow
+	for name, m := range mappings {
+		rows = append(rows, mappingRow{
+			Name:         name,
+			ProviderName: m.ProviderName,
+			Model:        m.ModelString,
+		})
+	}
+
+	// Provider list for the Add Mapping dropdown.
+	providers := cfg.ProvidersSnapshot()
+	mappingCounts := make(map[string]int)
+	for _, m := range mappings {
+		mappingCounts[m.ProviderName]++
+	}
+	var providerRows []providerRow
+	for name, p := range providers {
+		providerRows = append(providerRows, providerRow{
+			Name:         name,
+			Behavior:     p.Behavior,
+			BaseURL:      p.DefaultBaseURL,
+			APIKeyEnv:    p.DefaultAPIKeyEnv,
+			Protocol:     p.Protocol,
+			MappingCount: mappingCounts[name],
+		})
+	}
+
+	tmpl, err := loadPageTemplate("mappings-table.html")
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, "template_failed", err.Error())
+		return
+	}
+	err = tmpl.ExecuteTemplate(w, "mappings-table.html", mappingsData{
+		Mappings:  rows,
+		Providers: providerRows,
+	})
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, "template_failed", err.Error())
 	}
 }
 
@@ -222,7 +370,15 @@ func handleCreateProvider(w http.ResponseWriter, r *http.Request, cfg *config.Co
 		}
 	}
 	cfg.Unlock()
-	writeJSON(w, http.StatusCreated, map[string]string{"status": "created", "name": name})
+	// HTMX request: render the updated table fragment.
+	if r.Header.Get("HX-Request") == "true" {
+		cfg.RLock()
+		defer cfg.RUnlock()
+		renderMappingsTable(w, r, cfg)
+	} else {
+		// Non-HTMX request: return JSON.
+		writeJSON(w, http.StatusCreated, map[string]string{"status": "created", "name": name})
+	}
 }
 
 func handleUpdateProvider(w http.ResponseWriter, r *http.Request, cfg *config.Config, cfgPath string) {
@@ -266,7 +422,15 @@ func handleUpdateProvider(w http.ResponseWriter, r *http.Request, cfg *config.Co
 		}
 	}
 	cfg.Unlock()
-	writeJSON(w, http.StatusOK, map[string]string{"status": "updated", "name": name})
+	// HTMX request: render the updated table fragment.
+	if r.Header.Get("HX-Request") == "true" {
+		cfg.RLock()
+		defer cfg.RUnlock()
+		renderProvidersTable(w, r, cfg)
+	} else {
+		// Non-HTMX request: return JSON.
+		writeJSON(w, http.StatusOK, map[string]string{"status": "updated", "name": name})
+	}
 }
 
 func handleDeleteProvider(w http.ResponseWriter, r *http.Request, cfg *config.Config, cfgPath string) {
@@ -313,7 +477,15 @@ func handleDeleteProvider(w http.ResponseWriter, r *http.Request, cfg *config.Co
 		}
 	}
 	cfg.Unlock()
-	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted", "name": name})
+	// HTMX request: render the updated table fragment.
+	if r.Header.Get("HX-Request") == "true" {
+		cfg.RLock()
+		defer cfg.RUnlock()
+		renderProvidersTable(w, r, cfg)
+	} else {
+		// Non-HTMX request: return JSON.
+		writeJSON(w, http.StatusOK, map[string]string{"status": "deleted", "name": name})
+	}
 }
 
 // --- Mapping writeback handlers ---
@@ -357,7 +529,15 @@ func handleCreateMapping(w http.ResponseWriter, r *http.Request, cfg *config.Con
 		}
 	}
 	cfg.Unlock()
-	writeJSON(w, http.StatusCreated, map[string]string{"status": "created", "name": name})
+	// HTMX request: render the updated table fragment.
+	if r.Header.Get("HX-Request") == "true" {
+		cfg.RLock()
+		defer cfg.RUnlock()
+		renderMappingsTable(w, r, cfg)
+	} else {
+		// Non-HTMX request: return JSON.
+		writeJSON(w, http.StatusCreated, map[string]string{"status": "created", "name": name})
+	}
 }
 
 func handleUpdateMapping(w http.ResponseWriter, r *http.Request, cfg *config.Config, cfgPath string) {
@@ -401,7 +581,15 @@ func handleUpdateMapping(w http.ResponseWriter, r *http.Request, cfg *config.Con
 		}
 	}
 	cfg.Unlock()
-	writeJSON(w, http.StatusOK, map[string]string{"status": "updated", "name": name})
+	// HTMX request: render the updated table fragment.
+	if r.Header.Get("HX-Request") == "true" {
+		cfg.RLock()
+		defer cfg.RUnlock()
+		renderMappingsTable(w, r, cfg)
+	} else {
+		// Non-HTMX request: return JSON.
+		writeJSON(w, http.StatusOK, map[string]string{"status": "updated", "name": name})
+	}
 }
 
 func handleDeleteMapping(w http.ResponseWriter, r *http.Request, cfg *config.Config, cfgPath string) {
@@ -436,15 +624,28 @@ func handleDeleteMapping(w http.ResponseWriter, r *http.Request, cfg *config.Con
 		}
 	}
 	cfg.Unlock()
-	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted", "name": name})
+	// HTMX request: render the updated table fragment.
+	if r.Header.Get("HX-Request") == "true" {
+		cfg.RLock()
+		defer cfg.RUnlock()
+		renderMappingsTable(w, r, cfg)
+	} else {
+		// Non-HTMX request: return JSON.
+		writeJSON(w, http.StatusOK, map[string]string{"status": "deleted", "name": name})
+	}
 }
 
 // --- JSON response helpers ---
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
+	buf, err := json.Marshal(v)
+	if err != nil {
+		http.Error(w, `{"error":"internal","message":"json marshal failed"}`, http.StatusInternalServerError)
+		return
+	}
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(v)
+	_, _ = w.Write(buf)
 }
 
 func writeJSONError(w http.ResponseWriter, status int, code, message string) {
@@ -453,6 +654,11 @@ func writeJSONError(w http.ResponseWriter, status int, code, message string) {
 
 func writeValidationError(w http.ResponseWriter, ve *ValidationError) {
 	w.Header().Set("Content-Type", "application/json")
+	buf, err := json.Marshal(ve)
+	if err != nil {
+		http.Error(w, `{"error":"internal","message":"json marshal failed"}`, http.StatusInternalServerError)
+		return
+	}
 	w.WriteHeader(http.StatusBadRequest)
-	_ = json.NewEncoder(w).Encode(ve)
+	_, _ = w.Write(buf)
 }

@@ -39,11 +39,11 @@ func TestEventBus_EmitAndSubscribe(t *testing.T) {
 		},
 	}
 
+	ch := bus.Subscribe()
 	for i := range events {
 		bus.Emit(events[i])
 	}
 
-	ch := bus.Subscribe()
 	for i, expected := range events {
 		select {
 		case got := <-ch:
@@ -82,6 +82,9 @@ func TestEventBus_Overflow(t *testing.T) {
 	bufSize := 2
 	bus := NewEventBus(bufSize)
 
+	// Subscribe before emitting so we receive events.
+	ch := bus.Subscribe()
+
 	// Fill the buffer.
 	for i := 0; i < bufSize; i++ {
 		bus.Emit(RequestEvent{RequestID: "fill", Status: 200})
@@ -94,7 +97,6 @@ func TestEventBus_Overflow(t *testing.T) {
 
 	// After overflow, the oldest events should be dropped.
 	// We should be able to read bufSize events from the channel.
-	ch := bus.Subscribe()
 	read := 0
 timeout:
 	for i := 0; i < bufSize; i++ {
@@ -121,6 +123,9 @@ func TestEventBus_Concurrent(t *testing.T) {
 	const goroutines = 10
 	const eventsPerGoroutine = 100
 
+	// Subscribe before emitting.
+	ch := bus.Subscribe()
+
 	for g := 0; g < goroutines; g++ {
 		wg.Add(1)
 		go func(_ int) {
@@ -141,7 +146,6 @@ func TestEventBus_Concurrent(t *testing.T) {
 	}
 
 	// Drain the channel (up to buffer size).
-	ch := bus.Subscribe()
 	drained := 0
 	for drained < 1000 {
 		select {

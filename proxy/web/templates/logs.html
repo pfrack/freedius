@@ -1,17 +1,29 @@
 {{define "logs"}}{{template "layout" .}}{{end}}
 {{define "title"}}Logs{{end}}
 {{define "content"}}
-<h1>Logs</h1>
-<label for="level-filter">Filter:</label>
-<select id="level-filter" name="min" hx-get="/logs" hx-target="#log" hx-trigger="change">
+  <h1>Logs</h1>
+  <label for="level-filter">Filter:</label>
+  <select
+    id="level-filter"
+    name="min"
+    hx-get="/logs"
+    hx-target="#log"
+    hx-trigger="change"
+  >
     <option value="" {{if not .Level}}selected{{end}}>All</option>
     <option value="debug" {{if eq .Level "debug"}}selected{{end}}>Debug</option>
     <option value="info" {{if eq .Level "info"}}selected{{end}}>Info</option>
     <option value="warn" {{if eq .Level "warn"}}selected{{end}}>Warn</option>
     <option value="error" {{if eq .Level "error"}}selected{{end}}>Error</option>
-</select>
-<div id="log" hx-ext="sse" sse-connect="/v1/logs" sse-swap="log" hx-swap="beforeend scroll:#log:bottom">
-{{range .Entries}}<pre class="log-{{.Level}}">{{.Line}}</pre>{{end}}
-</div>
+  </select>
+  <div
+    id="log"
+    hx-ext="sse"
+    sse-connect="/v1/logs"
+    sse-swap="log"
+    hx-swap="beforeend scroll:#log:bottom"
+  >
+    {{range .Entries}}<pre class="log-{{.Level}}">{{.Line}}</pre>{{end}}
+  </div>
 {{end}}
 {{define "scripts"}}{{end}}
