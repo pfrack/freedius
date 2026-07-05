@@ -10,12 +10,16 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/pfrack/freedius/config"
 	"github.com/pfrack/freedius/internal/eventstream"
 	"github.com/pfrack/freedius/proxy"
 )
+
+// modelFetchInflight prevents concurrent upstream fetches for the same provider.
+var modelFetchInflight sync.Map
 
 // SetupMux builds the HTTP mux for the web server: page handlers, static
 // assets, health check, eventstream routes, and writeback CRUD.
@@ -98,26 +102,30 @@ func handleLogs(w http.ResponseWriter, r *http.Request, logSink *proxy.LogSink, 
 	}
 	entries, _, _ := logSink.SnapshotSince(0)
 
-	var filtered []logEntry
-	for _, e := range entries {
+	// Collect the 200 most recent entries that pass the level filter,
+	// iterating from newest to oldest to avoid building a large slice.
+	const maxEntries = 200
+	filtered := make([]logEntry, 0, maxEntries)
+	for i := len(entries) - 1; i >= 0 && len(filtered) < maxEntries; i-- {
+		e := entries[i]
 		if minLevel != nil && e.Level < *minLevel {
 			continue
 		}
 		filtered = append(filtered, logEntry{
-			Level: levelLabel(e.Level),
+			Level: eventstream.LevelLabel(e.Level),
 			Line:  e.Line,
 		})
 	}
-	// Cap to 200 most recent.
-	if len(filtered) > 200 {
-		filtered = filtered[len(filtered)-200:]
+	// Reverse to chronological order.
+	for i, j := 0, len(filtered)-1; i < j; i, j = i+1, j-1 {
+		filtered[i], filtered[j] = filtered[j], filtered[i]
 	}
 
 	// Selected-level label for the dropdown; "" when no filter (logs.html's
 	// `{{if not .Level}}selected{{end}}` highlights "All").
 	levelSel := ""
 	if minLevel != nil {
-		levelSel = levelLabel(*minLevel)
+		levelSel = eventstream.LevelLabel(*minLevel)
 	}
 
 	if r.Header.Get("HX-Request") == "true" {
@@ -246,20 +254,6 @@ func parseMinLevel(s string) (*slog.Level, error) {
 		return &l, nil
 	default:
 		return nil, fmt.Errorf("min must be one of debug|info|warn|error, got %q", s)
-	}
-}
-
-// levelLabel returns a short label for a log level.
-func levelLabel(l slog.Level) string {
-	switch {
-	case l <= slog.LevelDebug:
-		return "debug"
-	case l <= slog.LevelInfo:
-		return "info"
-	case l <= slog.LevelWarn:
-		return "warn"
-	default:
-		return "error"
 	}
 }
 
@@ -451,24 +445,21 @@ func handleDeleteProvider(w http.ResponseWriter, r *http.Request, cfg *config.Co
 		return
 	}
 
-	cfg.RLock()
+	cfg.Lock()
 	_, existed := cfg.Providers[name]
 	if !existed {
-		cfg.RUnlock()
+		cfg.Unlock()
 		writeJSONError(w, http.StatusNotFound, "not_found", "provider not found")
 		return
 	}
 	// Check if any mapping uses this provider.
 	for _, m := range cfg.MappingsSnapshot() {
 		if m.ProviderName == name {
-			cfg.RUnlock()
+			cfg.Unlock()
 			writeJSONError(w, http.StatusConflict, "provider_in_use", "mappings reference this provider")
 			return
 		}
 	}
-	cfg.RUnlock()
-
-	cfg.Lock()
 	old := cfg.Providers[name]
 	delete(cfg.Providers, name)
 
@@ -663,6 +654,17 @@ func handleRefreshModels(w http.ResponseWriter, r *http.Request, h *eventstream.
 		renderModelsFragment(w, data, logger)
 		return
 	}
+
+	// Deduplicate concurrent fetches for the same provider.
+	mu, _ := modelFetchInflight.LoadOrStore(name, &sync.Mutex{})
+	if !mu.(*sync.Mutex).TryLock() {
+		// Fetch already in progress — return cached data.
+		models, _, _ := h.ModelsCache.Get(name)
+		data := modelsData{Provider: name, Models: models}
+		renderModelsFragment(w, data, logger)
+		return
+	}
+	defer mu.(*sync.Mutex).Unlock()
 
 	models, fetchErr := proxy.FetchModels(r.Context(), p)
 	if fetchErr == nil {

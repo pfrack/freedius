@@ -470,45 +470,6 @@ tr:hover {
   font-size: 1rem;
 }
 
-/* Legacy button classes (backward compat during transition) */
-.btn-primary {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  background: var(--accent);
-  color: #fff;
-  border: none;
-  padding: var(--space-2) var(--space-4);
-  border-radius: var(--radius-md);
-  font-size: 0.875rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 150ms ease;
-}
-
-.btn-primary:hover {
-  background: var(--accent-hover);
-}
-
-.btn-danger {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  background: var(--color-error);
-  color: #fff;
-  border: none;
-  padding: var(--space-2) var(--space-4);
-  border-radius: var(--radius-md);
-  font-size: 0.875rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: opacity 150ms ease;
-}
-
-.btn-danger:hover {
-  opacity: 0.9;
-}
-
 .btn-cancel {
   display: inline-flex;
   align-items: center;
@@ -526,11 +487,6 @@ tr:hover {
 
 .btn-cancel:hover {
   background: var(--bg-hover);
-}
-
-.btn-sm {
-  padding: var(--space-1) var(--space-2);
-  font-size: 0.8rem;
 }
 
 /* ── Forms ──────────────────────────────────────────────────────────────── */
