@@ -1,9 +1,10 @@
 ---
 id: provider-model-discovery
 title: Provider model discovery UI — fetch, cache, and refresh model lists
-status: impl_reviewed
+status: archived
 created: 2026-07-05
 updated: 2026-07-05
+archived_at: 2026-07-05T20:30:00Z
 type: feature
 ---
 
