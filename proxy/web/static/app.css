@@ -276,6 +276,7 @@ h2 {
   padding: var(--space-6);
   box-shadow: var(--shadow-sm);
   transition: box-shadow 150ms ease, border-color 150ms ease;
+  overflow: hidden;
 }
 
 .card:hover {
@@ -322,12 +323,12 @@ h2 {
 }
 
 .card--stat .card-value {
-  font-size: 1.5rem;
+  font-size: 1.25rem;
   font-weight: 700;
   color: var(--text-primary);
   line-height: 1.2;
   margin-top: var(--space-1);
-  word-break: break-word;
+  overflow-wrap: break-word;
 }
 
 .stats-grid {
