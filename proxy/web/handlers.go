@@ -453,7 +453,9 @@ func handleDeleteProvider(w http.ResponseWriter, r *http.Request, cfg *config.Co
 		return
 	}
 	// Check if any mapping uses this provider.
-	for _, m := range cfg.MappingsSnapshot() {
+	// Cannot call MappingsSnapshot() here — we already hold the write lock,
+	// so RLock inside it would deadlock. Copy the map directly.
+	for _, m := range cfg.Mappings {
 		if m.ProviderName == name {
 			cfg.Unlock()
 			writeJSONError(w, http.StatusConflict, "provider_in_use", "mappings reference this provider")
