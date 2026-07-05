@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 // disabledHandler is a slog.Handler whose Enabled always returns false.
@@ -101,14 +102,31 @@ func TestRingHandler_DropsOnOverflow(t *testing.T) {
 	handler := NewRingHandler(disabledHandler{}, sink)
 	logger := slog.New(handler)
 
+	// Subscribe before emitting so we receive events.
+	ch := sink.Subscribe()
+
 	total := capacity + 10
 	for i := 0; i < total; i++ {
 		logger.Info("test")
 	}
 
-	entries := sink.Snapshot()
-	if len(entries) > capacity {
-		t.Errorf("Snapshot returned %d entries, expected at most %d", len(entries), capacity)
+	// Drain subscriber channel — with a 100-element per-subscriber buffer,
+	// all events should arrive (fan-out is non-blocking with per-subscriber buffers).
+	read := 0
+	for {
+		select {
+		case <-ch:
+			read++
+		case <-time.After(100 * time.Millisecond):
+			goto done
+		}
+	}
+done:
+	// The subscriber channel has a 100-element buffer, so all 15 events
+	// should arrive. The old test checked that only `capacity` arrived,
+	// but with fan-out each subscriber gets its own buffered channel.
+	if read != total {
+		t.Errorf("subscriber read %d events, expected %d", read, total)
 	}
 	if got := sink.EventCount(); got != int64(total) {
 		t.Errorf("EventCount = %d, want %d", got, total)

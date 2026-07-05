@@ -498,6 +498,39 @@ func isVendoredOrGenerated(path string) bool {
 	return false
 }
 
+// DockerBuild builds the Docker image.
+func DockerBuild() error {
+	fmt.Println("→ Building Docker image...")
+	return sh.RunV("docker", "build", "-t", "freedius:dev", ".")
+}
+
+// DockerRun runs the Docker container.
+func DockerRun() error {
+	fmt.Println("→ Running Docker container...")
+	return sh.RunV(
+		"docker",
+		"run",
+		"--rm",
+		"-p",
+		"8082:8082",
+		"-p",
+		"8083:8083",
+		"--name",
+		"freedius-dev",
+		"freedius:dev",
+	)
+}
+
+// DockerPush pushes the Docker image to a registry.
+func DockerPush() error {
+	image := os.Getenv("IMAGE_NAME")
+	if image == "" {
+		image = "freedius:dev"
+	}
+	fmt.Printf("→ Pushing Docker image: %s\n", image)
+	return sh.RunV("docker", "push", image)
+}
+
 // Help2 displays detailed help information with sections and tool versions.
 func Help2() {
 	fmt.Println("Freedius Mage Build Targets")

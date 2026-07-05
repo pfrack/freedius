@@ -10,16 +10,42 @@ Single static binary. Zero external runtime dependencies.
 # Build
 go build -o freedius ./cmd/freedius
 
-# Start the proxy + TUI dashboard (defaults to 127.0.0.1:8082)
+# Start the proxy + web dashboard (defaults to 127.0.0.1:8082, dashboard at :8083)
 ./freedius
 
-# Send a request to see it appear in Tab 1 (Log):
+# Send a request to see it appear on the dashboard:
 curl -X POST http://127.0.0.1:8082/v1/messages \
   -H 'Content-Type: application/json' \
   -d '{"model": "opus", "messages": [{"role": "user", "content": "hi"}]}'
 ```
 
-On first run, freedius uses an embedded default config so no setup is required. To customize, navigate to Tab 3 (Config) and edit providers / mappings — your changes are written to disk on save.
+On first run, freedius uses an embedded default config so no setup is required. Open `http://localhost:8083/` in a browser to view live logs, providers, and mappings.
+
+## Web Dashboard
+
+The embedded web dashboard provides:
+- **Live logs** — streaming via SSE with level filtering
+- **Request events** — see proxy requests in real-time
+- **Provider management** — add, edit, delete providers through the UI
+- **Mapping management** — add, edit, delete model mappings
+- **Health check** — `GET /health` returns `{"status":"ok"}`
+
+Access at `http://localhost:8083/` (default). Configure via `--ui-port` and `--ui-host` flags or `FREEDIUS_UI_PORT` / `FREEDIUS_UI_HOST` env vars.
+
+Set `FREEDIUS_UI_TOKEN` to require authentication on all dashboard routes (useful for LAN/Docker exposure).
+
+## Docker
+
+```bash
+# Build and run
+docker compose up
+
+# Or manually
+docker build -t freedius .
+docker run -p 8082:8082 -p 8083:8083 -e OPENCODE_API_KEY freedius
+```
+
+The Docker image uses a distroless base with a nonroot user. Set `FREEDIUS_HOST=0.0.0.0` and `FREEDIUS_UI_HOST=0.0.0.0` to expose ports to the container network.
 
 ## Configuration
 
@@ -60,17 +86,6 @@ mappings:
   haiku:   { provider_name: zen, model_string: claude-sonnet-4-6 }
 ```
 
-To use a mix provider without knowing the exact endpoint path, set `protocol`:
-
-```yaml
-providers:
-  my-gateway:
-    behavior: mix
-    default_base_url: https://api.example.com/v1
-    default_api_key_env: GATEWAY_KEY
-    protocol: anthropic    # auto-resolves to /v1/messages
-```
-
 ### Mapping resolution
 
 When a request arrives, freedius resolves the `model` field against:
@@ -93,11 +108,11 @@ Flags:
   -port int            Port to listen on (default 8082)
   -stream-timeout      Per-request upstream timeout (default 5m)
   -verbose-errors      Include upstream error detail in error responses
+  -ui-port int         Web UI port (default 8083)
+  -ui-host string      Web UI bind address (default 127.0.0.1)
   -help                Show help
   -version             Print version
 ```
-
-No subcommands — `freedius` always starts the TUI dashboard alongside the proxy. Use Tab 3 (Config) to edit and save config. Press `Ctrl+E` to toggle verbose errors, `Ctrl+S` in Config to install the shell env block, and `L` to cycle the Log tab's level filter.
 
 ### Environment variables
 
@@ -107,6 +122,9 @@ No subcommands — `freedius` always starts the TUI dashboard alongside the prox
 | `FREEDIUS_LOG` | Log format: `text` or `json` |
 | `FREEDIUS_VERBOSE_ERRORS` | Set to `1` for verbose errors |
 | `FREEDIUS_STREAM_TIMEOUT` | Per-request upstream timeout duration |
+| `FREEDIUS_UI_PORT` | Web dashboard port (overridden by `--ui-port`) |
+| `FREEDIUS_UI_HOST` | Web dashboard bind address |
+| `FREEDIUS_UI_TOKEN` | Bearer token for dashboard auth (opt-in) |
 | `NVIDIA_NIM_API_KEY` | API key for NVIDIA NIM provider |
 | `ANTHROPIC_API_KEY` | API key for Anthropic provider |
 | `OPENCODE_API_KEY` | API key for OpenCode Go/Zen providers |
@@ -117,6 +135,7 @@ No subcommands — `freedius` always starts the TUI dashboard alongside the prox
 - **Protocol auto-detection** — mix adapter sniffs URL path to choose OpenAI vs Anthropic format
 - **Explicit protocol control** — set `protocol: openai` or `protocol: anthropic` on mix providers; the adapter appends the correct endpoint suffix automatically
 - **Family-based matching** — `claude-sonnet-4-6-20250908` falls back to `claude-sonnet-4-6` mapping
+- **Web dashboard** — live logs, request events, provider/mapping management via browser
 - **Request IDs** — every request gets a unique ID, returned in `X-Freedius-Request-ID` header
 - **Panic recovery** — catches panics, logs stack traces, returns 500 JSON errors
 - **Structured access logs** — logs method, path, status, duration, matched provider/model (never request/response bodies)
@@ -139,8 +158,9 @@ mage ci
 # Format code (requires goimports, golines, gci)
 mage format
 
-# Install git pre-commit hook
-mage installHooks
+# Docker build and run
+mage dockerBuild
+mage dockerRun
 ```
 
 ## API

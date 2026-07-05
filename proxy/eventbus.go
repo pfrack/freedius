@@ -31,10 +31,10 @@ type RequestEvent struct {
 // the buffer is full, Emit drops the oldest event. A ring buffer stores recent
 // events for replay on late IPC attach.
 type EventBus struct {
-	ch       chan RequestEvent
-	emitted  atomic.Int64
-	mu       sync.Mutex
-	overflow bool
+	emitted atomic.Int64
+	mu      sync.Mutex
+	subs    map[int]chan RequestEvent
+	subID   int
 
 	ring    []RequestEvent
 	ringMu  sync.RWMutex
@@ -47,9 +47,9 @@ type EventBus struct {
 // NewEventBus creates an EventBus with the given subscriber channel buffer size.
 // A nil return is not used; callers that don't want an event bus simply don't
 // create one — the middleware handles a nil bus pointer gracefully.
-func NewEventBus(bufferSize int) *EventBus {
+func NewEventBus(_ int) *EventBus {
 	return &EventBus{
-		ch:      make(chan RequestEvent, bufferSize),
+		subs:    make(map[int]chan RequestEvent),
 		ring:    make([]RequestEvent, 0, 10000),
 		ringCap: 10000,
 	}
@@ -78,28 +78,51 @@ func (b *EventBus) Emit(e RequestEvent) {
 	}
 	b.ringMu.Unlock()
 
-	select {
-	case b.ch <- e:
-		b.mu.Lock()
-		b.overflow = false
-		b.mu.Unlock()
-	default:
-		b.mu.Lock()
-		if !b.overflow {
-			b.overflow = true
-			slog.Warn("event bus overflow, dropping events")
+	// Broadcast to all subscribers.
+	b.mu.Lock()
+	for id, ch := range b.subs {
+		select {
+		case ch <- e:
+			// Event delivered.
+		default:
+			// Channel full; drop for this subscriber.
+			slog.Warn("event bus subscriber overflow", "subscriber", id)
 		}
-		b.mu.Unlock()
 	}
+	b.mu.Unlock()
 }
 
-// Subscribe returns the read-only subscriber channel. All subscribers share
-// the same channel; events are delivered to whichever subscriber reads first.
+// Subscribe returns a new read-only channel for this subscriber.
 func (b *EventBus) Subscribe() <-chan RequestEvent {
 	if b == nil {
 		return nil
 	}
-	return b.ch
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	ch := make(chan RequestEvent, 100) // Per-subscriber buffer
+	b.subID++
+	id := b.subID
+	b.subs[id] = ch
+
+	return ch
+}
+
+// Unsubscribe removes a subscriber channel from the bus.
+func (b *EventBus) Unsubscribe(ch <-chan RequestEvent) {
+	if b == nil {
+		return
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	for id, sub := range b.subs {
+		if sub == ch {
+			delete(b.subs, id)
+			close(sub)
+			return
+		}
+	}
 }
 
 // EventCount returns the total number of events emitted since the bus was

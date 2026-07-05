@@ -3,7 +3,7 @@ project: freedius
 version: 1
 status: draft
 created: 2026-06-16
-updated: 2026-06-19
+updated: 2026-07-03
 prd_version: 1
 main_goal: speed
 top_blocker: time
@@ -36,7 +36,8 @@ A developer using Claude Code wants to route LLM calls to cheaper or free provid
 | S-06 | custom-to-mix-protocol | use `provider: custom` with any endpoint — freedius auto-detects protocol from URL or user sets explicit `protocol: openai\|anthropic` field | S-03          | FR-003, FR-009                                   | proposed |
 | S-07 | provider-codegen   | add a new provider by adding one entry to `providers.yaml` and running `go generate` — all boilerplate (adapters, config maps, registry, validation) is generated | S-05, S-06    | FR-003, FR-004                                   | proposed |
 | S-08 | openai-count-tokens | `POST /v1/messages/count_tokens` returns a useful `input_tokens` estimate when routed to OpenAI-protocol upstreams (NIM, OpenCode Go, custom OpenAI-compat) — no more 501 for these providers | S-01, count-tokens-passthrough | (new capability — local token counting)        | proposed |
-| V-01 | tui-dashboard       | monitor live request stream, provider health, and usage stats from a terminal dashboard — no browser, no context switch | v1 complete (S-01–S-08) | v2 scope, research at `context/changes/tui-dashboard/research.md` | proposed |
+| V-01 | tui-dashboard       | (superseded — see V-02) | — | Replaced by V-02 on 2026-07-03. Original research at `context/changes/tui-dashboard/research.md`. | superseded |
+| V-02 | web-ui              | monitor live request stream, provider health, and usage stats from a browser dashboard at :8083 — works in Docker / headless; replaces the TUI | v1 complete (S-01–S-08) | research + plan in `context/changes/web-ui/`. Drops TUI + Unix-socket IPC + charm.land deps. | proposed |
 
 ## Baseline
 
@@ -185,6 +186,21 @@ Foundations below assume these are present and do NOT re-scaffold them.
   - **Subcommand vs flag:** `freedius tui` (separate command) vs `freedius --tui` (flag on main process)? Owner: user. Block: no (separate command is the Bubble Tea convention).
   - **Web UI timing:** Add web dashboard (htmx+templ) in the same change or defer to V-02? Owner: user. Block: no (research recommends hybrid: TUI first, web later).
 - **Risk:** Low-medium. Bubble Tea is mature and well-proven in Go CLI tools (lazygit, k9s). The main risk is coupling the proxy core to a UI event bus — the design should use a decoupled subscriber pattern so the proxy functions identically with or without the TUI attached. Research at `context/changes/tui-dashboard/research.md` covers architecture patterns and dependency choices.
+- **Status:** superseded by V-02 (2026-07-03) — TUI dropped in favor of embedded web UI; see V-02 for the replacement.
+
+### V-02: Web UI dashboard — embedded browser UI replacing the TUI
+
+- **Outcome:** user runs `freedius` (no flags) and gets: plain-text request + log lines streaming to stderr (visible via `docker logs` or in the terminal), the proxy listening on `:8082` for Claude Code traffic, and a browser dashboard at `http://localhost:8083/` showing live SSE event/log streams plus full provider/mapping CRUD via htmx forms. Runs cleanly in Docker / headless environments — no TTY required.
+- **Change ID:** web-ui
+- **PRD refs:** v2 scope (PRD §Non-Goals: "no web UI in v1" — promoted from parked list 2026-07-03)
+- **Prerequisites:** v1 complete (S-01–S-08) — proxy event flow, provider registry, and config model must be stable before adding a UI layer that observes them.
+- **Parallel with:** —
+- **Blockers:** —
+- **Unknowns:**
+  - **Phase ordering:** Read-only first (Phase 2), writeback later (Phase 3). Owner: planner. Block: no (locked in plan).
+  - **Auth scope:** Token gates all routes when set (logs may leak upstream API keys via error messages). Owner: planner. Block: no (locked in plan).
+  - **Docker base image:** Distroless `static-debian12:nonroot`. Owner: planner. Block: no (locked in plan).
+- **Risk:** Medium. Three integration points (log fan-out, event bus, config mutation) all need discipline; the rollback pattern from the TUI's `submitForm` MUST be preserved exactly. Docker base image choice affects reproducibility. The breaking change (TUI removal in Phase 4) affects anyone using `--tui`, `--fg`, `--daemon`, or `attach`.
 - **Status:** proposed
 
 ## Backlog Handoff
@@ -200,7 +216,8 @@ Foundations below assume these are present and do NOT re-scaffold them.
 | S-06       | custom-to-mix-protocol | Custom → mix + protocol field — remove CustomAdapter, add protocol config field | no                    | Needs S-03. Runs parallel with S-05. Small refactor following existing zen/go pattern. |
 | S-07       | provider-codegen   | Provider codegen — go:generate boilerplate from providers.yaml | no                    | Needs S-05, S-06. Auth scheme, SSE patterns, and protocol field must be stable before codegen extraction. |
 | S-08       | openai-count-tokens | Local token counting for OpenAI-protocol upstreams (tiktoken-go or char-heuristic) | no                    | Needs S-01 + count-tokens-passthrough. Replaces the 501 path with a useful `input_tokens` estimate. Counter approach (tiktoken vs char-heuristic) is an open question for the planner. |
-| V-01       | tui-dashboard       | TUI dashboard — live terminal monitoring UI (Bubble Tea) | no                    | Needs v1 complete (S-01–S-08). Research done. Architecture: event bus decoupled from proxy core. |
+| V-01       | tui-dashboard       | TUI dashboard — live terminal monitoring UI (Bubble Tea) | —                     | Superseded by V-02 on 2026-07-03. Research preserved at `context/changes/tui-dashboard/research.md`. |
+| V-02       | web-ui              | Web UI dashboard — embedded browser UI replacing the TUI | yes                   | Research at `context/changes/web-ui/research.md`; plan at `context/changes/web-ui/plan.md`. Phases 1–4 shippable independently. |
 
 ## Open Roadmap Questions
 
@@ -211,7 +228,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 
 ## Parked
 
-- **Web UI** — Why parked: v1 is config-file-only per PRD §Non-Goals. v2 concern.
+- **Web UI** — *promoted to V-02 on 2026-07-03.* Removed from parked list (now tracked in At a glance).
 - **Monitoring dashboard** — Why parked: not in v1 scope; listed as potential non-goal in Open Question #4.
 - **Usage analytics / billing integration** — Why parked: not in v1 scope; single-user local tool.
 - **Windows support** — Why parked: not in v1 scope; listed as potential non-goal in Open Question #4. Linux + macOS only for v1.

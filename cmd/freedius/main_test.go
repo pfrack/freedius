@@ -282,7 +282,7 @@ func TestRun_HelpFlag(t *testing.T) {
 		t.Fatalf("run --help: %v (output: %s)", err, stdout.String())
 	}
 	out := stdout.String()
-	for _, want := range []string{"Usage: freedius", "config", "port", "verbose-errors", "-c"} {
+	for _, want := range []string{"Usage: freedius", "config", "port", "verbose-errors", "-c", "ui-port"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("--help output missing %q\nfull output:\n%s", want, out)
 		}
@@ -399,10 +399,9 @@ func TestStarterTemplate_ValidConfig(t *testing.T) {
 	}
 }
 
-func TestRun_BindFailureSurfacesBeforeTUI(t *testing.T) {
+func TestRun_BindFailureSurfaces(t *testing.T) {
 	// Regression for F3: when the bind fails (e.g., port already in use),
-	// the error must be surfaced immediately rather than hidden until the
-	// user quits the TUI. Use a port we hold from a side listener.
+	// the error must be surfaced immediately. Use a port we hold from a side listener.
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
@@ -483,5 +482,39 @@ func TestRun_LazyConfigDoesNotWriteFile(t *testing.T) {
 		!strings.Contains(output, "permission denied") &&
 		!strings.Contains(output, "address already in use") {
 		t.Errorf("expected startup or bind error in stderr, got:\n%s", output)
+	}
+}
+
+func TestResolveUIPort(t *testing.T) {
+	tests := []struct {
+		name    string
+		flagVal int
+		flagSet bool
+		env     string
+		want    int
+	}{
+		{"default", 0, false, "", 8083},
+		{"flag set", 9090, true, "", 9090},
+		{"env set", 0, false, "7070", 7070},
+		{"both flag and env", 9090, true, "7070", 9090},
+		{"invalid env falls back", 0, false, "not-a-number", 8083},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.env != "" {
+				t.Setenv("FREEDIUS_UI_PORT", tt.env)
+			}
+			got := resolveUIPort(tt.flagVal, tt.flagSet)
+			if got != tt.want {
+				t.Errorf("resolveUIPort(%d, %v) = %d, want %d", tt.flagVal, tt.flagSet, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestAuthTokenEnv(t *testing.T) {
+	t.Setenv("FREEDIUS_UI_TOKEN", "my-secret-token")
+	if v := os.Getenv("FREEDIUS_UI_TOKEN"); v != "my-secret-token" {
+		t.Errorf("env round-trip failed: got %q, want %q", v, "my-secret-token")
 	}
 }

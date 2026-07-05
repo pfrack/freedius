@@ -1,0 +1,106 @@
+{{define "providers"}}{{template "layout" .}}{{end}}
+{{define "title"}}Providers{{end}}
+{{define "content"}}
+  <h1>Providers</h1>
+  <button class="btn-primary" onclick="document.getElementById('provider-dialog').showModal()">
+    + Add Provider
+  </button>
+  <div id="provider-form-error" class="form-error"></div>
+  <table id="providers">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Behavior</th>
+        <th>Base URL</th>
+        <th>API Key Env</th>
+        <th>Protocol</th>
+        <th>Mappings</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Providers}}
+      <tr>
+        <td>{{.Name}}</td>
+        <td>{{.Behavior}}</td>
+        <td>{{.BaseURL}}</td>
+        <td>{{.APIKeyEnv}}</td>
+        <td>{{.Protocol}}</td>
+        <td>{{.MappingCount}}</td>
+        <td>
+          <button
+            class="btn-sm"
+            onclick="editProvider('{{.Name | js}}','{{.Behavior | js}}','{{.BaseURL | js}}','{{.APIKeyEnv | js}}','{{.Protocol | js}}')"
+          >
+            Edit
+          </button>
+          <button
+            class="btn-danger btn-sm"
+            hx-delete="/v1/providers/{{.Name}}"
+            hx-confirm="Delete provider '{{.Name}}?"
+            hx-target="#providers"
+            hx-swap="outerHTML"
+          >
+            Delete
+          </button>
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+
+  <dialog id="provider-dialog">
+    <form
+      id="provider-form"
+      hx-post="/v1/providers"
+      hx-target="#providers"
+      hx-swap="outerHTML"
+      hx-on::after-request="if(event.detail.successful) this.closest('dialog').close()"
+    >
+      <h2 id="provider-dialog-title">Add Provider</h2>
+      <div id="provider-form-error-dialog" class="form-error"></div>
+      <label>Name <input name="name" required></label>
+      <label>
+        Behavior
+        <select name="behavior">
+          <option value="openai">openai</option>
+          <option value="anthropic">anthropic</option>
+          <option value="mix">mix</option>
+        </select>
+      </label>
+      <label>Base URL <input name="default_base_url" type="url"></label>
+      <label>API Key Env <input name="default_api_key_env"></label>
+      <label>
+        Protocol
+        <select name="protocol">
+          <option value="">auto</option>
+          <option value="openai">openai</option>
+          <option value="anthropic">anthropic</option>
+        </select>
+      </label>
+      <div class="form-actions">
+        <button type="submit" class="btn-primary">Save</button>
+        <button type="button" class="btn-cancel" onclick="this.closest('dialog').close()">
+          Cancel
+        </button>
+      </div>
+    </form>
+  </dialog>
+
+  <script>
+    function editProvider(name, behavior, base_url, api_key_env, protocol) {
+      var d = document.getElementById('provider-dialog');
+      var f = document.getElementById('provider-form');
+      f.setAttribute('hx-put', '/v1/providers/' + name);
+      f.removeAttribute('hx-post');
+      f.elements.name.value = name;
+      f.elements.name.readOnly = true;
+      f.elements.behavior.value = behavior;
+      f.elements.default_base_url.value = base_url;
+      f.elements.default_api_key_env.value = api_key_env;
+      f.elements.protocol.value = protocol;
+      document.getElementById('provider-dialog-title').textContent = 'Edit Provider';
+      d.showModal();
+    }
+  </script>
+{{end}}
