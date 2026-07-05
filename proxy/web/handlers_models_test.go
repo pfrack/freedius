@@ -39,26 +39,10 @@ func newModelsWriteMux(t *testing.T) (http.Handler, *config.Config, *proxy.Model
 	return SetupMux(h, logger), cfg, mc
 }
 
-func TestFetchModels_ColdCache(t *testing.T) {
+func TestRefreshModels_NamedNonexistent(t *testing.T) {
 	mux, _, _ := newModelsWriteMux(t)
 
-	req := httptest.NewRequest(http.MethodGet, "/v1/providers/nim/models", nil)
-	rec := httptest.NewRecorder()
-	mux.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Errorf("status = %d, want 200; body: %s", rec.Code, rec.Body.String())
-	}
-	body := rec.Body.String()
-	if !strings.Contains(body, "No models fetched yet") {
-		t.Errorf("expected 'No models fetched yet' in cold cache body, got: %s", body)
-	}
-}
-
-func TestFetchModels_NamedNonexistent(t *testing.T) {
-	mux, _, _ := newModelsWriteMux(t)
-
-	req := httptest.NewRequest(http.MethodGet, "/v1/providers/nonexistent/models", nil)
+	req := httptest.NewRequest(http.MethodPost, "/v1/providers/nonexistent/models/refresh", nil)
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 
@@ -141,24 +125,24 @@ func TestRefreshModels_AfterRefreshGetCached(t *testing.T) {
 	}
 	mux := SetupMux(h, logger)
 
-	// Refresh
+	// First refresh populates cache.
 	req := httptest.NewRequest(http.MethodPost, "/v1/providers/nim/models/refresh", nil)
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
-		t.Fatalf("refresh: status = %d; body: %s", rec.Code, rec.Body.String())
+		t.Fatalf("first refresh: status = %d; body: %s", rec.Code, rec.Body.String())
 	}
 
-	// GET should return cached data now
-	req2 := httptest.NewRequest(http.MethodGet, "/v1/providers/nim/models", nil)
+	// Second refresh hits same idempotent upstream — response still contains models.
+	req2 := httptest.NewRequest(http.MethodPost, "/v1/providers/nim/models/refresh", nil)
 	rec2 := httptest.NewRecorder()
 	mux.ServeHTTP(rec2, req2)
 
 	if rec2.Code != http.StatusOK {
-		t.Errorf("GET: status = %d, want 200", rec2.Code)
+		t.Errorf("second refresh: status = %d, want 200", rec2.Code)
 	}
 	if !strings.Contains(rec2.Body.String(), "cached-model") {
-		t.Errorf("expected cached models in GET, got: %s", rec2.Body.String())
+		t.Errorf("expected cached models in second POST, got: %s", rec2.Body.String())
 	}
 }
 
@@ -199,7 +183,7 @@ func TestRefreshModels_UpstreamError(t *testing.T) {
 	}
 }
 
-func TestFetchModels_CachedAfterFailedRefresh(t *testing.T) {
+func TestRefreshModels_CachedAfterFailedRefresh(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"data": [{"id": "persistent-model"}]}`))
@@ -228,7 +212,7 @@ func TestFetchModels_CachedAfterFailedRefresh(t *testing.T) {
 	}
 	mux := SetupMux(h, logger)
 
-	// First refresh succeeds.
+	// First refresh succeeds and populates cache.
 	req := httptest.NewRequest(http.MethodPost, "/v1/providers/nim/models/refresh", nil)
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
@@ -236,7 +220,7 @@ func TestFetchModels_CachedAfterFailedRefresh(t *testing.T) {
 		t.Fatalf("first refresh: status = %d", rec.Code)
 	}
 
-	// Now break the upstream by changing the provider's base URL to a dead port.
+	// Break the upstream.
 	cfg.Lock()
 	cfg.Providers["nim"] = config.Provider{
 		Behavior:       "openai",
@@ -244,23 +228,36 @@ func TestFetchModels_CachedAfterFailedRefresh(t *testing.T) {
 	}
 	cfg.Unlock()
 
-	// Refresh again — this fails, but cache keeps previous data.
+	// Second refresh fails; response shows error with stale FetchedAt timestamp.
 	req2 := httptest.NewRequest(http.MethodPost, "/v1/providers/nim/models/refresh", nil)
 	rec2 := httptest.NewRecorder()
 	mux.ServeHTTP(rec2, req2)
 	if rec2.Code != http.StatusOK {
-		t.Errorf("second refresh: status = %d, want 200", rec2.Code)
+		t.Fatalf("second refresh: status = %d, want 200", rec2.Code)
+	}
+	body2 := rec2.Body.String()
+	if !strings.Contains(body2, "form-error") {
+		t.Errorf("expected error markup in second POST response, got: %s", body2)
+	}
+	if !strings.Contains(body2, "Fetched") {
+		t.Errorf("expected FetchedAt timestamp (cache preserved), got: %s", body2)
 	}
 
-	// GET should still return cached models.
-	req3 := httptest.NewRequest(http.MethodGet, "/v1/providers/nim/models", nil)
+	// Restore upstream and re-fetch — cached models should still be available.
+	cfg.Lock()
+	cfg.Providers["nim"] = config.Provider{
+		Behavior:         "openai",
+		DefaultBaseURL:   srv.URL + "/v1/chat/completions",
+		DefaultAPIKeyEnv: "",
+	}
+	cfg.Unlock()
+	req3 := httptest.NewRequest(http.MethodPost, "/v1/providers/nim/models/refresh", nil)
 	rec3 := httptest.NewRecorder()
 	mux.ServeHTTP(rec3, req3)
-
 	if rec3.Code != http.StatusOK {
-		t.Errorf("GET after failed refresh: status = %d, want 200", rec3.Code)
+		t.Fatalf("third refresh: status = %d", rec3.Code)
 	}
 	if !strings.Contains(rec3.Body.String(), "persistent-model") {
-		t.Errorf("expected persistent models from cache, got: %s", rec3.Body.String())
+		t.Errorf("expected cached models after upstream restored, got: %s", rec3.Body.String())
 	}
 }

@@ -2,235 +2,94 @@
 
 ## Overview
 
-Add a web-dashboard feature to fetch, cache, and refresh provider model lists from upstream `/v1/models` endpoints. Two UI surfaces share one backend: a "Fetch models" button on the Providers page, and a `<datalist>` autocomplete on the mapping form's `model_string` input. The cache is in-memory only (no TTL, no on-disk persistence), refreshed via explicit user action. The fetcher branches on `behavior` (openai/anthropic/mix) for auth headers and URL derivation.
+Revise the already-implemented model-discovery feature so the "Fetch models" affordance lives **only** on the mapping modal, not on the Providers page. The `model_string` field keeps its two existing modes conceptually (free typing still works) but replaces the current auto-populated `<datalist>` with an explicit "Fetch models" button that reveals a custom clickable list; picking an entry fills the input. This removes the Providers-page button/column and the cache-only `GET` endpoint, since nothing in the new design reads the cache without being willing to fetch.
 
 ## Current State Analysis
 
-No model-discovery code exists anywhere — the `/v1/models` endpoint is never called, no cache exists, and the mapping form's `model_string` field is a free-text input with no assistance.
+Phases 1-3 of the original plan are committed (`e4d6f68`, `ffa1b13`, epilogue `09819d0`). On top of that, uncommitted local edits had already started bending the fragment toward a dual-mode render (`DatalistMode bool` + `?target=datalist` query param) in an attempt to support both surfaces from one template. That in-progress direction is being replaced, not extended, per this plan.
 
-The web dashboard (`proxy/web/`) uses Go stdlib `html/template` + vendored htmx (zero runtime deps). The codebase follows a consistent pattern for concurrency-safe state: `sync.RWMutex` + map + `Snapshot()` copy-out (precedented in `config.Config`, `EventBus`, `LogSink`). The `eventstream.Handlers` struct wires dependencies into web handlers. Auth is a single boundary around the whole mux.
+**What exists today:**
 
-One pre-existing bug: `renderProvidersTable`/`renderMappingsTable` (`handlers.go:274,318`) try to load `providers-table.html`/`mappings-table.html` partials that don't exist, causing every write handler's htmx path to 500. The new feature avoids this by using a self-contained fragment template — not routed through those broken partial loaders.
+- **Providers page** (`proxy/web/templates/providers.html:8,31,34-41`) — an 8th `Models` table column (`<td id="models-{{.Name}}"></td>`) and a `btn-sm` "Fetch models" button (`hx-post=".../models/refresh" hx-target="#models-{{.Name}}" hx-swap="innerHTML"`) in the Actions cell, ahead of Edit/Delete.
+- **Mapping modal** (`proxy/web/templates/mappings.html:56-96`) — the provider `<select>`'s `onchange` and the `editMapping()` JS function both fire `htmx.ajax('POST', '/v1/providers/'+name+'/models/refresh?target=datalist', {target:'#model-suggestions', swap:'innerHTML'})` automatically (no explicit user action), populating a hidden `<datalist id="model-suggestions">` behind the free-text `model_string` input (`list="model-suggestions"`).
+- **Fragment template** (`proxy/web/templates/models-fragment.html`) — branches on `.DatalistMode`: `true` renders bare `<option>` elements (for the native datalist), `false` renders a `<ul class="model-list">` of `<li><strong>{{.ID}}</strong> — {{.DisplayName}}</li>` plus a "Fetched X ago" / error footer.
+- **Handlers** (`proxy/web/handlers.go:74-78,649-745`) — `GET /v1/providers/{name}/models` → `handleFetchModels` (cache-only read, always `DatalistMode: true`); `POST /v1/providers/{name}/models/refresh` → `handleRefreshModels` (forces upstream fetch, branches render mode on `?target=datalist`).
+- **View model** (`proxy/web/types.go:60-66`) — `modelsData{Provider, Models, FetchedAt, Error, DatalistMode}`.
+- **Tests** (`proxy/web/handlers_models_test.go`, 6 tests) — 2 test the `GET` route directly (`TestFetchModels_ColdCache`, `TestFetchModels_NamedNonexistent`); 2 more (`TestRefreshModels_AfterRefreshGetCached`, `TestFetchModels_CachedAfterFailedRefresh`) call `POST` then assert against a follow-up `GET`.
+- **Styling** (`proxy/web/static/app.css:204-225`) — `.model-list` (scrollable `<ul>`, max-height 130px, top-border between items) and `.text-muted`. No absolute-positioning/overlay convention exists anywhere in this stylesheet — dialogs and lists are laid out inline.
 
-### Key Discoveries:
-
-- Upstream auth patterns: OpenAI-compat sets `Authorization: Bearer` (`proxy/openai_compat.go:77,134-138`), Anthropic sets `x-api-key` + `anthropic-version` (`proxy/anthropic_compat.go:78-92`)
-- URL derivation: stored base URLs are endpoint paths (e.g. `…/chat/completions`), must be suffix-swapped to `/models`. The existing `normalizeBaseURL` (`proxy/mix.go:84-102`) is a near-match but handles only one "other" suffix at a time
-- Behavior dispatch: `behavior` field is the single switch for both auth headers and response parser shape
-- Both OpenAI-style and Anthropic-style `/v1/models` responses share `data[].id`, so a minimal common parser covers all providers
-- Local providers (ollama/lmstudio) have no `DefaultAPIKeyEnv` — the fetcher must skip auth when the env name is empty
+**Untouched by this change:** `proxy/models.go` (`ModelsCache`, `deriveModelsURL`, `fetchModels`/`proxy.FetchModels`) and its tests — the core domain logic is correct and unaffected by this UI-surface rework. `proxy/web/embed.go`'s `loadFragmentTemplate` plumbing (standalone-parse, bypasses `layout.html` and the missing-partials bug) is also unaffected.
 
 ## Desired End State
 
-A developer opens the Providers page, clicks "Fetch models" on a provider row, and sees a list of available models appear inline (with a "refreshed X ago" timestamp). On the Mappings page, when adding or editing a mapping, the `model_string` input offers a `<datalist>` of fetched models for the selected provider — the dev can accept a suggestion or type a custom model ID freely. Offline or misconfigured providers show a friendly error inline instead of crashing or blocking the UI.
+The Providers page has no model-fetching UI at all — it reverts to its pre-feature 7-column table. The mapping modal (both Add and Edit) shows a "Fetch models" button next to the `model_string` input. Clicking it always performs a fresh `POST …/refresh` and, on success, reveals a clickable list of model IDs beneath the input; clicking an entry fills `model_string` with that ID and hides the list (the user still clicks Save to submit — nothing auto-submits). Typing directly into `model_string` without ever clicking "Fetch models" continues to work exactly as before. Errors (missing API key, unreachable upstream, no base URL) render inline via the existing `.form-error` styling, in the same fragment slot the list would otherwise occupy. Selecting a provider or opening the Edit modal no longer triggers any network call by itself.
 
-### Verification:
+### Key Discoveries:
 
-- Click "Fetch models" on any provider → model list renders inline; a second click refreshes it
-- On the mapping form, select a provider → the model input's datalist populates with cached models
-- When the API key is unset or upstream is unreachable → a `.form-error` message appears inline; the mapping form's datalist remains functional if models were previously cached
-- Direct browser GET to `/v1/providers/{name}/models` returns the cached model list as an HTML fragment
+- Nothing in the new design reads the `ModelsCache` without also being willing to trigger a fetch — the mapping modal's only path is the explicit `POST …/refresh` — so `GET /v1/providers/{name}/models` and `handleFetchModels` have no remaining caller and should be deleted outright.
+- The existing `<li>` markup in the fragment's non-datalist branch has no click affordance or identifying attribute; the new single rendering shape needs each `<li>` to carry the model ID (e.g. `data-model-id="{{.ID}}"`) plus a shared click handler (event delegation on the list container, or `onclick` per `<li>`) that reads it back into the form.
+- No absolute-positioning/overlay CSS convention exists in `app.css` — the clickable list should render inline (matching the existing `.model-list` visual shape already used on the Providers page today), requiring no new CSS beyond what already exists.
+- The codebase's inline-`onclick`-reads-sibling-form-fields pattern (`editProvider`, `editMapping` in the respective templates) is the established house style for this kind of small DOM interaction — the new click-to-fill handler should follow the same style rather than introducing a new JS pattern.
+- `handleRefreshModels`'s `datalistMode` branch (`r.URL.Query().Get("target") == "datalist"`) becomes dead weight once there is only one caller and one rendering mode — it and the `DatalistMode` field should be deleted, not repurposed.
 
 ## What We're NOT Doing
 
-- **No on-disk cache persistence** in this change (deferred: cold-start optimization, always re-fetchable)
-- **No TTL, auto-expiry, or background refresh** — the codebase has no expiry machinery, and refresh is explicit via button
-- **No SSE push** for "models fetched" events — the htmx fragment response is sufficient
-- **No `freedius init` integration** — the cache is placed in `proxy/` for future import, but no CLI surface in this change
-- **No pagination follow-up** — single page with limit=1000; if a provider has >1000 models a UI note warns of truncation
-- **No hard `<select>` replacing the model input** — it stays a free-text input with datalist suggestions; the config layer allows arbitrary model strings and offline/air-gapped use is a design goal
+- **Not touching Phase 1 core domain** — `ModelsCache`, `deriveModelsURL`, `proxy.FetchModels`, and their tests are unchanged.
+- **Not adding a Providers-page view of fetched models in any form** — no read-only list, no button, no column. Model discovery is scoped entirely to the mapping modal.
+- **Not auto-submitting the mapping form on model click** — picking a model only fills the input; Save remains a separate explicit action.
+- **Not adding a dedicated close/collapse control on the model list** — picking an item is the only way the list disappears (short of closing the whole modal via Save/Cancel).
+- **Not caching/toggling client-side to avoid re-fetching** — every "Fetch models" click re-hits the upstream `/models` endpoint via `POST …/refresh`, matching the existing refresh-button semantics.
+- **Not adding a loading/disabled state to the button** — no existing template in this codebase uses `hx-indicator`/`hx-disabled-elt`; this stays consistent with that minimalism.
+- **Not persisting the cache to disk, adding TTL, or adding SSE push** — these were out of scope in the original plan and remain so.
 
 ## Implementation Approach
 
-**Three phases, bottom-up**: core domain logic (cache + URL derivation + upstream fetcher) → web endpoints + fragment templates → UI surface integration. Each phase is independently testable. The cache lives in `proxy/` (not `proxy/web/`) so it's a domain object importable by future packages (e.g. `init`).
+Three phases, working from the network surface inward to the DOM: (1) simplify the backend by deleting the now-unused `GET` route/handler and the dual-mode branching it existed to serve, (2) collapse the fragment template to the single clickable-list rendering shape the mapping modal needs, (3) rewire the two templates — strip the Providers page down and give the mapping modal its explicit button + list + click-to-fill behavior. Each phase leaves the build and test suite green.
 
-The fetcher constructs a short-timeout HTTP client per request (models GET is cheap, unlike the 5-min streaming timeout used by adapters). Auth branch mirrors the mix adapter's dispatch: `openai` → Bearer, `anthropic` → `x-api-key`+version, `mix` → resolve via `Protocol` field or URL path sniffing.
-
-## Critical Implementation Details
-
-### URL derivation — deepseek edge case
-
-Stored base URLs are endpoint paths, not API roots. The `deriveModelsURL` helper must handle providers whose base URL lacks a `/v1` segment (deepseek: `https://api.deepseek.com/chat/completions`). Rule: parse URL → strip trailing `/chat/completions` or `/messages` suffix → append `/models`. If the path has neither suffix, append `/models` to the path as-is. Test all variants from the research table (groq, deepseek, anthropic, zen, go, ollama).
-
-### Fragment template — dodge the missing-partials bug
-
-The existing `loadPageTemplate` wraps every template in `layout.html` and `renderProvidersTable` calls `loadPageTemplate("providers-table.html")` which doesn't exist. The new fragment template must bypass both: add a `loadFragmentTemplate` to `embed.go` that parses a single template file standalone (no layout), and execute it directly in the handler. Do not call `renderPage` or any of the broken table renderers.
-
-### Graceful degradation for local/offline providers
-
-Providers with empty `DefaultAPIKeyEnv` (ollama, lmstudio) must not fail — skip setting auth headers entirely. Providers with empty `DefaultBaseURL` (require_base_url before config) must return a clear error message. Upstream connection errors must not crash the handler or block the mapping form's datalist from returning cached data on GET.
-
----
-
-## Phase 1: Core Domain — Cache, URL Derivation, and Upstream Fetcher
+## Phase 1: Backend Simplification
 
 ### Overview
 
-Create the `ModelsCache` (in-memory, RWMutex-guarded), the `deriveModelsURL` pure function, and the `fetchModels` HTTP helper in `proxy/models.go`. These are pure logic with no web dependency — testable in isolation.
+Remove the `GET /v1/providers/{name}/models` route and its handler, and strip the now-single-purpose `handleRefreshModels` of its `DatalistMode`/`?target=datalist` branching. Update the view model and rewrite the tests that exercised the deleted route.
 
 ### Changes Required:
 
-#### 1.1 ModelsCache struct and types
-
-**File**: `proxy/models.go` (new)
-
-**Intent**: Add a concurrency-safe, in-memory cache for fetched model lists, following the codebase's RWMutex+map+Snapshot() pattern from `Config`, `EventBus`, and `LogSink`.
-
-**Contract**:
-- `ModelView` exported struct: `ID string`, `DisplayName string`
-- `modelsEntry` unexported: `Models []ModelView`, `FetchedAt time.Time`, `Err string`
-- `ModelsCache` exported struct with unexported `mu sync.RWMutex`, `entries map[string]modelsEntry`
-- `NewModelsCache() *ModelsCache` constructor
-- `Get(name string) ([]ModelView, time.Time, error)` — RLock read, returns (nil, zero, nil) on miss
-- `Set(name string, models []ModelView, err error)` — Lock write, records FetchedAt=time.Now()
-- No Snapshot() method needed (no lock-free iteration across entries required yet)
-
-#### 1.2 URL derivation helper
-
-**File**: `proxy/models.go` (new — same file)
-
-**Intent**: Derive the upstream `/v1/models` URL from a provider's stored base URL (which may end in `/chat/completions`, `/v1/messages`, or neither).
-
-**Contract**: `func deriveModelsURL(baseURL string) (string, error)` — parse → strip trailing `/chat/completions` or `/messages` suffix → append `/models`. Returns error on unparseable URL. Handles the deepseek edge case (no `/v1` segment — `…/chat/completions` → `…/models`).
-
-#### 1.3 Upstream model fetcher
-
-**File**: `proxy/models.go` (new — same file)
-
-**Intent**: Fetch model list from an upstream provider's `/v1/models` endpoint with per-behavior auth headers, parse the minimal common JSON shape (`data[].id` with optional `display_name`), and return `[]ModelView`.
-
-**Contract**:
-- `func fetchModels(ctx context.Context, provider config.Provider) ([]ModelView, error)`
-- Constructs a dedicated `*http.Client` with a short timeout (e.g. 10s)
-- Derives the models URL via `deriveModelsURL(provider.DefaultBaseURL)`
-- Branches on `provider.Behavior` for auth headers (openai → `Authorization: Bearer`, anthropic → `x-api-key` + `anthropic-version`, mix → resolve via `Protocol` or URL path sniffing) — mirroring `proxy/mix.go:56-78`
-- Reads API key from `os.Getenv(provider.DefaultAPIKeyEnv)`; skips auth header when env name is empty (local providers)
-- Parses `{"data": [{"id": "…", "display_name": "…"}]}` shape — `display_name` optional (Anthropic only), falls back to `id`
-- Returns empty slice + nil error when API key env is set but empty (graceful no-op, not an error)
-
-#### 1.4 Unit tests
-
-**File**: `proxy/models_test.go` (new)
-
-**Intent**: Test the cache, URL derivation, and fetch logic in isolation.
-
-**Contract**:
-- `deriveModelsURL` table-driven tests covering: groq (`/openai/v1/chat/completions` → `/openai/v1/models`), deepseek (no `/v1`), anthropic (`/v1/messages` → `/v1/models`), zen mix, go mix, ollama, URL with no recognized suffix, invalid URL
-- `ModelsCache` tests: Set/Get round-trip, miss returns zero values, concurrent reads/writes with `-race`
-- `fetchModels` integration test: spin up `httptest.Server` returning canned `/models` JSON for openai shape and anthropic shape, call fetchModels against it, verify parsed ModelView slice
-
-### Success Criteria:
-
-#### Automated Verification:
-
-- `go test ./proxy/ -run "TestDeriveModelsURL|TestModelsCache|TestFetchModels" -race -count=1` passes
-- No data races under concurrent cache access
-
-#### Manual Verification:
-
-- N/A (pure logic, no UI surface)
-
----
-
-## Phase 2: Web Endpoints + Fragment Templates
-
-### Overview
-
-Wire the `ModelsCache` into `eventstream.Handlers`, register two new routes (`GET /v1/providers/{name}/models` and `POST /v1/providers/{name}/models/refresh`), create a self-contained fragment template, and add handler logic. The GET endpoint reads the cache (silently returning cached data even after a fetch error). The POST endpoint forces an upstream fetch, updates the cache, and returns the updated fragment.
-
-### Changes Required:
-
-#### 2.1 Add ModelsCache to Handlers struct
-
-**File**: `internal/eventstream/handlers.go`
-
-**Intent**: Inject `ModelsCache` alongside existing dependencies (`Cfg`, `Bus`, `LogSink`, etc.) so web handlers can reach it.
-
-**Contract**: Add `ModelsCache *proxy.ModelsCache` field to the `Handlers` struct.
-
-#### 2.2 Construct ModelsCache in main.go
-
-**File**: `cmd/freedius/main.go`
-
-**Intent**: Create the `ModelsCache` instance at startup and pass it into `eventstream.Handlers`.
-
-**Contract**: Insert `mc := proxy.NewModelsCache()` before the `Handlers` literal (around line 158), add `ModelsCache: mc` to the struct initialization.
-
-#### 2.3 Register new routes in SetupMux
+#### 1.1 Delete the GET route and handler
 
 **File**: `proxy/web/handlers.go`
 
-**Intent**: Add two routes using Go 1.22 `{name}` wildcards alongside existing routes.
+**Intent**: Remove the cache-only read path — the mapping modal's only remaining call is the explicit `POST …/refresh`, so a route that reads the cache without fetching has no caller.
 
-**Contract**: Add to `SetupMux`:
-- `mux.HandleFunc("GET /v1/providers/{name}/models", …)` → calls `handleFetchModels`
-- `mux.HandleFunc("POST /v1/providers/{name}/models/refresh", …)` → calls `handleRefreshModels`
+**Contract**: Delete the `mux.HandleFunc("GET /v1/providers/{name}/models", …)` registration (`handlers.go:74-76`) and the `handleFetchModels` function (`handlers.go:649-675`) in full. Keep the `POST /v1/providers/{name}/models/refresh` registration (`handlers.go:77-79`) and `handleRefreshModels`.
 
-#### 2.4 Fragment template loader
+#### 1.2 Simplify `handleRefreshModels`
 
-**File**: `proxy/web/embed.go`
+**File**: `proxy/web/handlers.go`
 
-**Intent**: Add a template loader for self-contained fragment files that don't wrap in `layout.html`. This dodges the missing-partials bug and keeps the models fragment independent.
+**Intent**: Drop the dual-rendering-mode branch now that there is exactly one caller and one rendering shape.
 
-**Contract**: `func loadFragmentTemplate(name string) (*template.Template, error)` — parses `templates/` + name from the embedded FS, cached in a `sync.Map` (or reuse `pageTemplates` pattern). Must not include `layout.html`.
+**Contract**: Remove `datalistMode := r.URL.Query().Get("target") == "datalist"` (`handlers.go:684`) and every `DatalistMode: datalistMode` field set in the two `modelsData{...}` literals inside this function (`handlers.go:698,711`). The function's control flow (base-URL check → `proxy.FetchModels` → cache `Set` → build `modelsData` → `renderModelsFragment`) is otherwise unchanged.
 
-#### 2.5 Self-contained models fragment template
-
-**File**: `proxy/web/templates/models-fragment.html` (new)
-
-**Intent**: Define the HTML fragment rendered when a model list is fetched — a `<ul>` or table of model IDs with a "refreshed X ago" timestamp, plus an error state.
-
-**Contract**:
-- Success state: renders model list with ID + optional display_name, plus "Fetched X ago" relative time
-- Error state: renders a `<div class="form-error">` with the error message
-- Both states: wrapped in a `<div id="models-{providerName}">` so the htmx target swap replaces the whole region
-- Template data: `modelsData{Provider string; Models []ModelView; FetchedAt string; Error string}`
-
-#### 2.6 View model type
+#### 1.3 Drop `DatalistMode` from the view model
 
 **File**: `proxy/web/types.go`
 
-**Intent**: Add a view model struct for the models fragment, following the existing `providerRow`/`mappingRow` convention.
+**Intent**: The field no longer has any producer or consumer after 1.1/1.2.
 
-**Contract**: Add `modelsData` struct (no `pageData` embedding — this is a fragment, not a page):
-```go
-type modelsData struct {
-    Provider  string
-    Models    []proxy.ModelView
-    FetchedAt string
-    Error     string
-}
-```
+**Contract**: Remove `DatalistMode bool` from the `modelsData` struct (`types.go:60-66`), leaving `Provider`, `Models`, `FetchedAt`, `Error`.
 
-#### 2.7 Fetch models handler (GET)
+#### 1.4 Rewrite tests that exercised the deleted GET route
 
-**File**: `proxy/web/handlers.go`
+**File**: `proxy/web/handlers_models_test.go`
 
-**Intent**: Handle `GET /v1/providers/{name}/models` — read the cache and return an HTML fragment. Never calls upstream; returns cached data even if stale (silent fallback for the datalist). Returns an empty fragment on cache miss.
+**Intent**: Delete assertions against a route that no longer exists; preserve equivalent coverage (cache round-trip, error round-trip, unknown-provider 404) against the sole remaining `POST` endpoint.
 
-**Contract**: `func handleFetchModels(w http.ResponseWriter, r *http.Request, h *eventstream.Handlers, logger *slog.Logger)` — extracts provider name from `r.PathValue("name")`, validates provider exists in config, reads cache via `h.ModelsCache.Get(name)`, renders `models-fragment.html` via `loadFragmentTemplate`. On miss: renders fragment with empty model list (not an error).
-
-#### 2.8 Refresh models handler (POST)
-
-**File**: `proxy/web/handlers.go`
-
-**Intent**: Handle `POST /v1/providers/{name}/models/refresh` — fetch upstream, update cache, return fragment. On success: models appear inline. On failure: error fragment with `.form-error` styling, but cache retains previous data (GET silently returns it).
-
-**Contract**: `func handleRefreshModels(w http.ResponseWriter, r *http.Request, h *eventstream.Handlers, logger *slog.Logger)` — validates provider exists and has a `BaseURL`, resolves `config.Provider` from config, calls `proxy.FetchModels(ctx, provider)`, calls `h.ModelsCache.Set(name, models, err)`, renders `models-fragment.html`. On upstream error: sets `modelsData.Error` to a user-friendly message, renders error fragment. Must not crash on missing API key env — returns "API key not set" error.
-
-#### 2.9 Endpoint tests
-
-**File**: `proxy/web/handlers_models_test.go` (new) or appended to existing test file
-
-**Intent**: Test the two endpoints with an `httptest.Server` as the upstream.
-
-**Contract**: Table-driven tests using `newWriteMux` harness extended with `ModelsCache`:
-- `GET /v1/providers/nim/models` on cold cache → empty fragment (200 OK, body contains no model entries or "No models fetched yet")
-- `POST /v1/providers/nim/models/refresh` against upstream returning JSON → 200, fragment contains model IDs
-- `GET` after refresh → fragment contains cached models
-- `POST` refresh when upstream returns error → 200, fragment contains error message but no crash
-- `GET` after failed refresh → still returns previously cached models (silent fallback)
-- `GET /v1/providers/nonexistent/models` → 404
+**Contract**:
+- Delete `TestFetchModels_ColdCache` outright (it asserts on a `GET` cold-cache response with `DatalistMode` semantics that no longer apply — a first `POST …/refresh` against a provider with no base URL, or against `httptest.Server` returning an empty `data: []`, already covers "nothing fetched yet" rendering via the other tests).
+- Rewrite `TestFetchModels_NamedNonexistent` to `POST /v1/providers/nonexistent/models/refresh` and keep the `404` assertion (per the "keep a 404-on-unknown-provider test against POST" decision).
+- Rewrite `TestRefreshModels_AfterRefreshGetCached`: replace the second request (currently `GET /v1/providers/nim/models`) with a second `POST /v1/providers/nim/models/refresh` against the same `httptest.Server`, asserting the response still contains `"cached-model"` (the upstream is idempotent in this test, so a second `POST` reproduces the same observable result the `GET` was checking).
+- Rewrite `TestFetchModels_CachedAfterFailedRefresh` similarly: its final assertion step (currently a `GET` after the failed second refresh) becomes an assertion on the **second `POST …/refresh` response itself** — per `handleRefreshModels`'s existing behavior (`handlers.go:713-724`), when `fetchErr != nil` but `len(models) > 0` (stale cache present), the response already renders both the cached models and the error string in the same fragment, so the existing test's core assertion (`"persistent-model"` present) can be checked directly on that response instead of a follow-up read.
+- `TestRefreshModels_WithUpstream` and `TestRefreshModels_UpstreamError` are unaffected — leave as-is.
 
 ### Success Criteria:
 
@@ -242,48 +101,78 @@ type modelsData struct {
 
 #### Manual Verification:
 
-- `mage run` → open Providers page → browser dev tools show no template-load errors
-- Direct `curl http://localhost:8083/v1/providers/{name}/models` returns HTML fragment (not 500)
+- N/A (backend-only; covered by automated tests)
 
 ---
 
-## Phase 3: UI Surfaces — Providers Button + Mappings Datalist
+## Phase 2: Fragment Template Rework
 
 ### Overview
 
-Add the "Fetch models" button to the Providers table Actions cell and the `<datalist>` autocomplete to the mapping form's `model_string` input. Both surfaces use the same endpoints from Phase 2, wired via htmx attributes — no custom JavaScript.
+Collapse `models-fragment.html` from its current two-branch (`DatalistMode` true/false) shape into a single clickable-list rendering, carrying over the existing empty/error-state messaging verbatim.
 
 ### Changes Required:
 
-#### 3.1 "Fetch models" button in providers table
+#### 2.1 Single clickable-list rendering shape
+
+**File**: `proxy/web/templates/models-fragment.html`
+
+**Intent**: Render one `<ul>` of models where each item is clickable and identifiable by model ID, replacing both the old `<option>` branch and the plain (non-clickable) `<li>` branch.
+
+**Contract**: Remove the `{{if .DatalistMode}}...{{else}}...{{end}}` split. Keep a single `<ul class="model-list">` whose `<li>` elements carry `data-model-id="{{.ID}}"` (escaped by the template engine's default HTML escaping) and a display label (`{{.ID}}` plus `— {{.DisplayName}}` when it differs, exactly as today). Keep the existing footer states verbatim: "Fetched X ago" when `.FetchedAt` is set, `.form-error` div when `.Error` is set, "No models fetched yet" when both `.Models` is empty and `.Error` is empty, and the >1000-truncation notice. The outer wrapper stays `<div id="models-{{.Provider}}">` (unchanged) so the mapping modal's `hx-target`/`hx-swap` continues to work against the same container id convention already used elsewhere in this template.
+
+### Success Criteria:
+
+#### Automated Verification:
+
+- `go test ./proxy/web/... -race -count=1` passes (existing fragment-rendering assertions in the Phase 1 tests continue to pass against the new markup shape)
+- `mage lint` passes
+
+#### Manual Verification:
+
+- N/A (template-only; verified end-to-end in Phase 3's manual steps)
+
+---
+
+## Phase 3: UI Wiring — Strip Providers Page, Wire the Mapping Modal
+
+### Overview
+
+Remove the Providers-page Models column and button entirely. Add an explicit "Fetch models" button and a hidden-until-populated list container to the mapping modal, remove the auto-fetch triggers, and add the click-to-fill handler.
+
+### Changes Required:
+
+#### 3.1 Revert Providers page to 7 columns, no fetch UI
 
 **File**: `proxy/web/templates/providers.html`
 
-**Intent**: Add a "Fetch models" button to each provider row's Actions cell, plus a target `<div>` for the fragment swap.
+**Intent**: Model fetching no longer has any presence on this page.
 
-**Contract**:
-- Add an 8th column `<th>Models</th>` to the table header
-- In each row, add `<td id="models-{{.Name}}"></td>` after the Actions cell (or inside it)
-- In the Actions cell, add a `<button class="btn-sm" hx-post="/v1/providers/{{.Name}}/models/refresh" hx-target="#models-{{.Name}}" hx-swap="innerHTML">Fetch models</button>` before the Edit button
-- The button uses `hx-post` to trigger the refresh endpoint; the fragment swaps into the row's models column
+**Contract**: Remove the `<th>Models</th>` header (`providers.html:8`), the `<td id="models-{{.Name}}"></td>` cell (`providers.html:31`), and the "Fetch models" button block (`providers.html:34-41`) from the Actions cell. The table returns to its original 7 columns (Name, Behavior, Base URL, API Key Env, Protocol, Mappings, Actions) with just Edit/Delete in the Actions cell.
 
-#### 3.2 Datalist autocomplete on mapping form
+#### 3.2 Remove auto-fetch triggers from the mapping modal
 
 **File**: `proxy/web/templates/mappings.html`
 
-**Intent**: Add a `<datalist>` to the `model_string` input, populated by htmx GET when the provider select changes.
+**Intent**: Selecting a provider or opening the Edit modal must not perform any network call on its own — fetching becomes an explicit action.
 
-**Contract**:
-- Add an empty `<datalist id="model-suggestions"></datalist>` element before or after the model input
-- Add `list="model-suggestions"` attribute to the model `<input name="model_string">`
-- Add `hx-get="/v1/providers/{selected}/models" hx-target="#model-suggestions" hx-trigger="change"` to the provider `<select>` — but since the URL depends on the selected value, use the htmx `hx-include` pattern or a small inline script that sets `hx-get` dynamically
-- **Implementation note**: htmx doesn't natively support dynamic URL from select value in pure attributes. Two options: (a) use `hx-get="/v1/providers/models"` with `hx-include` and server-side inspection of the referer, or (b) add a 3-line inline script on `change` that sets `this.nextElementSibling.setAttribute('hx-get', '/v1/providers/' + this.value + '/models')` then triggers htmx. The plan leaves this choice to the implementer, preferring the minimal approach that works with the vendored htmx version.
+**Contract**: Remove the `onchange` handler on the provider `<select>` (`mappings.html:59-66`) that currently calls `htmx.ajax(...)`. Remove the equivalent `htmx.ajax('POST', '/v1/providers/' + provider + '/models/refresh?target=datalist', ...)` call inside `editMapping()` (`mappings.html:85-96`) — `editMapping` keeps setting `f.elements.model_string.value = model` (the existing value) but no longer triggers a fetch.
 
-#### 3.3 Update `providerRow` if needed
+#### 3.3 Add "Fetch models" button + list container to the mapping modal
 
-**File**: `proxy/web/types.go`
+**File**: `proxy/web/templates/mappings.html`
 
-**Intent**: No changes required — the providers template already has access to `.Name` via the template range. The models column is an independent htmx target, not part of the providerRow struct.
+**Intent**: Give the modal an explicit, always-available fetch action tied to whichever provider is currently selected in the form, and a container for the resulting clickable list.
+
+**Contract**: Replace the `<datalist>`-based markup (`mappings.html:67-70`) with: the `model_string` input (no longer needs `list="model-suggestions"`), a `btn-sm` button labeled "Fetch models" whose click handler reads the currently-selected provider from the sibling `<select name="provider_name">` and issues `htmx.ajax('POST', '/v1/providers/' + providerName + '/models/refresh', {target: '#model-suggestions', swap: 'innerHTML'})` (dropping the now-removed `?target=datalist` param), and a `<div id="model-suggestions"></div>` target replacing the old `<datalist>` element. If no provider is selected yet, the button click is a no-op (guard clause, mirroring the existing `if (!name) return;` guard already present in the code being replaced).
+
+#### 3.4 Click-to-fill handler
+
+**File**: `proxy/web/templates/mappings.html`
+
+**Intent**: Clicking a model in the fetched list fills `model_string` and hides the list, without submitting the form.
+
+**Contract**: Add a small function (e.g. `selectModel(li)`) following the same inline-script, sibling-form-field-access style as `editMapping`/`editProvider`: reads `li.dataset.modelId`, sets `document.getElementById('mapping-form').elements.model_string.value = ...`, and clears the list container's contents (`document.getElementById('model-suggestions').innerHTML = ''`). Wire it via a single delegated `onclick` on the `#model-suggestions` container (checking `event.target.closest('li[data-model-id]')`) rather than one inline `onclick` per rendered `<li>`, so the fragment template doesn't need to embed JS calls per item.
 
 ### Success Criteria:
 
@@ -291,15 +180,18 @@ Add the "Fetch models" button to the Providers table Actions cell and the `<data
 
 - `mage lint` passes
 - `go vet ./...` passes
+- `go test ./proxy/... ./proxy/web/... -race -count=1` passes
 
 #### Manual Verification:
 
-- Open Providers page → each row shows a "Fetch models" button → click it → model list appears inline in that row
-- Click "Fetch models" again → list refreshes with updated "Fetched X ago" timestamp
-- Open Mappings page → click "Add Mapping" → select a provider that has fetched models → type in the model input → see model suggestions from the datalist
-- Select a provider with no fetched models → datalist is empty, user can still type freely
-- Test with a provider whose API key is unset → click Fetch → error message appears inline
-- Test while offline → click Fetch → error message appears, existing cached models remain in datalist
+- Providers page shows no Models column and no "Fetch models" button; only Edit/Delete remain in Actions
+- Opening "Add Mapping" and selecting a provider triggers no network request (confirm via browser dev tools) until "Fetch models" is clicked
+- Clicking "Fetch models" with a valid provider shows the clickable model list inline below the input
+- Clicking a model in the list fills `model_string` and hides the list; the form is not submitted
+- Typing a custom model ID directly, without ever clicking "Fetch models", still works and can be saved
+- Clicking "Fetch models" again re-issues the request and refreshes the list (confirm via dev tools / changed "Fetched X ago" text)
+- Opening "Edit Mapping" on an existing mapping shows its current model value in the input and triggers no automatic fetch
+- Fetch models against a provider with no API key set, no base URL configured, and an unreachable upstream — all three show an inline `.form-error` message in the same slot the list would occupy, without crashing
 
 ---
 
@@ -307,74 +199,81 @@ Add the "Fetch models" button to the Providers table Actions cell and the `<data
 
 ### Unit Tests:
 
-- `deriveModelsURL`: all URL variants from research table (groq, deepseek, anthropic, zen, go, ollama, no-suffix, invalid URL)
-- `ModelsCache`: Set/Get round-trip, miss returns zero, concurrent reads (race detector)
-- `fetchModels`: httptest server returning OpenAI-style JSON, Anthropic-style JSON, error responses, empty data array
-- Handler endpoints: cold cache GET, POST refresh with upstream, GET after refresh, POST refresh error, nonexistent provider
+- `proxy/web/handlers_models_test.go`: `TestRefreshModels_WithUpstream`, `TestRefreshModels_UpstreamError` (unchanged); rewritten `TestFetchModels_NamedNonexistent` (POST, 404), `TestRefreshModels_AfterRefreshGetCached` (POST twice), `TestFetchModels_CachedAfterFailedRefresh` (POST twice, second call's own response carries cached+error)
+- `proxy/models_test.go`: unaffected, no changes
 
 ### Integration Tests:
 
-- Full htmx flow: POST refresh → GET cache read → data consistency between the two
-- Graceful degradation: missing API key, unreachable upstream, empty base URL
+- Full flow: `POST …/refresh` → fragment contains clickable `<li data-model-id>` entries → (manually) click fills input
 
 ### Manual Testing Steps:
 
 1. `mage run` → open dashboard in browser with `FREEDIUS_UI_TOKEN` set
-2. Navigate to Providers page → verify "Fetch models" button appears on each row
-3. Click "Fetch models" on a provider with a valid API key → verify models appear
-4. Navigate to Mappings → open Add Mapping dialog → select that provider → verify datalist populates
-5. Type a custom model ID not in the list → verify the form accepts it
-6. Click "Fetch models" on a provider with no API key → verify error message appears
-7. Turn off network / use invalid base URL → verify error handling doesn't crash
+2. Navigate to Providers → confirm no Models column, no "Fetch models" button
+3. Navigate to Mappings → "Add Mapping" → select a provider with a valid API key → click "Fetch models" → verify list appears
+4. Click a model in the list → verify it fills the input and the list disappears → Save
+5. Reopen "Add Mapping", type a custom model ID without clicking "Fetch models" → Save → verify it's accepted
+6. Edit an existing mapping → verify the current model shows in the input and no fetch fires automatically
+7. Test a provider with no API key, no base URL, and an unreachable upstream → verify inline error in each case
 
 ## Performance Considerations
 
-- The fetcher uses a dedicated `*http.Client` with a 10s timeout — the models endpoint responds in <1s for all known providers
-- Cache is in-memory with RWMutex — reads are lock-free under RLock, writes are rare (user-initiated button clicks)
-- No background goroutines, no timers, no polling — zero CPU overhead when idle
-- Fragment template is parsed once and cached, like page templates
+Unchanged from the original plan — the fetcher's short-timeout `*http.Client`, the in-memory RWMutex-guarded cache, and the absence of background goroutines/timers all carry over untouched.
+
+## Migration Notes
+
+No data migration — this is a UI/handler-surface change only. Any provider whose models were fetched via the old Providers-page button remains in the in-memory cache until the next process restart or explicit re-fetch from the mapping modal; there is no on-disk state to migrate.
 
 ## References
 
-- Research: `context/changes/provider-model-discovery/research.md`
+- Research: `context/changes/provider-model-discovery/research.md` (original research + "Follow-up Research 2026-07-05T19:08" section)
 - Change identity: `context/changes/provider-model-discovery/change.md`
-- Deferred Decision 5: `context/archive/zen-go-adapters/research.md:660`
-- Web UI stack: `context/archive/2026-07-02-web-ui/research.md:38-40`
-- Lessons: `context/foundation/lessons.md` (Adapter Return Contract, x-api-key requirement)
+- Original plan history: this file's own `## Progress` section below records what was already implemented under the prior (Providers-page + datalist) design before this revision
+- Lessons: `context/foundation/lessons.md` (Adapter Return Contract, x-api-key requirement — inherited by `proxy.FetchModels`, unchanged in this revision)
 
 ## Progress
 
 > Convention: `- [ ]` pending, `- [x]` done. Append ` — <commit sha>` when a step lands. Do not rename step titles.
 
-### Phase 1: Core Domain
+### Phase 1: Backend Simplification
 
 #### Automated
 
-- [x] 1.1 `go test ./proxy/ -run "TestDeriveModelsURL|TestModelsCache|TestFetchModels" -race -count=1` passes — 28 tests pass
+- [x] 1.1 `go test ./proxy/web/ -run "TestFetchModels|TestRefreshModels" -race -count=1` passes
+- [x] 1.2 `go test ./proxy/... ./proxy/web/... -race -count=1` — no regressions
+- [x] 1.3 `mage lint` passes
 
-### Phase 2: Web Endpoints + Fragment Templates
+### Phase 2: Fragment Template Rework
 
 #### Automated
 
-- [x] 2.1 `go test ./proxy/web/ -run "TestFetchModels|TestRefreshModels" -race -count=1` passes — e4d6f68
-- [x] 2.2 `go test ./proxy/... ./proxy/web/... -race -count=1` — no regressions — e4d6f68
-- [x] 2.3 `mage lint` passes — e4d6f68
+- [ ] 2.1 `go test ./proxy/web/... -race -count=1` passes
+
+### Phase 3: UI Wiring
+
+#### Automated
+
+- [ ] 3.1 `mage lint` passes
+- [ ] 3.2 `go vet ./...` passes
+- [ ] 3.3 `go test ./proxy/... ./proxy/web/... -race -count=1` passes
 
 #### Manual
 
-- [ ] 2.4 `mage run` loads the dashboard without template errors
-- [ ] 2.5 Direct `curl` to `/v1/providers/{name}/models` returns HTML fragment (not 500)
+- [ ] 3.4 Providers page shows no Models column/button
+- [ ] 3.5 Selecting a provider in the mapping modal triggers no network request
+- [ ] 3.6 "Fetch models" shows a clickable list inline
+- [ ] 3.7 Clicking a model fills the input and hides the list without submitting
+- [ ] 3.8 Custom typed model IDs still save correctly without ever fetching
+- [ ] 3.9 Re-clicking "Fetch models" re-fetches and refreshes the list
+- [ ] 3.10 Editing a mapping shows its current model and triggers no automatic fetch
+- [ ] 3.11 Error cases (no API key, no base URL, unreachable upstream) show inline `.form-error`, no crash
 
-### Phase 3: UI Surfaces
+### Superseded (prior design, for history)
 
-#### Automated
+> These items belonged to the pre-revision plan (Providers-page button + auto-populated datalist). Superseded by the phases above — kept here only as a record of what was previously verified before this UI direction changed.
 
-- [x] 3.1 `mage lint` passes — ffa1b13
-- [x] 3.2 `go vet ./...` passes — ffa1b13
-
-#### Manual
-
-- [ ] 3.3 "Fetch models" button appears on each provider row and works
-- [ ] 3.4 Mapping form datalist populates on provider selection
-- [ ] 3.5 Error handling: missing API key, unreachable upstream, offline — all show errors inline
-- [ ] 3.6 Custom model ID typing still works alongside datalist
+- [x] Phase 1 (original) — `go test ./proxy/ -run "TestDeriveModelsURL|TestModelsCache|TestFetchModels" -race -count=1` passes — 28 tests pass
+- [x] Phase 2 (original) — endpoint tests, no regressions, `mage lint` — e4d6f68
+- [x] Phase 3 (original) — `mage lint`, `go vet ./...` — ffa1b13
+- [ ] Phase 2 (original) manual — `mage run` loads dashboard, direct curl to GET endpoint — superseded, GET endpoint removed in this revision
+- [ ] Phase 3 (original) manual — Providers-page button + mapping datalist manual checks — superseded, UI surfaces redesigned in this revision

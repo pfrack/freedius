@@ -70,10 +70,7 @@ func SetupMux(h *eventstream.Handlers, logger *slog.Logger) *http.ServeMux {
 		handleDeleteMapping(w, r, h.Cfg, h.CfgPath)
 	})
 
-	// Models endpoints.
-	mux.HandleFunc("GET /v1/providers/{name}/models", func(w http.ResponseWriter, r *http.Request) {
-		handleFetchModels(w, r, h, logger)
-	})
+	// Models endpoint: explicit refresh only.
 	mux.HandleFunc("POST /v1/providers/{name}/models/refresh", func(w http.ResponseWriter, r *http.Request) {
 		handleRefreshModels(w, r, h, logger)
 	})
@@ -646,34 +643,6 @@ func handleDeleteMapping(w http.ResponseWriter, r *http.Request, cfg *config.Con
 
 // --- Models handlers ---
 
-func handleFetchModels(w http.ResponseWriter, r *http.Request, h *eventstream.Handlers, logger *slog.Logger) {
-	name := r.PathValue("name")
-	if name == "" {
-		writeJSONError(w, http.StatusBadRequest, "bad_path", "missing provider name")
-		return
-	}
-
-	providers := h.Cfg.ProvidersSnapshot()
-	if _, ok := providers[name]; !ok {
-		writeJSONError(w, http.StatusNotFound, "not_found", "provider not found")
-		return
-	}
-
-	models, fetchedAt, err := h.ModelsCache.Get(name)
-	data := modelsData{Provider: name}
-	if models != nil {
-		data.Models = models
-	}
-	if err != nil {
-		data.Error = err.Error()
-	}
-	if !fetchedAt.IsZero() {
-		data.FetchedAt = fmt.Sprintf("%s ago", formatDuration(time.Since(fetchedAt)))
-	}
-
-	renderModelsFragment(w, data, logger)
-}
-
 func handleRefreshModels(w http.ResponseWriter, r *http.Request, h *eventstream.Handlers, logger *slog.Logger) {
 	name := r.PathValue("name")
 	if name == "" {
@@ -690,7 +659,10 @@ func handleRefreshModels(w http.ResponseWriter, r *http.Request, h *eventstream.
 
 	if p.DefaultBaseURL == "" {
 		h.ModelsCache.Set(name, nil, fmt.Errorf("provider %q has no base URL configured", name))
-		data := modelsData{Provider: name, Error: fmt.Sprintf("Provider %q has no base URL configured", name)}
+		data := modelsData{
+			Provider: name,
+			Error:    fmt.Sprintf("Provider %q has no base URL configured", name),
+		}
 		renderModelsFragment(w, data, logger)
 		return
 	}
@@ -700,7 +672,9 @@ func handleRefreshModels(w http.ResponseWriter, r *http.Request, h *eventstream.
 		h.ModelsCache.Set(name, models, nil)
 	}
 
-	data := modelsData{Provider: name}
+	data := modelsData{
+		Provider: name,
+	}
 	if models != nil {
 		data.Models = models
 	}
