@@ -225,17 +225,17 @@ None — in-place file edit.
 
 #### Automated
 
-- [x] 1.1 File parses as valid markdown
-- [x] 1.2 No broken internal links or references
+- [x] 1.1 File parses as valid markdown — b79fb2d
+- [x] 1.2 No broken internal links or references — b79fb2d
 
 #### Manual
 
-- [x] 1.3 §3 Phase 2/3 statuses match archive reality
-- [x] 1.4 §4 tool versions match magefiles/mage.go
-- [x] 1.5 §5 gates match mage ci pipeline
-- [x] 1.6 §6.7 patterns match proxy/web/*_test.go
-- [x] 1.7 §7 has no TUI references
-- [x] 1.8 §8 dates are current
+- [x] 1.3 §3 Phase 2/3 statuses match archive reality — b79fb2d
+- [x] 1.4 §4 tool versions match magefiles/mage.go — b79fb2d
+- [x] 1.5 §5 gates match mage ci pipeline — b79fb2d
+- [x] 1.6 §6.7 patterns match proxy/web/*_test.go — b79fb2d
+- [x] 1.7 §7 has no TUI references — b79fb2d
+- [x] 1.8 §8 dates are current — b79fb2d
 
 ### Phase 2: Write Plan Brief
 
