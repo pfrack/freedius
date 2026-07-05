@@ -15,7 +15,6 @@
         <th>API Key Env</th>
         <th>Protocol</th>
         <th>Mappings</th>
-        <th>Models</th>
         <th>Actions</th>
       </tr>
     </thead>
@@ -28,16 +27,7 @@
         <td>{{.APIKeyEnv}}</td>
         <td>{{.Protocol}}</td>
         <td>{{.MappingCount}}</td>
-        <td id="models-{{.Name}}"></td>
         <td>
-          <button
-            class="btn-sm"
-            hx-post="/v1/providers/{{.Name}}/models/refresh"
-            hx-target="#models-{{.Name}}"
-            hx-swap="innerHTML"
-          >
-            Fetch models
-          </button>
           <button
             class="btn-sm"
             onclick="editProvider('{{.Name | js}}','{{.Behavior | js}}','{{.BaseURL | js}}','{{.APIKeyEnv | js}}','{{.Protocol | js}}')"

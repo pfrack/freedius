@@ -56,17 +56,21 @@
       <label>Name <input name="name" required></label>
       <label>
         Provider
-        <select name="provider_name" onchange="
-          htmx.ajax('GET', '/v1/providers/'+this.value+'/models', {target:'#model-suggestions', swap:'innerHTML'});
-        ">
+        <select name="provider_name">
           {{range .Providers}}<option value="{{.Name}}">{{.Name}}</option>{{end}}
         </select>
       </label>
       <label>
         Model
-        <input name="model_string" list="model-suggestions" required>
-        <datalist id="model-suggestions"></datalist>
+        <input name="model_string" required>
+        <button type="button" class="btn-sm" onclick="
+          var sel = document.getElementById('mapping-form').elements.provider_name;
+          var name = sel.value;
+          if (!name) return;
+          htmx.ajax('POST', '/v1/providers/'+name+'/models/refresh', {target:'#model-suggestions', swap:'innerHTML'});
+        ">Fetch models</button>
       </label>
+      <div id="model-suggestions"></div>
       <div class="form-actions">
         <button type="submit" class="btn-primary">Save</button>
         <button type="button" class="btn-cancel" onclick="this.closest('dialog').close()">
@@ -89,5 +93,12 @@
       document.getElementById('mapping-dialog-title').textContent = 'Edit Mapping';
       d.showModal();
     }
+
+    document.getElementById('model-suggestions').addEventListener('click', function(e) {
+      var li = e.target.closest('li[data-model-id]');
+      if (!li) return;
+      document.getElementById('mapping-form').elements.model_string.value = li.dataset.modelId;
+      this.innerHTML = '';
+    });
   </script>
 {{end}}

@@ -253,9 +253,9 @@ No data migration — this is a UI/handler-surface change only. Any provider who
 
 #### Automated
 
-- [ ] 3.1 `mage lint` passes
-- [ ] 3.2 `go vet ./...` passes
-- [ ] 3.3 `go test ./proxy/... ./proxy/web/... -race -count=1` passes
+- [x] 3.1 `mage lint` passes
+- [x] 3.2 `go vet ./...` passes
+- [x] 3.3 `go test ./proxy/... ./proxy/web/... -race -count=1` passes
 
 #### Manual
 
