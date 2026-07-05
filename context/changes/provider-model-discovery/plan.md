@@ -195,6 +195,52 @@ Remove the Providers-page Models column and button entirely. Add an explicit "Fe
 
 ---
 
+## Phase 4: Template Deduplication
+
+### Overview
+
+Eliminate duplicated table markup between page templates (`providers.html`, `mappings.html`) and their HTMX fragment counterparts (`providers-table.html`, `mappings-table.html`). Extract shared table content into `{{define}}` blocks, parse fragment files alongside page templates, and have page templates call the shared table via `{{template}}`.
+
+### Changes Required:
+
+#### 4.1 Wrap fragment templates in `{{define}}` blocks
+
+**Files**: `proxy/web/templates/providers-table.html`, `proxy/web/templates/mappings-table.html`
+
+**Contract**: Wrap each file's table markup in `{{define "providers-table"}}...{{end}}` / `{{define "mappings-table"}}...{{end}}`.
+
+#### 4.2 Add variadic `extraFiles` to `loadPageTemplate` and `renderPage`
+
+**File**: `proxy/web/embed.go`
+
+**Contract**: Change `loadPageTemplate(pageFile string)` to `loadPageTemplate(pageFile string, extraFiles ...string)`. Same for `renderPage`. Existing callers unaffected.
+
+#### 4.3 Page templates call shared table via `{{template}}`
+
+**Files**: `proxy/web/templates/providers.html`, `proxy/web/templates/mappings.html`
+
+**Contract**: Replace inline `<table>` markup with `{{template "providers-table" .}}` / `{{template "mappings-table" .}}`.
+
+#### 4.4 Render functions use `loadFragmentTemplate`
+
+**File**: `proxy/web/handlers.go`
+
+**Contract**: `renderProvidersTable` and `renderMappingsTable` switch from `loadPageTemplate` to `loadFragmentTemplate`, and `ExecuteTemplate` target changes from filename to define-name (`"providers-table"`, `"mappings-table"`). Callers of `renderPage` for providers/mappings pass the fragment file as an extra.
+
+### Success Criteria:
+
+#### Automated Verification:
+
+- `mage lint` passes
+- `go vet ./...` passes
+- `go test ./proxy/... ./proxy/web/... -race -count=1` passes
+
+#### Manual Verification:
+
+- N/A (structural refactor; verified by existing tests + manual Phase 3 checks)
+
+---
+
 ## Testing Strategy
 
 ### Unit Tests:
@@ -267,6 +313,14 @@ No data migration — this is a UI/handler-surface change only. Any provider who
 - [ ] 3.9 Re-clicking "Fetch models" re-fetches and refreshes the list
 - [ ] 3.10 Editing a mapping shows its current model and triggers no automatic fetch
 - [ ] 3.11 Error cases (no API key, no base URL, unreachable upstream) show inline `.form-error`, no crash
+
+### Phase 4: Template Deduplication
+
+#### Automated
+
+- [x] 4.1 `mage lint` passes — 92ad166
+- [x] 4.2 `go vet ./...` passes — 92ad166
+- [x] 4.3 `go test ./proxy/... ./proxy/web/... -race -count=1` passes — 92ad166
 
 ### Superseded (prior design, for history)
 
