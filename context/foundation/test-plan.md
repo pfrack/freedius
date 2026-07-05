@@ -106,8 +106,8 @@ phase lands; before that, the gate is `planned`.
 | Gate | Where | Required? | Catches |
 |------|-------|-----------|---------|
 | lint + typecheck | local + CI | required | syntactic / type drift |
-| unit + integration | local + CI | required | logic regressions in proxy core |
-| streaming edge-case suite | CI on PR | required | streaming regressions (partial chunks, mid-stream errors, SSE quirks) |
+| unit + integration | local + CI | required (enforced in CI regardless of §3 Phase 1 rollout-tracking status) | logic regressions in proxy core |
+| streaming edge-case suite | CI on PR | required (enforced in CI regardless of §3 Phase 1 rollout-tracking status) | streaming regressions (partial chunks, mid-stream errors, SSE quirks) |
 | race detection | CI | required (already enabled via `mage test`) | concurrent-session state leak |
 | CI pipeline (`mage ci`) | CI on every push/PR | required | 9-step pipeline: vet → mod verify → tidy check → generate check → format check → test → lint → build → govulncheck |
 
@@ -197,3 +197,10 @@ Refresh (`/10x-test-plan --refresh`) when:
 - a recommended tool's `checked:` date is older than three months,
 - the project's tech stack changes (new framework, new test runner),
 - §7 negative-space no longer matches what the team believes.
+
+**Known gap (deferred, not re-evaluated this refresh):** §2 Risk #6 and its
+Response Guidance row still say "TUI output"/"TUI data flow," but the TUI
+was removed and replaced by the Web UI (see §7). Next time §2 is
+revisited, reword to the Web UI/log-output surface and re-check whether
+risk #6's likelihood/impact still holds now that the surface is networked
+rather than local-only. (Source: test-plan-refresh-2026-07-05 impl review, F1.)

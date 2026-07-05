@@ -241,9 +241,9 @@ None — in-place file edit.
 
 #### Automated
 
-- [x] 2.1 plan-brief.md exists at expected path
+- [x] 2.1 plan-brief.md exists at expected path — 9c971bb
 
 #### Manual
 
-- [x] 2.2 Brief accurately summarizes all changes
-- [x] 2.3 Brief fits on ~2 pages
+- [x] 2.2 Brief accurately summarizes all changes — 9c971bb
+- [x] 2.3 Brief fits on ~2 pages — 9c971bb
