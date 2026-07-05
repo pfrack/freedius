@@ -22,15 +22,16 @@ import (
 // *http.ServeMux. Used by both the Unix-socket IPC server (until Phase 4) and
 // the new web server. Preserves lessons.md §1: json.Marshal only, never json.NewEncoder.
 type Handlers struct {
-	Bus       *proxy.EventBus
-	LogSink   *proxy.LogSink
-	Cfg       *config.Config
-	Registry  *proxy.Registry
-	Host      string
-	Port      int
-	StartTime time.Time
-	AuthToken string
-	CfgPath   string
+	Bus         *proxy.EventBus
+	LogSink     *proxy.LogSink
+	Cfg         *config.Config
+	Registry    *proxy.Registry
+	Host        string
+	Port        int
+	StartTime   time.Time
+	AuthToken   string
+	CfgPath     string
+	ModelsCache *proxy.ModelsCache
 }
 
 // Register mounts the four event-stream routes (GET /v1/events, GET /v1/logs,

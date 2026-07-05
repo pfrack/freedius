@@ -1,0 +1,17 @@
+<ul class="model-list">
+  {{range .Models}}
+  <li><strong>{{.ID}}</strong>{{if ne .DisplayName .ID}} — {{.DisplayName}}{{end}}</li>
+  {{end}}
+  {{if gt (len .Models) 1000}}
+  <li class="form-error">Truncated at 1000 models; upstream may have more.</li>
+  {{end}}
+</ul>
+{{if .FetchedAt}}
+<small>Fetched {{.FetchedAt}}</small>
+{{end}}
+{{if .Error}}
+<div class="form-error">{{.Error}}</div>
+{{end}}
+{{if and (eq (len .Models) 0) (eq .Error "")}}
+<small>No models fetched yet.</small>
+{{end}}
