@@ -356,9 +356,9 @@ Add the "Fetch models" button to the Providers table Actions cell and the `<data
 
 #### Automated
 
-- [ ] 2.1 `go test ./proxy/web/ -run "TestFetchModels|TestRefreshModels" -race -count=1` passes
-- [ ] 2.2 `go test ./proxy/... ./proxy/web/... -race -count=1` — no regressions
-- [ ] 2.3 `mage lint` passes
+- [x] 2.1 `go test ./proxy/web/ -run "TestFetchModels|TestRefreshModels" -race -count=1` passes — e4d6f68
+- [x] 2.2 `go test ./proxy/... ./proxy/web/... -race -count=1` — no regressions — e4d6f68
+- [x] 2.3 `mage lint` passes — e4d6f68
 
 #### Manual
 
@@ -369,8 +369,8 @@ Add the "Fetch models" button to the Providers table Actions cell and the `<data
 
 #### Automated
 
-- [ ] 3.1 `mage lint` passes
-- [ ] 3.2 `go vet ./...` passes
+- [x] 3.1 `mage lint` passes
+- [x] 3.2 `go vet ./...` passes
 
 #### Manual
 

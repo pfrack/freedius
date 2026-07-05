@@ -56,11 +56,17 @@
       <label>Name <input name="name" required></label>
       <label>
         Provider
-        <select name="provider_name">
+        <select name="provider_name" onchange="
+          htmx.ajax('GET', '/v1/providers/'+this.value+'/models', {target:'#model-suggestions', swap:'innerHTML'});
+        ">
           {{range .Providers}}<option value="{{.Name}}">{{.Name}}</option>{{end}}
         </select>
       </label>
-      <label>Model <input name="model_string" required></label>
+      <label>
+        Model
+        <input name="model_string" list="model-suggestions" required>
+        <datalist id="model-suggestions"></datalist>
+      </label>
       <div class="form-actions">
         <button type="submit" class="btn-primary">Save</button>
         <button type="button" class="btn-cancel" onclick="this.closest('dialog').close()">
