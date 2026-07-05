@@ -6,7 +6,7 @@
 >
 > Refresh: re-run `/10x-test-plan --refresh` when stale (see §8).
 >
-> Last updated: 2026-07-02
+> Last updated: 2026-07-05
 
 ## 1. Strategy
 
@@ -67,7 +67,8 @@ orchestrator updates Status as artifacts appear on disk.
 |---|-----------|-----------------|---------------|------------|--------|---------------|
 | 1 | Proxy integration — translation, routing, errors | Prove the proxy core correctly translates formats, routes by config, and propagates errors | #1, #3, #4, #5, #6 | integration + unit | planned | testing-proxy-integration |
 | 2 | Streaming edge cases | Prove streaming delivers complete, correctly ordered content including partial chunks and mid-stream errors | #2 | integration | done | streaming-edge-cases |
-| 3 | Quality gates in CI | Lock the floor — every PR must pass proxy integration + streaming tests | cross-cutting | CI gates | not started | — |
+| 3 | Quality gates in CI | Lock the floor — every PR must pass proxy integration + streaming tests | cross-cutting | CI gates | done | 2026-07-02-quality-gates-in-ci |
+| 4 | Web UI CRUD + handlers | Prove the Web UI correctly serves pages, handles CRUD mutations, validates forms, and persists config | new surface area | unit + integration | done | web-ui |
 
 ## 4. Stack
 
@@ -80,19 +81,20 @@ of assuming access.
 
 | Layer | Tool | Version | Notes |
 |-------|------|---------|-------|
-| unit + integration | Go `testing` + `httptest` | stdlib | Table-driven tests; `httptest.NewServer` for mock providers |
-| test runner | `mage test` | — | Race detection enabled; runs `go test ./...` |
-| lint | `gofumpt` + `staticcheck` + `golangci-lint` | — | Enforced in CI via `mage lint` |
-| vulnerability scan | `govulncheck` | — | `mage govulncheck` |
+| unit + integration | Go `testing` + `httptest` | stdlib (Go 1.26.4) | Table-driven tests; `httptest.NewServer` for mock providers |
+| test runner | `mage test` | — | Race detection enabled; runs `go test -race -cover ./...` |
+| lint | `staticcheck` + `golangci-lint` | v0.7.0 / v2.12.2 | Enforced in CI via `mage lint` (vet → staticcheck → golangci-lint) |
+| formatters | `goimports` + `golines` + `gci` | v0.47.0 / v0.12.2 / v0.13.5 | Enforced in CI via `mage ci` format check step |
+| vulnerability scan | `govulncheck` | v1.3.0 | `mage govulncheck` |
 | (optional) AI-native | none | — | Not needed — deterministic integration tests cover all identified risks |
 
 If a row reads "none yet — see Phase <N>", that gap is addressed by the
 named rollout phase.
 
 **Stack grounding tools (current session):**
-- Docs: Context7 — available for Go stdlib, Bubble Tea, tiktoken-go; checked: 2026-07-02
+- Docs: Context7 — available for Go stdlib; checked: 2026-07-05
 - Search: none — not available in current session
-- Runtime/browser: none — not used (CLI proxy, no browser surface)
+- Runtime/browser: none — not used (CLI proxy, Web UI is a management surface)
 - Provider/platform: none — not used
 
 ## 5. Quality Gates
@@ -104,9 +106,10 @@ phase lands; before that, the gate is `planned`.
 | Gate | Where | Required? | Catches |
 |------|-------|-----------|---------|
 | lint + typecheck | local + CI | required | syntactic / type drift |
-| unit + integration | local + CI | required after §3 Phase 1 | logic regressions in proxy core |
-| streaming edge-case suite | CI on PR | required after §3 Phase 2 | streaming regressions (partial chunks, mid-stream errors, SSE quirks) |
+| unit + integration | local + CI | required (enforced in CI regardless of §3 Phase 1 rollout-tracking status) | logic regressions in proxy core |
+| streaming edge-case suite | CI on PR | required (enforced in CI regardless of §3 Phase 1 rollout-tracking status) | streaming regressions (partial chunks, mid-stream errors, SSE quirks) |
 | race detection | CI | required (already enabled via `mage test`) | concurrent-session state leak |
+| CI pipeline (`mage ci`) | CI on every push/PR | required | 9-step pipeline: vet → mod verify → tidy check → generate check → format check → test → lint → build → govulncheck |
 
 ## 6. Cookbook Patterns
 
@@ -157,7 +160,18 @@ the relevant rollout phase ships; before that, the sub-section reads
 - **Reference test**: `config/config_test.go` — `TestLoad` (22 existing cases).
 - **Run locally**: `mage test`.
 
-### 6.6 Per-rollout-phase notes
+### 6.7 Adding a test for a Web UI handler
+
+- **Location**: `proxy/web/<feature>_test.go` (same package `web`).
+- **Test mux setup**: Use `newTestMux()` for read-only handlers or `newWriteMux(t)` for CRUD handlers that need a temp config file on disk.
+- **Pattern**: Table-driven with `[]struct{ name string; path string; wantStatus int; ... }`.
+- **Form data**: Send `application/x-www-form-urlencoded` bodies; assert status codes and in-memory config mutations.
+- **Save-failure rollback**: Use an unwritable `CfgPath` (e.g. `/dev/null/cannot-create-subdir/freedius.yaml`) to force `SaveData` failure; assert in-memory state is restored before mutex release.
+- **Validation errors**: Assert JSON error body contains `"validation_failed"` and the specific field error message.
+- **Reference tests**: `proxy/web/handlers_test.go` (page handlers, static, health), `proxy/web/handlers_write_test.go` (CRUD), `proxy/web/forms_test.go` (validation), `proxy/web/log_filter_test.go` (log level filtering).
+- **Run locally**: `mage test`.
+
+### 6.8 Per-rollout-phase notes
 
 (Optional. After each phase lands, `/10x-implement` appends a 2-3 line note
 here capturing anything surprising the rollout phase taught.)
@@ -169,12 +183,12 @@ contributors should respect these unless the underlying assumption changes.
 
 - **Generated code (`providers_gen.go`, `adapters_gen.go`)** — the generator is the test; regressions are caught by testing the generator input/output. Re-evaluate if `go generate` output changes shape. (Source: Phase 2 interview Q5.)
 - **Magefile build scripts** — low blast radius, rarely touched, no user-facing behavior. Re-evaluate if CI pipeline changes significantly. (Source: Phase 2 interview Q5.)
-- **TUI visual layout** — the TUI is a monitoring tool, not the product core. Break it and fix it, but don't slow the pipeline for it. Re-evaluate if TUI becomes a primary user surface. (Source: Phase 2 interview Q5, implied.)
+- **Web UI visual layout and responsiveness** — the Web UI is a management surface, not the product core. Break it and fix it, but don't slow the pipeline for pixel-perfect layout testing. Re-evaluate if Web UI becomes a primary user interaction surface. (Source: web-ui change, 2026-07-05.)
 
 ## 8. Freshness Ledger
 
-- Strategy (§1–§5) last reviewed: 2026-07-02
-- Stack versions last verified: 2026-07-02
+- Strategy (§1–§5) last reviewed: 2026-07-05
+- Stack versions last verified: 2026-07-05
 - AI-native tool references last verified: N/A (no AI-native tools in use)
 
 Refresh (`/10x-test-plan --refresh`) when:
@@ -183,3 +197,10 @@ Refresh (`/10x-test-plan --refresh`) when:
 - a recommended tool's `checked:` date is older than three months,
 - the project's tech stack changes (new framework, new test runner),
 - §7 negative-space no longer matches what the team believes.
+
+**Known gap (deferred, not re-evaluated this refresh):** §2 Risk #6 and its
+Response Guidance row still say "TUI output"/"TUI data flow," but the TUI
+was removed and replaced by the Web UI (see §7). Next time §2 is
+revisited, reword to the Web UI/log-output surface and re-check whether
+risk #6's likelihood/impact still holds now that the surface is networked
+rather than local-only. (Source: test-plan-refresh-2026-07-05 impl review, F1.)

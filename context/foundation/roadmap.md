@@ -3,7 +3,7 @@ project: freedius
 version: 1
 status: draft
 created: 2026-06-16
-updated: 2026-07-03
+updated: 2026-07-05
 prd_version: 1
 main_goal: speed
 top_blocker: time
@@ -37,7 +37,7 @@ A developer using Claude Code wants to route LLM calls to cheaper or free provid
 | S-07 | provider-codegen   | add a new provider by adding one entry to `providers.yaml` and running `go generate` — all boilerplate (adapters, config maps, registry, validation) is generated | S-05, S-06    | FR-003, FR-004                                   | proposed |
 | S-08 | openai-count-tokens | `POST /v1/messages/count_tokens` returns a useful `input_tokens` estimate when routed to OpenAI-protocol upstreams (NIM, OpenCode Go, custom OpenAI-compat) — no more 501 for these providers | S-01, count-tokens-passthrough | (new capability — local token counting)        | proposed |
 | V-01 | tui-dashboard       | (superseded — see V-02) | — | Replaced by V-02 on 2026-07-03. Original research at `context/changes/tui-dashboard/research.md`. | superseded |
-| V-02 | web-ui              | monitor live request stream, provider health, and usage stats from a browser dashboard at :8083 — works in Docker / headless; replaces the TUI | v1 complete (S-01–S-08) | research + plan in `context/changes/web-ui/`. Drops TUI + Unix-socket IPC + charm.land deps. | proposed |
+| V-02 | web-ui              | monitor live request stream, provider health, and usage stats from a browser dashboard at :8083 — works in Docker / headless; replaces the TUI | v1 complete (S-01–S-08) | research + plan in `context/changes/web-ui/`. Drops TUI + Unix-socket IPC + charm.land deps. | done |
 
 ## Baseline
 
@@ -201,7 +201,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
   - **Auth scope:** Token gates all routes when set (logs may leak upstream API keys via error messages). Owner: planner. Block: no (locked in plan).
   - **Docker base image:** Distroless `static-debian12:nonroot`. Owner: planner. Block: no (locked in plan).
 - **Risk:** Medium. Three integration points (log fan-out, event bus, config mutation) all need discipline; the rollback pattern from the TUI's `submitForm` MUST be preserved exactly. Docker base image choice affects reproducibility. The breaking change (TUI removal in Phase 4) affects anyone using `--tui`, `--fg`, `--daemon`, or `attach`.
-- **Status:** proposed
+- **Status:** done
 
 ## Backlog Handoff
 
@@ -237,3 +237,4 @@ Foundations below assume these are present and do NOT re-scaffold them.
 
 - F-01: proxy-skeleton — merged via PR #1
 - S-01: first-call-routed — merged via PR #2
+- **V-02: monitor live request stream, provider health, and usage stats from a browser dashboard at :8083 — works in Docker / headless; replaces the TUI** — Archived 2026-07-05 → `context/archive/2026-07-02-web-ui/`. Lesson: —.
