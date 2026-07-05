@@ -192,7 +192,6 @@ body {
 main {
   margin-left: var(--sidebar-width);
   padding: var(--space-6) var(--space-8);
-  max-width: 960px;
   animation: fade-in 300ms ease;
 }
 
@@ -364,7 +363,6 @@ td {
   padding: var(--space-2) var(--space-3);
   text-align: left;
   border-bottom: 1px solid var(--border-subtle);
-  white-space: nowrap;
 }
 
 th {
@@ -374,14 +372,13 @@ th {
   letter-spacing: 0.05em;
   color: var(--text-muted);
   background: var(--bg-surface);
+  white-space: nowrap;
 }
 
 td {
   font-size: 0.8rem;
   color: var(--text-primary);
-  max-width: 200px;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  word-break: break-word;
 }
 
 tr {
