@@ -323,12 +323,12 @@ Add subtle CSS transitions/animations, final visual polish across all pages, and
 
 #### Automated
 
-- [ ] 2.1 `mage build` succeeds
-- [ ] 2.2 `mage test` passes
-- [ ] 2.3 `mage lint` passes
-- [ ] 2.4 All 15 HTML IDs present
-- [ ] 2.5 SSE handler emits JSON
-- [ ] 2.6 No hardcoded `<pre class="log-` in Go
+- [x] 2.1 `mage build` succeeds — c56d342
+- [x] 2.2 `mage test` passes — c56d342
+- [x] 2.3 `mage lint` passes — c56d342
+- [x] 2.4 All 15 HTML IDs present — c56d342
+- [x] 2.5 SSE handler emits JSON — c56d342
+- [x] 2.6 No hardcoded `<pre class="log-` in Go — c56d342
 
 #### Manual
 
