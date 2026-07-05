@@ -48,11 +48,15 @@ func loadFragmentTemplate(name string) (*template.Template, error) {
 // `{{define "content"}}` block (which overrides the layout's `{{block
 // "content"}}`), so pages must be parsed separately — they can't share a
 // single-template set.
-func loadPageTemplate(pageFile string) (*template.Template, error) {
+func loadPageTemplate(pageFile string, extraFiles ...string) (*template.Template, error) {
 	if cached, ok := pageTemplates.Load(pageFile); ok {
 		return cached.(*template.Template), nil
 	}
-	tmpl, err := template.ParseFS(assets, "templates/layout.html", "templates/"+pageFile)
+	files := []string{"templates/layout.html", "templates/" + pageFile}
+	for _, f := range extraFiles {
+		files = append(files, "templates/"+f)
+	}
+	tmpl, err := template.ParseFS(assets, files...)
 	if err != nil {
 		return nil, fmt.Errorf("parse %s: %w", pageFile, err)
 	}
@@ -76,8 +80,8 @@ func serveStatic(w http.ResponseWriter, r *http.Request) {
 }
 
 // renderPage loads the layout + a page template and executes the layout.
-func renderPage(w http.ResponseWriter, pageFile string, data any, logger *slog.Logger) {
-	tmpl, err := loadPageTemplate(pageFile)
+func renderPage(w http.ResponseWriter, pageFile string, data any, logger *slog.Logger, extraFiles ...string) {
+	tmpl, err := loadPageTemplate(pageFile, extraFiles...)
 	if err != nil {
 		logger.Error("template load failed", "err", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)

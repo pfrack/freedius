@@ -168,7 +168,7 @@ func handleProviders(w http.ResponseWriter, r *http.Request, cfg *config.Config,
 		renderPage(w, "providers.html", providersData{
 			pageData:  pageData{Active: "providers"},
 			Providers: rows,
-		}, logger)
+		}, logger, "providers-table.html")
 	}
 }
 
@@ -212,7 +212,7 @@ func handleMappings(w http.ResponseWriter, r *http.Request, cfg *config.Config, 
 			pageData:  pageData{Active: "mappings"},
 			Mappings:  rows,
 			Providers: providerRows,
-		}, logger)
+		}, logger, "mappings-table.html")
 	}
 }
 
@@ -277,12 +277,12 @@ func renderProvidersTable(w http.ResponseWriter, _ *http.Request, cfg *config.Co
 		})
 	}
 
-	tmpl, err := loadPageTemplate("providers-table.html")
+	tmpl, err := loadFragmentTemplate("providers-table.html")
 	if err != nil {
 		writeJSONError(w, http.StatusInternalServerError, "template_failed", err.Error())
 		return
 	}
-	err = tmpl.ExecuteTemplate(w, "providers-table.html", providersData{
+	err = tmpl.ExecuteTemplate(w, "providers-table", providersData{
 		Providers: rows,
 	})
 	if err != nil {
@@ -321,12 +321,12 @@ func renderMappingsTable(w http.ResponseWriter, _ *http.Request, cfg *config.Con
 		})
 	}
 
-	tmpl, err := loadPageTemplate("mappings-table.html")
+	tmpl, err := loadFragmentTemplate("mappings-table.html")
 	if err != nil {
 		writeJSONError(w, http.StatusInternalServerError, "template_failed", err.Error())
 		return
 	}
-	err = tmpl.ExecuteTemplate(w, "mappings-table.html", mappingsData{
+	err = tmpl.ExecuteTemplate(w, "mappings-table", mappingsData{
 		Mappings:  rows,
 		Providers: providerRows,
 	})

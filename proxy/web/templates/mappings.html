@@ -6,42 +6,7 @@
     + Add Mapping
   </button>
   <div id="mapping-form-error" class="form-error"></div>
-  <table id="mappings">
-    <thead>
-      <tr>
-        <th>Name</th>
-        <th>Provider</th>
-        <th>Model</th>
-        <th>Actions</th>
-      </tr>
-    </thead>
-    <tbody>
-      {{range .Mappings}}
-      <tr>
-        <td>{{.Name}}</td>
-        <td>{{.ProviderName}}</td>
-        <td>{{.Model}}</td>
-        <td>
-          <button
-            class="btn-sm"
-            onclick="editMapping('{{.Name | js}}','{{.ProviderName | js}}','{{.Model | js}}')"
-          >
-            Edit
-          </button>
-          <button
-            class="btn-danger btn-sm"
-            hx-delete="/v1/mappings/{{.Name}}"
-            hx-confirm="Delete mapping '{{.Name}}?"
-            hx-target="#mappings"
-            hx-swap="outerHTML"
-          >
-            Delete
-          </button>
-        </td>
-      </tr>
-      {{end}}
-    </tbody>
-  </table>
+  {{template "mappings-table" .}}
 
   <dialog id="mapping-dialog">
     <form
