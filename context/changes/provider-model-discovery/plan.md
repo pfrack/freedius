@@ -369,8 +369,8 @@ Add the "Fetch models" button to the Providers table Actions cell and the `<data
 
 #### Automated
 
-- [x] 3.1 `mage lint` passes
-- [x] 3.2 `go vet ./...` passes
+- [x] 3.1 `mage lint` passes — ffa1b13
+- [x] 3.2 `go vet ./...` passes — ffa1b13
 
 #### Manual
 
