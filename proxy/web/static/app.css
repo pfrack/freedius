@@ -356,20 +356,20 @@ h2 {
 
 table {
   width: 100%;
-  min-width: 640px;
   border-collapse: collapse;
 }
 
 th,
 td {
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-2) var(--space-3);
   text-align: left;
   border-bottom: 1px solid var(--border-subtle);
+  white-space: nowrap;
 }
 
 th {
   font-weight: 600;
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--text-muted);
@@ -377,8 +377,11 @@ th {
 }
 
 td {
-  font-size: 0.875rem;
+  font-size: 0.8rem;
   color: var(--text-primary);
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 tr {
