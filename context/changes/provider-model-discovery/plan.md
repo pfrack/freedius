@@ -239,15 +239,15 @@ No data migration — this is a UI/handler-surface change only. Any provider who
 
 #### Automated
 
-- [x] 1.1 `go test ./proxy/web/ -run "TestFetchModels|TestRefreshModels" -race -count=1` passes
-- [x] 1.2 `go test ./proxy/... ./proxy/web/... -race -count=1` — no regressions
-- [x] 1.3 `mage lint` passes
+- [x] 1.1 `go test ./proxy/web/ -run "TestFetchModels|TestRefreshModels" -race -count=1` passes — 1f5dc10
+- [x] 1.2 `go test ./proxy/... ./proxy/web/... -race -count=1` — no regressions — 1f5dc10
+- [x] 1.3 `mage lint` passes — 1f5dc10
 
 ### Phase 2: Fragment Template Rework
 
 #### Automated
 
-- [ ] 2.1 `go test ./proxy/web/... -race -count=1` passes
+- [x] 2.1 `go test ./proxy/web/... -race -count=1` passes — 1f5dc10
 
 ### Phase 3: UI Wiring
 
