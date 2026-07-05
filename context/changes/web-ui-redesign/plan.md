@@ -343,9 +343,9 @@ Add subtle CSS transitions/animations, final visual polish across all pages, and
 
 #### Automated
 
-- [ ] 3.1 `mage build` succeeds
-- [ ] 3.2 `mage test` passes
-- [ ] 3.3 `mage lint` passes
+- [x] 3.1 `mage build` succeeds — f1e5e36
+- [x] 3.2 `mage test` passes — f1e5e36
+- [x] 3.3 `mage lint` passes — f1e5e36
 
 #### Manual
 
