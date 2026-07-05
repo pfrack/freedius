@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -36,7 +37,15 @@ func SetupMux(h *eventstream.Handlers, logger *slog.Logger) *http.ServeMux {
 
 	// Page handlers.
 	mux.HandleFunc("GET /", func(w http.ResponseWriter, _ *http.Request) {
-		renderPage(w, "index.html", indexData{pageData: pageData{Active: "index"}}, logger)
+		uptime := time.Since(h.StartTime).Round(time.Second).String()
+		renderPage(w, "index.html", indexData{
+			pageData:    pageData{Active: "index"},
+			Uptime:      uptime,
+			TotalEvents: int64(h.Bus.EventCount()),
+			TotalLogs:   h.LogSink.EventCount(),
+			Port:        strconv.Itoa(h.Port),
+			Host:        h.Host,
+		}, logger)
 	})
 	mux.HandleFunc("GET /logs", func(w http.ResponseWriter, r *http.Request) {
 		handleLogs(w, r, h.LogSink, logger)

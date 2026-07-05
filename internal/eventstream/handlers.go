@@ -7,7 +7,6 @@ import (
 	"crypto/subtle"
 	"encoding/json"
 	"fmt"
-	"html"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -156,13 +155,11 @@ func (h *Handlers) handleLogs(w http.ResponseWriter, r *http.Request) {
 		flusher.Flush()
 	}
 	for _, e := range entries {
-		// Pre-render HTML for the log entry.
-		htmlLine := fmt.Sprintf(
-			`<pre class="log-%s">%s</pre>`,
-			html.EscapeString(levelLabel(e.Level)),
-			html.EscapeString(e.Line),
-		)
-		h.writeSSE(w, "log", htmlLine)
+		logLine := map[string]string{
+			"level": levelLabel(e.Level),
+			"line":  e.Line,
+		}
+		h.writeSSE(w, "log", logLine)
 		flusher.Flush()
 	}
 	h.writeSSE(w, "replay", map[string]any{"complete": true, "current_seq": currentSeq})
@@ -178,13 +175,11 @@ func (h *Handlers) handleLogs(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			seq = e.Seq
-			// Pre-render HTML for the log entry.
-			htmlLine := fmt.Sprintf(
-				`<pre class="log-%s">%s</pre>`,
-				html.EscapeString(levelLabel(e.Level)),
-				html.EscapeString(e.Line),
-			)
-			h.writeSSE(w, "log", htmlLine)
+			logLine := map[string]string{
+				"level": levelLabel(e.Level),
+				"line":  e.Line,
+			}
+			h.writeSSE(w, "log", logLine)
 			flusher.Flush()
 		case <-r.Context().Done():
 			return

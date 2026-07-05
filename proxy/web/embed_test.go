@@ -26,7 +26,15 @@ func TestLoadPageTemplate(t *testing.T) {
 	}
 
 	var buf strings.Builder
-	if err := tmpl.ExecuteTemplate(&buf, "layout", pageData{Active: "index"}); err != nil {
+	data := indexData{
+		pageData:    pageData{Active: "index"},
+		Uptime:      "0s",
+		TotalEvents: 0,
+		TotalLogs:   0,
+		Port:        "8080",
+		Host:        "localhost",
+	}
+	if err := tmpl.ExecuteTemplate(&buf, "layout", data); err != nil {
 		t.Fatalf("execute layout: %v", err)
 	}
 
@@ -37,7 +45,7 @@ func TestLoadPageTemplate(t *testing.T) {
 	if !strings.Contains(out, "/static/app.css") {
 		t.Error("rendered layout should reference app.css")
 	}
-	if !strings.Contains(out, "<nav>") {
-		t.Error("rendered layout should contain nav")
+	if !strings.Contains(out, "sidebar") {
+		t.Error("rendered layout should contain sidebar")
 	}
 }

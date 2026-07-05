@@ -1,4 +1,5 @@
 {{define "providers-table"}}
+<div class="table-wrap">
 <table id="providers">
   <thead>
     <tr>
@@ -18,17 +19,17 @@
       <td>{{.Behavior}}</td>
       <td>{{.BaseURL}}</td>
       <td>{{.APIKeyEnv}}</td>
-      <td>{{.Protocol}}</td>
+      <td>{{if .Protocol}}<span class="badge badge--protocol">{{.Protocol}}</span>{{else}}<span class="text-muted">auto</span>{{end}}</td>
       <td>{{.MappingCount}}</td>
       <td>
         <button
-          class="btn-sm"
+          class="btn btn--ghost btn--sm"
           onclick="editProvider('{{.Name | js}}','{{.Behavior | js}}','{{.BaseURL | js}}','{{.APIKeyEnv | js}}','{{.Protocol | js}}')"
         >
           Edit
         </button>
         <button
-          class="btn-danger btn-sm"
+          class="btn btn--danger btn--sm"
           hx-delete="/v1/providers/{{.Name}}"
           hx-confirm="Delete provider '{{.Name}}?"
           hx-target="#providers"
@@ -41,4 +42,5 @@
     {{end}}
   </tbody>
 </table>
+</div>
 {{end}}

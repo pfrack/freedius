@@ -308,9 +308,9 @@ Add subtle CSS transitions/animations, final visual polish across all pages, and
 
 #### Automated
 
-- [ ] 1.1 CSS file has 15+ custom property usages
-- [ ] 1.2 All original CSS classes preserved
-- [ ] 1.3 Dark mode variables are default
+- [x] 1.1 CSS file has 15+ custom property usages — 8a4be2a
+- [x] 1.2 All original CSS classes preserved — 8a4be2a
+- [x] 1.3 Dark mode variables are default — 8a4be2a
 
 #### Manual
 

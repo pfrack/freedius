@@ -10,6 +10,11 @@ type pageData struct {
 // indexData is the data for the index/dashboard page.
 type indexData struct {
 	pageData
+	Uptime      string
+	TotalEvents int64
+	TotalLogs   int64
+	Port        string
+	Host        string
 }
 
 // logEntry represents a single log line for template rendering.

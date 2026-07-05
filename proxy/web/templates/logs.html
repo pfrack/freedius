@@ -2,13 +2,15 @@
 {{define "title"}}Logs{{end}}
 {{define "content"}}
   <h1>Logs</h1>
-  <label for="level-filter">Filter:</label>
+  <label class="form-label" for="level-filter">Filter</label>
   <select
     id="level-filter"
+    class="form-select"
     name="min"
     hx-get="/logs"
     hx-target="#log"
     hx-trigger="change"
+    style="max-width: 200px; margin-bottom: 1rem;"
   >
     <option value="" {{if not .Level}}selected{{end}}>All</option>
     <option value="debug" {{if eq .Level "debug"}}selected{{end}}>Debug</option>
@@ -26,4 +28,26 @@
     {{range .Entries}}<pre class="log-{{.Level}}">{{.Line}}</pre>{{end}}
   </div>
 {{end}}
-{{define "scripts"}}{{end}}
+{{define "scripts"}}
+<script>
+  document.addEventListener('htmx:sseMessage', function(e) {
+    if (e.detail.eventName !== 'log') return;
+    try {
+      var data = JSON.parse(e.detail.data);
+      var pre = document.createElement('pre');
+      pre.className = 'log-' + data.level;
+      pre.textContent = data.line;
+      document.getElementById('log').appendChild(pre);
+      // Auto-scroll to bottom
+      var logEl = document.getElementById('log');
+      logEl.scrollTop = logEl.scrollHeight;
+    } catch (err) {
+      // Fallback: render raw data as info
+      var pre = document.createElement('pre');
+      pre.className = 'log-info';
+      pre.textContent = e.detail.data;
+      document.getElementById('log').appendChild(pre);
+    }
+  });
+</script>
+{{end}}
