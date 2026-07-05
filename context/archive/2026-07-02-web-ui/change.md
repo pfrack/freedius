@@ -1,7 +1,8 @@
 ---
 id: web-ui
 title: Replace Bubble Tea TUI with embedded web UI
-status: impl_reviewed
+status: archived
+archived_at: 2026-07-05T15:29:38Z
 created: 2026-07-02
 updated: 2026-07-05
 type: feature
