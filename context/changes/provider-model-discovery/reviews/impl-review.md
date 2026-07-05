@@ -1,11 +1,11 @@
 <!-- IMPL-REVIEW-REPORT -->
-# Implementation Review: Provider Model Discovery UI — fetch, cache, and refresh model lists
+# Implementation Review: Provider Model Discovery UI
 
 - **Plan**: context/changes/provider-model-discovery/plan.md
-- **Scope**: Phase 1, Phase 2, Phase 3 (all phases)
+- **Scope**: Phase 1–3 of 3 (full review)
 - **Date**: 2026-07-05
 - **Verdict**: APPROVED
-- **Findings**: 0 critical, 1 warning, 1 observation
+- **Findings**: 0 critical (in scope) 2 warnings 4 observations
 
 ## Verdicts
 
@@ -15,35 +15,77 @@
 | Scope Discipline | PASS |
 | Safety & Quality | PASS |
 | Architecture | PASS |
-| Pattern Consistency | WARNING |
+| Pattern Consistency | PASS |
 | Success Criteria | PASS |
 
 ## Findings
 
-### F1 — Datalist population uses custom htmx.ajax instead of pure htmx attributes
+### F1 — Dead code in error handling branch
 
 - **Severity**: ⚠️ WARNING
+- **Impact**: 🏃 LOW — quick decision; fix is obvious and narrowly scoped
+- **Dimension**: Safety & Quality
+- **Location**: proxy/web/handlers.go:682
+- **Detail**: `if len(models) > 0` in the error branch can never be true. `FetchModels` returns `(nil, error)` on all error paths — it never returns both non-nil models and a non-nil error. The `"Refresh failed: %v"` formatting branch is unreachable.
+- **Fix**: Remove the `if len(models) > 0` branch; simplify to `data.Error = fetchErr.Error()`. Or document the defensive guard if retained for future-proofing.
+- **Decision**: FIXED — removed unreachable branch
+
+### F2 — Loose test assertion in TestRefreshModels_UpstreamError
+
+- **Severity**: ⚠️ WARNING
+- **Impact**: 🏃 LOW — quick decision; fix is obvious and narrowly scoped
+- **Dimension**: Success Criteria
+- **Location**: proxy/web/handlers_models_test.go:180-183
+- **Detail**: Test checks `!strings.Contains(body, "fetch models") && !strings.Contains(body, "error") && !strings.Contains(body, "Error")` — this would pass for nearly any response body containing the word "error" in any context.
+- **Fix**: Assert more specifically on the expected error content, e.g., check for the actual upstream error message or the `form-error` CSS class.
+- **Decision**: FIXED — assert on form-error class and connection refused
+
+### F3 — Template duplication between page and fragment
+
+- **Severity**: ℹ️ OBSERVATION
 - **Impact**: 🏃 LOW — quick decision; fix is obvious and narrowly scoped
 - **Dimension**: Pattern Consistency
-- **Location**: proxy/web/templates/mappings.html:59-61
-- **Detail**: The plan specified using htmx attributes for datalist population (plan §3.2: "add `hx-get`/`hx-target`/`hx-trigger` to the provider `<select>`"). The implementation uses a custom `onchange` handler with `htmx.ajax()` call. This works but deviates from the plan's pure-htmx approach. The same pattern appears in the editMapping function (lines 90-93).
-- **Fix**: Replace the onchange handler with pure htmx attributes. However, this would require htmx extension or workaround since htmx doesn't natively support dynamic URLs from select values. The current approach is pragmatic and functional.
-  - Strength: Works with vendored htmx version; minimal code
-  - Tradeoff: Not pure htmx attributes as planned
-  - Confidence: HIGH — this is a known htmx limitation
-  - Blind spot: None significant
-- **Decision**: PENDING
+- **Location**: templates/providers-table.html vs templates/providers.html:9-49
+- **Detail**: The table fragment templates duplicate the `<table>` markup from the full page templates. Any future table structure change must be updated in both files.
+- **Fix**: Accept as conscious trade-off for HTMX fragment independence (the existing codebase already has this pattern for logs).
+- **Decision**: SKIPPED — accepted as trade-off for HTMX fragment independence
 
-### F2 — modelsData.DatalistMode field added beyond plan specification
+### F4 — CSS `.text-muted` color hard-coded
 
-- **Severity**: ⚠️ WARNING
+- **Severity**: ℹ️ OBSERVATION
 - **Impact**: 🏃 LOW — quick decision; fix is obvious and narrowly scoped
-- **Dimension**: Scope Discipline
-- **Location**: proxy/web/types.go:66, proxy/web/templates/models-fragment.html:1, proxy/web/handlers.go:663
-- **Detail**: The plan specified `modelsData` struct with Provider, Models, FetchedAt, Error fields (plan §2.6). The implementation added a `DatalistMode bool` field to differentiate between fragment rendering modes (full display vs datalist options). This is a minor, sensible addition that enables the single fragment template to serve both UI surfaces.
-- **Fix**: Document this as a reasonable implementation detail. The addition is minimal and follows the DRY principle by reusing one template for two purposes.
-  - Strength: Enables template reuse; clean separation of concerns
-  - Tradeoff: Slight deviation from plan specification
-  - Confidence: HIGH — this is a common pattern
-  - Blind spot: None significant
-- **Decision**: PENDING
+- **Dimension**: Pattern Consistency
+- **Location**: proxy/web/static/app.css:225
+- **Detail**: `.text-muted` uses `color: #888` which doesn't adapt to the dark theme. Other elements use CSS variables.
+- **Fix**: Use `color: var(--text)` with reduced opacity, or define a CSS variable for muted text color.
+- **Decision**: FIXED — use var(--text) with opacity
+
+### F5 — Pre-existing: handleCreateProvider renders wrong table (not in scope)
+
+- **Severity**: ℹ️ OBSERVATION
+- **Impact**: 🏃 LOW — pre-existing, not introduced by this change
+- **Dimension**: Safety & Quality
+- **Location**: proxy/web/handlers.go:383
+- **Detail**: `handleCreateProvider` renders `renderMappingsTable` for HTMX responses, but should render `renderProvidersTable`. This bug existed before this change (verified at commit 09819d0). Not a regression.
+- **Fix**: Out of scope — pre-existing bug. Change `renderMappingsTable` to `renderProvidersTable` on line 383 in a separate fix.
+- **Decision**: FIXED — changed to renderProvidersTable
+
+### F6 — Pre-existing: Recursive RLock risk (not in scope)
+
+- **Severity**: ℹ️ OBSERVATION
+- **Impact**: 🏃 LOW — pre-existing, not introduced by this change
+- **Dimension**: Safety & Quality
+- **Location**: proxy/web/handlers.go:381-383, 487-490, 539-542, 590-593, 634-637
+- **Detail**: HTMX branches acquire `cfg.RLock()` then call `render*Table` which calls `Snapshot()` which acquires another `RLock`. Go's `sync.RWMutex` prohibits recursive read-locking. This pattern existed before this change. Not a regression.
+- **Fix**: Out of scope — pre-existing pattern. Remove outer RLock in HTMX branches in a separate fix.
+- **Decision**: FIXED — removed outer RLock from all HTMX branches
+
+### F7 — No rate limiting on model refresh
+
+- **Severity**: ℹ️ OBSERVATION
+- **Impact**: 🏃 LOW — acceptable for a local tool
+- **Dimension**: Safety & Quality
+- **Location**: proxy/web/handlers.go:646-694
+- **Detail**: The POST refresh endpoint makes a synchronous upstream HTTP request with no rate limiting. Rapid clicks could flood the upstream.
+- **Fix**: Acceptable for a local tool. Could add a per-provider cooldown in ModelsCache if needed later.
+- **Decision**: SKIPPED — acceptable for a local tool

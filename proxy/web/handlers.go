@@ -378,9 +378,7 @@ func handleCreateProvider(w http.ResponseWriter, r *http.Request, cfg *config.Co
 	cfg.Unlock()
 	// HTMX request: render the updated table fragment.
 	if r.Header.Get("HX-Request") == "true" {
-		cfg.RLock()
-		defer cfg.RUnlock()
-		renderMappingsTable(w, r, cfg)
+		renderProvidersTable(w, r, cfg)
 	} else {
 		// Non-HTMX request: return JSON.
 		writeJSON(w, http.StatusCreated, map[string]string{"status": "created", "name": name})
@@ -430,8 +428,6 @@ func handleUpdateProvider(w http.ResponseWriter, r *http.Request, cfg *config.Co
 	cfg.Unlock()
 	// HTMX request: render the updated table fragment.
 	if r.Header.Get("HX-Request") == "true" {
-		cfg.RLock()
-		defer cfg.RUnlock()
 		renderProvidersTable(w, r, cfg)
 	} else {
 		// Non-HTMX request: return JSON.
@@ -485,8 +481,6 @@ func handleDeleteProvider(w http.ResponseWriter, r *http.Request, cfg *config.Co
 	cfg.Unlock()
 	// HTMX request: render the updated table fragment.
 	if r.Header.Get("HX-Request") == "true" {
-		cfg.RLock()
-		defer cfg.RUnlock()
 		renderProvidersTable(w, r, cfg)
 	} else {
 		// Non-HTMX request: return JSON.
@@ -537,8 +531,6 @@ func handleCreateMapping(w http.ResponseWriter, r *http.Request, cfg *config.Con
 	cfg.Unlock()
 	// HTMX request: render the updated table fragment.
 	if r.Header.Get("HX-Request") == "true" {
-		cfg.RLock()
-		defer cfg.RUnlock()
 		renderMappingsTable(w, r, cfg)
 	} else {
 		// Non-HTMX request: return JSON.
@@ -589,8 +581,6 @@ func handleUpdateMapping(w http.ResponseWriter, r *http.Request, cfg *config.Con
 	cfg.Unlock()
 	// HTMX request: render the updated table fragment.
 	if r.Header.Get("HX-Request") == "true" {
-		cfg.RLock()
-		defer cfg.RUnlock()
 		renderMappingsTable(w, r, cfg)
 	} else {
 		// Non-HTMX request: return JSON.
@@ -632,8 +622,6 @@ func handleDeleteMapping(w http.ResponseWriter, r *http.Request, cfg *config.Con
 	cfg.Unlock()
 	// HTMX request: render the updated table fragment.
 	if r.Header.Get("HX-Request") == "true" {
-		cfg.RLock()
-		defer cfg.RUnlock()
 		renderMappingsTable(w, r, cfg)
 	} else {
 		// Non-HTMX request: return JSON.
@@ -679,11 +667,7 @@ func handleRefreshModels(w http.ResponseWriter, r *http.Request, h *eventstream.
 		data.Models = models
 	}
 	if fetchErr != nil {
-		if len(models) > 0 {
-			data.Error = fmt.Sprintf("Refresh failed: %v", fetchErr)
-		} else {
-			data.Error = fetchErr.Error()
-		}
+		data.Error = fetchErr.Error()
 	}
 	_, fetchedAt, _ := h.ModelsCache.Get(name)
 	if !fetchedAt.IsZero() {

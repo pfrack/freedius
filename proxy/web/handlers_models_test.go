@@ -177,9 +177,11 @@ func TestRefreshModels_UpstreamError(t *testing.T) {
 		t.Errorf("status = %d, want 200 (graceful error); body: %s", rec.Code, rec.Body.String())
 	}
 	body := rec.Body.String()
-	if !strings.Contains(body, "fetch models") && !strings.Contains(body, "error") &&
-		!strings.Contains(body, "Error") {
-		t.Errorf("expected error message in body, got: %s", body)
+	if !strings.Contains(body, "form-error") {
+		t.Errorf("expected form-error markup in body, got: %s", body)
+	}
+	if !strings.Contains(body, "connection refused") {
+		t.Errorf("expected connection refused error in body, got: %s", body)
 	}
 }
 
