@@ -155,16 +155,18 @@ func run(args []string) int {
 	uiPort := resolveUIPort(*flagUIPort, setFlags["ui-port"])
 	uiHost := resolveUIHost(*flagUIHost)
 
+	mc := proxy.NewModelsCache()
 	h := &eventstream.Handlers{
-		Bus:       bus,
-		LogSink:   logSink,
-		Cfg:       cfg,
-		Registry:  registry,
-		Host:      uiHost,
-		Port:      uiPort,
-		StartTime: time.Now(),
-		AuthToken: os.Getenv("FREEDIUS_UI_TOKEN"),
-		CfgPath:   cfgPath,
+		Bus:         bus,
+		LogSink:     logSink,
+		Cfg:         cfg,
+		Registry:    registry,
+		Host:        uiHost,
+		Port:        uiPort,
+		StartTime:   time.Now(),
+		AuthToken:   os.Getenv("FREEDIUS_UI_TOKEN"),
+		CfgPath:     cfgPath,
+		ModelsCache: mc,
 	}
 	webServer := web.NewServer(uiHost, uiPort, h, logger)
 	// Bind synchronously so a port conflict on :8083 fails the process

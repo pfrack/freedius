@@ -6,48 +6,7 @@
     + Add Provider
   </button>
   <div id="provider-form-error" class="form-error"></div>
-  <table id="providers">
-    <thead>
-      <tr>
-        <th>Name</th>
-        <th>Behavior</th>
-        <th>Base URL</th>
-        <th>API Key Env</th>
-        <th>Protocol</th>
-        <th>Mappings</th>
-        <th>Actions</th>
-      </tr>
-    </thead>
-    <tbody>
-      {{range .Providers}}
-      <tr>
-        <td>{{.Name}}</td>
-        <td>{{.Behavior}}</td>
-        <td>{{.BaseURL}}</td>
-        <td>{{.APIKeyEnv}}</td>
-        <td>{{.Protocol}}</td>
-        <td>{{.MappingCount}}</td>
-        <td>
-          <button
-            class="btn-sm"
-            onclick="editProvider('{{.Name | js}}','{{.Behavior | js}}','{{.BaseURL | js}}','{{.APIKeyEnv | js}}','{{.Protocol | js}}')"
-          >
-            Edit
-          </button>
-          <button
-            class="btn-danger btn-sm"
-            hx-delete="/v1/providers/{{.Name}}"
-            hx-confirm="Delete provider '{{.Name}}?"
-            hx-target="#providers"
-            hx-swap="outerHTML"
-          >
-            Delete
-          </button>
-        </td>
-      </tr>
-      {{end}}
-    </tbody>
-  </table>
+  {{template "providers-table" .}}
 
   <dialog id="provider-dialog">
     <form

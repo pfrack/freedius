@@ -1,5 +1,7 @@
 package web
 
+import "github.com/pfrack/freedius/proxy"
+
 // pageData is the common data passed to every page template.
 type pageData struct {
 	Active string
@@ -53,4 +55,12 @@ type mappingsData struct {
 	pageData
 	Mappings  []mappingRow
 	Providers []providerRow
+}
+
+// modelsData is the data for the models fragment template.
+type modelsData struct {
+	Provider  string
+	Models    []proxy.ModelView
+	FetchedAt string
+	Error     string
 }

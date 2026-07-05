@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/pfrack/freedius/config"
 	"github.com/pfrack/freedius/internal/eventstream"
@@ -67,6 +68,11 @@ func SetupMux(h *eventstream.Handlers, logger *slog.Logger) *http.ServeMux {
 	})
 	mux.HandleFunc("DELETE /v1/mappings/", func(w http.ResponseWriter, r *http.Request) {
 		handleDeleteMapping(w, r, h.Cfg, h.CfgPath)
+	})
+
+	// Models endpoint: explicit refresh only.
+	mux.HandleFunc("POST /v1/providers/{name}/models/refresh", func(w http.ResponseWriter, r *http.Request) {
+		handleRefreshModels(w, r, h, logger)
 	})
 
 	return mux
@@ -162,7 +168,7 @@ func handleProviders(w http.ResponseWriter, r *http.Request, cfg *config.Config,
 		renderPage(w, "providers.html", providersData{
 			pageData:  pageData{Active: "providers"},
 			Providers: rows,
-		}, logger)
+		}, logger, "providers-table.html")
 	}
 }
 
@@ -206,7 +212,7 @@ func handleMappings(w http.ResponseWriter, r *http.Request, cfg *config.Config, 
 			pageData:  pageData{Active: "mappings"},
 			Mappings:  rows,
 			Providers: providerRows,
-		}, logger)
+		}, logger, "mappings-table.html")
 	}
 }
 
@@ -271,12 +277,12 @@ func renderProvidersTable(w http.ResponseWriter, _ *http.Request, cfg *config.Co
 		})
 	}
 
-	tmpl, err := loadPageTemplate("providers-table.html")
+	tmpl, err := loadFragmentTemplate("providers-table.html")
 	if err != nil {
 		writeJSONError(w, http.StatusInternalServerError, "template_failed", err.Error())
 		return
 	}
-	err = tmpl.ExecuteTemplate(w, "providers-table.html", providersData{
+	err = tmpl.ExecuteTemplate(w, "providers-table", providersData{
 		Providers: rows,
 	})
 	if err != nil {
@@ -315,12 +321,12 @@ func renderMappingsTable(w http.ResponseWriter, _ *http.Request, cfg *config.Con
 		})
 	}
 
-	tmpl, err := loadPageTemplate("mappings-table.html")
+	tmpl, err := loadFragmentTemplate("mappings-table.html")
 	if err != nil {
 		writeJSONError(w, http.StatusInternalServerError, "template_failed", err.Error())
 		return
 	}
-	err = tmpl.ExecuteTemplate(w, "mappings-table.html", mappingsData{
+	err = tmpl.ExecuteTemplate(w, "mappings-table", mappingsData{
 		Mappings:  rows,
 		Providers: providerRows,
 	})
@@ -372,9 +378,7 @@ func handleCreateProvider(w http.ResponseWriter, r *http.Request, cfg *config.Co
 	cfg.Unlock()
 	// HTMX request: render the updated table fragment.
 	if r.Header.Get("HX-Request") == "true" {
-		cfg.RLock()
-		defer cfg.RUnlock()
-		renderMappingsTable(w, r, cfg)
+		renderProvidersTable(w, r, cfg)
 	} else {
 		// Non-HTMX request: return JSON.
 		writeJSON(w, http.StatusCreated, map[string]string{"status": "created", "name": name})
@@ -424,8 +428,6 @@ func handleUpdateProvider(w http.ResponseWriter, r *http.Request, cfg *config.Co
 	cfg.Unlock()
 	// HTMX request: render the updated table fragment.
 	if r.Header.Get("HX-Request") == "true" {
-		cfg.RLock()
-		defer cfg.RUnlock()
 		renderProvidersTable(w, r, cfg)
 	} else {
 		// Non-HTMX request: return JSON.
@@ -479,8 +481,6 @@ func handleDeleteProvider(w http.ResponseWriter, r *http.Request, cfg *config.Co
 	cfg.Unlock()
 	// HTMX request: render the updated table fragment.
 	if r.Header.Get("HX-Request") == "true" {
-		cfg.RLock()
-		defer cfg.RUnlock()
 		renderProvidersTable(w, r, cfg)
 	} else {
 		// Non-HTMX request: return JSON.
@@ -531,8 +531,6 @@ func handleCreateMapping(w http.ResponseWriter, r *http.Request, cfg *config.Con
 	cfg.Unlock()
 	// HTMX request: render the updated table fragment.
 	if r.Header.Get("HX-Request") == "true" {
-		cfg.RLock()
-		defer cfg.RUnlock()
 		renderMappingsTable(w, r, cfg)
 	} else {
 		// Non-HTMX request: return JSON.
@@ -583,8 +581,6 @@ func handleUpdateMapping(w http.ResponseWriter, r *http.Request, cfg *config.Con
 	cfg.Unlock()
 	// HTMX request: render the updated table fragment.
 	if r.Header.Get("HX-Request") == "true" {
-		cfg.RLock()
-		defer cfg.RUnlock()
 		renderMappingsTable(w, r, cfg)
 	} else {
 		// Non-HTMX request: return JSON.
@@ -626,13 +622,83 @@ func handleDeleteMapping(w http.ResponseWriter, r *http.Request, cfg *config.Con
 	cfg.Unlock()
 	// HTMX request: render the updated table fragment.
 	if r.Header.Get("HX-Request") == "true" {
-		cfg.RLock()
-		defer cfg.RUnlock()
 		renderMappingsTable(w, r, cfg)
 	} else {
 		// Non-HTMX request: return JSON.
 		writeJSON(w, http.StatusOK, map[string]string{"status": "deleted", "name": name})
 	}
+}
+
+// --- Models handlers ---
+
+func handleRefreshModels(w http.ResponseWriter, r *http.Request, h *eventstream.Handlers, logger *slog.Logger) {
+	name := r.PathValue("name")
+	if name == "" {
+		writeJSONError(w, http.StatusBadRequest, "bad_path", "missing provider name")
+		return
+	}
+
+	providers := h.Cfg.ProvidersSnapshot()
+	p, ok := providers[name]
+	if !ok {
+		writeJSONError(w, http.StatusNotFound, "not_found", "provider not found")
+		return
+	}
+
+	if p.DefaultBaseURL == "" {
+		h.ModelsCache.Set(name, nil, fmt.Errorf("provider %q has no base URL configured", name))
+		data := modelsData{
+			Provider: name,
+			Error:    fmt.Sprintf("Provider %q has no base URL configured", name),
+		}
+		renderModelsFragment(w, data, logger)
+		return
+	}
+
+	models, fetchErr := proxy.FetchModels(r.Context(), p)
+	if fetchErr == nil {
+		h.ModelsCache.Set(name, models, nil)
+	}
+
+	data := modelsData{
+		Provider: name,
+	}
+	if models != nil {
+		data.Models = models
+	}
+	if fetchErr != nil {
+		data.Error = fetchErr.Error()
+	}
+	_, fetchedAt, _ := h.ModelsCache.Get(name)
+	if !fetchedAt.IsZero() {
+		data.FetchedAt = fmt.Sprintf("%s ago", formatDuration(time.Since(fetchedAt)))
+	}
+
+	renderModelsFragment(w, data, logger)
+}
+
+func renderModelsFragment(w http.ResponseWriter, data modelsData, logger *slog.Logger) {
+	tmpl, err := loadFragmentTemplate("models-fragment.html")
+	if err != nil {
+		logger.Error("load fragment template", "err", err)
+		writeJSONError(w, http.StatusInternalServerError, "template_failed", err.Error())
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := tmpl.Execute(w, data); err != nil {
+		logger.Error("execute fragment template", "err", err)
+	}
+}
+
+func formatDuration(d time.Duration) string {
+	d = d.Round(time.Second)
+	if d < time.Minute {
+		return fmt.Sprintf("%ds", int(d.Seconds()))
+	}
+	if d < time.Hour {
+		return fmt.Sprintf("%dm", int(d.Minutes()))
+	}
+	return fmt.Sprintf("%dh", int(d.Hours()))
 }
 
 // --- JSON response helpers ---
