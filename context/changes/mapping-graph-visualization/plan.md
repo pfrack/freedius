@@ -382,9 +382,9 @@ Run the full test suite, verify edge cases, and confirm no regressions. This is 
 
 #### Automated
 
-- [ ] 2.1 Go build succeeds (`go build ./...`)
-- [ ] 2.2 All web tests pass (`go test ./proxy/web/...`)
-- [ ] 2.3 Lint passes (`mage lint`)
+- [x] 2.1 Go build succeeds (`go build ./...`) — 26ebebb
+- [x] 2.2 All web tests pass (`go test ./proxy/web/...`) — 26ebebb
+- [x] 2.3 Lint passes (`mage lint`) — 26ebebb
 
 #### Manual
 

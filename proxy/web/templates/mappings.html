@@ -62,28 +62,27 @@
   </dialog>
 
   <script>
-    function editMapping(name, provider, model, fallbacksStr) {
+    function editMapping(btn) {
+      var ds = btn.dataset;
       var d = document.getElementById('mapping-dialog');
       var f = document.getElementById('mapping-form');
-      f.setAttribute('hx-put', '/v1/mappings/' + name);
+      f.setAttribute('hx-put', '/v1/mappings/' + ds.name);
       f.removeAttribute('hx-post');
-      f.elements.name.value = name;
+      f.elements.name.value = ds.name;
       f.elements.name.readOnly = true;
-      f.elements.provider_name.value = provider;
-      f.elements.model_string.value = model;
+      f.elements.provider_name.value = ds.provider;
+      f.elements.model_string.value = ds.model;
       document.getElementById('mapping-dialog-title').textContent = 'Edit Mapping';
 
-      // Pre-populate fallback rows from "→ provider/model, → provider/model" format.
       var container = document.getElementById('fallback-rows');
       container.innerHTML = '';
-      if (fallbacksStr && fallbacksStr !== '—') {
-        var entries = fallbacksStr.split(', ');
-        for (var i = 0; i < entries.length; i++) {
-          var parts = entries[i].replace(/^→ /, '').split('/');
-          if (parts.length === 2) {
-            addFallbackRow(parts[0], parts[1]);
-          }
-        }
+      try {
+        var fallbacks = JSON.parse(ds.fallbacks);
+        fallbacks.forEach(function(fb) {
+          addFallbackRow(fb.ProviderName, fb.Model);
+        });
+      } catch (e) {
+        console.error("Failed to parse fallbacks:", e);
       }
 
       d.showModal();
