@@ -646,9 +646,9 @@ unchanged with no fallback behavior triggered. No data migration is needed.
 
 #### Automated
 
-- [ ] 3.1 `go test ./proxy/...` passes including new dispatcher fallback
-      tests
-- [ ] 3.2 `go vet ./...` passes
+- [x] 3.1 `go test ./proxy/...` passes including new dispatcher fallback
+      tests — 8731bf4
+- [x] 3.2 `go vet ./...` passes — 8731bf4
 
 #### Manual
 

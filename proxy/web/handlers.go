@@ -195,10 +195,19 @@ func handleMappings(w http.ResponseWriter, r *http.Request, cfg *config.Config, 
 
 	var rows []mappingRow
 	for name, m := range mappings {
+		var fallbacks string
+		if len(m.Fallback) > 0 {
+			var parts []string
+			for _, fb := range m.Fallback {
+				parts = append(parts, fmt.Sprintf("→ %s/%s", fb.ProviderName, fb.ModelString))
+			}
+			fallbacks = strings.Join(parts, ", ")
+		}
 		rows = append(rows, mappingRow{
 			Name:         name,
 			ProviderName: m.ProviderName,
 			Model:        m.ModelString,
+			Fallbacks:    fallbacks,
 		})
 	}
 
@@ -299,10 +308,19 @@ func renderMappingsTable(w http.ResponseWriter, _ *http.Request, cfg *config.Con
 
 	var rows []mappingRow
 	for name, m := range mappings {
+		var fallbacks string
+		if len(m.Fallback) > 0 {
+			var parts []string
+			for _, fb := range m.Fallback {
+				parts = append(parts, fmt.Sprintf("→ %s/%s", fb.ProviderName, fb.ModelString))
+			}
+			fallbacks = strings.Join(parts, ", ")
+		}
 		rows = append(rows, mappingRow{
 			Name:         name,
 			ProviderName: m.ProviderName,
 			Model:        m.ModelString,
+			Fallbacks:    fallbacks,
 		})
 	}
 

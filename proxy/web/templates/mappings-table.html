@@ -6,6 +6,7 @@
       <th>Name</th>
       <th>Provider</th>
       <th>Model</th>
+      <th>Fallback</th>
       <th>Actions</th>
     </tr>
   </thead>
@@ -15,10 +16,11 @@
       <td>{{.Name}}</td>
       <td>{{.ProviderName}}</td>
       <td>{{.Model}}</td>
+      <td>{{if .Fallbacks}}<small>{{.Fallbacks}}</small>{{else}}—{{end}}</td>
       <td>
         <button
           class="btn btn--ghost btn--sm"
-          onclick="editMapping('{{.Name | js}}','{{.ProviderName | js}}','{{.Model | js}}')"
+          onclick="editMapping('{{.Name | js}}','{{.ProviderName | js}}','{{.Model | js}}','{{.Fallbacks | js}}')"
         >
           Edit
         </button>

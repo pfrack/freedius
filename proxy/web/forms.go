@@ -54,6 +54,22 @@ func decodeMappingForm(r *http.Request) (string, config.Mapping, error) {
 		ProviderName: strings.TrimSpace(r.FormValue("provider_name")),
 		ModelString:  strings.TrimSpace(r.FormValue("model_string")),
 	}
+
+	// Read fallback entries from indexed form fields.
+	providers := r.Form["fallback_provider_name[]"]
+	models := r.Form["fallback_model_string[]"]
+	for i := 0; i < len(providers) && i < len(models); i++ {
+		pn := strings.TrimSpace(providers[i])
+		ms := strings.TrimSpace(models[i])
+		if pn == "" && ms == "" {
+			continue // skip empty rows
+		}
+		m.Fallback = append(m.Fallback, config.Mapping{
+			ProviderName: pn,
+			ModelString:  ms,
+		})
+	}
+
 	return name, m, nil
 }
 
@@ -99,6 +115,27 @@ func validateMappingFields(name string, m config.Mapping, cfg *config.Config) *V
 		fields["provider_name"] = "required"
 	} else if !cfg.HasProvider(m.ProviderName) {
 		fields["provider_name"] = "provider does not exist"
+	}
+
+	// Validate fallback entries.
+	type pair struct{ ProviderName, ModelString string }
+	seen := map[pair]bool{
+		{m.ProviderName, m.ModelString}: true,
+	}
+	for i, fb := range m.Fallback {
+		if fb.ProviderName == "" {
+			fields[fmt.Sprintf("fallback_provider_name_%d", i)] = "required"
+		} else if !cfg.HasProvider(fb.ProviderName) {
+			fields[fmt.Sprintf("fallback_provider_name_%d", i)] = "provider does not exist"
+		}
+		if fb.ModelString == "" {
+			fields[fmt.Sprintf("fallback_model_string_%d", i)] = "required"
+		}
+		p := pair{fb.ProviderName, fb.ModelString}
+		if seen[p] {
+			fields[fmt.Sprintf("fallback_%d", i)] = "duplicate of primary or earlier fallback"
+		}
+		seen[p] = true
 	}
 
 	if len(fields) > 0 {

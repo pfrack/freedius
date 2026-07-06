@@ -43,6 +43,15 @@
         </button>
       </div>
       <div id="model-suggestions"></div>
+
+      <fieldset id="fallback-fieldset" style="border:1px solid #555;border-radius:4px;padding:8px;margin-top:8px;">
+        <legend style="font-size:0.85em;color:#aaa;">Fallback Chain</legend>
+        <div id="fallback-rows"></div>
+        <button type="button" class="btn btn--ghost btn--sm" onclick="addFallbackRow()" style="margin-top:4px;">
+          + Add fallback
+        </button>
+      </fieldset>
+
       <div class="form-actions">
         <button type="submit" class="btn btn--primary">Save</button>
         <button type="button" class="btn-cancel" onclick="this.closest('dialog').close()">
@@ -53,7 +62,7 @@
   </dialog>
 
   <script>
-    function editMapping(name, provider, model) {
+    function editMapping(name, provider, model, fallbacksStr) {
       var d = document.getElementById('mapping-dialog');
       var f = document.getElementById('mapping-form');
       f.setAttribute('hx-put', '/v1/mappings/' + name);
@@ -63,6 +72,20 @@
       f.elements.provider_name.value = provider;
       f.elements.model_string.value = model;
       document.getElementById('mapping-dialog-title').textContent = 'Edit Mapping';
+
+      // Pre-populate fallback rows from "→ provider/model, → provider/model" format.
+      var container = document.getElementById('fallback-rows');
+      container.innerHTML = '';
+      if (fallbacksStr && fallbacksStr !== '—') {
+        var entries = fallbacksStr.split(', ');
+        for (var i = 0; i < entries.length; i++) {
+          var parts = entries[i].replace(/^→ /, '').split('/');
+          if (parts.length === 2) {
+            addFallbackRow(parts[0], parts[1]);
+          }
+        }
+      }
+
       d.showModal();
     }
 
@@ -72,5 +95,22 @@
       document.getElementById('mapping-form').elements.model_string.value = li.dataset.modelId;
       this.innerHTML = '';
     });
+
+    function addFallbackRow(provider, model) {
+      var container = document.getElementById('fallback-rows');
+      var idx = container.children.length;
+      var row = document.createElement('div');
+      row.style.cssText = 'display:flex;gap:6px;align-items:center;margin-bottom:4px;';
+      row.innerHTML =
+        '<select class="form-select" name="fallback_provider_name[]" style="flex:1;">' +
+          '{{range .Providers}}<option value="{{.Name}}">{{.Name}}</option>{{end}}' +
+        '</select>' +
+        '<input class="form-input" name="fallback_model_string[]" placeholder="model" style="flex:1;" value="' + (model || '') + '">' +
+        '<button type="button" class="btn btn--danger btn--sm" onclick="this.parentElement.remove()">×</button>';
+      if (provider) {
+        row.querySelector('select').value = provider;
+      }
+      container.appendChild(row);
+    }
   </script>
 {{end}}

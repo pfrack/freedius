@@ -53,6 +53,7 @@ type mappingRow struct {
 	Name         string
 	ProviderName string
 	Model        string
+	Fallbacks    string // pre-formatted fallback chain, e.g. "→ zen/claude, → nim/step"
 }
 
 // mappingsData is the data for the mappings page.
