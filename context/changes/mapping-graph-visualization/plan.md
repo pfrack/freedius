@@ -397,8 +397,8 @@ Run the full test suite, verify edge cases, and confirm no regressions. This is 
 
 #### Automated
 
-- [ ] 3.1 Go build succeeds (`go build ./...`)
-- [ ] 3.2 All web tests pass (`go test ./proxy/web/...`)
+- [x] 3.1 Go build succeeds (`go build ./...`) — 7850990
+- [x] 3.2 All web tests pass (`go test ./proxy/web/...`) — 7850990
 
 #### Manual
 
@@ -411,9 +411,9 @@ Run the full test suite, verify edge cases, and confirm no regressions. This is 
 
 #### Automated
 
-- [ ] 4.1 Full test suite passes (`go test ./...`)
-- [ ] 4.2 Lint passes (`mage lint`)
-- [ ] 4.3 Build produces working binary (`mage build`)
+- [x] 4.1 Full test suite passes (`go test ./...`) — 7850990
+- [x] 4.2 Lint passes (`mage lint`) — 7850990
+- [x] 4.3 Build produces working binary (`mage build`) — 7850990
 
 #### Manual
 
