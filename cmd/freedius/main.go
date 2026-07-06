@@ -27,13 +27,14 @@ import (
 )
 
 const (
-	defaultHost          = "127.0.0.1"
-	defaultPort          = 8082
-	shutdownTimeout      = 5 * time.Second
-	readHeaderTimeout    = 5 * time.Second
-	readTimeout          = 30 * time.Second
-	idleTimeout          = 120 * time.Second
-	defaultStreamTimeout = 5 * time.Minute
+	defaultHost               = "127.0.0.1"
+	defaultPort               = 8082
+	shutdownTimeout           = 5 * time.Second
+	readHeaderTimeout         = 5 * time.Second
+	readTimeout               = 30 * time.Second
+	idleTimeout               = 120 * time.Second
+	defaultStreamTimeout      = 5 * time.Minute
+	defaultFallbackTimeoutMul = 2
 )
 
 var allowedHosts = map[string]struct{}{
@@ -144,7 +145,7 @@ func run(args []string) int {
 	}
 
 	registry := proxy.NewDefaultRegistry(logger, streamTimeout, verboseErrors, nil)
-	dispatcher := proxy.NewDispatcher(cfg, registry, logger, verboseErrors)
+	dispatcher := proxy.NewDispatcher(cfg, registry, logger, verboseErrors, resolveFallbackTimeoutMultiplier())
 	bus := proxy.NewEventBus(1000)
 
 	server, serverErr := startProxyServer(host, port, bus, dispatcher, logger, verboseErrors)
@@ -358,6 +359,15 @@ func resolveStreamTimeout(flagVal time.Duration) time.Duration {
 		}
 	}
 	return defaultStreamTimeout
+}
+
+func resolveFallbackTimeoutMultiplier() int {
+	if v := os.Getenv("FREEDIUS_FALLBACK_TIMEOUT_MULTIPLIER"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 1 {
+			return n
+		}
+	}
+	return defaultFallbackTimeoutMul
 }
 
 func checkRequiredEnvVars(cfg *config.Config) error {

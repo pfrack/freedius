@@ -55,9 +55,16 @@ type Provider struct {
 
 // Mapping binds a freedius-facing name to an upstream Provider plus the
 // freetext model string that should be requested from it.
+//
+// Fallback holds an ordered list of alternate {ProviderName, ModelString}
+// targets to try when the primary target fails (pre-flight config error,
+// transport failure, or upstream HTTP 4xx/5xx before any response bytes
+// reach the client). Each entry reuses the Mapping struct — the Fallback
+// field on fallback entries is always nil (no recursive chaining).
 type Mapping struct {
-	ProviderName string `yaml:"provider_name"`
-	ModelString  string `yaml:"model_string"`
+	ProviderName string    `yaml:"provider_name"`
+	ModelString  string    `yaml:"model_string"`
+	Fallback     []Mapping `yaml:"fallback,omitempty"`
 }
 
 // Load reads, parses, and validates the freedius configuration at path.
@@ -280,6 +287,59 @@ func validateMapping(path, name string, m Mapping, providers map[string]Provider
 			path,
 			name,
 		)
+	}
+
+	// Dedup: the primary counts as the first entry.
+	type pair struct{ ProviderName, ModelString string }
+	seen := map[pair]bool{
+		{m.ProviderName, m.ModelString}: true,
+	}
+	for i, fb := range m.Fallback {
+		if fb.ProviderName == "" {
+			return fmt.Errorf(
+				"config: config file at %s: mapping %q fallback[%d] has no \"provider_name\" field",
+				path,
+				name,
+				i,
+			)
+		}
+		if _, ok := providers[fb.ProviderName]; !ok {
+			return fmt.Errorf(
+				"config: config file at %s: mapping %q fallback[%d] references unknown provider %q (known: %s)",
+				path,
+				name,
+				i,
+				fb.ProviderName,
+				strings.Join(sortedProviderNames(providers), ", "),
+			)
+		}
+		if fb.ModelString == "" {
+			return fmt.Errorf(
+				"config: config file at %s: mapping %q fallback[%d] has no \"model_string\" field",
+				path,
+				name,
+				i,
+			)
+		}
+		if strings.ContainsAny(fb.ModelString, "\r\n:") {
+			return fmt.Errorf(
+				"config: config file at %s: mapping %q fallback[%d] has unsafe \"model_string\" value (must not contain CR, LF, or colon)",
+				path,
+				name,
+				i,
+			)
+		}
+		p := pair{fb.ProviderName, fb.ModelString}
+		if seen[p] {
+			return fmt.Errorf(
+				"config: config file at %s: mapping %q has duplicate fallback entry %q/%q",
+				path,
+				name,
+				fb.ProviderName,
+				fb.ModelString,
+			)
+		}
+		seen[p] = true
 	}
 	return nil
 }

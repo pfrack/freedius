@@ -28,7 +28,7 @@ func newTestDispatcher(t *testing.T) *Dispatcher {
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	registry := NewRegistry(map[string]Provider{})
-	return NewDispatcher(cfg, registry, logger, false)
+	return NewDispatcher(cfg, registry, logger, false, 2)
 }
 
 func newTestDispatcherWithAdapter(
@@ -39,7 +39,7 @@ func newTestDispatcherWithAdapter(
 	t.Helper()
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	registry := NewRegistry(providers)
-	return NewDispatcher(cfg, registry, logger, false)
+	return NewDispatcher(cfg, registry, logger, false, 2)
 }
 
 func TestServeHTTP(t *testing.T) {
@@ -207,7 +207,7 @@ func TestServeHTTPMultiProviderRouting(t *testing.T) {
 	registry := NewRegistry(map[string]Provider{
 		"openai": NewOpenAICompatibleAdapter(logger),
 	})
-	d := NewDispatcher(cfg, registry, logger, false)
+	d := NewDispatcher(cfg, registry, logger, false, 2)
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(

@@ -46,6 +46,9 @@ type Dispatcher struct {
 	Logger        *slog.Logger
 	Registry      *Registry
 	verboseErrors atomic.Bool
+	// fallbackTimeoutMultiplier scales the per-attempt stream timeout to
+	// derive the shared budget for the whole fallback chain. Default 2.
+	fallbackTimeoutMultiplier int
 }
 
 // NewDispatcher returns a Dispatcher wired to the given config, registry, and
@@ -56,6 +59,7 @@ func NewDispatcher(
 	registry *Registry,
 	logger *slog.Logger,
 	verboseErrors bool,
+	fallbackTimeoutMultiplier int,
 ) *Dispatcher {
 	if cfg == nil {
 		panic("proxy: nil config")
@@ -66,10 +70,14 @@ func NewDispatcher(
 	if registry == nil {
 		panic("proxy: nil registry")
 	}
+	if fallbackTimeoutMultiplier < 1 {
+		fallbackTimeoutMultiplier = 2
+	}
 	d := &Dispatcher{
-		Cfg:      cfg,
-		Logger:   logger.With("component", "proxy"),
-		Registry: registry,
+		Cfg:                       cfg,
+		Logger:                    logger.With("component", "proxy"),
+		Registry:                  registry,
+		fallbackTimeoutMultiplier: fallbackTimeoutMultiplier,
 	}
 	d.verboseErrors.Store(verboseErrors)
 	return d

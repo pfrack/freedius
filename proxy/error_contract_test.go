@@ -17,7 +17,7 @@ func newContractDispatcher(t *testing.T, verboseErrors bool) *Dispatcher {
 	cfg := &config.Config{}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	registry := NewRegistry(map[string]Provider{})
-	return NewDispatcher(cfg, registry, logger, verboseErrors)
+	return NewDispatcher(cfg, registry, logger, verboseErrors, 2)
 }
 
 func decodeErrorBody(t *testing.T, rec *httptest.ResponseRecorder) map[string]string {
@@ -161,7 +161,7 @@ func TestDispatcher_MalformedRequest_RequestIDMatches(t *testing.T) {
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	registry := NewRegistry(map[string]Provider{})
-	d := NewDispatcher(cfg, registry, logger, false)
+	d := NewDispatcher(cfg, registry, logger, false, 2)
 
 	handler := RequestIDMiddleware(d)
 	rec := httptest.NewRecorder()
