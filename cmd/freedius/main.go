@@ -145,7 +145,10 @@ func run(args []string) int {
 	}
 
 	registry := proxy.NewDefaultRegistry(logger, streamTimeout, verboseErrors, nil)
-	dispatcher := proxy.NewDispatcher(cfg, registry, logger, verboseErrors, resolveFallbackTimeoutMultiplier())
+	dispatcher := proxy.NewDispatcher(
+		cfg, registry, logger, verboseErrors,
+		resolveFallbackTimeoutMultiplier(), streamTimeout,
+	)
 	bus := proxy.NewEventBus(1000)
 
 	server, serverErr := startProxyServer(host, port, bus, dispatcher, logger, verboseErrors)

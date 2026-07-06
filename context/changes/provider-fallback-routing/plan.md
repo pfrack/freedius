@@ -634,8 +634,8 @@ unchanged with no fallback behavior triggered. No data migration is needed.
 
 #### Automated
 
-- [ ] 2.1 `go test ./proxy/...` passes with all adapter tests updated
-- [ ] 2.2 `go vet ./...` passes
+- [x] 2.1 `go test ./proxy/...` passes with all adapter tests updated — 59f9cfe
+- [x] 2.2 `go vet ./...` passes — 59f9cfe
 
 #### Manual
 
