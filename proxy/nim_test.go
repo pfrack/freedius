@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -189,35 +190,21 @@ func TestNIMAdapter_Upstream401_ReturnsAnthropicFormat(t *testing.T) {
 		config.Mapping{ProviderName: "nim", ModelString: "x"},
 		body,
 	)
-	if err != nil {
-		t.Fatalf("Handle returned err: %v", err)
+	if err == nil {
+		t.Fatal("expected upstreamError on 401")
 	}
-	if rec.Code != http.StatusUnauthorized {
-		t.Errorf("status: got %d, want %d", rec.Code, http.StatusUnauthorized)
+	var ue *upstreamError
+	if !errors.As(err, &ue) {
+		t.Fatalf("expected *upstreamError, got %T: %v", err, err)
 	}
-	if got := rec.Header().Get("Content-Type"); got != "application/json" {
-		t.Errorf("Content-Type: got %q, want application/json", got)
+	if ue.status != http.StatusUnauthorized {
+		t.Errorf("status: got %d, want %d", ue.status, http.StatusUnauthorized)
 	}
-	if got := rec.Header().Get("retry-after"); got != "" {
-		t.Errorf("retry-after should be absent for 401, got %q", got)
+	if ue.errType != "authentication_error" {
+		t.Errorf("errType: got %q, want authentication_error", ue.errType)
 	}
-	if got := rec.Header().Get("x-should-retry"); got != "" {
-		t.Errorf("x-should-retry should be absent for 401, got %q", got)
-	}
-	raw := rec.Body.String()
-	var resp map[string]any
-	if err := json.Unmarshal([]byte(raw), &resp); err != nil {
-		t.Fatalf("decode body: %v\nraw: %q", err, raw)
-	}
-	if resp["type"] != "error" {
-		t.Errorf("type: got %v, want error", resp["type"])
-	}
-	inner := resp["error"].(map[string]any)
-	if inner["type"] != "authentication_error" {
-		t.Errorf("error.type: got %v, want authentication_error", inner["type"])
-	}
-	if !strings.Contains(raw, "invalid api key") {
-		t.Errorf("body should include upstream snippet in message, got %q", raw)
+	if rec.Body.Len() > 0 {
+		t.Errorf("expected no bytes written, got body=%q", rec.Body.String())
 	}
 }
 
@@ -248,32 +235,24 @@ func TestNIMAdapter_Upstream429_ReturnsAnthropicFormat(t *testing.T) {
 		config.Mapping{ProviderName: "nim", ModelString: "x"},
 		body,
 	)
-	if err != nil {
-		t.Fatalf("Handle returned err: %v", err)
+	if err == nil {
+		t.Fatal("expected upstreamError on 429")
 	}
-	if rec.Code != http.StatusTooManyRequests {
-		t.Errorf("status: got %d, want %d", rec.Code, http.StatusTooManyRequests)
+	var ue *upstreamError
+	if !errors.As(err, &ue) {
+		t.Fatalf("expected *upstreamError, got %T: %v", err, err)
 	}
-	if got := rec.Header().Get("Content-Type"); got != "application/json" {
-		t.Errorf("Content-Type: got %q, want application/json", got)
+	if ue.status != http.StatusTooManyRequests {
+		t.Errorf("status: got %d, want %d", ue.status, http.StatusTooManyRequests)
 	}
-	if got := rec.Header().Get("retry-after"); got != "30" {
-		t.Errorf("retry-after: got %q, want 30 (from upstream)", got)
+	if ue.errType != "rate_limit_error" {
+		t.Errorf("errType: got %q, want rate_limit_error", ue.errType)
 	}
-	if got := rec.Header().Get("x-should-retry"); got != "true" {
-		t.Errorf("x-should-retry: got %q, want true", got)
+	if ue.retryAfter != 30 {
+		t.Errorf("retryAfter: got %d, want 30", ue.retryAfter)
 	}
-	raw := rec.Body.String()
-	var resp map[string]any
-	if err := json.Unmarshal([]byte(raw), &resp); err != nil {
-		t.Fatalf("decode body: %v\nraw: %q", err, raw)
-	}
-	if resp["type"] != "error" {
-		t.Errorf("type: got %v, want error", resp["type"])
-	}
-	inner := resp["error"].(map[string]any)
-	if inner["type"] != "rate_limit_error" {
-		t.Errorf("error.type: got %v, want rate_limit_error", inner["type"])
+	if rec.Body.Len() > 0 {
+		t.Errorf("expected no bytes written, got body=%q", rec.Body.String())
 	}
 }
 

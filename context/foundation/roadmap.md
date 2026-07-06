@@ -38,6 +38,7 @@ A developer using Claude Code wants to route LLM calls to cheaper or free provid
 | S-08 | openai-count-tokens | `POST /v1/messages/count_tokens` returns a useful `input_tokens` estimate when routed to OpenAI-protocol upstreams (NIM, OpenCode Go, custom OpenAI-compat) — no more 501 for these providers | S-01, count-tokens-passthrough | (new capability — local token counting)        | proposed |
 | V-01 | tui-dashboard       | (superseded — see V-02) | — | Replaced by V-02 on 2026-07-03. Original research at `context/changes/tui-dashboard/research.md`. | superseded |
 | V-02 | web-ui              | monitor live request stream, provider health, and usage stats from a browser dashboard at :8083 — works in Docker / headless; replaces the TUI | v1 complete (S-01–S-08) | research + plan in `context/changes/web-ui/`. Drops TUI + Unix-socket IPC + charm.land deps. | done |
+| V-02a | provider-model-discovery | fetch a provider's available models from its upstream /v1/models endpoint, pick from a clickable list when configuring a mapping | V-02 | `context/changes/provider-model-discovery/`. Mapping-modal-only "Fetch models" button with click-to-fill; no Providers-page UI. | done |
 
 ## Baseline
 
@@ -238,3 +239,4 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - F-01: proxy-skeleton — merged via PR #1
 - S-01: first-call-routed — merged via PR #2
 - **V-02: monitor live request stream, provider health, and usage stats from a browser dashboard at :8083 — works in Docker / headless; replaces the TUI** — Archived 2026-07-05 → `context/archive/2026-07-02-web-ui/`. Lesson: —.
+- **V-02a: provider-model-discovery** — Mapping-modal-only "Fetch models" button with click-to-fill list. Backend: removed cache-only GET route, simplified refresh handler. UI: stripped Providers page to 7 columns, added explicit fetch button + clickable model list in mapping modal. Reviewed 2026-07-05 → `context/changes/provider-model-discovery/`.

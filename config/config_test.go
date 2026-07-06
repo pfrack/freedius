@@ -897,3 +897,162 @@ func TestConfig_ThemeOmitEmpty(t *testing.T) {
 		t.Errorf("marshaled YAML contains theme: field (should be omitted)\n%s", string(data))
 	}
 }
+
+func TestConfig_MappingFallback_RoundTrip(t *testing.T) {
+	input := `providers:
+  nim: { behavior: openai }
+  zen:
+    behavior: openai
+    default_base_url: https://api.zen.example.com/v1/chat/completions
+mappings:
+  opus:
+    provider_name: nim
+    model_string: meta/llama
+    fallback:
+      - provider_name: zen
+        model_string: claude-sonnet
+`
+	cfg, err := LoadFromBytes([]byte(input))
+	if err != nil {
+		t.Fatalf("LoadFromBytes: %v", err)
+	}
+	m := cfg.Mappings["opus"]
+	if len(m.Fallback) != 1 {
+		t.Fatalf("fallback count: got %d, want 1", len(m.Fallback))
+	}
+	if m.Fallback[0].ProviderName != "zen" {
+		t.Errorf("fallback[0].ProviderName: got %q, want zen", m.Fallback[0].ProviderName)
+	}
+	if m.Fallback[0].ModelString != "claude-sonnet" {
+		t.Errorf("fallback[0].ModelString: got %q, want claude-sonnet", m.Fallback[0].ModelString)
+	}
+
+	// Round-trip: marshal and reload.
+	data, err := cfg.Marshal()
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+	cfg2, err := LoadFromBytes(data)
+	if err != nil {
+		t.Fatalf("round-trip LoadFromBytes: %v\nYAML:\n%s", err, string(data))
+	}
+	m2 := cfg2.Mappings["opus"]
+	if len(m2.Fallback) != 1 {
+		t.Fatalf("round-trip fallback count: got %d, want 1", len(m2.Fallback))
+	}
+	if m2.Fallback[0].ProviderName != "zen" || m2.Fallback[0].ModelString != "claude-sonnet" {
+		t.Errorf("round-trip fallback[0]: got %+v", m2.Fallback[0])
+	}
+}
+
+func TestConfig_MappingFallback_DuplicateRejected(t *testing.T) {
+	input := `providers:
+  nim: { behavior: openai }
+mappings:
+  opus:
+    provider_name: nim
+    model_string: meta/llama
+    fallback:
+      - provider_name: nim
+        model_string: meta/llama
+`
+	_, err := LoadFromBytes([]byte(input))
+	if err == nil {
+		t.Fatal("expected error for duplicate fallback entry")
+	}
+	if !strings.Contains(err.Error(), "duplicate fallback entry") {
+		t.Errorf("error should mention duplicate, got: %v", err)
+	}
+}
+
+func TestConfig_MappingFallback_UnknownProviderRejected(t *testing.T) {
+	input := `providers:
+  nim: { behavior: openai }
+mappings:
+  opus:
+    provider_name: nim
+    model_string: meta/llama
+    fallback:
+      - provider_name: nonexistent
+        model_string: some-model
+`
+	_, err := LoadFromBytes([]byte(input))
+	if err == nil {
+		t.Fatal("expected error for unknown fallback provider")
+	}
+	if !strings.Contains(err.Error(), "fallback[0] references unknown provider") {
+		t.Errorf("error should mention fallback provider, got: %v", err)
+	}
+}
+
+func TestConfig_MappingFallback_EmptyModelStringRejected(t *testing.T) {
+	input := `providers:
+  nim: { behavior: openai }
+  zen:
+    behavior: openai
+    default_base_url: https://api.zen.example.com/v1/chat/completions
+mappings:
+  opus:
+    provider_name: nim
+    model_string: meta/llama
+    fallback:
+      - provider_name: zen
+`
+	_, err := LoadFromBytes([]byte(input))
+	if err == nil {
+		t.Fatal("expected error for empty fallback model_string")
+	}
+	if !strings.Contains(err.Error(), "fallback[0] has no \"model_string\" field") {
+		t.Errorf("error should mention fallback model_string, got: %v", err)
+	}
+}
+
+func TestConfig_MappingFallback_MultipleEntries(t *testing.T) {
+	input := `providers:
+  nim: { behavior: openai }
+  zen:
+    behavior: openai
+    default_base_url: https://api.zen.example.com/v1/chat/completions
+  go:
+    behavior: openai
+    default_base_url: https://api.go.example.com/v1/chat/completions
+mappings:
+  opus:
+    provider_name: nim
+    model_string: meta/llama
+    fallback:
+      - provider_name: zen
+        model_string: claude-sonnet
+      - provider_name: go
+        model_string: gemini-pro
+`
+	cfg, err := LoadFromBytes([]byte(input))
+	if err != nil {
+		t.Fatalf("LoadFromBytes: %v", err)
+	}
+	m := cfg.Mappings["opus"]
+	if len(m.Fallback) != 2 {
+		t.Fatalf("fallback count: got %d, want 2", len(m.Fallback))
+	}
+}
+
+func TestConfig_MappingFallback_OmitEmpty(t *testing.T) {
+	input := `providers:
+  nim: { behavior: openai }
+mappings:
+  opus:
+    provider_name: nim
+    model_string: meta/llama
+`
+	cfg, err := LoadFromBytes([]byte(input))
+	if err != nil {
+		t.Fatalf("LoadFromBytes: %v", err)
+	}
+	data, err := cfg.Marshal()
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+	if strings.Contains(string(data), "fallback:") {
+		t.Errorf("marshaled YAML should omit empty fallback field:\n%s", string(data))
+	}
+}

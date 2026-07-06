@@ -49,7 +49,7 @@ func TestDispatcher_AdapterError_TranslatedAsAnthropicOverloaded(t *testing.T) {
 		registry := NewRegistry(map[string]Provider{
 			"openai": &preWriteHeaderErrProvider{err: errors.New("upstream connection refused")},
 		})
-		d := NewDispatcher(cfg, registry, logger, false)
+		d := NewDispatcher(cfg, registry, logger, false, 2, 5*time.Minute)
 		handler := RequestIDMiddleware(d)
 		rec := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodPost, "/v1/messages",
@@ -83,7 +83,7 @@ func TestDispatcher_AdapterError_TranslatedAsAnthropicOverloaded(t *testing.T) {
 		registry := NewRegistry(map[string]Provider{
 			"openai": &preWriteHeaderErrProvider{err: errors.New("upstream connection refused")},
 		})
-		d := NewDispatcher(cfg, registry, logger, true)
+		d := NewDispatcher(cfg, registry, logger, true, 2, 5*time.Minute)
 		handler := RequestIDMiddleware(d)
 		rec := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodPost, "/v1/messages",
@@ -376,7 +376,7 @@ func TestDispatcher_ConfigError_Returns500(t *testing.T) {
 			err: &configError{err: errors.New("missing API key"), errType: "authentication_error"},
 		},
 	})
-	d := NewDispatcher(cfg, registry, logger, false)
+	d := NewDispatcher(cfg, registry, logger, false, 2, 5*time.Minute)
 	handler := RequestIDMiddleware(d)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages",
@@ -424,7 +424,7 @@ func TestDispatcher_ConfigError_InvalidRequest(t *testing.T) {
 			err: &configError{err: errors.New("bad base_url"), errType: "invalid_request_error"},
 		},
 	})
-	d := NewDispatcher(cfg, registry, logger, false)
+	d := NewDispatcher(cfg, registry, logger, false, 2, 5*time.Minute)
 	handler := RequestIDMiddleware(d)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages",
@@ -532,7 +532,7 @@ func TestDispatcher_Upstream500_AnthropicErrorEnvelope(t *testing.T) {
 	registry := NewRegistry(map[string]Provider{
 		"openai": NewOpenAICompatibleAdapter(logger),
 	})
-	d := NewDispatcher(cfg, registry, logger, false)
+	d := NewDispatcher(cfg, registry, logger, false, 2, 5*time.Minute)
 	handler := RequestIDMiddleware(d)
 
 	rec := httptest.NewRecorder()
@@ -602,7 +602,7 @@ func TestAdapter_ErrorResponse_NoAPIKeyInLog(t *testing.T) {
 	registry := NewRegistry(map[string]Provider{
 		"openai": NewOpenAICompatibleAdapter(logger),
 	})
-	d := NewDispatcher(cfg, registry, logger, true)
+	d := NewDispatcher(cfg, registry, logger, true, 2, 5*time.Minute)
 	handler := RequestIDMiddleware(d)
 
 	rec := httptest.NewRecorder()

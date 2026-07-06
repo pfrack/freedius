@@ -1,10 +1,12 @@
 {{define "mappings-table"}}
+<div class="table-wrap">
 <table id="mappings">
   <thead>
     <tr>
       <th>Name</th>
       <th>Provider</th>
       <th>Model</th>
+      <th>Fallback</th>
       <th>Actions</th>
     </tr>
   </thead>
@@ -14,15 +16,16 @@
       <td>{{.Name}}</td>
       <td>{{.ProviderName}}</td>
       <td>{{.Model}}</td>
+      <td>{{if .Fallbacks}}<small>{{.Fallbacks}}</small>{{else}}—{{end}}</td>
       <td>
         <button
-          class="btn-sm"
-          onclick="editMapping('{{.Name | js}}','{{.ProviderName | js}}','{{.Model | js}}')"
+          class="btn btn--ghost btn--sm"
+          onclick="editMapping('{{.Name | js}}','{{.ProviderName | js}}','{{.Model | js}}','{{.Fallbacks | js}}')"
         >
           Edit
         </button>
         <button
-          class="btn-danger btn-sm"
+          class="btn btn--danger btn--sm"
           hx-delete="/v1/mappings/{{.Name}}"
           hx-confirm="Delete mapping '{{.Name}}?"
           hx-target="#mappings"
@@ -35,4 +38,5 @@
     {{end}}
   </tbody>
 </table>
+</div>
 {{end}}

@@ -2,8 +2,9 @@
 {{define "title"}}Mappings{{end}}
 {{define "content"}}
   <h1>Mappings</h1>
-  <button class="btn-primary" onclick="document.getElementById('mapping-dialog').showModal()">
-    + Add Mapping
+  <button class="btn btn--primary" onclick="document.getElementById('mapping-dialog').showModal()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    Add Mapping
   </button>
   <div id="mapping-form-error" class="form-error"></div>
   {{template "mappings-table" .}}
@@ -18,26 +19,41 @@
     >
       <h2 id="mapping-dialog-title">Add Mapping</h2>
       <div id="mapping-form-error-dialog" class="form-error"></div>
-      <label>Name <input name="name" required></label>
-      <label>
-        Provider
-        <select name="provider_name">
+      <div class="form-group">
+        <label class="form-label" for="mapping-name">Name</label>
+        <input class="form-input" id="mapping-name" name="name" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="mapping-provider">Provider</label>
+        <select class="form-select" id="mapping-provider" name="provider_name">
           {{range .Providers}}<option value="{{.Name}}">{{.Name}}</option>{{end}}
         </select>
-      </label>
-      <label>
-        Model
-        <input name="model_string" required>
-        <button type="button" class="btn-sm" onclick="
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="mapping-model">Model</label>
+        <input class="form-input" id="mapping-model" name="model_string" required>
+        <button type="button" class="btn btn--ghost btn--sm" onclick="
           var sel = document.getElementById('mapping-form').elements.provider_name;
           var name = sel.value;
           if (!name) return;
           htmx.ajax('POST', '/v1/providers/'+name+'/models/refresh', {target:'#model-suggestions', swap:'innerHTML'});
-        ">Fetch models</button>
-      </label>
+        ">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+          Fetch models
+        </button>
+      </div>
       <div id="model-suggestions"></div>
+
+      <fieldset id="fallback-fieldset" style="border:1px solid #555;border-radius:4px;padding:8px;margin-top:8px;">
+        <legend style="font-size:0.85em;color:#aaa;">Fallback Chain</legend>
+        <div id="fallback-rows"></div>
+        <button type="button" class="btn btn--ghost btn--sm" onclick="addFallbackRow()" style="margin-top:4px;">
+          + Add fallback
+        </button>
+      </fieldset>
+
       <div class="form-actions">
-        <button type="submit" class="btn-primary">Save</button>
+        <button type="submit" class="btn btn--primary">Save</button>
         <button type="button" class="btn-cancel" onclick="this.closest('dialog').close()">
           Cancel
         </button>
@@ -46,7 +62,7 @@
   </dialog>
 
   <script>
-    function editMapping(name, provider, model) {
+    function editMapping(name, provider, model, fallbacksStr) {
       var d = document.getElementById('mapping-dialog');
       var f = document.getElementById('mapping-form');
       f.setAttribute('hx-put', '/v1/mappings/' + name);
@@ -56,6 +72,20 @@
       f.elements.provider_name.value = provider;
       f.elements.model_string.value = model;
       document.getElementById('mapping-dialog-title').textContent = 'Edit Mapping';
+
+      // Pre-populate fallback rows from "→ provider/model, → provider/model" format.
+      var container = document.getElementById('fallback-rows');
+      container.innerHTML = '';
+      if (fallbacksStr && fallbacksStr !== '—') {
+        var entries = fallbacksStr.split(', ');
+        for (var i = 0; i < entries.length; i++) {
+          var parts = entries[i].replace(/^→ /, '').split('/');
+          if (parts.length === 2) {
+            addFallbackRow(parts[0], parts[1]);
+          }
+        }
+      }
+
       d.showModal();
     }
 
@@ -65,5 +95,37 @@
       document.getElementById('mapping-form').elements.model_string.value = li.dataset.modelId;
       this.innerHTML = '';
     });
+
+    function addFallbackRow(provider, model) {
+      var container = document.getElementById('fallback-rows');
+      var idx = container.children.length;
+      var suggestId = 'fallback-suggestions-' + idx;
+      var row = document.createElement('div');
+      row.style.cssText = 'margin-bottom:8px;';
+      row.innerHTML =
+        '<div style="display:flex;gap:6px;align-items:center;">' +
+          '<select class="form-select" name="fallback_provider_name[]" style="flex:1;">' +
+            '{{range .Providers}}<option value="{{.Name}}">{{.Name}}</option>{{end}}' +
+          '</select>' +
+          '<input class="form-input" name="fallback_model_string[]" placeholder="model" style="flex:1;" value="' + (model || '') + '">' +
+          '<button type="button" class="btn btn--ghost btn--sm" onclick="var s=this.parentElement.querySelector(\'select\');if(s.value)htmx.ajax(\'POST\',\'/v1/providers/\'+s.value+\'/models/refresh\',{target:\'#' + suggestId + '\',swap:\'innerHTML\'});">' +
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>' +
+          '</button>' +
+          '<button type="button" class="btn btn--danger btn--sm" onclick="this.closest(\'div[style*=margin-bottom]\').remove()">×</button>' +
+        '</div>' +
+        '<div id="' + suggestId + '"></div>';
+      if (provider) {
+        row.querySelector('select').value = provider;
+      }
+      container.appendChild(row);
+
+      // Wire up click-to-fill for this row's suggestions.
+      row.querySelector('#' + suggestId).addEventListener('click', function(e) {
+        var li = e.target.closest('li[data-model-id]');
+        if (!li) return;
+        row.querySelector('input[name="fallback_model_string[]"]').value = li.dataset.modelId;
+        this.innerHTML = '';
+      });
+    }
   </script>
 {{end}}

@@ -28,7 +28,7 @@ func newTestDispatcher(t *testing.T) *Dispatcher {
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	registry := NewRegistry(map[string]Provider{})
-	return NewDispatcher(cfg, registry, logger, false)
+	return NewDispatcher(cfg, registry, logger, false, 2, 5*time.Minute)
 }
 
 func newTestDispatcherWithAdapter(
@@ -39,7 +39,7 @@ func newTestDispatcherWithAdapter(
 	t.Helper()
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	registry := NewRegistry(providers)
-	return NewDispatcher(cfg, registry, logger, false)
+	return NewDispatcher(cfg, registry, logger, false, 2, 5*time.Minute)
 }
 
 func TestServeHTTP(t *testing.T) {
@@ -207,7 +207,7 @@ func TestServeHTTPMultiProviderRouting(t *testing.T) {
 	registry := NewRegistry(map[string]Provider{
 		"openai": NewOpenAICompatibleAdapter(logger),
 	})
-	d := NewDispatcher(cfg, registry, logger, false)
+	d := NewDispatcher(cfg, registry, logger, false, 2, 5*time.Minute)
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(
@@ -868,4 +868,180 @@ mappings:
 	time.Sleep(50 * time.Millisecond)
 	close(stop)
 	wg.Wait()
+}
+
+func TestDispatcher_FallbackPrimarySucceeds(t *testing.T) {
+	t.Setenv("FALLBACK_KEY_A", "sk-a")
+	t.Setenv("FALLBACK_KEY_B", "sk-b")
+	calledA := false
+	upstreamA := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calledA = true
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("data: [DONE]\n\n"))
+	}))
+	defer upstreamA.Close()
+
+	cfg := &config.Config{
+		Providers: map[string]config.Provider{
+			"provA": {Behavior: "openai", DefaultBaseURL: upstreamA.URL, DefaultAPIKeyEnv: "FALLBACK_KEY_A"},
+			"provB": {Behavior: "openai", DefaultBaseURL: "http://localhost:1", DefaultAPIKeyEnv: "FALLBACK_KEY_B"},
+		},
+		Mappings: map[string]config.Mapping{
+			"test-model": {
+				ProviderName: "provA",
+				ModelString:  "gpt-4",
+				Fallback: []config.Mapping{
+					{ProviderName: "provB", ModelString: "gpt-4"},
+				},
+			},
+		},
+	}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	registry := NewRegistry(map[string]Provider{"openai": NewOpenAICompatibleAdapter(logger)})
+	d := NewDispatcher(cfg, registry, logger, false, 2, 5*time.Minute)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages",
+		strings.NewReader(`{"model":"test-model","max_tokens":10,"messages":[{"role":"user","content":"hi"}]}`))
+	req.Header.Set("Content-Type", "application/json")
+	d.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("status: got %d, want 200 (body: %s)", rec.Code, rec.Body.String())
+	}
+	if !calledA {
+		t.Error("primary provider A was NOT called")
+	}
+}
+
+func TestDispatcher_FallbackPrimaryFailsSecondarySucceeds(t *testing.T) {
+	t.Setenv("FALLBACK_KEY_A", "")
+	t.Setenv("FALLBACK_KEY_B", "sk-b")
+	calledB := false
+	upstreamB := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calledB = true
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("data: [DONE]\n\n"))
+	}))
+	defer upstreamB.Close()
+
+	cfg := &config.Config{
+		Providers: map[string]config.Provider{
+			"provA": {Behavior: "openai", DefaultBaseURL: "http://localhost:1", DefaultAPIKeyEnv: "FALLBACK_KEY_A"},
+			"provB": {Behavior: "openai", DefaultBaseURL: upstreamB.URL, DefaultAPIKeyEnv: "FALLBACK_KEY_B"},
+		},
+		Mappings: map[string]config.Mapping{
+			"test-model": {
+				ProviderName: "provA",
+				ModelString:  "gpt-4",
+				Fallback: []config.Mapping{
+					{ProviderName: "provB", ModelString: "gpt-4"},
+				},
+			},
+		},
+	}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	registry := NewRegistry(map[string]Provider{"openai": NewOpenAICompatibleAdapter(logger)})
+	d := NewDispatcher(cfg, registry, logger, false, 2, 5*time.Minute)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages",
+		strings.NewReader(`{"model":"test-model","max_tokens":10,"messages":[{"role":"user","content":"hi"}]}`))
+	req.Header.Set("Content-Type", "application/json")
+	d.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("status: got %d, want 200 (body: %s)", rec.Code, rec.Body.String())
+	}
+	if !calledB {
+		t.Error("fallback provider B was NOT called")
+	}
+}
+
+func TestDispatcher_FallbackAllFailAggregatedError(t *testing.T) {
+	t.Setenv("FALLBACK_KEY_A", "")
+	t.Setenv("FALLBACK_KEY_B", "")
+
+	cfg := &config.Config{
+		Providers: map[string]config.Provider{
+			"provA": {Behavior: "openai", DefaultBaseURL: "http://localhost:1", DefaultAPIKeyEnv: "FALLBACK_KEY_A"},
+			"provB": {Behavior: "openai", DefaultBaseURL: "http://localhost:2", DefaultAPIKeyEnv: "FALLBACK_KEY_B"},
+		},
+		Mappings: map[string]config.Mapping{
+			"test-model": {
+				ProviderName: "provA",
+				ModelString:  "gpt-4",
+				Fallback: []config.Mapping{
+					{ProviderName: "provB", ModelString: "gpt-4"},
+				},
+			},
+		},
+	}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	registry := NewRegistry(map[string]Provider{"openai": NewOpenAICompatibleAdapter(logger)})
+	d := NewDispatcher(cfg, registry, logger, false, 2, 5*time.Minute)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages",
+		strings.NewReader(`{"model":"test-model","max_tokens":10,"messages":[{"role":"user","content":"hi"}]}`))
+	req.Header.Set("Content-Type", "application/json")
+	d.ServeHTTP(rec, req)
+
+	body := rec.Body.String()
+	if !strings.Contains(body, "all providers failed") {
+		t.Errorf("expected aggregated error, got: %s", body)
+	}
+	if !strings.Contains(body, "provA") {
+		t.Errorf("error should mention provA, got: %s", body)
+	}
+	if !strings.Contains(body, "provB") {
+		t.Errorf("error should mention provB, got: %s", body)
+	}
+}
+
+func TestDispatcher_FallbackUnregisteredProviderSkipped(t *testing.T) {
+	t.Setenv("FALLBACK_KEY_B", "sk-b")
+	calledB := false
+	upstreamB := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calledB = true
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("data: [DONE]\n\n"))
+	}))
+	defer upstreamB.Close()
+
+	cfg := &config.Config{
+		Providers: map[string]config.Provider{
+			"provA": {Behavior: "openai", DefaultBaseURL: "http://localhost:1", DefaultAPIKeyEnv: "FALLBACK_KEY_A"},
+			"provB": {Behavior: "openai", DefaultBaseURL: upstreamB.URL, DefaultAPIKeyEnv: "FALLBACK_KEY_B"},
+		},
+		Mappings: map[string]config.Mapping{
+			"test-model": {
+				ProviderName: "provA",
+				ModelString:  "gpt-4",
+				Fallback: []config.Mapping{
+					{ProviderName: "nonexistent", ModelString: "gpt-4"},
+					{ProviderName: "provB", ModelString: "gpt-4"},
+				},
+			},
+		},
+	}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	registry := NewRegistry(map[string]Provider{"openai": NewOpenAICompatibleAdapter(logger)})
+	d := NewDispatcher(cfg, registry, logger, false, 2, 5*time.Minute)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages",
+		strings.NewReader(`{"model":"test-model","max_tokens":10,"messages":[{"role":"user","content":"hi"}]}`))
+	req.Header.Set("Content-Type", "application/json")
+	d.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("status: got %d, want 200 (body: %s)", rec.Code, rec.Body.String())
+	}
+	if !calledB {
+		t.Error("fallback provider B was NOT called after unregistered provider was skipped")
+	}
 }

@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/pfrack/freedius/config"
 )
@@ -17,7 +18,7 @@ func newContractDispatcher(t *testing.T, verboseErrors bool) *Dispatcher {
 	cfg := &config.Config{}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	registry := NewRegistry(map[string]Provider{})
-	return NewDispatcher(cfg, registry, logger, verboseErrors)
+	return NewDispatcher(cfg, registry, logger, verboseErrors, 2, 5*time.Minute)
 }
 
 func decodeErrorBody(t *testing.T, rec *httptest.ResponseRecorder) map[string]string {
@@ -161,7 +162,7 @@ func TestDispatcher_MalformedRequest_RequestIDMatches(t *testing.T) {
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	registry := NewRegistry(map[string]Provider{})
-	d := NewDispatcher(cfg, registry, logger, false)
+	d := NewDispatcher(cfg, registry, logger, false, 2, 5*time.Minute)
 
 	handler := RequestIDMiddleware(d)
 	rec := httptest.NewRecorder()

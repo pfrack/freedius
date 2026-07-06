@@ -2,11 +2,11 @@ package proxy
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"github.com/pfrack/freedius/config"
@@ -91,18 +91,21 @@ func TestAnthropicCompat_Upstream401_ForwardsBody(t *testing.T) {
 		config.Mapping{ProviderName: "anthropic", ModelString: "x"},
 		[]byte(`{"model":"x"}`),
 	)
-	if err != nil {
-		t.Fatalf("Handle returned err: %v", err)
+	if err == nil {
+		t.Fatal("expected upstreamError on 401")
 	}
-	if rec.Code != http.StatusUnauthorized {
-		t.Errorf("status: got %d, want %d", rec.Code, http.StatusUnauthorized)
+	var ue *upstreamError
+	if !errors.As(err, &ue) {
+		t.Fatalf("expected *upstreamError, got %T: %v", err, err)
 	}
-	body := rec.Body.String()
-	if !strings.Contains(body, "authentication_error") {
-		t.Errorf("body should contain authentication_error, got %q", body)
+	if ue.status != http.StatusUnauthorized {
+		t.Errorf("status: got %d, want %d", ue.status, http.StatusUnauthorized)
 	}
-	if !strings.Contains(body, "invalid api key") {
-		t.Errorf("body should contain upstream error message, got %q", body)
+	if ue.errType != "authentication_error" {
+		t.Errorf("errType: got %q, want authentication_error", ue.errType)
+	}
+	if rec.Body.Len() > 0 {
+		t.Errorf("expected no bytes written, got body=%q", rec.Body.String())
 	}
 }
 

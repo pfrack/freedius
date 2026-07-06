@@ -268,7 +268,7 @@ func TestGenerateProxy_NewDefaultRegistry(t *testing.T) {
 	for _, want := range []string{
 		`"nim":NewNIMAdapter(logger,streamTimeout)`,
 		`"openai":NewOpenAICompatibleAdapterWithTimeout(logger,streamTimeout)`,
-		`"anthropic":NewAnthropicCompatibleAdapter(logger,verboseErrors)`,
+		`"anthropic":NewAnthropicCompatibleAdapterWithTimeout(logger,verboseErrors,streamTimeout)`,
 		`"mix":NewMixAdapter(logger,verboseErrors,streamTimeout)`,
 	} {
 		if !strings.Contains(compact, want) {

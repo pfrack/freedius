@@ -7,7 +7,6 @@ import (
 	"crypto/subtle"
 	"encoding/json"
 	"fmt"
-	"html"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -156,13 +155,11 @@ func (h *Handlers) handleLogs(w http.ResponseWriter, r *http.Request) {
 		flusher.Flush()
 	}
 	for _, e := range entries {
-		// Pre-render HTML for the log entry.
-		htmlLine := fmt.Sprintf(
-			`<pre class="log-%s">%s</pre>`,
-			html.EscapeString(levelLabel(e.Level)),
-			html.EscapeString(e.Line),
-		)
-		h.writeSSE(w, "log", htmlLine)
+		logLine := map[string]string{
+			"level": LevelLabel(e.Level),
+			"line":  e.Line,
+		}
+		h.writeSSE(w, "log", logLine)
 		flusher.Flush()
 	}
 	h.writeSSE(w, "replay", map[string]any{"complete": true, "current_seq": currentSeq})
@@ -178,13 +175,11 @@ func (h *Handlers) handleLogs(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			seq = e.Seq
-			// Pre-render HTML for the log entry.
-			htmlLine := fmt.Sprintf(
-				`<pre class="log-%s">%s</pre>`,
-				html.EscapeString(levelLabel(e.Level)),
-				html.EscapeString(e.Line),
-			)
-			h.writeSSE(w, "log", htmlLine)
+			logLine := map[string]string{
+				"level": LevelLabel(e.Level),
+				"line":  e.Line,
+			}
+			h.writeSSE(w, "log", logLine)
 			flusher.Flush()
 		case <-r.Context().Done():
 			return
@@ -213,6 +208,7 @@ func (h *Handlers) handleConfig(w http.ResponseWriter, _ *http.Request) {
 
 // writeSSE writes an SSE event to the response writer.
 // Uses json.Marshal (NOT json.NewEncoder) per lessons.md §1.
+// Callers are responsible for flushing the response writer.
 func (h *Handlers) writeSSE(w http.ResponseWriter, eventType string, data any) {
 	buf, err := json.Marshal(data)
 	if err != nil {
@@ -220,11 +216,10 @@ func (h *Handlers) writeSSE(w http.ResponseWriter, eventType string, data any) {
 		return
 	}
 	_, _ = fmt.Fprintf(w, "event: %s\ndata: %s\n\n", eventType, buf)
-	w.(http.Flusher).Flush()
 }
 
-// levelLabel returns a short label for a log level.
-func levelLabel(l slog.Level) string {
+// LevelLabel returns a short label for a log level.
+func LevelLabel(l slog.Level) string {
 	switch {
 	case l <= slog.LevelDebug:
 		return "debug"

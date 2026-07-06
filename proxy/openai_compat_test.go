@@ -3,6 +3,7 @@ package proxy
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -41,11 +42,21 @@ func TestOpenAICompat_Upstream401(t *testing.T) {
 		config.Mapping{ProviderName: "openai", ModelString: "gpt-4"},
 		[]byte(`{}`),
 	)
-	if err != nil {
-		t.Fatalf("Handle returned err: %v", err)
+	if err == nil {
+		t.Fatal("expected upstreamError on 401")
 	}
-	if rec.Code != http.StatusUnauthorized {
-		t.Errorf("status: got %d, want %d", rec.Code, http.StatusUnauthorized)
+	var ue *upstreamError
+	if !errors.As(err, &ue) {
+		t.Fatalf("expected *upstreamError, got %T: %v", err, err)
+	}
+	if ue.status != http.StatusUnauthorized {
+		t.Errorf("status: got %d, want %d", ue.status, http.StatusUnauthorized)
+	}
+	if ue.errType != "authentication_error" {
+		t.Errorf("errType: got %q, want authentication_error", ue.errType)
+	}
+	if rec.Body.Len() > 0 {
+		t.Errorf("expected no bytes written to recorder, got body=%q", rec.Body.String())
 	}
 }
 

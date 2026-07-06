@@ -46,6 +46,12 @@ type Dispatcher struct {
 	Logger        *slog.Logger
 	Registry      *Registry
 	verboseErrors atomic.Bool
+	// fallbackTimeoutMultiplier scales the per-attempt stream timeout to
+	// derive the shared budget for the whole fallback chain. Default 2.
+	fallbackTimeoutMultiplier int
+	// streamTimeout is the per-attempt upstream timeout, used to compute
+	// the shared fallback chain budget.
+	streamTimeout time.Duration
 }
 
 // NewDispatcher returns a Dispatcher wired to the given config, registry, and
@@ -56,6 +62,8 @@ func NewDispatcher(
 	registry *Registry,
 	logger *slog.Logger,
 	verboseErrors bool,
+	fallbackTimeoutMultiplier int,
+	streamTimeout time.Duration,
 ) *Dispatcher {
 	if cfg == nil {
 		panic("proxy: nil config")
@@ -66,10 +74,18 @@ func NewDispatcher(
 	if registry == nil {
 		panic("proxy: nil registry")
 	}
+	if fallbackTimeoutMultiplier < 1 {
+		fallbackTimeoutMultiplier = 2
+	}
+	if streamTimeout <= 0 {
+		streamTimeout = 5 * time.Minute
+	}
 	d := &Dispatcher{
-		Cfg:      cfg,
-		Logger:   logger.With("component", "proxy"),
-		Registry: registry,
+		Cfg:                       cfg,
+		Logger:                    logger.With("component", "proxy"),
+		Registry:                  registry,
+		fallbackTimeoutMultiplier: fallbackTimeoutMultiplier,
+		streamTimeout:             streamTimeout,
 	}
 	d.verboseErrors.Store(verboseErrors)
 	return d
@@ -247,67 +263,177 @@ func (d *Dispatcher) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	adapter, ok := d.Registry.Lookup(provider.Behavior)
-	if !ok {
-		d.Logger.Error(
-			"behavior not registered",
-			"request_id",
-			RequestIDFromContext(r.Context()),
-			"behavior",
-			provider.Behavior,
-		)
-		d.writeErrorJSON(
-			w,
-			r,
-			http.StatusInternalServerError,
-			"provider_not_registered",
-			fmt.Sprintf("behavior %q is not registered in this freedius build", provider.Behavior),
-		)
-		return
-	}
-	ww := &wroteHeaderResponseWriter{ResponseWriter: w}
-	if err := adapter.Handle(ww, r, *provider, mapping, body); err != nil {
-		if !ww.wroteHeader {
-			// Pre-WriteHeader error — safe to forward to the client.
-			var ce *configError
-			if errors.As(err, &ce) {
-				d.Logger.Warn(
-					"adapter config error",
-					"request_id",
-					RequestIDFromContext(r.Context()),
-					"provider",
-					mapping.ProviderName,
-					"err",
-					err,
-				)
-				writeAnthropicError(w, 500, ce.errType, err.Error(), 0)
-			} else {
-				d.Logger.Error(
-					"adapter transport error",
-					"request_id",
-					RequestIDFromContext(r.Context()),
-					"provider",
-					mapping.ProviderName,
-					"err",
-					err,
-				)
-				writeAnthropicError(w, 529, "overloaded_error",
-					"upstream provider not reachable", 15)
-			}
-		} else {
-			// Post-WriteHeader error — adapter already sent a response.
-			// Log and discard to avoid "superfluous WriteHeader" panics.
-			d.Logger.Error(
-				"adapter returned error after writing response headers",
-				"request_id",
-				RequestIDFromContext(r.Context()),
-				"provider",
-				mapping.ProviderName,
-				"err",
-				err,
+	// Build fallback chain: primary first, then fallback entries.
+	chain := make([]config.Mapping, 0, 1+len(mapping.Fallback))
+	chain = append(chain, mapping)
+	chain = append(chain, mapping.Fallback...)
+
+	// Shared timeout budget for the entire fallback chain.
+	chainTimeout := time.Duration(float64(d.fallbackTimeoutMultiplier)) * d.streamTimeout
+	chainCtx, chainCancel := context.WithTimeout(r.Context(), chainTimeout)
+	defer chainCancel()
+
+	var attempts []fallbackAttempt
+	for i, target := range chain {
+		// Resolve provider for this target.
+		d.Cfg.RLock()
+		p, providerExists := d.Cfg.Providers[target.ProviderName]
+		d.Cfg.RUnlock()
+		if !providerExists {
+			attempts = append(attempts, fallbackAttempt{
+				provider: target.ProviderName,
+				model:    target.ModelString,
+				errType:  "provider_not_registered",
+				status:   http.StatusInternalServerError,
+				message:  fmt.Sprintf("provider %q is not registered in this freedius build", target.ProviderName),
+			})
+			d.Logger.Warn(
+				"fallback: provider not registered",
+				"request_id", RequestIDFromContext(r.Context()),
+				"attempt", i,
+				"provider", target.ProviderName,
+				"model", target.ModelString,
 			)
+			continue
+		}
+
+		adapter, ok := d.Registry.Lookup(p.Behavior)
+		if !ok {
+			attempts = append(attempts, fallbackAttempt{
+				provider: target.ProviderName,
+				model:    target.ModelString,
+				errType:  "provider_not_registered",
+				status:   http.StatusInternalServerError,
+				message:  fmt.Sprintf("behavior %q is not registered in this freedius build", p.Behavior),
+			})
+			d.Logger.Warn(
+				"fallback: behavior not registered",
+				"request_id", RequestIDFromContext(r.Context()),
+				"attempt", i,
+				"provider", target.ProviderName,
+				"behavior", p.Behavior,
+			)
+			continue
+		}
+
+		ww := &wroteHeaderResponseWriter{ResponseWriter: w}
+		attemptReq := r.WithContext(chainCtx)
+		attemptReq.Body = io.NopCloser(bytes.NewReader(body))
+		err := adapter.Handle(ww, attemptReq, p, target, body)
+
+		if err == nil || ww.wroteHeader {
+			// Success — response is being written (or already written).
+			if i > 0 {
+				d.Logger.Info(
+					"fallback succeeded",
+					"request_id", RequestIDFromContext(r.Context()),
+					"attempt", i,
+					"provider", target.ProviderName,
+					"model", target.ModelString,
+				)
+			}
+			return
+		}
+
+		// Pre-WriteHeader error — record and try next entry.
+		var errType, message string
+		var status int
+		var retryAfter int
+
+		var ue *upstreamError
+		var ce *configError
+		switch {
+		case errors.As(err, &ue):
+			status = ue.status
+			errType = ue.errType
+			message = ue.message
+			retryAfter = ue.retryAfter
+		case errors.As(err, &ce):
+			status = 500
+			errType = ce.errType
+			message = ce.Error()
+		default:
+			status = 529
+			errType = "overloaded_error"
+			message = "upstream provider not reachable"
+			retryAfter = 15
+		}
+
+		attempts = append(attempts, fallbackAttempt{
+			provider:   target.ProviderName,
+			model:      target.ModelString,
+			errType:    errType,
+			message:    message,
+			status:     status,
+			retryAfter: retryAfter,
+		})
+
+		d.Logger.Warn(
+			"fallback: attempt failed",
+			"request_id", RequestIDFromContext(r.Context()),
+			"attempt", i,
+			"provider", target.ProviderName,
+			"model", target.ModelString,
+			"status", status,
+			"err_type", errType,
+		)
+	}
+
+	// All entries exhausted.
+	if len(attempts) > 0 {
+		last := attempts[len(attempts)-1]
+		switch {
+		case len(chain) > 1:
+			d.writeAggregatedFallbackError(w, r, attempts, last.status, last.errType, last.retryAfter)
+		case last.errType == "provider_not_registered":
+			d.writeErrorJSON(w, r, last.status, last.errType, last.message)
+		default:
+			writeAnthropicError(w, last.status, last.errType, last.message, last.retryAfter)
 		}
 	}
+}
+
+// fallbackAttempt records one entry in a fallback chain for aggregation and logging.
+type fallbackAttempt struct {
+	provider   string
+	model      string
+	errType    string
+	message    string
+	status     int
+	retryAfter int
+}
+
+// writeAggregatedFallbackError writes one Anthropic-shaped error response
+// summarizing every failed attempt in the fallback chain.
+func (d *Dispatcher) writeAggregatedFallbackError(
+	w http.ResponseWriter,
+	r *http.Request,
+	attempts []fallbackAttempt,
+	status int,
+	errType string,
+	retryAfter int,
+) {
+	var parts []string
+	for _, a := range attempts {
+		parts = append(parts, fmt.Sprintf("%s/%s (%s)", a.provider, a.model, a.errType))
+	}
+	msg := fmt.Sprintf("all providers failed: %s", strings.Join(parts, ", "))
+
+	// Server log gets full details; client message redacts error types.
+	var clientParts []string
+	for _, a := range attempts {
+		clientParts = append(clientParts, fmt.Sprintf("%s/%s", a.provider, a.model))
+	}
+	clientMsg := fmt.Sprintf("all providers failed: %s", strings.Join(clientParts, ", "))
+
+	d.Logger.Error(
+		"fallback chain exhausted",
+		"request_id", RequestIDFromContext(r.Context()),
+		"attempts", len(attempts),
+		"message", msg,
+	)
+
+	writeAnthropicError(w, status, errType, clientMsg, retryAfter)
 }
 
 // ErrorOption mutates the internal errorJSON used by (*Dispatcher).writeErrorJSON.

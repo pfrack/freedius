@@ -144,8 +144,7 @@ func (a *OpenAICompatibleAdapter) Handle(
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode >= 400 {
-		translateUpstreamError(w, resp)
-		return nil
+		return classifyUpstreamError(resp)
 	}
 
 	w.Header().Set("Content-Type", "text/event-stream")
