@@ -33,25 +33,24 @@ func TestOpenAICompat_Upstream429_ReturnsAnthropicFormat(t *testing.T) {
 		Behavior:       "openai",
 		DefaultBaseURL: upstream.URL, DefaultAPIKeyEnv: "TEST_API_KEY",
 	}, config.Mapping{ProviderName: "nim", ModelString: "x"}, body)
-	if err != nil {
-		t.Fatal(err)
+	if err == nil {
+		t.Fatal("expected upstreamError on 429")
 	}
-	if rec.Code != 429 {
-		t.Fatalf("status: got %d, want 429", rec.Code)
+	var ue *upstreamError
+	if !errors.As(err, &ue) {
+		t.Fatalf("expected *upstreamError, got %T: %v", err, err)
 	}
-	if got := rec.Header().Get("retry-after"); got != "42" {
-		t.Errorf("retry-after: got %q, want 42", got)
+	if ue.status != 429 {
+		t.Errorf("status: got %d, want 429", ue.status)
 	}
-	if got := rec.Header().Get("x-should-retry"); got != "true" {
-		t.Errorf("x-should-retry: got %q, want true", got)
+	if ue.errType != "rate_limit_error" {
+		t.Errorf("errType: got %q, want rate_limit_error", ue.errType)
 	}
-	var resp map[string]any
-	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
-		t.Fatal(err)
+	if ue.retryAfter != 42 {
+		t.Errorf("retryAfter: got %d, want 42", ue.retryAfter)
 	}
-	inner := resp["error"].(map[string]any)
-	if inner["type"] != "rate_limit_error" {
-		t.Errorf("error.type: got %v, want rate_limit_error", inner["type"])
+	if rec.Body.Len() > 0 {
+		t.Errorf("expected no bytes written, got body=%q", rec.Body.String())
 	}
 }
 

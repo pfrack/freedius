@@ -277,30 +277,46 @@ func (d *Dispatcher) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err := adapter.Handle(ww, r, *provider, mapping, body); err != nil {
 		if !ww.wroteHeader {
 			// Pre-WriteHeader error — safe to forward to the client.
-			var ce *configError
-			if errors.As(err, &ce) {
+			var ue *upstreamError
+			if errors.As(err, &ue) {
 				d.Logger.Warn(
-					"adapter config error",
+					"upstream HTTP error",
 					"request_id",
 					RequestIDFromContext(r.Context()),
 					"provider",
 					mapping.ProviderName,
-					"err",
-					err,
+					"status",
+					ue.status,
+					"err_type",
+					ue.errType,
 				)
-				writeAnthropicError(w, 500, ce.errType, err.Error(), 0)
+				writeAnthropicError(w, ue.status, ue.errType, ue.message, ue.retryAfter)
 			} else {
-				d.Logger.Error(
-					"adapter transport error",
-					"request_id",
-					RequestIDFromContext(r.Context()),
-					"provider",
-					mapping.ProviderName,
-					"err",
-					err,
-				)
-				writeAnthropicError(w, 529, "overloaded_error",
-					"upstream provider not reachable", 15)
+				var ce *configError
+				if errors.As(err, &ce) {
+					d.Logger.Warn(
+						"adapter config error",
+						"request_id",
+						RequestIDFromContext(r.Context()),
+						"provider",
+						mapping.ProviderName,
+						"err",
+						err,
+					)
+					writeAnthropicError(w, 500, ce.errType, err.Error(), 0)
+				} else {
+					d.Logger.Error(
+						"adapter transport error",
+						"request_id",
+						RequestIDFromContext(r.Context()),
+						"provider",
+						mapping.ProviderName,
+						"err",
+						err,
+					)
+					writeAnthropicError(w, 529, "overloaded_error",
+						"upstream provider not reachable", 15)
+				}
 			}
 		} else {
 			// Post-WriteHeader error — adapter already sent a response.

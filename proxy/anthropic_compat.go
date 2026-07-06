@@ -4,11 +4,11 @@ package proxy
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
-	"net/http/httputil"
 	"net/url"
 	"os"
 
@@ -16,7 +16,9 @@ import (
 )
 
 // AnthropicCompatibleAdapter forwards requests to an Anthropic-API-compatible
-// upstream using an httputil.ReverseProxy (no streaming translation needed).
+// upstream. For upstream HTTP errors (4xx/5xx), it returns a typed
+// upstreamError instead of writing directly, enabling the dispatcher's
+// fallback loop to retry against another provider.
 type AnthropicCompatibleAdapter struct {
 	logger        *slog.Logger
 	verboseErrors bool
@@ -35,7 +37,10 @@ func NewAnthropicCompatibleAdapter(
 }
 
 // Handle rewrites the request for the upstream Anthropic-API-compatible base
-// URL, sets x-api-key / anthropic-version, and serves via ReverseProxy.
+// URL, sets x-api-key / anthropic-version, and forwards the response. On
+// upstream HTTP errors (>= 400), returns a typed upstreamError for fallback
+// eligibility. On transport errors, writes the Anthropic error envelope
+// directly via freediusErrorHandler (pre-write, already fallback-eligible).
 func (a *AnthropicCompatibleAdapter) Handle(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -79,20 +84,87 @@ func (a *AnthropicCompatibleAdapter) Handle(
 	if apiVersion == "" {
 		apiVersion = "2023-06-01"
 	}
-	r.Body = io.NopCloser(bytes.NewReader(body))
-	r.ContentLength = int64(len(body))
-	r.Header.Set("x-api-key", apiKey)
-	r.Header.Set("anthropic-version", apiVersion)
-	rp := &httputil.ReverseProxy{
-		Rewrite: func(pr *httputil.ProxyRequest) {
-			pr.SetURL(target)
-			pr.Out.Host = target.Host
-			pr.Out.Header.Set("x-api-key", apiKey)
-			pr.Out.Header.Set("anthropic-version", apiVersion)
-			pr.Out.Header.Del("Authorization")
-		},
-		ErrorHandler: freediusErrorHandler(a.logger, a.verboseErrors),
+
+	// Build the upstream request directly so we can inspect the response
+	// before committing to write — enables fallback on 4xx/5xx.
+	upstreamReq, err := http.NewRequestWithContext(
+		r.Context(),
+		http.MethodPost,
+		target.String(),
+		bytes.NewReader(body),
+	)
+	if err != nil {
+		return &configError{
+			err: fmt.Errorf(
+				"%s adapter (anthropic-compat): build request: %w",
+				mapping.ProviderName,
+				err,
+			),
+			errType: "invalid_request_error",
+		}
 	}
-	rp.ServeHTTP(w, r)
+	upstreamReq.Header.Set("Content-Type", "application/json")
+	upstreamReq.Header.Set("x-api-key", apiKey)
+	upstreamReq.Header.Set("anthropic-version", apiVersion)
+
+	// Use a shared HTTP client — transport errors surface here.
+	resp, err := http.DefaultClient.Do(upstreamReq)
+	if err != nil {
+		// Transport error — write the Anthropic error envelope directly.
+		// This is pre-write, so it's fallback-eligible at the dispatcher level.
+		a.writeTransportError(w, r, err)
+		return nil
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode >= 400 {
+		return classifyUpstreamError(resp)
+	}
+
+	// Success path: stream the upstream response through.
+	for k, vv := range resp.Header {
+		for _, v := range vv {
+			w.Header().Add(k, v)
+		}
+	}
+	w.WriteHeader(resp.StatusCode)
+	_, _ = io.Copy(w, resp.Body)
 	return nil
+}
+
+// writeTransportError writes the Anthropic error envelope for transport-level
+// errors. Mirrors freediusErrorHandler's logic but is a method on the adapter
+// so it can access the logger and verboseErrors flag.
+func (a *AnthropicCompatibleAdapter) writeTransportError(
+	w http.ResponseWriter,
+	r *http.Request,
+	err error,
+) {
+	if context.Cause(r.Context()) != nil || r.Context().Err() != nil {
+		a.logger.Debug(
+			"client disconnect",
+			"request_id", RequestIDFromContext(r.Context()),
+			"path", r.URL.Path,
+		)
+		return
+	}
+	a.logger.Error(
+		"upstream transport error",
+		"request_id", RequestIDFromContext(r.Context()),
+		"path", r.URL.Path,
+		"err", err,
+	)
+	if a.verboseErrors {
+		a.logger.Debug(
+			"upstream transport error detail (verbose)",
+			"request_id", RequestIDFromContext(r.Context()),
+			"path", r.URL.Path,
+			"err", err.Error(),
+		)
+	}
+	if isPermanentTransportError(err) {
+		writeAnthropicError(w, 502, "api_error", "upstream not reachable", 0)
+	} else {
+		writeAnthropicError(w, 529, "overloaded_error", "upstream not reachable", 15)
+	}
 }

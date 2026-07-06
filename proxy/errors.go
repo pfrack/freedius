@@ -27,6 +27,20 @@ type configError struct {
 func (e *configError) Error() string { return e.err.Error() }
 func (e *configError) Unwrap() error { return e.err }
 
+// upstreamError carries the classified result of an upstream HTTP error
+// response (4xx/5xx). Adapters return this instead of writing the error
+// directly, so the dispatcher can decide whether to retry via fallback.
+type upstreamError struct {
+	status     int
+	errType    string
+	message    string
+	retryAfter int
+}
+
+func (e *upstreamError) Error() string {
+	return e.message
+}
+
 func forwardUpstreamError(w http.ResponseWriter, resp *http.Response) error {
 	for k, vv := range resp.Header {
 		for _, v := range vv {
@@ -64,12 +78,11 @@ func writeAnthropicError(
 	})
 }
 
-// translateUpstreamError maps a non-Anthropic upstream error response to an
-// Anthropic-format error and writes it to w. Reads up to 256 bytes of the
-// upstream body for the message, then drains up to 4 KiB more so the
-// http.Transport can reuse the keep-alive connection. Does NOT close
-// resp.Body.
-func translateUpstreamError(w http.ResponseWriter, resp *http.Response) {
+// classifyUpstreamError reads up to 256 bytes of the upstream body for the
+// message, drains up to 4 KiB more so the http.Transport can reuse the
+// keep-alive connection, and returns a classified *upstreamError. Does NOT
+// close resp.Body — caller owns that.
+func classifyUpstreamError(resp *http.Response) *upstreamError {
 	// Read a snippet of the upstream body for the message.
 	snippet := make([]byte, 256)
 	n, _ := io.ReadAtLeast(resp.Body, snippet, 1)
@@ -109,7 +122,20 @@ func translateUpstreamError(w http.ResponseWriter, resp *http.Response) {
 		retryAfter = 15
 	}
 
-	writeAnthropicError(w, status, errType, msg, retryAfter)
+	return &upstreamError{
+		status:     status,
+		errType:    errType,
+		message:    msg,
+		retryAfter: retryAfter,
+	}
+}
+
+// translateUpstreamError is a thin wrapper around classifyUpstreamError +
+// writeAnthropicError, kept for callers that still need the direct-write
+// behavior (e.g. the dispatcher's final-write path in Phase 3).
+func translateUpstreamError(w http.ResponseWriter, resp *http.Response) {
+	ue := classifyUpstreamError(resp)
+	writeAnthropicError(w, ue.status, ue.errType, ue.message, ue.retryAfter)
 }
 
 func parseRetryAfter(header string, fallback int) int {

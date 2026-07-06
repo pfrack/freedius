@@ -621,9 +621,9 @@ unchanged with no fallback behavior triggered. No data migration is needed.
 
 #### Automated
 
-- [x] 1.1 `go test ./config/...` passes
-- [x] 1.2 `go build ./...` passes
-- [x] 1.3 `go vet ./...` passes
+- [x] 1.1 `go test ./config/...` passes — 69f869a
+- [x] 1.2 `go build ./...` passes — 69f869a
+- [x] 1.3 `go vet ./...` passes — 69f869a
 
 #### Manual
 
