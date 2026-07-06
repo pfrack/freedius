@@ -510,8 +510,9 @@ tr:hover {
   border-radius: var(--radius-md);
   background: var(--bg-surface);
   color: var(--text-primary);
-  font-size: 0.875rem;
-  line-height: 1.25;
+  font: inherit;
+  line-height: normal;
+  height: 2.25rem;
   box-sizing: border-box;
   transition: border-color 150ms ease, box-shadow 150ms ease;
   width: 100%;
@@ -574,6 +575,12 @@ select:focus {
 
 select {
   appearance: auto;
+}
+
+fieldset {
+  padding: 0;
+  margin: 0;
+  border: none;
 }
 
 /* ── Dialog ─────────────────────────────────────────────────────────────── */
