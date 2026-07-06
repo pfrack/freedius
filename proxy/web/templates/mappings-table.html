@@ -1,26 +1,17 @@
 {{define "mappings-table"}}
-<div class="table-wrap">
-<table id="mappings">
-  <thead>
-    <tr>
-      <th>Name</th>
-      <th>Provider</th>
-      <th>Model</th>
-      <th>Fallback</th>
-      <th>Actions</th>
-    </tr>
-  </thead>
-  <tbody>
-    {{range .Mappings}}
-    <tr>
-      <td>{{.Name}}</td>
-      <td>{{.ProviderName}}</td>
-      <td>{{.Model}}</td>
-      <td>{{if .Fallbacks}}<small>{{.Fallbacks}}</small>{{else}}—{{end}}</td>
-      <td>
+<div id="mappings" class="mappings-grid">
+  {{range .Mappings}}
+  <div class="route-card">
+    <div class="route-card__header">
+      <h3 class="route-card__name">{{.Name}}</h3>
+      <div class="route-card__actions">
         <button
           class="btn btn--ghost btn--sm"
-          onclick="editMapping('{{.Name | js}}','{{.ProviderName | js}}','{{.Model | js}}','{{.Fallbacks | js}}')"
+          onclick="editMapping(this)"
+          data-name="{{.Name | js}}"
+          data-provider="{{.ProviderName | js}}"
+          data-model="{{.Model | js}}"
+          data-fallbacks='{{.Fallbacks | jsonMarshal | js}}'
         >
           Edit
         </button>
@@ -33,10 +24,19 @@
         >
           Delete
         </button>
-      </td>
-    </tr>
-    {{end}}
-  </tbody>
-</table>
+      </div>
+    </div>
+    <div class="route-chain">
+      <div class="route-step route-step--primary">
+        {{.ProviderName}} / {{.Model}}
+      </div>
+      {{range .Fallbacks}}
+      <div class="route-step route-step--fallback">
+        {{.ProviderName}} / {{.Model}}
+      </div>
+      {{end}}
+    </div>
+  </div>
+  {{end}}
 </div>
 {{end}}

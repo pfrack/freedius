@@ -369,9 +369,9 @@ Run the full test suite, verify edge cases, and confirm no regressions. This is 
 
 #### Automated
 
-- [x] 1.1 Go build succeeds (`go build ./...`) — 2026-07-06
-- [x] 1.2 Handler tests pass (`go test ./proxy/web/...`) — 2026-07-06
-- [x] 1.5 `FallbacksString()` method compiles and matches old string format. — 2026-07-06
+- [x] 1.1 Go build succeeds (`go build ./...`) — 2026-07-06 — 5ca86fa
+- [x] 1.2 Handler tests pass (`go test ./proxy/web/...`) — 2026-07-06 — 5ca86fa
+- [x] 1.5 `FallbacksString()` method compiles and matches old string format. — 2026-07-06 — 5ca86fa
 
 #### Manual
 

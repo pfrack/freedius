@@ -5,6 +5,7 @@ package web
 
 import (
 	"embed"
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"io/fs"
@@ -15,6 +16,18 @@ import (
 
 //go:embed templates static
 var assets embed.FS
+
+// templateFuncs is the shared FuncMap available to all templates. Functions
+// must be registered before ParseFS, so we define them once here.
+var templateFuncs = template.FuncMap{
+	"jsonMarshal": func(v any) (string, error) {
+		b, err := json.Marshal(v)
+		if err != nil {
+			return "", err
+		}
+		return string(b), nil
+	},
+}
 
 // pageTemplates caches one *template.Template per page file. The layout
 // defines `{{block "content" .}}` and each page overrides it, so pages
@@ -35,7 +48,7 @@ func loadFragmentTemplate(name string) (*template.Template, error) {
 	if cached, ok := fragmentTemplates.Load(name); ok {
 		return cached.(*template.Template), nil
 	}
-	tmpl, err := template.New(name).ParseFS(assets, "templates/"+name)
+	tmpl, err := template.New(name).Funcs(templateFuncs).ParseFS(assets, "templates/"+name)
 	if err != nil {
 		return nil, fmt.Errorf("parse fragment %s: %w", name, err)
 	}
@@ -56,7 +69,7 @@ func loadPageTemplate(pageFile string, extraFiles ...string) (*template.Template
 	for _, f := range extraFiles {
 		files = append(files, "templates/"+f)
 	}
-	tmpl, err := template.ParseFS(assets, files...)
+	tmpl, err := template.New(pageFile).Funcs(templateFuncs).ParseFS(assets, files...)
 	if err != nil {
 		return nil, fmt.Errorf("parse %s: %w", pageFile, err)
 	}
