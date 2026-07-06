@@ -676,9 +676,9 @@ unchanged with no fallback behavior triggered. No data migration is needed.
 
 #### Automated
 
-- [ ] 5.1 `go test ./...` full suite passes
-- [ ] 5.2 `go vet ./...` passes
-- [ ] 5.3 `go build ./...` passes
+- [x] 5.1 `go test ./...` full suite passes — 924f3c2
+- [x] 5.2 `go vet ./...` passes — 924f3c2
+- [x] 5.3 `go build ./...` passes — 924f3c2
 
 #### Manual
 
