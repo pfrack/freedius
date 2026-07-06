@@ -100,15 +100,14 @@
       var container = document.getElementById('fallback-rows');
       var idx = container.children.length;
       var suggestId = 'fallback-suggestions-' + idx;
-      var inputH = '32px';
       var row = document.createElement('div');
       row.style.cssText = 'margin-bottom:8px;';
       row.innerHTML =
         '<div style="display:flex;gap:6px;align-items:center;">' +
-          '<select class="form-select" name="fallback_provider_name[]" style="flex:1;height:' + inputH + ';">' +
+          '<select class="form-select" name="fallback_provider_name[]" style="flex:1;">' +
             '{{range .Providers}}<option value="{{.Name}}">{{.Name}}</option>{{end}}' +
           '</select>' +
-          '<input class="form-input" name="fallback_model_string[]" placeholder="model" style="flex:1;height:' + inputH + ';" value="' + (model || '') + '">' +
+          '<input class="form-input" name="fallback_model_string[]" placeholder="model" style="flex:1;" value="' + (model || '') + '">' +
           '<button type="button" class="btn btn--ghost btn--sm" onclick="var s=this.parentElement.querySelector(\'select\');if(s.value)htmx.ajax(\'POST\',\'/v1/providers/\'+s.value+\'/models/refresh\',{target:\'#' + suggestId + '\',swap:\'innerHTML\'});">' +
             '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>' +
           '</button>' +

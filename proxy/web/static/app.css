@@ -511,6 +511,8 @@ tr:hover {
   background: var(--bg-surface);
   color: var(--text-primary);
   font-size: 0.875rem;
+  line-height: 1.25;
+  box-sizing: border-box;
   transition: border-color 150ms ease, box-shadow 150ms ease;
   width: 100%;
 }
