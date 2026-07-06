@@ -11,7 +11,12 @@ providers:
   nim: { behavior: openai, default_api_key_env: NVIDIA_NIM_API_KEY }
 
 mappings:
-  opus:    { provider_name: go,  model_string: deepseek-v4-pro }
+  opus:
+    provider_name: go
+    model_string: deepseek-v4-pro
+    fallback:
+      - provider_name: zen
+        model_string: claude-sonnet-4-6
   sonnet:  { provider_name: go,  model_string: minimax-m3 }
   haiku:   { provider_name: zen, model_string: claude-sonnet-4-6 }
   auto:    { provider_name: nim, model_string: step-3.5 }

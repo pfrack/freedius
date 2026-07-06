@@ -662,8 +662,8 @@ unchanged with no fallback behavior triggered. No data migration is needed.
 
 #### Automated
 
-- [ ] 4.1 `go test ./proxy/web/...` passes
-- [ ] 4.2 `go vet ./...` passes
+- [x] 4.1 `go test ./proxy/web/...` passes — 8b31951
+- [x] 4.2 `go vet ./...` passes — 8b31951
 
 #### Manual
 
