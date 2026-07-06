@@ -419,6 +419,13 @@ func (d *Dispatcher) writeAggregatedFallbackError(
 	}
 	msg := fmt.Sprintf("all providers failed: %s", strings.Join(parts, ", "))
 
+	// Server log gets full details; client message redacts error types.
+	var clientParts []string
+	for _, a := range attempts {
+		clientParts = append(clientParts, fmt.Sprintf("%s/%s", a.provider, a.model))
+	}
+	clientMsg := fmt.Sprintf("all providers failed: %s", strings.Join(clientParts, ", "))
+
 	d.Logger.Error(
 		"fallback chain exhausted",
 		"request_id", RequestIDFromContext(r.Context()),
@@ -426,7 +433,7 @@ func (d *Dispatcher) writeAggregatedFallbackError(
 		"message", msg,
 	)
 
-	writeAnthropicError(w, status, errType, msg, retryAfter)
+	writeAnthropicError(w, status, errType, clientMsg, retryAfter)
 }
 
 // ErrorOption mutates the internal errorJSON used by (*Dispatcher).writeErrorJSON.

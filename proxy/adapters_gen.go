@@ -122,7 +122,7 @@ func NewDefaultRegistry(
 	providers := map[string]Provider{
 		"nim":       NewNIMAdapter(logger, streamTimeout),
 		"openai":    NewOpenAICompatibleAdapterWithTimeout(logger, streamTimeout),
-		"anthropic": NewAnthropicCompatibleAdapter(logger, verboseErrors),
+		"anthropic": NewAnthropicCompatibleAdapterWithTimeout(logger, verboseErrors, streamTimeout),
 		"mix":       NewMixAdapter(logger, verboseErrors, streamTimeout),
 	}
 	for name, p := range overrides {

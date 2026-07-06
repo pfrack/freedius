@@ -479,6 +479,16 @@ func handleDeleteProvider(w http.ResponseWriter, r *http.Request, cfg *config.Co
 			writeJSONError(w, http.StatusConflict, "provider_in_use", "mappings reference this provider")
 			return
 		}
+		for _, fb := range m.Fallback {
+			if fb.ProviderName == name {
+				cfg.Unlock()
+				writeJSONError(w, http.StatusConflict,
+					"provider_in_use",
+					"mappings reference this provider as fallback",
+				)
+				return
+			}
+		}
 	}
 	old := cfg.Providers[name]
 	delete(cfg.Providers, name)

@@ -292,10 +292,10 @@ func TestFallback_MixedFailures_AggregatedError(t *testing.T) {
 	if !strings.Contains(body, "all providers failed") {
 		t.Errorf("expected aggregated error, got: %s", body)
 	}
-	if !strings.Contains(body, "rate_limit_error") {
-		t.Errorf("error should mention rate_limit_error from provA, got: %s", body)
+	if !strings.Contains(body, "provA/gpt-4") {
+		t.Errorf("error should mention provA/gpt-4, got: %s", body)
 	}
-	if !strings.Contains(body, "api_error") {
-		t.Errorf("error should mention api_error from provB, got: %s", body)
+	if !strings.Contains(body, "provB/gpt-4") {
+		t.Errorf("error should mention provB/gpt-4, got: %s", body)
 	}
 }

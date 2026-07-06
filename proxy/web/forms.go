@@ -148,8 +148,8 @@ func validateProviderName(name string) error {
 	if name == "" {
 		return fmt.Errorf("required")
 	}
-	if strings.ContainsAny(name, "\r\n:") {
-		return fmt.Errorf("must not contain CR, LF, or colon")
+	if strings.ContainsAny(name, "\r\n:%") {
+		return fmt.Errorf("must not contain CR, LF, colon, or percent")
 	}
 	return nil
 }
@@ -201,8 +201,8 @@ func validateMappingName(name string) error {
 	if name == "" {
 		return fmt.Errorf("required")
 	}
-	if strings.ContainsAny(name, "\r\n:") {
-		return fmt.Errorf("must not contain CR, LF, or colon")
+	if strings.ContainsAny(name, "\r\n:%") {
+		return fmt.Errorf("must not contain CR, LF, colon, or percent")
 	}
 	return nil
 }

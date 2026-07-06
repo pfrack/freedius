@@ -180,7 +180,7 @@ func GenerateProxy(spec Spec) ([]byte, error) {
 	data.RegistryEntries = []registryEntry{
 		{Name: "nim", CtorCall: "NewNIMAdapter(logger, streamTimeout)"},
 		{Name: "openai", CtorCall: "NewOpenAICompatibleAdapterWithTimeout(logger, streamTimeout)"},
-		{Name: "anthropic", CtorCall: "NewAnthropicCompatibleAdapter(logger, verboseErrors)"},
+		{Name: "anthropic", CtorCall: "NewAnthropicCompatibleAdapterWithTimeout(logger, verboseErrors, streamTimeout)"},
 		{Name: "mix", CtorCall: "NewMixAdapter(logger, verboseErrors, streamTimeout)"},
 	}
 

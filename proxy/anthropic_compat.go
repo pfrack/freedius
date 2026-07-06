@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"time"
 
 	"github.com/pfrack/freedius/config"
 )
@@ -22,17 +23,29 @@ import (
 type AnthropicCompatibleAdapter struct {
 	logger        *slog.Logger
 	verboseErrors bool
+	streamTimeout time.Duration
 }
 
-// NewAnthropicCompatibleAdapter returns an adapter tagged with the
-// "adapter.anthropic" slog component and the given verboseErrors setting.
+// NewAnthropicCompatibleAdapter returns an adapter with the default stream
+// timeout (5 minutes). Use NewAnthropicCompatibleAdapterWithTimeout to override.
 func NewAnthropicCompatibleAdapter(
 	logger *slog.Logger,
 	verboseErrors bool,
 ) *AnthropicCompatibleAdapter {
+	return NewAnthropicCompatibleAdapterWithTimeout(logger, verboseErrors, 5*time.Minute)
+}
+
+// NewAnthropicCompatibleAdapterWithTimeout returns an adapter that aborts the
+// upstream call after streamTimeout (per-request, via context.WithTimeout).
+func NewAnthropicCompatibleAdapterWithTimeout(
+	logger *slog.Logger,
+	verboseErrors bool,
+	streamTimeout time.Duration,
+) *AnthropicCompatibleAdapter {
 	return &AnthropicCompatibleAdapter{
 		logger:        logger.With("component", "adapter.anthropic"),
 		verboseErrors: verboseErrors,
+		streamTimeout: streamTimeout,
 	}
 }
 
@@ -85,10 +98,14 @@ func (a *AnthropicCompatibleAdapter) Handle(
 		apiVersion = "2023-06-01"
 	}
 
+	// Bound the upstream call so a hanging provider cannot pin the goroutine.
+	ctx, cancel := context.WithTimeout(r.Context(), a.streamTimeout)
+	defer cancel()
+
 	// Build the upstream request directly so we can inspect the response
 	// before committing to write — enables fallback on 4xx/5xx.
 	upstreamReq, err := http.NewRequestWithContext(
-		r.Context(),
+		ctx,
 		http.MethodPost,
 		target.String(),
 		bytes.NewReader(body),
