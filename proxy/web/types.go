@@ -1,6 +1,11 @@
 package web
 
-import "github.com/pfrack/freedius/proxy"
+import (
+	"fmt"
+	"strings"
+
+	"github.com/pfrack/freedius/proxy"
+)
 
 // pageData is the common data passed to every page template.
 type pageData struct {
@@ -48,12 +53,32 @@ type providersData struct {
 	Providers []providerRow
 }
 
+// fallbackEntry represents a single fallback provider/model pair.
+type fallbackEntry struct {
+	ProviderName string
+	Model        string
+}
+
+// String returns a formatted fallback string (e.g., "→ provider/model").
+func (f fallbackEntry) String() string {
+	return fmt.Sprintf("→ %s/%s", f.ProviderName, f.Model)
+}
+
 // mappingRow represents a single mapping for template rendering.
 type mappingRow struct {
 	Name         string
 	ProviderName string
 	Model        string
-	Fallbacks    string // pre-formatted fallback chain, e.g. "→ zen/claude, → nim/step"
+	Fallbacks    []fallbackEntry
+}
+
+// FallbacksString returns a comma-separated string of all fallbacks (e.g., "→ zen/claude, → nim/step").
+func (m mappingRow) FallbacksString() string {
+	var parts []string
+	for _, fb := range m.Fallbacks {
+		parts = append(parts, fb.String())
+	}
+	return strings.Join(parts, ", ")
 }
 
 // mappingsData is the data for the mappings page.
