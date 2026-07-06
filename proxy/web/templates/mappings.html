@@ -95,6 +95,16 @@
       this.innerHTML = '';
     });
 
+    function filterModels(input) {
+      var q = input.value.toLowerCase();
+      var items = input.nextElementSibling.querySelectorAll('li[data-model-id]');
+      for (var i = 0; i < items.length; i++) {
+        var id = items[i].dataset.modelId.toLowerCase();
+        var text = items[i].textContent.toLowerCase();
+        items[i].style.display = (id.indexOf(q) !== -1 || text.indexOf(q) !== -1) ? '' : 'none';
+      }
+    }
+
     function addFallbackRow(provider, model) {
       var container = document.getElementById('fallback-rows');
       var idx = container.children.length;

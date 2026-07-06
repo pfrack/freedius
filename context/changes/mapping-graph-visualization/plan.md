@@ -421,3 +421,18 @@ Run the full test suite, verify edge cases, and confirm no regressions. This is 
 - [ ] 4.5 Long model names truncate with ellipsis
 - [ ] 4.6 3+ fallbacks wrap gracefully
 - [ ] 4.7 No console errors
+
+### Phase 5: Model Filter
+
+#### Automated
+
+- [ ] 5.1 Go build succeeds (`go build ./...`)
+- [ ] 5.2 All web tests pass (`go test ./proxy/web/...`)
+- [ ] 5.3 Lint passes (`mage lint`)
+
+#### Manual
+
+- [ ] 5.4 Filter input appears above fetched model list
+- [ ] 5.5 Typing filters models by ID and display name in real time
+- [ ] 5.6 Filter works for both primary model and fallback model selectors
+- [ ] 5.7 Empty filter shows all models

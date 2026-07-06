@@ -1,4 +1,5 @@
 {{if .Models}}
+<input class="form-input model-filter-input" type="text" placeholder="Filter models…" oninput="filterModels(this)" style="margin-bottom:var(--space-2);width:100%;">
 <ul class="model-list">
   {{range .Models}}
   <li data-model-id="{{.ID}}"><strong>{{.ID}}</strong>{{if ne .DisplayName .ID}} — {{.DisplayName}}{{end}}</li>
