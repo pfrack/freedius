@@ -62,28 +62,27 @@
   </dialog>
 
   <script>
-    function editMapping(name, provider, model, fallbacksStr) {
+    function editMapping(btn) {
+      var ds = btn.dataset;
       var d = document.getElementById('mapping-dialog');
       var f = document.getElementById('mapping-form');
-      f.setAttribute('hx-put', '/v1/mappings/' + name);
+      f.setAttribute('hx-put', '/v1/mappings/' + ds.name);
       f.removeAttribute('hx-post');
-      f.elements.name.value = name;
+      f.elements.name.value = ds.name;
       f.elements.name.readOnly = true;
-      f.elements.provider_name.value = provider;
-      f.elements.model_string.value = model;
+      f.elements.provider_name.value = ds.provider;
+      f.elements.model_string.value = ds.model;
       document.getElementById('mapping-dialog-title').textContent = 'Edit Mapping';
 
-      // Pre-populate fallback rows from "→ provider/model, → provider/model" format.
       var container = document.getElementById('fallback-rows');
       container.innerHTML = '';
-      if (fallbacksStr && fallbacksStr !== '—') {
-        var entries = fallbacksStr.split(', ');
-        for (var i = 0; i < entries.length; i++) {
-          var parts = entries[i].replace(/^→ /, '').split('/');
-          if (parts.length === 2) {
-            addFallbackRow(parts[0], parts[1]);
-          }
-        }
+      try {
+        var fallbacks = JSON.parse(ds.fallbacks);
+        fallbacks.forEach(function(fb) {
+          addFallbackRow(fb.ProviderName, fb.Model);
+        });
+      } catch (e) {
+        console.error("Failed to parse fallbacks:", e);
       }
 
       d.showModal();
@@ -95,6 +94,16 @@
       document.getElementById('mapping-form').elements.model_string.value = li.dataset.modelId;
       this.innerHTML = '';
     });
+
+    function filterModels(input) {
+      var q = input.value.toLowerCase();
+      var items = input.nextElementSibling.querySelectorAll('li[data-model-id]');
+      for (var i = 0; i < items.length; i++) {
+        var id = items[i].dataset.modelId.toLowerCase();
+        var text = items[i].textContent.toLowerCase();
+        items[i].style.display = (id.indexOf(q) !== -1 || text.indexOf(q) !== -1) ? '' : 'none';
+      }
+    }
 
     function addFallbackRow(provider, model) {
       var container = document.getElementById('fallback-rows');
