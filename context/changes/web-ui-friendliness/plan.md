@@ -390,14 +390,14 @@ End-to-end manual run per Phase (the per-Phase §Manual Verification blocks enum
 
 #### Automated
 
-- [ ] 1.1 `go build ./...` succeeds
-- [ ] 1.2 `mage test` (or `go test ./proxy/web/...`) passes — all new + existing tests
-- [ ] 1.3 `mage lint` clean
-- [ ] 1.4 `TestMappingsTable_F1_RoundTrip` — single/double-quote round-trips through `data-fallbacks` attribute
-- [ ] 1.5 `TestHandleRefreshModels_Truncation` — 1500-model response capped at 1000 + truncation notice
-- [ ] 1.6 `TestHandleRefreshModels_InProgress` — second concurrent refresh returns `Fetch in progress`
-- [ ] 1.7 `TestHandleRefreshModels_NoTruncationMessage_WhenExactly1000` — 1000 models do not show "Truncated"
-- [ ] 1.8 `TestStaleHxPutAfterEditCancel` — Add Mapping after Edit/Cancel cycle resets form to POST mode
+- [x] 1.1 `go build ./...` succeeds — f781065
+- [x] 1.2 `mage test` (or `go test ./proxy/web/...`) passes — all new + existing tests — f781065
+- [x] 1.3 `mage lint` clean — f781065
+- [x] 1.4 `TestMappingsTable_F1_RoundTrip` — single/double-quote round-trips through `data-fallbacks` attribute — f781065
+- [x] 1.5 `TestHandleRefreshModels_Truncation` — 1500-model response capped at 1000 + truncation notice — f781065
+- [x] 1.6 `TestHandleRefreshModels_InProgress` — second concurrent refresh returns `Fetch in progress` — f781065
+- [x] 1.7 `TestHandleRefreshModels_NoTruncationMessage_WhenExactly1000` — 1000 models do not show "Truncated" — f781065
+- [x] 1.8 `TestStaleHxPutAfterEditCancel` — Add Mapping after Edit/Cancel cycle resets form to POST mode — f781065
 
 #### Manual
 
