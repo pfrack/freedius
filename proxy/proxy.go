@@ -52,6 +52,10 @@ type Dispatcher struct {
 	// streamTimeout is the per-attempt upstream timeout, used to compute
 	// the shared fallback chain budget.
 	streamTimeout time.Duration
+	// LastResponder aggregates the most recent successful responder index
+	// per mapping (nil-safe; the dispatch path skips recording when nil).
+	// Wired by main.go after construction; tests leave it nil.
+	LastResponder *LastResponder
 }
 
 // NewDispatcher returns a Dispatcher wired to the given config, registry, and
@@ -102,28 +106,33 @@ func (d *Dispatcher) SetVerboseErrors(v bool) { d.verboseErrors.Store(v) }
 
 // resolveMapping looks up the mapping and provider for the given model name,
 // holding the config read lock for the duration of both map accesses. Returns
-// (mapping, provider, true) on hit; on miss returns zero-valued mapping, nil
-// provider, false. The returned Provider pointer is a copy of the map entry —
-// it remains valid even after the lock is released since Go maps store values
-// by value, but mutating fields on the returned Provider would race with
-// other writers; treat it as read-only.
-func (d *Dispatcher) resolveMapping(model string) (config.Mapping, *config.Provider, bool) {
+// (name, mapping, provider, true) on hit; on miss returns "", zero-valued
+// mapping, nil provider, false. The returned name is the mapping key actually
+// matched — may differ from `model` when the family fallback fires. The
+// returned Provider pointer is a copy of the map entry — it remains valid
+// even after the lock is released since Go maps store values by value, but
+// mutating fields on the returned Provider would race with other writers;
+// treat it as read-only.
+func (d *Dispatcher) resolveMapping(model string) (string, config.Mapping, *config.Provider, bool) {
 	d.Cfg.RLock()
 	defer d.Cfg.RUnlock()
-	mapping, ok := d.Cfg.Mappings[model]
-	if !ok {
-		if family, found := extractFamily(model); found {
-			mapping, ok = d.Cfg.Mappings[family]
+	if mapping, ok := d.Cfg.Mappings[model]; ok {
+		provider, pok := d.Cfg.Providers[mapping.ProviderName]
+		if !pok {
+			return model, mapping, nil, true
+		}
+		return model, mapping, &provider, true
+	}
+	if family, found := extractFamily(model); found {
+		if mapping, ok := d.Cfg.Mappings[family]; ok {
+			provider, pok := d.Cfg.Providers[mapping.ProviderName]
+			if !pok {
+				return family, mapping, nil, true
+			}
+			return family, mapping, &provider, true
 		}
 	}
-	if !ok {
-		return config.Mapping{}, nil, false
-	}
-	provider, ok := d.Cfg.Providers[mapping.ProviderName]
-	if !ok {
-		return mapping, nil, true
-	}
-	return mapping, &provider, true
+	return "", config.Mapping{}, nil, false
 }
 
 func (d *Dispatcher) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -206,7 +215,7 @@ func (d *Dispatcher) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	mapping, provider, ok := d.resolveMapping(req.Model)
+	mappingName, mapping, provider, ok := d.resolveMapping(req.Model)
 	if !ok {
 		d.Logger.Debug(
 			"no match for model",
@@ -331,6 +340,9 @@ func (d *Dispatcher) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					"provider", target.ProviderName,
 					"model", target.ModelString,
 				)
+				if d.LastResponder != nil && mappingName != "" {
+					d.LastResponder.Record(mappingName, i)
+				}
 			}
 			return
 		}

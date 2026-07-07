@@ -54,6 +54,8 @@ type providersData struct {
 type fallbackEntry struct {
 	ProviderName string
 	Model        string
+	Protocol     string
+	BaseURL      string
 }
 
 // mappingRow represents a single mapping for template rendering.
@@ -61,6 +63,10 @@ type mappingRow struct {
 	Name         string
 	ProviderName string
 	Model        string
+	Protocol     string
+	BaseURL      string
+	Responder    int // -1 when no recent responder known
+	HasResponder bool
 	Fallbacks    []fallbackEntry
 }
 

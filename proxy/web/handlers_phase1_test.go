@@ -1,9 +1,12 @@
 package web
 
 import (
+	"encoding/json"
+	"html"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"strings"
 	"sync"
 	"testing"
@@ -13,15 +16,28 @@ import (
 	"github.com/pfrack/freedius/proxy"
 )
 
+// newRenderHandlers wraps a config in a minimal eventstream.Handlers so the
+// signature change of renderMappingsTable/handleMappings in Phase 2 can be
+// satisfied by the Phase 1 tests without dragging in a full web server.
+func newRenderHandlers(cfg *config.Config) *eventstream.Handlers {
+	return &eventstream.Handlers{
+		Bus:           proxy.NewEventBus(1),
+		Cfg:           cfg,
+		LastResponder: proxy.NewLastResponder(),
+	}
+}
+
 // TestMappingsTable_F1_RoundTrip verifies F1: the `data-fallbacks` attribute
 // round-trips provider/model strings containing both `'` and `"` through
-// html/template without double-escaping (`\x27`/`\x22` from `| js`).
+// html/template without double-escaping (`\x27`/`\x22` from `| js`). The
+// browser-equivalent check parses the rendered attribute as HTML-decoded
+// JSON; that's what `JSON.parse(btn.dataset.fallbacks)` actually does.
 func TestMappingsTable_F1_RoundTrip(t *testing.T) {
 	cfg := &config.Config{
 		Providers: map[string]config.Provider{
-			"nim":   {Behavior: "openai", Protocol: "openai"},
-			"zen":   {Behavior: "openai", Protocol: "openai"},
-			"myCo":  {Behavior: "openai", Protocol: "openai"},
+			"nim":  {Behavior: "openai"},
+			"zen":  {Behavior: "openai"},
+			"myCo": {Behavior: "openai"},
 		},
 		Mappings: map[string]config.Mapping{
 			"q": {
@@ -34,32 +50,43 @@ func TestMappingsTable_F1_RoundTrip(t *testing.T) {
 			},
 		},
 	}
-	h := &eventstream.Handlers{
-		Bus: proxy.NewEventBus(1),
-		Cfg: cfg,
-	}
 
 	req := httptest.NewRequest(http.MethodGet, "/mappings", nil)
 	rec := httptest.NewRecorder()
-	renderMappingsTable(rec, req, h.Cfg)
-	_ = h
-
+	renderMappingsTable(rec, req, newRenderHandlers(cfg))
 	body := rec.Body.String()
-	if !strings.Contains(body, `data-fallbacks="`) {
-		t.Fatalf("expected data-fallbacks= attribute in body, got: %s", body)
+
+	attr := extractAttr(t, body, "data-fallbacks")
+	// Decode HTML entities as the browser would when populating `dataset`.
+	decoded := html.UnescapeString(attr)
+
+	var parsed []struct {
+		ProviderName string `json:"ProviderName"`
+		Model        string `json:"Model"`
 	}
-	// F1's `| js` filter emitted `\x27`/`\x22` JS string escapes that JSON.parse
-	// does NOT understand. html/template's own attribute encoding (`&#39;`/`&#34;`)
-	// is correct — the browser decodes those before `dataset.fallbacks` exposes
-	// them to JS. Forbid only the JS-context escapes.
-	for _, forbidden := range []string{`\x27`, `\x22`, `\u0022`, `\u0027`} {
-		if strings.Contains(body, forbidden) {
-			t.Errorf("body contains forbidden escape %q (| js over-encoding): %s", forbidden, body)
-		}
+	if err := json.Unmarshal([]byte(decoded), &parsed); err != nil {
+		t.Fatalf("dataset.fallbacks would not parse as JSON: %v\ndecoded=%s", err, decoded)
 	}
-	if !strings.Contains(body, "data-fallbacks=") {
-		t.Errorf("body missing data-fallbacks attr; got: %s", body)
+	if len(parsed) != 2 {
+		t.Fatalf("expected 2 fallback entries, got %d: %#v", len(parsed), parsed)
 	}
+	if parsed[0].ProviderName != "zen" || parsed[0].Model != `with "quote"` {
+		t.Errorf("fallback[0] = %+v, want zen/with \"quote\"", parsed[0])
+	}
+	if parsed[1].ProviderName != "myCo" || parsed[1].Model != `with 'apos'` {
+		t.Errorf("fallback[1] = %+v, want myCo/with 'apos'", parsed[1])
+	}
+}
+
+// extractAttr pulls the value of a double-quoted attribute out of an HTML body.
+func extractAttr(t *testing.T, body, name string) string {
+	t.Helper()
+	re := regexp.MustCompile(`(?s)` + regexp.QuoteMeta(name) + `="([^"]*)"`)
+	m := re.FindStringSubmatch(body)
+	if len(m) < 2 {
+		t.Fatalf("attribute %s not found in body: %s", name, body)
+	}
+	return m[1]
 }
 
 // TestMappingsTable_F1_QuotesInModelSurvive is the companion check: a model
@@ -81,14 +108,20 @@ func TestMappingsTable_F1_QuotesInModelSurvive(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/mappings", nil)
 	rec := httptest.NewRecorder()
-	renderMappingsTable(rec, req, cfg)
+	renderMappingsTable(rec, req, newRenderHandlers(cfg))
 
 	body := rec.Body.String()
-	if !strings.Contains(body, "data-fallbacks=") {
-		t.Fatalf("expected data-fallbacks attr; got: %s", body)
+	attr := extractAttr(t, body, "data-fallbacks")
+	decoded := html.UnescapeString(attr)
+	var parsed []struct {
+		ProviderName string `json:"ProviderName"`
+		Model        string `json:"Model"`
 	}
-	if strings.Contains(body, `\x27`) || strings.Contains(body, `\x22`) {
-		t.Errorf("| js over-escaping present: %s", body)
+	if err := json.Unmarshal([]byte(decoded), &parsed); err != nil {
+		t.Fatalf("dataset.fallbacks would not parse as JSON: %v\ndecoded=%s", err, decoded)
+	}
+	if parsed[0].Model != `x"y'z` {
+		t.Errorf("fallback[0].Model = %q, want %q", parsed[0].Model, `x"y'z`)
 	}
 }
 
@@ -247,7 +280,7 @@ func TestMappingsTable_HxConfirmBalanced(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/mappings", nil)
 	rec := httptest.NewRecorder()
-	renderMappingsTable(rec, req, cfg)
+	renderMappingsTable(rec, req, newRenderHandlers(cfg))
 
 	body := rec.Body.String()
 	if !strings.Contains(body, `hx-confirm="Delete mapping 'alpha'?"`) {

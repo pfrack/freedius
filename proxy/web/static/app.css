@@ -815,6 +815,66 @@ pre {
   display: none;
 }
 
+.route-step:first-child::after {
+  display: none;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.route-step__protocol {
+  margin-left: var(--space-2);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.route-card__depth {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  padding: 0 var(--space-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  line-height: 1.6;
+}
+
+.route-step--responder::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: var(--space-2);
+  border-radius: 50%;
+  background: var(--color-success);
+  animation: responder-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes responder-pulse {
+  0%, 100% {
+    opacity: 0.35;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .route-step--responder::before {
+    animation: none;
+    opacity: 1;
+  }
+}
+
 @media (max-width: 768px) {
   .route-chain {
     flex-direction: column;

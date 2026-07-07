@@ -1,9 +1,13 @@
 {{define "mappings-table"}}
 <div id="mappings" class="mappings-grid">
   {{range .Mappings}}
+  {{$mapName := .Name}}
+  {{$mapHasResp := .HasResponder}}
+  {{$mapRespIdx := .Responder}}
   <div class="route-card">
     <div class="route-card__header">
       <h3 class="route-card__name">{{.Name}}</h3>
+      {{if gt (len .Fallbacks) 0}}<span class="route-card__depth">{{len .Fallbacks}} fallback{{if ne (len .Fallbacks) 1}}s{{end}}</span>{{end}}
       <div class="route-card__actions">
         <button
           class="btn btn--ghost btn--sm"
@@ -26,14 +30,28 @@
         </button>
       </div>
     </div>
-    <div class="route-chain">
-      <div class="route-step route-step--primary">
-        {{.ProviderName}} / {{.Model}}
-      </div>
-      {{range .Fallbacks}}
-      <div class="route-step route-step--fallback">
-        {{.ProviderName}} / {{.Model}}
-      </div>
+    <div class="route-chain" role="list">
+      <a
+        href="/logs?provider={{.ProviderName}}&amp;mapping={{$mapName}}"
+        class="route-step route-step--primary {{if and $mapHasResp (eq $mapRespIdx 0)}}route-step--responder{{end}}"
+        aria-label="Primary: {{.ProviderName}} {{.Model}}{{if .Protocol}} ({{.Protocol}}){{end}}"
+        role="listitem"
+        title="{{.BaseURL}}{{if .Protocol}} ({{.Protocol}}){{end}}"
+      >
+        <span class="visually-hidden">Primary:</span>
+        {{.ProviderName}} / {{.Model}}{{if .Protocol}} <span class="badge badge--protocol route-step__protocol">{{.Protocol}}</span>{{end}}
+      </a>
+      {{range $idx, $fb := .Fallbacks}}
+      <a
+        href="/logs?provider={{$fb.ProviderName}}&amp;mapping={{$mapName}}"
+        class="route-step route-step--fallback {{if and $mapHasResp (eq $mapRespIdx (add1 $idx))}}route-step--responder{{end}}"
+        aria-label="Fallback {{add1 $idx}}: {{$fb.ProviderName}} {{$fb.Model}}{{if $fb.Protocol}} ({{$fb.Protocol}}){{end}}"
+        role="listitem"
+        title="{{$fb.BaseURL}}{{if $fb.Protocol}} ({{$fb.Protocol}}){{end}}"
+      >
+        <span class="visually-hidden">Fallback {{add1 $idx}}:</span>
+        {{$fb.ProviderName}} / {{$fb.Model}}{{if $fb.Protocol}} <span class="badge badge--protocol route-step__protocol">{{$fb.Protocol}}</span>{{end}}
+      </a>
       {{end}}
     </div>
   </div>

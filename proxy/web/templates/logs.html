@@ -10,6 +10,7 @@
     hx-get="/logs"
     hx-target="#log"
     hx-trigger="change"
+    hx-push-url="true"
     style="max-width: 200px; margin-bottom: 1rem;"
   >
     <option value="" {{if not .Level}}selected{{end}}>All</option>

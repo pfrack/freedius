@@ -55,32 +55,35 @@ func SetupMux(h *eventstream.Handlers, logger *slog.Logger) *http.ServeMux {
 		handleLogs(w, r, h.LogSink, logger)
 	})
 	mux.HandleFunc("GET /providers", func(w http.ResponseWriter, r *http.Request) {
-		handleProviders(w, r, h.Cfg, logger)
+		handleProviders(w, r, h, logger)
 	})
 	mux.HandleFunc("GET /mappings", func(w http.ResponseWriter, r *http.Request) {
-		handleMappings(w, r, h.Cfg, logger)
+		handleMappings(w, r, h, logger)
 	})
 
 	// Writeback: providers CRUD.
 	mux.HandleFunc("POST /v1/providers", func(w http.ResponseWriter, r *http.Request) {
-		handleCreateProvider(w, r, h.Cfg, h.CfgPath)
+		handleCreateProvider(w, r, h, h.CfgPath)
 	})
 	mux.HandleFunc("PUT /v1/providers/", func(w http.ResponseWriter, r *http.Request) {
-		handleUpdateProvider(w, r, h.Cfg, h.CfgPath)
+		handleUpdateProvider(w, r, h, h.CfgPath)
 	})
 	mux.HandleFunc("DELETE /v1/providers/", func(w http.ResponseWriter, r *http.Request) {
-		handleDeleteProvider(w, r, h.Cfg, h.CfgPath)
+		handleDeleteProvider(w, r, h, h.CfgPath)
 	})
 
 	// Writeback: mappings CRUD.
 	mux.HandleFunc("POST /v1/mappings", func(w http.ResponseWriter, r *http.Request) {
-		handleCreateMapping(w, r, h.Cfg, h.CfgPath)
+		handleCreateMapping(w, r, h, h.CfgPath)
 	})
 	mux.HandleFunc("PUT /v1/mappings/", func(w http.ResponseWriter, r *http.Request) {
-		handleUpdateMapping(w, r, h.Cfg, h.CfgPath)
+		handleUpdateMapping(w, r, h, h.CfgPath)
 	})
 	mux.HandleFunc("DELETE /v1/mappings/", func(w http.ResponseWriter, r *http.Request) {
-		handleDeleteMapping(w, r, h.Cfg, h.CfgPath)
+		handleDeleteMapping(w, r, h, h.CfgPath)
+	})
+	mux.HandleFunc("GET /v1/mappings/last-responders", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, http.StatusOK, h.LastResponder.Snapshot())
 	})
 
 	// Models endpoint: explicit refresh only.
@@ -92,24 +95,39 @@ func SetupMux(h *eventstream.Handlers, logger *slog.Logger) *http.ServeMux {
 }
 
 // handleLogs renders the log page with server-rendered entries from the ring
-// buffer. The ?min= query parameter filters by minimum log level.
+// buffer. Filters: ?min=<level>, ?provider=<name>, ?mapping=<name> — all
+// optional; multiple combine via AND. Provider/matching is a case-insensitive
+// substring match against the rendered log line.
 func handleLogs(w http.ResponseWriter, r *http.Request, logSink *proxy.LogSink, logger *slog.Logger) {
-	minRaw := r.URL.Query().Get("min")
+	q := r.URL.Query()
+	minRaw := q.Get("min")
 	minLevel, err := parseMinLevel(minRaw)
 	if err != nil {
 		writeJSONError(w, http.StatusBadRequest, "invalid_filter", err.Error())
 		return
 	}
+	providerFilter := strings.ToLower(strings.TrimSpace(q.Get("provider")))
+	mappingFilter := strings.ToLower(strings.TrimSpace(q.Get("mapping")))
+
 	entries, _, _ := logSink.SnapshotSince(0)
 
-	// Collect the 200 most recent entries that pass the level filter,
-	// iterating from newest to oldest to avoid building a large slice.
+	// Collect the 200 most recent entries that pass every filter, iterating
+	// from newest to oldest to avoid building a large slice.
 	const maxEntries = 200
 	filtered := make([]logEntry, 0, maxEntries)
 	for i := len(entries) - 1; i >= 0 && len(filtered) < maxEntries; i-- {
 		e := entries[i]
 		if minLevel != nil && e.Level < *minLevel {
 			continue
+		}
+		if providerFilter != "" || mappingFilter != "" {
+			line := strings.ToLower(e.Line)
+			if providerFilter != "" && !strings.Contains(line, providerFilter) {
+				continue
+			}
+			if mappingFilter != "" && !strings.Contains(line, mappingFilter) {
+				continue
+			}
 		}
 		filtered = append(filtered, logEntry{
 			Level: eventstream.LevelLabel(e.Level),
@@ -155,7 +173,8 @@ func handleLogs(w http.ResponseWriter, r *http.Request, logSink *proxy.LogSink, 
 }
 
 // handleProviders renders the providers page with a read-only table.
-func handleProviders(w http.ResponseWriter, r *http.Request, cfg *config.Config, logger *slog.Logger) {
+func handleProviders(w http.ResponseWriter, r *http.Request, h *eventstream.Handlers, logger *slog.Logger) {
+	cfg := h.Cfg
 	providers := cfg.ProvidersSnapshot()
 	mappings := cfg.MappingsSnapshot()
 
@@ -179,7 +198,7 @@ func handleProviders(w http.ResponseWriter, r *http.Request, cfg *config.Config,
 
 	// HTMX request: render only the table fragment.
 	if r.Header.Get("HX-Request") == "true" {
-		renderProvidersTable(w, r, cfg)
+		renderProvidersTable(w, r, h.Cfg)
 	} else {
 		// Direct visit: render full page.
 		renderPage(w, "providers.html", providersData{
@@ -190,28 +209,48 @@ func handleProviders(w http.ResponseWriter, r *http.Request, cfg *config.Config,
 }
 
 // handleMappings renders the mappings page with a read-only table.
-func handleMappings(w http.ResponseWriter, r *http.Request, cfg *config.Config, logger *slog.Logger) {
+func handleMappings(w http.ResponseWriter, r *http.Request, h *eventstream.Handlers, logger *slog.Logger) {
+	cfg := h.Cfg
 	mappings := cfg.MappingsSnapshot()
+	providers := cfg.ProvidersSnapshot()
 
 	var rows []mappingRow
 	for name, m := range mappings {
 		var fallbacks []fallbackEntry
 		for _, fb := range m.Fallback {
+			fbProto := ""
+			fbURL := ""
+			if p, ok := providers[fb.ProviderName]; ok {
+				fbProto = p.Protocol
+				fbURL = p.DefaultBaseURL
+			}
 			fallbacks = append(fallbacks, fallbackEntry{
 				ProviderName: fb.ProviderName,
 				Model:        fb.ModelString,
+				Protocol:     fbProto,
+				BaseURL:      fbURL,
 			})
 		}
-		rows = append(rows, mappingRow{
+		proto := ""
+		url := ""
+		if p, ok := providers[m.ProviderName]; ok {
+			proto = p.Protocol
+			url = p.DefaultBaseURL
+		}
+		responder, hasResp := h.LastResponder.Lookup(name)
+		row := mappingRow{
 			Name:         name,
 			ProviderName: m.ProviderName,
 			Model:        m.ModelString,
+			Protocol:     proto,
+			BaseURL:      url,
+			Responder:    responder,
+			HasResponder: hasResp,
 			Fallbacks:    fallbacks,
-		})
+		}
+		rows = append(rows, row)
 	}
 
-	// Provider list for the Add Mapping dropdown.
-	providers := cfg.ProvidersSnapshot()
 	mappingCounts := make(map[string]int)
 	for _, m := range mappings {
 		mappingCounts[m.ProviderName]++
@@ -230,7 +269,7 @@ func handleMappings(w http.ResponseWriter, r *http.Request, cfg *config.Config, 
 
 	// HTMX request: render only the table fragment.
 	if r.Header.Get("HX-Request") == "true" {
-		renderMappingsTable(w, r, cfg)
+		renderMappingsTable(w, r, h)
 	} else {
 		// Direct visit: render full page.
 		renderPage(w, "mappings.html", mappingsData{
@@ -302,28 +341,47 @@ func renderProvidersTable(w http.ResponseWriter, _ *http.Request, cfg *config.Co
 }
 
 // renderMappingsTable renders the `<table>` fragment for mappings.
-func renderMappingsTable(w http.ResponseWriter, _ *http.Request, cfg *config.Config) {
+func renderMappingsTable(w http.ResponseWriter, _ *http.Request, h *eventstream.Handlers) {
+	cfg := h.Cfg
 	mappings := cfg.MappingsSnapshot()
+	providers := cfg.ProvidersSnapshot()
 
 	var rows []mappingRow
 	for name, m := range mappings {
 		var fallbacks []fallbackEntry
 		for _, fb := range m.Fallback {
+			fbProto := ""
+			fbURL := ""
+			if p, ok := providers[fb.ProviderName]; ok {
+				fbProto = p.Protocol
+				fbURL = p.DefaultBaseURL
+			}
 			fallbacks = append(fallbacks, fallbackEntry{
 				ProviderName: fb.ProviderName,
 				Model:        fb.ModelString,
+				Protocol:     fbProto,
+				BaseURL:      fbURL,
 			})
 		}
+		proto := ""
+		url := ""
+		if p, ok := providers[m.ProviderName]; ok {
+			proto = p.Protocol
+			url = p.DefaultBaseURL
+		}
+		responder, hasResp := h.LastResponder.Lookup(name)
 		rows = append(rows, mappingRow{
 			Name:         name,
 			ProviderName: m.ProviderName,
 			Model:        m.ModelString,
+			Protocol:     proto,
+			BaseURL:      url,
+			Responder:    responder,
+			HasResponder: hasResp,
 			Fallbacks:    fallbacks,
 		})
 	}
 
-	// Provider list for the Add Mapping dropdown.
-	providers := cfg.ProvidersSnapshot()
 	mappingCounts := make(map[string]int)
 	for _, m := range mappings {
 		mappingCounts[m.ProviderName]++
@@ -356,7 +414,8 @@ func renderMappingsTable(w http.ResponseWriter, _ *http.Request, cfg *config.Con
 
 // --- Provider writeback handlers ---
 
-func handleCreateProvider(w http.ResponseWriter, r *http.Request, cfg *config.Config, cfgPath string) {
+func handleCreateProvider(w http.ResponseWriter, r *http.Request, h *eventstream.Handlers, cfgPath string) {
+	cfg := h.Cfg
 	name, p, err := decodeProviderForm(r)
 	if err != nil {
 		writeJSONError(w, http.StatusBadRequest, "invalid_form", err.Error())
@@ -397,14 +456,15 @@ func handleCreateProvider(w http.ResponseWriter, r *http.Request, cfg *config.Co
 	cfg.Unlock()
 	// HTMX request: render the updated table fragment.
 	if r.Header.Get("HX-Request") == "true" {
-		renderProvidersTable(w, r, cfg)
+		renderProvidersTable(w, r, h.Cfg)
 	} else {
 		// Non-HTMX request: return JSON.
 		writeJSON(w, http.StatusCreated, map[string]string{"status": "created", "name": name})
 	}
 }
 
-func handleUpdateProvider(w http.ResponseWriter, r *http.Request, cfg *config.Config, cfgPath string) {
+func handleUpdateProvider(w http.ResponseWriter, r *http.Request, h *eventstream.Handlers, cfgPath string) {
+	cfg := h.Cfg
 	name, err := pathName(r, "/v1/providers/")
 	if err != nil {
 		writeJSONError(w, http.StatusBadRequest, "bad_path", err.Error())
@@ -447,14 +507,15 @@ func handleUpdateProvider(w http.ResponseWriter, r *http.Request, cfg *config.Co
 	cfg.Unlock()
 	// HTMX request: render the updated table fragment.
 	if r.Header.Get("HX-Request") == "true" {
-		renderProvidersTable(w, r, cfg)
+		renderProvidersTable(w, r, h.Cfg)
 	} else {
 		// Non-HTMX request: return JSON.
 		writeJSON(w, http.StatusOK, map[string]string{"status": "updated", "name": name})
 	}
 }
 
-func handleDeleteProvider(w http.ResponseWriter, r *http.Request, cfg *config.Config, cfgPath string) {
+func handleDeleteProvider(w http.ResponseWriter, r *http.Request, h *eventstream.Handlers, cfgPath string) {
+	cfg := h.Cfg
 	name, err := pathName(r, "/v1/providers/")
 	if err != nil {
 		writeJSONError(w, http.StatusBadRequest, "bad_path", err.Error())
@@ -509,7 +570,7 @@ func handleDeleteProvider(w http.ResponseWriter, r *http.Request, cfg *config.Co
 	cfg.Unlock()
 	// HTMX request: render the updated table fragment.
 	if r.Header.Get("HX-Request") == "true" {
-		renderProvidersTable(w, r, cfg)
+		renderProvidersTable(w, r, h.Cfg)
 	} else {
 		// Non-HTMX request: return JSON.
 		writeJSON(w, http.StatusOK, map[string]string{"status": "deleted", "name": name})
@@ -518,7 +579,8 @@ func handleDeleteProvider(w http.ResponseWriter, r *http.Request, cfg *config.Co
 
 // --- Mapping writeback handlers ---
 
-func handleCreateMapping(w http.ResponseWriter, r *http.Request, cfg *config.Config, cfgPath string) {
+func handleCreateMapping(w http.ResponseWriter, r *http.Request, h *eventstream.Handlers, cfgPath string) {
+	cfg := h.Cfg
 	name, m, err := decodeMappingForm(r)
 	if err != nil {
 		writeJSONError(w, http.StatusBadRequest, "invalid_form", err.Error())
@@ -559,14 +621,15 @@ func handleCreateMapping(w http.ResponseWriter, r *http.Request, cfg *config.Con
 	cfg.Unlock()
 	// HTMX request: render the updated table fragment.
 	if r.Header.Get("HX-Request") == "true" {
-		renderMappingsTable(w, r, cfg)
+		renderMappingsTable(w, r, h)
 	} else {
 		// Non-HTMX request: return JSON.
 		writeJSON(w, http.StatusCreated, map[string]string{"status": "created", "name": name})
 	}
 }
 
-func handleUpdateMapping(w http.ResponseWriter, r *http.Request, cfg *config.Config, cfgPath string) {
+func handleUpdateMapping(w http.ResponseWriter, r *http.Request, h *eventstream.Handlers, cfgPath string) {
+	cfg := h.Cfg
 	name, err := pathName(r, "/v1/mappings/")
 	if err != nil {
 		writeJSONError(w, http.StatusBadRequest, "bad_path", err.Error())
@@ -609,14 +672,15 @@ func handleUpdateMapping(w http.ResponseWriter, r *http.Request, cfg *config.Con
 	cfg.Unlock()
 	// HTMX request: render the updated table fragment.
 	if r.Header.Get("HX-Request") == "true" {
-		renderMappingsTable(w, r, cfg)
+		renderMappingsTable(w, r, h)
 	} else {
 		// Non-HTMX request: return JSON.
 		writeJSON(w, http.StatusOK, map[string]string{"status": "updated", "name": name})
 	}
 }
 
-func handleDeleteMapping(w http.ResponseWriter, r *http.Request, cfg *config.Config, cfgPath string) {
+func handleDeleteMapping(w http.ResponseWriter, r *http.Request, h *eventstream.Handlers, cfgPath string) {
+	cfg := h.Cfg
 	name, err := pathName(r, "/v1/mappings/")
 	if err != nil {
 		writeJSONError(w, http.StatusBadRequest, "bad_path", err.Error())
@@ -650,7 +714,7 @@ func handleDeleteMapping(w http.ResponseWriter, r *http.Request, cfg *config.Con
 	cfg.Unlock()
 	// HTMX request: render the updated table fragment.
 	if r.Header.Get("HX-Request") == "true" {
-		renderMappingsTable(w, r, cfg)
+		renderMappingsTable(w, r, h)
 	} else {
 		// Non-HTMX request: return JSON.
 		writeJSON(w, http.StatusOK, map[string]string{"status": "deleted", "name": name})
