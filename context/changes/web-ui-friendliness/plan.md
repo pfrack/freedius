@@ -434,13 +434,13 @@ End-to-end manual run per Phase (the per-Phase §Manual Verification blocks enum
 
 #### Automated
 
-- [ ] 3.1 `go build ./...` succeeds
-- [ ] 3.2 `mage test` passes — no regression in handler tests
-- [ ] 3.3 `mage lint` clean
-- [ ] 3.4 `TestEmptyState_Providers` — empty provider list shows CTA
-- [ ] 3.5 `TestEmptyState_Mappings` — empty mapping list shows CTA referencing mapping dialog
-- [ ] 3.6 `TestErrorMessageInResponse` — malformed POST returns ValidationError JSON containing `fields.name` + `fields.behavior`
-- [ ] 3.7 Regex assertion: each Save button carries `hx-disabled-elt="this"` + sibling `.htmx-indicator`
+- [x] 3.1 `go build ./...` succeeds — 67e2117
+- [x] 3.2 `mage test` passes — no regression in handler tests — 67e2117
+- [x] 3.3 `mage lint` clean — 67e2117
+- [x] 3.4 `TestEmptyState_Providers` — empty provider list shows CTA — 67e2117
+- [x] 3.5 `TestEmptyState_Mappings` — empty mapping list shows CTA referencing mapping dialog — 67e2117
+- [x] 3.6 `TestErrorMessageInResponse` — malformed POST returns ValidationError JSON containing `fields.name` + `fields.behavior` — 67e2117
+- [x] 3.7 Regex assertion: each Save button carries `hx-disabled-elt="this"` + sibling `.htmx-indicator` — 67e2117
 
 #### Manual
 
