@@ -23,8 +23,6 @@
     id="log"
     hx-ext="sse"
     sse-connect="/v1/logs"
-    sse-swap="log"
-    hx-swap="beforeend scroll:#log:bottom"
   >
     {{if not .Entries}}
     <small class="text-muted">Waiting for log events…</small>
