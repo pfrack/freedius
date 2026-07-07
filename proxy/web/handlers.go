@@ -172,21 +172,8 @@ func handleLogs(w http.ResponseWriter, r *http.Request, logSink *proxy.LogSink, 
 	}
 
 	if r.Header.Get("HX-Request") == "true" {
-		// HTMX request: render only the log fragment.
-		tmpl, err := loadPageTemplate("logs.html")
-		if err != nil {
-			logger.Error("load template", "template", "logs.html", "error", err)
-			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-			return
-		}
-		err = tmpl.ExecuteTemplate(w, "logs.html", logsData{
-			Entries: filtered,
-			Level:   levelSel,
-		})
-		if err != nil {
-			logger.Error("execute template", "template", "logs.html", "error", err)
-			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		}
+		// HTMX request: render only the log entries fragment.
+		renderLogEntries(w, filtered)
 	} else {
 		// Direct visit: render full page.
 		renderPage(w, "logs.html", logsData{
@@ -396,6 +383,21 @@ func renderProvidersTable(w http.ResponseWriter, _ *http.Request, cfg *config.Co
 	}
 	err = tmpl.ExecuteTemplate(w, "providers-table", providersData{
 		Providers: rows,
+	})
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, "template_failed", err.Error())
+	}
+}
+
+// renderLogEntries renders the log entries fragment for HTMX requests.
+func renderLogEntries(w http.ResponseWriter, entries []logEntry) {
+	tmpl, err := loadFragmentTemplate("log-entries.html")
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, "template_failed", err.Error())
+		return
+	}
+	err = tmpl.ExecuteTemplate(w, "log-entries", logsData{
+		Entries: entries,
 	})
 	if err != nil {
 		writeJSONError(w, http.StatusInternalServerError, "template_failed", err.Error())
