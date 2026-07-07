@@ -11,14 +11,14 @@
           data-name="{{.Name | js}}"
           data-provider="{{.ProviderName | js}}"
           data-model="{{.Model | js}}"
-          data-fallbacks='{{.Fallbacks | jsonMarshal | js}}'
+          data-fallbacks="{{.Fallbacks | jsonMarshal}}"
         >
           Edit
         </button>
         <button
           class="btn btn--danger btn--sm"
           hx-delete="/v1/mappings/{{.Name}}"
-          hx-confirm="Delete mapping '{{.Name}}?"
+          hx-confirm="Delete mapping '{{.Name}}'?"
           hx-target="#mappings"
           hx-swap="outerHTML"
         >

@@ -686,9 +686,13 @@ func handleRefreshModels(w http.ResponseWriter, r *http.Request, h *eventstream.
 	// Deduplicate concurrent fetches for the same provider.
 	mu, _ := modelFetchInflight.LoadOrStore(name, &sync.Mutex{})
 	if !mu.(*sync.Mutex).TryLock() {
-		// Fetch already in progress — return cached data.
+		// Fetch already in progress — return cached data + in-progress hint.
 		models, _, _ := h.ModelsCache.Get(name)
-		data := modelsData{Provider: name, Models: models}
+		data := modelsData{
+			Provider:        name,
+			Models:          models,
+			FetchInProgress: true,
+		}
 		renderModelsFragment(w, data, logger)
 		return
 	}
@@ -703,7 +707,15 @@ func handleRefreshModels(w http.ResponseWriter, r *http.Request, h *eventstream.
 		Provider: name,
 	}
 	if models != nil {
-		data.Models = models
+		// Cap the rendered model list server-side at 1000 entries. Anything
+		// beyond is dropped here; the Truncated flag drives the user-facing
+		// hint in models-fragment.html. Plan §F2.
+		if len(models) > 1000 {
+			data.Models = models[:1000]
+			data.Truncated = true
+		} else {
+			data.Models = models
+		}
 	}
 	if fetchErr != nil {
 		data.Error = fetchErr.Error()
