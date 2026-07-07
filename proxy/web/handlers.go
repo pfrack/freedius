@@ -323,7 +323,10 @@ func buildMappingRows(
 			proto = p.Protocol
 			url = p.DefaultBaseURL
 		}
-		responder, hasResp := lastResponder.Lookup(name)
+		responder, hasResp := 0, false
+		if lastResponder != nil {
+			responder, hasResp = lastResponder.Lookup(name)
+		}
 		row := mappingRow{
 			Name:         name,
 			ProviderName: m.ProviderName,
