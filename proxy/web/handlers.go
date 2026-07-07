@@ -42,6 +42,29 @@ func SetupMux(h *eventstream.Handlers, logger *slog.Logger) *http.ServeMux {
 	// Page handlers.
 	mux.HandleFunc("GET /", func(w http.ResponseWriter, _ *http.Request) {
 		uptime := time.Since(h.StartTime).Round(time.Second).String()
+		cfg := h.Cfg
+		providers := cfg.ProvidersSnapshot()
+
+		// Build mapping rows (no filter for dashboard).
+		mappings := buildMappingRows(cfg, providers, h.LastResponder, "")
+
+		// Build provider rows with mapping counts.
+		mappingCounts := make(map[string]int)
+		for _, m := range cfg.MappingsSnapshot() {
+			mappingCounts[m.ProviderName]++
+		}
+		var providerRows []providerRow
+		for name, p := range providers {
+			providerRows = append(providerRows, providerRow{
+				Name:         name,
+				Behavior:     p.Behavior,
+				BaseURL:      p.DefaultBaseURL,
+				APIKeyEnv:    p.DefaultAPIKeyEnv,
+				Protocol:     p.Protocol,
+				MappingCount: mappingCounts[name],
+			})
+		}
+
 		renderPage(w, "index.html", indexData{
 			pageData:    pageData{Active: "index"},
 			Uptime:      uptime,
@@ -49,7 +72,9 @@ func SetupMux(h *eventstream.Handlers, logger *slog.Logger) *http.ServeMux {
 			TotalLogs:   h.LogSink.EventCount(),
 			Port:        strconv.Itoa(h.Port),
 			Host:        h.Host,
-		}, logger)
+			Mappings:    mappings,
+			Providers:   providerRows,
+		}, logger, "mappings-table.html")
 	})
 	mux.HandleFunc("GET /logs", func(w http.ResponseWriter, r *http.Request) {
 		handleLogs(w, r, h.LogSink, logger)

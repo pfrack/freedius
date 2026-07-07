@@ -354,6 +354,81 @@ h2 {
 .stats-grid .card:nth-child(3) { animation-delay: 100ms; }
 .stats-grid .card:nth-child(4) { animation-delay: 150ms; }
 
+/* ── Stats Strip (Dashboard) ────────────────────────────────────────────── */
+
+.stats-strip {
+  display: flex;
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
+  padding: var(--space-3);
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.stats-strip__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.stats-strip__label {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
+.stats-strip__value {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+/* ── Dashboard Sections ─────────────────────────────────────────────────── */
+
+.dashboard-section {
+  margin-bottom: var(--space-8);
+}
+
+.dashboard-section h2 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: var(--space-4);
+  color: var(--text-primary);
+}
+
+/* ── Providers Overview (Dashboard) ─────────────────────────────────────── */
+
+.providers-overview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.providers-overview__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.providers-overview__name {
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.providers-overview__count {
+  margin-left: auto;
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 0.875rem;
+}
+
+.providers-overview__count:hover {
+  text-decoration: underline;
+}
+
 /* ── Table ──────────────────────────────────────────────────────────────── */
 
 .table-wrap {

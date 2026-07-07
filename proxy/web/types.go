@@ -17,6 +17,8 @@ type indexData struct {
 	TotalLogs   int64
 	Port        string
 	Host        string
+	Mappings    []mappingRow
+	Providers   []providerRow
 }
 
 // logEntry represents a single log line for template rendering.
@@ -65,7 +67,7 @@ type mappingRow struct {
 	Model        string
 	Protocol     string
 	BaseURL      string
-	Responder    int // -1 when no recent responder known
+	Responder    int // responder index (0=primary; check HasResponder for validity)
 	HasResponder bool
 	Fallbacks    []fallbackEntry
 }

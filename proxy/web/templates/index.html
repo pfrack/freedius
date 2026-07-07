@@ -2,43 +2,48 @@
 {{define "title"}}Dashboard{{end}}
 {{define "content"}}
   <h1>Dashboard</h1>
-  <div class="stats-grid">
-    <div class="card card--stat">
-      <div class="card-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-      </div>
-      <div class="card-body">
-        <span class="card-label">Uptime</span>
-        <span class="card-value">{{.Uptime}}</span>
-      </div>
+
+  <div class="stats-strip">
+    <div class="stats-strip__item">
+      <span class="stats-strip__label">Uptime</span>
+      <span class="stats-strip__value">{{.Uptime}}</span>
     </div>
-    <div class="card card--stat">
-      <div class="card-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-      </div>
-      <div class="card-body">
-        <span class="card-label">Total Events</span>
-        <span class="card-value">{{.TotalEvents}}</span>
-      </div>
-    </div>
-    <div class="card card--stat">
-      <div class="card-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-      </div>
-      <div class="card-body">
-        <span class="card-label">Total Logs</span>
-        <span class="card-value">{{.TotalLogs}}</span>
-      </div>
-    </div>
-    <div class="card card--stat">
-      <div class="card-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
-      </div>
-      <div class="card-body">
-        <span class="card-label">Listening On</span>
-        <span class="card-value">{{.Host}}:{{.Port}}</span>
-      </div>
+    <div class="stats-strip__item">
+      <span class="stats-strip__label">Listening On</span>
+      <span class="stats-strip__value">{{.Host}}:{{.Port}}</span>
     </div>
   </div>
-  <p style="color: var(--text-muted)">Live proxy monitoring and configuration.</p>
+
+  <section class="dashboard-section">
+    <h2>Mappings</h2>
+    {{template "mappings-table" .}}
+  </section>
+
+  <section class="dashboard-section">
+    <h2>Providers</h2>
+    {{if .Providers}}
+    <div class="providers-overview">
+      {{range .Providers}}
+      <div class="providers-overview__item">
+        <span class="providers-overview__name">{{.Name}}</span>
+        {{if .Protocol}}<span class="badge badge--protocol">{{.Protocol}}</span>{{end}}
+        {{if gt .MappingCount 0}}
+          <a href="/mappings?provider={{.Name}}" class="providers-overview__count">{{.MappingCount}} mapping{{if ne .MappingCount 1}}s{{end}}</a>
+        {{else}}
+          <span class="providers-overview__count text-muted">0 mappings</span>
+        {{end}}
+      </div>
+      {{end}}
+    </div>
+    {{else}}
+    <div class="empty-state">
+      <h2>No providers configured</h2>
+      <p>Define an upstream LLM endpoint with its protocol (openai or
+         anthropic), base URL, and API key environment variable.</p>
+      <button type="button" class="btn btn--primary" onclick="openAddProvider()">
+        Add your first provider
+      </button>
+    </div>
+    {{end}}
+  </section>
 {{end}}

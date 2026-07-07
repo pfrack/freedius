@@ -481,11 +481,11 @@ filtered /mappings → click mapping step → filtered /logs. Then visit
 
 #### Automated
 
-- [x] 2.1 `go build ./...` succeeds
-- [x] 2.2 `mage test` passes
-- [x] 2.3 `mage lint` clean
-- [x] 2.4 `TestProvidersTable_MappingCountLink`
-- [x] 2.5 `TestProvidersTable_ZeroMappingCount`
+- [x] 2.1 `go build ./...` succeeds — 0cf8127
+- [x] 2.2 `mage test` passes — 0cf8127
+- [x] 2.3 `mage lint` clean — 0cf8127
+- [x] 2.4 `TestProvidersTable_MappingCountLink` — 0cf8127
+- [x] 2.5 `TestProvidersTable_ZeroMappingCount` — 0cf8127
 
 #### Manual
 
@@ -497,13 +497,13 @@ filtered /mappings → click mapping step → filtered /logs. Then visit
 
 #### Automated
 
-- [ ] 3.1 `go build ./...` succeeds
-- [ ] 3.2 `mage test` passes — no regression
-- [ ] 3.3 `mage lint` clean
-- [ ] 3.4 `TestIndexHandler_ReturnsMappings`
-- [ ] 3.5 `TestIndexHandler_ReturnsProviders`
-- [ ] 3.6 `TestIndexHandler_EmptyState`
-- [ ] 3.7 `TestIndexHandler_StatsPreserved`
+- [x] 3.1 `go build ./...` succeeds
+- [x] 3.2 `mage test` passes — no regression
+- [x] 3.3 `mage lint` clean
+- [x] 3.4 `TestIndexHandler_ReturnsMappings`
+- [x] 3.5 `TestIndexHandler_ReturnsProviders`
+- [x] 3.6 `TestIndexHandler_EmptyState`
+- [x] 3.7 `TestIndexHandler_StatsPreserved`
 
 #### Manual
 
