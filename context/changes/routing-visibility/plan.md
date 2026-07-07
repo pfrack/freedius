@@ -462,14 +462,14 @@ filtered /mappings → click mapping step → filtered /logs. Then visit
 
 #### Automated
 
-- [x] 1.1 `go build ./...` succeeds
-- [x] 1.2 `mage test` passes — all new + existing tests
-- [x] 1.3 `mage lint` clean
-- [x] 1.4 `TestMappingsProviderFilter_SubstringMatch`
-- [x] 1.5 `TestMappingsProviderFilter_FallbackMatch`
-- [x] 1.6 `TestMappingsProviderFilter_CaseInsensitive`
-- [x] 1.7 `TestMappingsProviderFilter_EmptyShowsAll`
-- [x] 1.8 `TestMappingsProviderFilter_NoMatchShowsEmpty`
+- [x] 1.1 `go build ./...` succeeds — eb9b659
+- [x] 1.2 `mage test` passes — all new + existing tests — eb9b659
+- [x] 1.3 `mage lint` clean — eb9b659
+- [x] 1.4 `TestMappingsProviderFilter_SubstringMatch` — eb9b659
+- [x] 1.5 `TestMappingsProviderFilter_FallbackMatch` — eb9b659
+- [x] 1.6 `TestMappingsProviderFilter_CaseInsensitive` — eb9b659
+- [x] 1.7 `TestMappingsProviderFilter_EmptyShowsAll` — eb9b659
+- [x] 1.8 `TestMappingsProviderFilter_NoMatchShowsEmpty` — eb9b659
 
 #### Manual
 
@@ -481,11 +481,11 @@ filtered /mappings → click mapping step → filtered /logs. Then visit
 
 #### Automated
 
-- [ ] 2.1 `go build ./...` succeeds
-- [ ] 2.2 `mage test` passes
-- [ ] 2.3 `mage lint` clean
-- [ ] 2.4 `TestProvidersTable_MappingCountLink`
-- [ ] 2.5 `TestProvidersTable_ZeroMappingCount`
+- [x] 2.1 `go build ./...` succeeds
+- [x] 2.2 `mage test` passes
+- [x] 2.3 `mage lint` clean
+- [x] 2.4 `TestProvidersTable_MappingCountLink`
+- [x] 2.5 `TestProvidersTable_ZeroMappingCount`
 
 #### Manual
 

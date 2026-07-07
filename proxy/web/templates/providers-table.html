@@ -30,7 +30,13 @@
       <td>{{.BaseURL}}</td>
       <td>{{.APIKeyEnv}}</td>
       <td>{{if .Protocol}}<span class="badge badge--protocol">{{.Protocol}}</span>{{else}}<span class="text-muted">auto</span>{{end}}</td>
-      <td>{{.MappingCount}}</td>
+      <td>
+        {{if gt .MappingCount 0}}
+          <a href="/mappings?provider={{.Name}}">{{.MappingCount}}</a>
+        {{else}}
+          <span class="text-muted">0</span>
+        {{end}}
+      </td>
       <td>
         <button
           class="btn btn--ghost btn--sm"
