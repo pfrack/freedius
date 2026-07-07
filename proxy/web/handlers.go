@@ -211,48 +211,13 @@ func handleProviders(w http.ResponseWriter, r *http.Request, h *eventstream.Hand
 // handleMappings renders the mappings page with a read-only table.
 func handleMappings(w http.ResponseWriter, r *http.Request, h *eventstream.Handlers, logger *slog.Logger) {
 	cfg := h.Cfg
-	mappings := cfg.MappingsSnapshot()
 	providers := cfg.ProvidersSnapshot()
+	providerFilter := r.URL.Query().Get("provider")
 
-	var rows []mappingRow
-	for name, m := range mappings {
-		var fallbacks []fallbackEntry
-		for _, fb := range m.Fallback {
-			fbProto := ""
-			fbURL := ""
-			if p, ok := providers[fb.ProviderName]; ok {
-				fbProto = p.Protocol
-				fbURL = p.DefaultBaseURL
-			}
-			fallbacks = append(fallbacks, fallbackEntry{
-				ProviderName: fb.ProviderName,
-				Model:        fb.ModelString,
-				Protocol:     fbProto,
-				BaseURL:      fbURL,
-			})
-		}
-		proto := ""
-		url := ""
-		if p, ok := providers[m.ProviderName]; ok {
-			proto = p.Protocol
-			url = p.DefaultBaseURL
-		}
-		responder, hasResp := h.LastResponder.Lookup(name)
-		row := mappingRow{
-			Name:         name,
-			ProviderName: m.ProviderName,
-			Model:        m.ModelString,
-			Protocol:     proto,
-			BaseURL:      url,
-			Responder:    responder,
-			HasResponder: hasResp,
-			Fallbacks:    fallbacks,
-		}
-		rows = append(rows, row)
-	}
+	rows := buildMappingRows(cfg, providers, h.LastResponder, providerFilter)
 
 	mappingCounts := make(map[string]int)
-	for _, m := range mappings {
+	for _, m := range cfg.MappingsSnapshot() {
 		mappingCounts[m.ProviderName]++
 	}
 	var providerRows []providerRow
@@ -278,6 +243,75 @@ func handleMappings(w http.ResponseWriter, r *http.Request, h *eventstream.Handl
 			Providers: providerRows,
 		}, logger, "mappings-table.html")
 	}
+}
+
+// buildMappingRows builds the mapping rows for template rendering.
+// It filters mappings by provider name (case-insensitive substring match)
+// when providerFilter is non-empty.
+func buildMappingRows(
+	cfg *config.Config,
+	providers map[string]config.Provider,
+	lastResponder *proxy.LastResponder,
+	providerFilter string,
+) []mappingRow {
+	mappings := cfg.MappingsSnapshot()
+
+	var rows []mappingRow
+	for name, m := range mappings {
+		// Apply provider filter if set.
+		if providerFilter != "" {
+			filterLower := strings.ToLower(providerFilter)
+			// Check primary provider.
+			if !strings.Contains(strings.ToLower(m.ProviderName), filterLower) {
+				// Check fallback providers.
+				matched := false
+				for _, fb := range m.Fallback {
+					if strings.Contains(strings.ToLower(fb.ProviderName), filterLower) {
+						matched = true
+						break
+					}
+				}
+				if !matched {
+					continue
+				}
+			}
+		}
+
+		var fallbacks []fallbackEntry
+		for _, fb := range m.Fallback {
+			fbProto := ""
+			fbURL := ""
+			if p, ok := providers[fb.ProviderName]; ok {
+				fbProto = p.Protocol
+				fbURL = p.DefaultBaseURL
+			}
+			fallbacks = append(fallbacks, fallbackEntry{
+				ProviderName: fb.ProviderName,
+				Model:        fb.ModelString,
+				Protocol:     fbProto,
+				BaseURL:      fbURL,
+			})
+		}
+		proto := ""
+		url := ""
+		if p, ok := providers[m.ProviderName]; ok {
+			proto = p.Protocol
+			url = p.DefaultBaseURL
+		}
+		responder, hasResp := lastResponder.Lookup(name)
+		row := mappingRow{
+			Name:         name,
+			ProviderName: m.ProviderName,
+			Model:        m.ModelString,
+			Protocol:     proto,
+			BaseURL:      url,
+			Responder:    responder,
+			HasResponder: hasResp,
+			Fallbacks:    fallbacks,
+		}
+		rows = append(rows, row)
+	}
+	return rows
 }
 
 // parseMinLevel parses a ?min= query parameter into a slog.Level. Returns nil
@@ -341,49 +375,15 @@ func renderProvidersTable(w http.ResponseWriter, _ *http.Request, cfg *config.Co
 }
 
 // renderMappingsTable renders the `<table>` fragment for mappings.
-func renderMappingsTable(w http.ResponseWriter, _ *http.Request, h *eventstream.Handlers) {
+func renderMappingsTable(w http.ResponseWriter, r *http.Request, h *eventstream.Handlers) {
 	cfg := h.Cfg
-	mappings := cfg.MappingsSnapshot()
 	providers := cfg.ProvidersSnapshot()
+	providerFilter := r.URL.Query().Get("provider")
 
-	var rows []mappingRow
-	for name, m := range mappings {
-		var fallbacks []fallbackEntry
-		for _, fb := range m.Fallback {
-			fbProto := ""
-			fbURL := ""
-			if p, ok := providers[fb.ProviderName]; ok {
-				fbProto = p.Protocol
-				fbURL = p.DefaultBaseURL
-			}
-			fallbacks = append(fallbacks, fallbackEntry{
-				ProviderName: fb.ProviderName,
-				Model:        fb.ModelString,
-				Protocol:     fbProto,
-				BaseURL:      fbURL,
-			})
-		}
-		proto := ""
-		url := ""
-		if p, ok := providers[m.ProviderName]; ok {
-			proto = p.Protocol
-			url = p.DefaultBaseURL
-		}
-		responder, hasResp := h.LastResponder.Lookup(name)
-		rows = append(rows, mappingRow{
-			Name:         name,
-			ProviderName: m.ProviderName,
-			Model:        m.ModelString,
-			Protocol:     proto,
-			BaseURL:      url,
-			Responder:    responder,
-			HasResponder: hasResp,
-			Fallbacks:    fallbacks,
-		})
-	}
+	rows := buildMappingRows(cfg, providers, h.LastResponder, providerFilter)
 
 	mappingCounts := make(map[string]int)
-	for _, m := range mappings {
+	for _, m := range cfg.MappingsSnapshot() {
 		mappingCounts[m.ProviderName]++
 	}
 	var providerRows []providerRow
@@ -749,7 +749,12 @@ func handleRefreshModels(w http.ResponseWriter, r *http.Request, h *eventstream.
 
 	// Deduplicate concurrent fetches for the same provider.
 	mu, _ := modelFetchInflight.LoadOrStore(name, &sync.Mutex{})
-	if !mu.(*sync.Mutex).TryLock() {
+	mtx, ok := mu.(*sync.Mutex)
+	if !ok {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	if !mtx.TryLock() {
 		// Fetch already in progress — return cached data + in-progress hint.
 		models, _, _ := h.ModelsCache.Get(name)
 		data := modelsData{
@@ -760,7 +765,7 @@ func handleRefreshModels(w http.ResponseWriter, r *http.Request, h *eventstream.
 		renderModelsFragment(w, data, logger)
 		return
 	}
-	defer mu.(*sync.Mutex).Unlock()
+	defer mtx.Unlock()
 
 	models, fetchErr := proxy.FetchModels(r.Context(), p)
 	if fetchErr == nil {
