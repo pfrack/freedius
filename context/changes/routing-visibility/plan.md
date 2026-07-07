@@ -497,13 +497,13 @@ filtered /mappings → click mapping step → filtered /logs. Then visit
 
 #### Automated
 
-- [x] 3.1 `go build ./...` succeeds
-- [x] 3.2 `mage test` passes — no regression
-- [x] 3.3 `mage lint` clean
-- [x] 3.4 `TestIndexHandler_ReturnsMappings`
-- [x] 3.5 `TestIndexHandler_ReturnsProviders`
-- [x] 3.6 `TestIndexHandler_EmptyState`
-- [x] 3.7 `TestIndexHandler_StatsPreserved`
+- [x] 3.1 `go build ./...` succeeds — 71097c0
+- [x] 3.2 `mage test` passes — no regression — 71097c0
+- [x] 3.3 `mage lint` clean — 71097c0
+- [x] 3.4 `TestIndexHandler_ReturnsMappings` — 71097c0
+- [x] 3.5 `TestIndexHandler_ReturnsProviders` — 71097c0
+- [x] 3.6 `TestIndexHandler_EmptyState` — 71097c0
+- [x] 3.7 `TestIndexHandler_StatsPreserved` — 71097c0
 
 #### Manual
 

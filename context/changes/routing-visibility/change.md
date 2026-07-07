@@ -1,7 +1,7 @@
 ---
 id: routing-visibility
 title: "Routing visibility across the web UI"
-status: implementing
+status: implemented
 created: 2026-07-07
 updated: 2026-07-07
 tags: [web-ui, routing, ux, dashboard, navigation]
