@@ -411,15 +411,15 @@ End-to-end manual run per Phase (the per-Phase §Manual Verification blocks enum
 
 #### Automated
 
-- [ ] 2.1 `go build ./...` succeeds
-- [ ] 2.2 `mage test` passes — new + existing tests
-- [ ] 2.3 `mage lint` clean
-- [ ] 2.4 `TestMappingRow_PopulatesProtocol` — provider Protocol copied into mappingRow & rendered as badge
-- [ ] 2.5 `TestHandleLogs_ProviderFilter` — `?provider=` substring filter applies
-- [ ] 2.6 `TestLastResponder_AggregationAndLookup` — Record + Read round-trip
-- [ ] 2.7 `TestLastResponder_TTLEvicts` — old entries drop out
-- [ ] 2.8 Regex assertion: every `.route-step` has `aria-label` + `role="listitem"`
-- [ ] 2.9 No `.route-step--responder` rendered when aggregator is empty
+- [x] 2.1 `go build ./...` succeeds — 36e51d2
+- [x] 2.2 `mage test` passes — new + existing tests — 36e51d2
+- [x] 2.3 `mage lint` clean — 36e51d2
+- [x] 2.4 `TestMappingRow_PopulatesProtocol` — provider Protocol copied into mappingRow & rendered as badge — 36e51d2
+- [x] 2.5 `TestHandleLogs_ProviderFilter` — `?provider=` substring filter applies — 36e51d2
+- [x] 2.6 `TestLastResponder_AggregationAndLookup` — Record + Read round-trip — 36e51d2
+- [x] 2.7 `TestLastResponder_TTLEvicts` — old entries drop out — 36e51d2
+- [x] 2.8 Regex assertion: every `.route-step` has `aria-label` + `role="listitem"` — 36e51d2
+- [x] 2.9 No `.route-step--responder` rendered when aggregator is empty — 36e51d2
 
 #### Manual
 
