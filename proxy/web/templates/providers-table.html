@@ -1,4 +1,14 @@
 {{define "providers-table"}}
+{{if not .Providers}}
+<div class="empty-state">
+  <h2>No providers configured</h2>
+  <p>Define an upstream LLM endpoint with its protocol (openai or
+     anthropic), base URL, and API key environment variable.</p>
+  <button type="button" class="btn btn--primary" onclick="openAddProvider()">
+    Add your first provider
+  </button>
+</div>
+{{else}}
 <div class="table-wrap">
 <table id="providers">
   <thead>
@@ -43,4 +53,5 @@
   </tbody>
 </table>
 </div>
+{{end}}
 {{end}}

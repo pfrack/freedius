@@ -1,5 +1,16 @@
 {{define "mappings-table"}}
 <div id="mappings" class="mappings-grid">
+  {{if not .Mappings}}
+  <div class="empty-state">
+    <h2>No mappings yet</h2>
+    <p>Wire a freedius-facing model name to an upstream provider. The mapping
+       defines what the proxy serves and which fallback chain to try when
+       the primary fails.</p>
+    <button type="button" class="btn btn--primary" onclick="openAddMapping()">
+      Add your first mapping
+    </button>
+  </div>
+  {{end}}
   {{range .Mappings}}
   {{$mapName := .Name}}
   {{$mapHasResp := .HasResponder}}
