@@ -374,19 +374,33 @@ func ManualTest() error {
 	return sh.RunV("./test-manual.sh")
 }
 
-// InstallHooks copies the pre-commit hook into .git/hooks/.
+// InstallHooks copies the pre-commit and pre-push hooks into .git/hooks/.
 func InstallHooks() error {
 	hooksPath, err := sh.Output("git", "rev-parse", "--git-path", "hooks")
 	if err != nil {
 		return fmt.Errorf("resolve git hooks path: %w", err)
 	}
-	dst := strings.TrimSpace(hooksPath) + "/pre-commit"
-	if err := os.Symlink("../../scripts/pre-commit", dst); err != nil {
-		if err := sh.Copy(dst, "scripts/pre-commit"); err != nil {
+	hooksDir := strings.TrimSpace(hooksPath)
+
+	// Install pre-commit
+	preCommitDst := hooksDir + "/pre-commit"
+	if err := os.Symlink("../../scripts/pre-commit", preCommitDst); err != nil {
+		if err := sh.Copy(preCommitDst, "scripts/pre-commit"); err != nil {
 			return err
 		}
 	}
-	return sh.RunV("chmod", "+x", dst)
+	if err := sh.RunV("chmod", "+x", preCommitDst); err != nil {
+		return err
+	}
+
+	// Install pre-push
+	prePushDst := hooksDir + "/pre-push"
+	if err := os.Symlink("../../scripts/pre-push", prePushDst); err != nil {
+		if err := sh.Copy(prePushDst, "scripts/pre-push"); err != nil {
+			return err
+		}
+	}
+	return sh.RunV("chmod", "+x", prePushDst)
 }
 
 // InstallGoimports installs goimports if missing.

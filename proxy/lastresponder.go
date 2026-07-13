@@ -39,17 +39,13 @@ func NewLastResponder() *LastResponder {
 
 // SetClock replaces the time source. Intended for tests.
 func (l *LastResponder) SetClock(now func() time.Time) {
-	if l == nil {
-		return
-	}
 	l.mu.Lock()
 	l.now = now
 	l.mu.Unlock()
 }
 
 // Record marks `responder` (0=primary, 1+=fallback index) as the most recent
-// successful step for `mappingName`. A nil receiver is a no-op so callers can
-// wire LastResponder optionally.
+// successful step for `mappingName`. Safe to call on a nil receiver.
 func (l *LastResponder) Record(mappingName string, responder int) {
 	if l == nil {
 		return
@@ -64,7 +60,7 @@ func (l *LastResponder) Record(mappingName string, responder int) {
 
 // Lookup returns (responderIndex, true) when a recent entry exists, or
 // (0, false) when the entry is missing or expired. Expired entries are
-// dropped on read to bound map growth.
+// dropped on read to bound map growth. Safe to call on a nil receiver.
 func (l *LastResponder) Lookup(mappingName string) (int, bool) {
 	if l == nil {
 		return 0, false
@@ -83,10 +79,11 @@ func (l *LastResponder) Lookup(mappingName string) (int, bool) {
 }
 
 // Snapshot returns a copy of the responder map with expired entries filtered
-// out. Used by the web endpoint to render the chevron set.
+// out. Used by the web endpoint to render the chevron set. Safe to call on a
+// nil receiver.
 func (l *LastResponder) Snapshot() map[string]int {
 	if l == nil {
-		return map[string]int{}
+		return nil
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()

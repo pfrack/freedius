@@ -1,7 +1,7 @@
 ---
 id: web-ui-friendliness
 title: Web UI friendliness improvements (breadcrumbs polish + global UX gaps)
-status: implemented
+status: impl_reviewed
 created: 2026-07-07
 updated: 2026-07-07
 ---
