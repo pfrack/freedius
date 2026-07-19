@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+set -e
+
+# Determine the base branch (try origin/main, fall back to origin/master)
+BASE=$(git rev-parse --verify origin/main 2>/dev/null || git rev-parse --verify origin/master 2>/dev/null || echo "")
+
+if [ -z "$BASE" ]; then
+  echo "No remote base branch found, skipping push tests."
+  exit 0
+fi
+
+# Get changed .go files vs base
+CHANGED=$(git diff --name-only --diff-filter=ACM "$BASE"...HEAD -- '*.go' 2>/dev/null || true)
+
+if [ -z "$CHANGED" ]; then
+  echo "No Go files changed, skipping tests."
+  exit 0
+fi
+
+# Extract unique package directories
+PACKAGES=$(echo "$CHANGED" | xargs -I{} dirname {} | sort -u | sed 's|$|/...|')
+
+echo "Testing changed packages:"
+echo "$PACKAGES" | sed 's|/...||' | sed 's/^/  /'
+
+# Run tests with race detection on changed packages only
+if ! go test -race $PACKAGES; then
+  echo ""
+  echo "Push rejected: tests failed in changed packages."
+  echo "Fix failures or use 'git push --no-verify' to skip."
+  exit 1
+fi
+
+echo "All changed-package tests passed."
