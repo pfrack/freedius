@@ -13,6 +13,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: pfrack/nim-review-action@v1
+      - uses: pfrack/nim-review-action@main
         with:
           nim_api_key: ${{ secrets.NIM_API_KEY }}
