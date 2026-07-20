@@ -1,4 +1,14 @@
 {{define "providers-table"}}
+{{if not .Providers}}
+<div class="empty-state">
+  <h2>No providers configured</h2>
+  <p>Define an upstream LLM endpoint with its protocol (openai or
+     anthropic), base URL, and API key environment variable.</p>
+  <button type="button" class="btn btn--primary" onclick="openAddProvider()">
+    Add your first provider
+  </button>
+</div>
+{{else}}
 <div class="table-wrap">
 <table id="providers">
   <thead>
@@ -20,7 +30,13 @@
       <td>{{.BaseURL}}</td>
       <td>{{.APIKeyEnv}}</td>
       <td>{{if .Protocol}}<span class="badge badge--protocol">{{.Protocol}}</span>{{else}}<span class="text-muted">auto</span>{{end}}</td>
-      <td>{{.MappingCount}}</td>
+      <td>
+        {{if gt .MappingCount 0}}
+          <a href="/mappings?provider={{.Name}}">{{.MappingCount}}</a>
+        {{else}}
+          <span class="text-muted">0</span>
+        {{end}}
+      </td>
       <td>
         <button
           class="btn btn--ghost btn--sm"
@@ -31,7 +47,7 @@
         <button
           class="btn btn--danger btn--sm"
           hx-delete="/v1/providers/{{.Name}}"
-          hx-confirm="Delete provider '{{.Name}}?"
+          hx-confirm="Delete provider '{{.Name}}'?"
           hx-target="#providers"
           hx-swap="outerHTML"
         >
@@ -43,4 +59,5 @@
   </tbody>
 </table>
 </div>
+{{end}}
 {{end}}

@@ -2,7 +2,7 @@
 {{define "title"}}Providers{{end}}
 {{define "content"}}
   <h1>Providers</h1>
-  <button class="btn btn--primary" onclick="document.getElementById('provider-dialog').showModal()">
+  <button class="btn btn--primary" onclick="openAddProvider()">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
     Add Provider
   </button>
@@ -48,8 +48,11 @@
         </select>
       </div>
       <div class="form-actions">
-        <button type="submit" class="btn btn--primary">Save</button>
-        <button type="button" class="btn-cancel" onclick="this.closest('dialog').close()">
+        <button type="submit" class="btn btn--primary" hx-disabled-elt="this">
+          <span class="htmx-indicator" aria-hidden="true">⟳</span>
+          Save
+        </button>
+        <button type="button" class="btn-cancel" onclick="cancelProviderDialog()">
           Cancel
         </button>
       </div>
@@ -57,11 +60,33 @@
   </dialog>
 
   <script>
+    function resetProviderForm() {
+      var f = document.getElementById('provider-form');
+      f.reset();
+      f.removeAttribute('hx-put');
+      f.setAttribute('hx-post', '/v1/providers');
+      f.elements.name.readOnly = false;
+      document.getElementById('provider-dialog-title').textContent = 'Add Provider';
+      var err = document.getElementById('provider-form-error-dialog');
+      if (err) err.textContent = '';
+    }
+
+    function openAddProvider() {
+      resetProviderForm();
+      document.getElementById('provider-dialog').showModal();
+    }
+
+    function cancelProviderDialog() {
+      var d = document.getElementById('provider-dialog');
+      d.close();
+      resetProviderForm();
+    }
+
     function editProvider(name, behavior, base_url, api_key_env, protocol) {
       var d = document.getElementById('provider-dialog');
       var f = document.getElementById('provider-form');
-      f.setAttribute('hx-put', '/v1/providers/' + name);
       f.removeAttribute('hx-post');
+      f.setAttribute('hx-put', '/v1/providers/' + name);
       f.elements.name.value = name;
       f.elements.name.readOnly = true;
       f.elements.behavior.value = behavior;

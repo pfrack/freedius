@@ -27,6 +27,7 @@ var templateFuncs = template.FuncMap{
 		}
 		return string(b), nil
 	},
+	"add1": func(i int) int { return i + 1 },
 }
 
 // pageTemplates caches one *template.Template per page file. The layout

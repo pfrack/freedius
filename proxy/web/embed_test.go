@@ -20,7 +20,7 @@ func TestAssets_Open(t *testing.T) {
 }
 
 func TestLoadPageTemplate(t *testing.T) {
-	tmpl, err := loadPageTemplate("index.html")
+	tmpl, err := loadPageTemplate("index.html", "mappings-table.html")
 	if err != nil {
 		t.Fatalf("loadPageTemplate: %v", err)
 	}

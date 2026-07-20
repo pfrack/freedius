@@ -1,9 +1,6 @@
 package web
 
 import (
-	"fmt"
-	"strings"
-
 	"github.com/pfrack/freedius/proxy"
 )
 
@@ -20,6 +17,8 @@ type indexData struct {
 	TotalLogs   int64
 	Port        string
 	Host        string
+	Mappings    []mappingRow
+	Providers   []providerRow
 }
 
 // logEntry represents a single log line for template rendering.
@@ -57,11 +56,8 @@ type providersData struct {
 type fallbackEntry struct {
 	ProviderName string
 	Model        string
-}
-
-// String returns a formatted fallback string (e.g., "→ provider/model").
-func (f fallbackEntry) String() string {
-	return fmt.Sprintf("→ %s/%s", f.ProviderName, f.Model)
+	Protocol     string
+	BaseURL      string
 }
 
 // mappingRow represents a single mapping for template rendering.
@@ -69,16 +65,11 @@ type mappingRow struct {
 	Name         string
 	ProviderName string
 	Model        string
+	Protocol     string
+	BaseURL      string
+	Responder    int // responder index (0=primary; check HasResponder for validity)
+	HasResponder bool
 	Fallbacks    []fallbackEntry
-}
-
-// FallbacksString returns a comma-separated string of all fallbacks (e.g., "→ zen/claude, → nim/step").
-func (m mappingRow) FallbacksString() string {
-	var parts []string
-	for _, fb := range m.Fallbacks {
-		parts = append(parts, fb.String())
-	}
-	return strings.Join(parts, ", ")
 }
 
 // mappingsData is the data for the mappings page.
@@ -90,8 +81,10 @@ type mappingsData struct {
 
 // modelsData is the data for the models fragment template.
 type modelsData struct {
-	Provider  string
-	Models    []proxy.ModelView
-	FetchedAt string
-	Error     string
+	Provider        string
+	Models          []proxy.ModelView
+	FetchedAt       string
+	Error           string
+	Truncated       bool
+	FetchInProgress bool
 }

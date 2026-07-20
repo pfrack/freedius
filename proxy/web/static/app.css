@@ -354,6 +354,81 @@ h2 {
 .stats-grid .card:nth-child(3) { animation-delay: 100ms; }
 .stats-grid .card:nth-child(4) { animation-delay: 150ms; }
 
+/* ── Stats Strip (Dashboard) ────────────────────────────────────────────── */
+
+.stats-strip {
+  display: flex;
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
+  padding: var(--space-3);
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.stats-strip__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.stats-strip__label {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
+.stats-strip__value {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+/* ── Dashboard Sections ─────────────────────────────────────────────────── */
+
+.dashboard-section {
+  margin-bottom: var(--space-8);
+}
+
+.dashboard-section h2 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: var(--space-4);
+  color: var(--text-primary);
+}
+
+/* ── Providers Overview (Dashboard) ─────────────────────────────────────── */
+
+.providers-overview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.providers-overview__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.providers-overview__name {
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.providers-overview__count {
+  margin-left: auto;
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 0.875rem;
+}
+
+.providers-overview__count:hover {
+  text-decoration: underline;
+}
+
 /* ── Table ──────────────────────────────────────────────────────────────── */
 
 .table-wrap {
@@ -813,6 +888,128 @@ pre {
 
 .route-step:last-child::after {
   display: none;
+}
+
+.route-step:first-child::after {
+  display: none;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.route-step__protocol {
+  margin-left: var(--space-2);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.route-card__depth {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  padding: 0 var(--space-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  line-height: 1.6;
+}
+
+.route-step--responder::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: var(--space-2);
+  border-radius: 50%;
+  background: var(--color-success);
+  animation: responder-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes responder-pulse {
+  0%, 100% {
+    opacity: 0.35;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .route-step--responder::before {
+    animation: none;
+    opacity: 1;
+  }
+}
+
+/* ── Toast region (Phase 3) ─────────────────────────────────────────────── */
+
+#toast-region {
+  position: fixed;
+  right: var(--space-4);
+  bottom: var(--space-4);
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  pointer-events: none;
+}
+
+.toast {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--color-error);
+  color: #fff;
+  box-shadow: var(--shadow-lg);
+  pointer-events: auto;
+  animation: slide-up 200ms ease;
+}
+
+.toast--success {
+  background: var(--color-success);
+}
+
+/* ── Empty state ─────────────────────────────────────────────────────────── */
+
+.empty-state {
+  text-align: center;
+  padding: var(--space-8) var(--space-4);
+  background: var(--bg-card);
+  border: 1px dashed var(--border-subtle);
+  border-radius: var(--radius-lg);
+  color: var(--text-secondary);
+}
+
+.empty-state h2 {
+  font-size: 1.1rem;
+  margin-bottom: var(--space-2);
+  color: var(--text-primary);
+}
+
+.empty-state p {
+  margin-bottom: var(--space-4);
+}
+
+/* ── Loading indicator (HTMX) ───────────────────────────────────────────── */
+
+.htmx-indicator {
+  display: none;
+}
+
+.htmx-request .htmx-indicator {
+  display: inline;
+}
+
+.htmx-request.htmx-indicator {
+  display: inline;
 }
 
 @media (max-width: 768px) {

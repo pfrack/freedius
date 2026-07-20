@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+set -e
+
+# Determine the base branch (try origin/main, fall back to origin/master).
+REMOTE=""
+if git rev-parse --verify origin/main >/dev/null 2>&1; then
+  REMOTE="origin/main"
+elif git rev-parse --verify origin/master >/dev/null 2>&1; then
+  REMOTE="origin/master"
+fi
+
+if [ -z "$REMOTE" ]; then
+  echo "No remote base branch found, skipping push tests."
+  exit 0
+fi
+
+# Find the merge base so the diff is accurate even when the local branch
+# is not up to date with the remote (e.g. someone force-pushed).
+BASE=$(git merge-base "$REMOTE" HEAD)
+
+if [ -z "$BASE" ]; then
+  echo "No merge base with $REMOTE found, skipping push tests."
+  exit 0
+fi
+
+# Get changed .go files vs base
+CHANGED=$(git diff --name-only --diff-filter=ACM "$BASE"...HEAD -- '*.go' 2>/dev/null || true)
+
+if [ -z "$CHANGED" ]; then
+  echo "No Go files changed, skipping tests."
+  exit 0
+fi
+
+# Extract unique package directories, excluding non-standard dirs (e.g. magefiles)
+PACKAGES=$(echo "$CHANGED" | xargs -I{} dirname {} | sort -u | grep -v '^magefiles$' | sed 's|^|./|' | sed 's|$|/...|')
+
+echo "Testing changed packages:"
+echo "$PACKAGES" | sed 's|/\.\.\.||' | sed 's|^\./||' | sed 's/^/  /'
+
+# Run tests with race detection on changed packages only
+if ! go test -race $PACKAGES; then
+  echo ""
+  echo "Push rejected: tests failed in changed packages."
+  echo "Fix failures or use 'git push --no-verify' to skip."
+  exit 1
+fi
+
+echo "All changed-package tests passed."

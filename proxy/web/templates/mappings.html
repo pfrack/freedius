@@ -2,12 +2,16 @@
 {{define "title"}}Mappings{{end}}
 {{define "content"}}
   <h1>Mappings</h1>
-  <button class="btn btn--primary" onclick="document.getElementById('mapping-dialog').showModal()">
+  <button class="btn btn--primary" onclick="openAddMapping()">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
     Add Mapping
   </button>
   <div id="mapping-form-error" class="form-error"></div>
   {{template "mappings-table" .}}
+
+  <template id="fallback-provider-options">
+    {{range .Providers}}<option value="{{.Name}}">{{.Name}}</option>{{end}}
+  </template>
 
   <dialog id="mapping-dialog">
     <form
@@ -53,8 +57,11 @@
       </fieldset>
 
       <div class="form-actions">
-        <button type="submit" class="btn btn--primary">Save</button>
-        <button type="button" class="btn-cancel" onclick="this.closest('dialog').close()">
+        <button type="submit" class="btn btn--primary" hx-disabled-elt="this">
+          <span class="htmx-indicator" aria-hidden="true">⟳</span>
+          Save
+        </button>
+        <button type="button" class="btn-cancel" onclick="cancelMappingDialog()">
           Cancel
         </button>
       </div>
@@ -62,27 +69,49 @@
   </dialog>
 
   <script>
+    function resetMappingForm() {
+      var f = document.getElementById('mapping-form');
+      f.reset();
+      f.removeAttribute('hx-put');
+      f.setAttribute('hx-post', '/v1/mappings');
+      f.elements.name.readOnly = false;
+      document.getElementById('mapping-dialog-title').textContent = 'Add Mapping';
+      document.getElementById('fallback-rows').innerHTML = '';
+      var err = document.getElementById('mapping-form-error-dialog');
+      if (err) err.textContent = '';
+    }
+
+    function openAddMapping() {
+      resetMappingForm();
+      document.getElementById('mapping-dialog').showModal();
+    }
+
+    function cancelMappingDialog() {
+      var d = document.getElementById('mapping-dialog');
+      d.close();
+      resetMappingForm();
+    }
+
     function editMapping(btn) {
       var ds = btn.dataset;
       var d = document.getElementById('mapping-dialog');
       var f = document.getElementById('mapping-form');
-      f.setAttribute('hx-put', '/v1/mappings/' + ds.name);
       f.removeAttribute('hx-post');
+      f.setAttribute('hx-put', '/v1/mappings/' + ds.name);
       f.elements.name.value = ds.name;
       f.elements.name.readOnly = true;
       f.elements.provider_name.value = ds.provider;
       f.elements.model_string.value = ds.model;
       document.getElementById('mapping-dialog-title').textContent = 'Edit Mapping';
+      document.getElementById('fallback-rows').innerHTML = '';
 
-      var container = document.getElementById('fallback-rows');
-      container.innerHTML = '';
       try {
         var fallbacks = JSON.parse(ds.fallbacks);
-        fallbacks.forEach(function(fb) {
-          addFallbackRow(fb.ProviderName, fb.Model);
-        });
+        for (var i = 0; i < fallbacks.length; i++) {
+          addFallbackRow(fallbacks[i].ProviderName, fallbacks[i].Model);
+        }
       } catch (e) {
-        console.error("Failed to parse fallbacks:", e);
+        console.error('Failed to parse fallbacks:', e);
       }
 
       d.showModal();
@@ -109,27 +138,66 @@
       var container = document.getElementById('fallback-rows');
       var idx = container.children.length;
       var suggestId = 'fallback-suggestions-' + idx;
+
       var row = document.createElement('div');
-      row.style.cssText = 'margin-bottom:8px;';
-      row.innerHTML =
-        '<div style="display:flex;gap:6px;align-items:center;">' +
-          '<select class="form-select" name="fallback_provider_name[]" style="flex:1;">' +
-            '{{range .Providers}}<option value="{{.Name}}">{{.Name}}</option>{{end}}' +
-          '</select>' +
-          '<input class="form-input" name="fallback_model_string[]" placeholder="model" style="flex:1;" value="' + (model || '') + '">' +
-          '<button type="button" class="btn btn--ghost btn--sm" onclick="var s=this.parentElement.querySelector(\'select\');if(s.value)htmx.ajax(\'POST\',\'/v1/providers/\'+s.value+\'/models/refresh\',{target:\'#' + suggestId + '\',swap:\'innerHTML\'});">' +
-            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>' +
-          '</button>' +
-          '<button type="button" class="btn btn--danger btn--sm" onclick="this.closest(\'div[style*=margin-bottom]\').remove()">×</button>' +
-        '</div>' +
-        '<div id="' + suggestId + '"></div>';
-      if (provider) {
-        row.querySelector('select').value = provider;
+      row.style.marginBottom = '8px';
+
+      var inner = document.createElement('div');
+      inner.style.display = 'flex';
+      inner.style.gap = '6px';
+      inner.style.alignItems = 'center';
+
+      var select = document.createElement('select');
+      select.className = 'form-select';
+      select.name = 'fallback_provider_name[]';
+      select.style.flex = '1';
+      var optTmpl = document.getElementById('fallback-provider-options');
+      if (optTmpl && optTmpl.content) {
+        select.appendChild(optTmpl.content.cloneNode(true));
       }
+
+      var input = document.createElement('input');
+      input.className = 'form-input';
+      input.name = 'fallback_model_string[]';
+      input.placeholder = 'model';
+      input.style.flex = '1';
+      input.value = model || '';
+
+      var fetchBtn = document.createElement('button');
+      fetchBtn.type = 'button';
+      fetchBtn.className = 'btn btn--ghost btn--sm';
+      fetchBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>';
+      fetchBtn.addEventListener('click', function() {
+        var s = this.parentElement.querySelector('select');
+        if (s.value) htmx.ajax('POST', '/v1/providers/' + s.value + '/models/refresh', {target: '#' + suggestId, swap: 'innerHTML'});
+      });
+
+      var removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.className = 'btn btn--danger btn--sm';
+      removeBtn.textContent = '\u00d7';
+      removeBtn.addEventListener('click', function() {
+        var rowDiv = this.closest('div[style*="margin-bottom"]');
+        if (rowDiv) rowDiv.parentNode.removeChild(rowDiv);
+      });
+
+      inner.appendChild(select);
+      inner.appendChild(input);
+      inner.appendChild(fetchBtn);
+      inner.appendChild(removeBtn);
+
+      var suggestDiv = document.createElement('div');
+      suggestDiv.id = suggestId;
+
+      row.appendChild(inner);
+      row.appendChild(suggestDiv);
       container.appendChild(row);
 
-      // Wire up click-to-fill for this row's suggestions.
-      row.querySelector('#' + suggestId).addEventListener('click', function(e) {
+      if (provider) {
+        select.value = provider;
+      }
+
+      suggestDiv.addEventListener('click', function(e) {
         var li = e.target.closest('li[data-model-id]');
         if (!li) return;
         row.querySelector('input[name="fallback_model_string[]"]').value = li.dataset.modelId;

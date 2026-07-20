@@ -67,3 +67,27 @@ The `custom` provider alias is rewritten to `mix` in `applyEntryDefaults()` (`co
 **Applies to**: Any future change that adds new providers to `providers.yaml` with the expectation they'll appear in the TUI by default.
 
 **Source**: `config/defaults.go:14-37`, `cmd/freedius/main.go:305-318`.
+
+## sync.Mutex+map over sync.Map When Iteration Is Needed
+
+**Context**: proxy/lastresponder.go — LastResponder aggregate with Snapshot() method.
+
+**Problem**: Plan specified sync.Map but sync.Mutex+map was more appropriate. sync.Map is optimized for write-once, read-heavy workloads. When full iteration (Range/Snapshot) is a primary operation, sync.Mutex+map is the better choice because sync.Map.Range holds an internal lock anyway, negating sync.Map's advantage.
+
+**Rule**: Prefer sync.Mutex+map over sync.Map when the design requires iterating the entire map (e.g., Snapshot, dump, bulk export). Reserve sync.Map for append-only dictionaries with disjoint key access from multiple goroutines.
+
+**Applies to**: Any concurrent map where Snapshot/iteration is a first-class operation.
+
+**Source**: proxy/lastresponder.go — plan specified sync.Map, implementation correctly used sync.Mutex+map for Snapshot-friendly design.
+
+## Prefer Bundled Structs Over Scalar Parameters for Multi-Dependency Injection
+
+**Context**: proxy/web/handlers.go — renderMappingsTable signature evolution.
+
+**Problem**: Plan specified passing a single `map` parameter for last-responder data. Implementation passed the full `*eventstream.Handlers` struct instead, which bundled all needed dependencies (Cfg + LastResponder). Adding a separate map parameter would have created a narrow, single-use API surface and required parameter expansion when another dependency was later needed.
+
+**Rule**: When a function needs multiple dependencies from the same source, pass the source struct rather than extracting individual fields as parameters. This keeps call sites simpler and avoids parameter-list churn when new fields are added.
+
+**Applies to**: Handler, service, and renderer functions that consume 2+ related fields from a shared context object.
+
+**Source**: proxy/web/handlers.go — renderMappingsTable signature evolved from planned map parameter to Handlers struct injection.

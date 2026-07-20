@@ -4,10 +4,13 @@
   {{range .Models}}
   <li data-model-id="{{.ID}}"><strong>{{.ID}}</strong>{{if ne .DisplayName .ID}} — {{.DisplayName}}{{end}}</li>
   {{end}}
-  {{if gt (len .Models) 1000}}
+  {{if .Truncated}}
   <li class="form-error">Truncated at 1000 models; upstream may have more.</li>
   {{end}}
 </ul>
+{{end}}
+{{if .FetchInProgress}}
+<small class="text-muted">Refresh already in progress…</small>
 {{end}}
 {{if .FetchedAt}}
 <small class="text-muted">Fetched {{.FetchedAt}}</small>
@@ -15,6 +18,6 @@
 {{if .Error}}
 <div class="form-error">{{.Error}}</div>
 {{end}}
-{{if and (eq (len .Models) 0) (eq .Error "")}}
+{{if and (eq (len .Models) 0) (eq .Error "") (not .FetchInProgress)}}
 <small class="text-muted">No models fetched yet.</small>
 {{end}}

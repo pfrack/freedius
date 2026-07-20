@@ -40,7 +40,9 @@
     <main>
       {{block "content" .}}{{end}}
     </main>
+    <div id="toast-region" aria-live="polite" role="status"></div>
     {{block "scripts" .}}{{end}}
     <script src="/static/htmx.min.js"></script>
+    <script src="/static/app.js"></script>
   </body>
 </html>{{end}}

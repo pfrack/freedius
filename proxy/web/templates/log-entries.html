@@ -1,0 +1,6 @@
+{{define "log-entries"}}
+{{if not .Entries}}
+<small class="text-muted">No log events match the filter.</small>
+{{end}}
+{{range .Entries}}<pre class="log-{{.Level}}">{{.Line}}</pre>{{end}}
+{{end}}

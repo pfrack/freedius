@@ -3,7 +3,7 @@ project: freedius
 version: 1
 status: draft
 created: 2026-06-16
-updated: 2026-07-06
+updated: 2026-07-13
 prd_version: 1
 main_goal: speed
 top_blocker: time
@@ -41,7 +41,7 @@ A developer using Claude Code wants to route LLM calls to cheaper or free provid
 | V-02a | provider-model-discovery | fetch a provider's available models from its upstream /v1/models endpoint, pick from a clickable list when configuring a mapping | V-02 | `context/changes/provider-model-discovery/`. Mapping-modal-only "Fetch models" button with click-to-fill; no Providers-page UI. | done |
 | V-02b | web-ui-redesign | modernized web UI with zinc dark palette, responsive sidebar, design system tokens | V-02 | Archived 2026-07-05. Visual refresh of layout, CSS variables, mobile hamburger nav. | done |
 | V-02c | provider-fallback-routing | configure fallback provider/model chains — freedius tries alternatives when primary fails (transport error, 4xx/5xx) | V-02 | `context/changes/provider-fallback-routing/`. Config schema `fallback:` array on mappings + dispatcher retry logic. | done |
-| V-02d | mapping-graph-visualization | visualize mapping routing as breadcrumb-chain cards instead of a flat table — each mapping shows its pipeline left-to-right | V-02c | `context/changes/mapping-graph-visualization/`. Pure CSS + template change, no new deps. | planned |
+| V-02d | mapping-graph-visualization | visualize mapping routing as breadcrumb-chain cards instead of a flat table — each mapping shows its pipeline left-to-right | V-02c | `context/changes/mapping-graph-visualization/`. Pure CSS + template change, no new deps. | done     |
 
 ## Baseline
 
@@ -245,3 +245,4 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **V-02a: provider-model-discovery** — Mapping-modal-only "Fetch models" button with click-to-fill list. Backend: removed cache-only GET route, simplified refresh handler. UI: stripped Providers page to 7 columns, added explicit fetch button + clickable model list in mapping modal. Reviewed 2026-07-05 → `context/changes/provider-model-discovery/`.
 - **V-02b: web-ui-redesign** — Modernized web UI with zinc dark palette, responsive sidebar, design system tokens, mobile hamburger nav. Archived 2026-07-05 → `context/archive/2026-07-05-web-ui-redesign/`.
 - **V-02c: provider-fallback-routing** — Config schema `fallback:` array on mappings + dispatcher retry logic. When primary provider fails (transport error, 4xx/5xx before any response bytes), freedius tries configured fallback providers in order. Impl reviewed 2026-07-06 → `context/changes/provider-fallback-routing/`.
+- **V-02d: visualize mapping routing as breadcrumb-chain cards instead of a flat table — each mapping shows its pipeline left-to-right** — Archived 2026-07-13 → `context/archive/2026-07-06-mapping-graph-visualization/`. Lesson: —.

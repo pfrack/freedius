@@ -3,6 +3,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -374,15 +375,33 @@ func ManualTest() error {
 	return sh.RunV("./test-manual.sh")
 }
 
-// InstallHooks copies the pre-commit hook into .git/hooks/.
+// InstallHooks copies the pre-commit and pre-push hooks into .git/hooks/.
+// Both hooks are installed independently: a failure on one does not abort
+// the other, and any per-hook errors are joined and returned together.
 func InstallHooks() error {
 	hooksPath, err := sh.Output("git", "rev-parse", "--git-path", "hooks")
 	if err != nil {
 		return fmt.Errorf("resolve git hooks path: %w", err)
 	}
-	dst := strings.TrimSpace(hooksPath) + "/pre-commit"
-	if err := os.Symlink("../../scripts/pre-commit", dst); err != nil {
-		if err := sh.Copy(dst, "scripts/pre-commit"); err != nil {
+	hooksDir := strings.TrimSpace(hooksPath)
+
+	var errs []error
+	if err := installHook(hooksDir, "pre-commit"); err != nil {
+		errs = append(errs, fmt.Errorf("install pre-commit: %w", err))
+	}
+	if err := installHook(hooksDir, "pre-push"); err != nil {
+		errs = append(errs, fmt.Errorf("install pre-push: %w", err))
+	}
+	return errors.Join(errs...)
+}
+
+// installHook symlinks scripts/<name> into .git/hooks/<name>, falling back
+// to a copy when the symlink fails (e.g. on Windows without privilege), and
+// finally marks the destination executable.
+func installHook(hooksDir, name string) error {
+	dst := hooksDir + "/" + name
+	if err := os.Symlink("../../scripts/"+name, dst); err != nil {
+		if err := sh.Copy(dst, "scripts/"+name); err != nil {
 			return err
 		}
 	}

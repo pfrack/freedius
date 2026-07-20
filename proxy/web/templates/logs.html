@@ -10,6 +10,7 @@
     hx-get="/logs"
     hx-target="#log"
     hx-trigger="change"
+    hx-replace-url="true"
     style="max-width: 200px; margin-bottom: 1rem;"
   >
     <option value="" {{if not .Level}}selected{{end}}>All</option>
@@ -22,9 +23,10 @@
     id="log"
     hx-ext="sse"
     sse-connect="/v1/logs"
-    sse-swap="log"
-    hx-swap="beforeend scroll:#log:bottom"
   >
+    {{if not .Entries}}
+    <small class="text-muted">Waiting for log events…</small>
+    {{end}}
     {{range .Entries}}<pre class="log-{{.Level}}">{{.Line}}</pre>{{end}}
   </div>
 {{end}}
