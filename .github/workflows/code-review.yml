@@ -1,4 +1,4 @@
-name: NIM Code Review
+name: Code Review
 
 on:
   pull_request:
