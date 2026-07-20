@@ -1,11 +1,25 @@
 #!/usr/bin/env bash
 set -e
 
-# Determine the base branch (try origin/main, fall back to origin/master)
-BASE=$(git rev-parse --verify origin/main 2>/dev/null || git rev-parse --verify origin/master 2>/dev/null || echo "")
+# Determine the base branch (try origin/main, fall back to origin/master).
+REMOTE=""
+if git rev-parse --verify origin/main >/dev/null 2>&1; then
+  REMOTE="origin/main"
+elif git rev-parse --verify origin/master >/dev/null 2>&1; then
+  REMOTE="origin/master"
+fi
+
+if [ -z "$REMOTE" ]; then
+  echo "No remote base branch found, skipping push tests."
+  exit 0
+fi
+
+# Find the merge base so the diff is accurate even when the local branch
+# is not up to date with the remote (e.g. someone force-pushed).
+BASE=$(git merge-base "$REMOTE" HEAD)
 
 if [ -z "$BASE" ]; then
-  echo "No remote base branch found, skipping push tests."
+  echo "No merge base with $REMOTE found, skipping push tests."
   exit 0
 fi
 

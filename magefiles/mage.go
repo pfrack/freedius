@@ -3,6 +3,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -375,6 +376,8 @@ func ManualTest() error {
 }
 
 // InstallHooks copies the pre-commit and pre-push hooks into .git/hooks/.
+// Both hooks are installed independently: a failure on one does not abort
+// the other, and any per-hook errors are joined and returned together.
 func InstallHooks() error {
 	hooksPath, err := sh.Output("git", "rev-parse", "--git-path", "hooks")
 	if err != nil {
@@ -382,25 +385,27 @@ func InstallHooks() error {
 	}
 	hooksDir := strings.TrimSpace(hooksPath)
 
-	// Install pre-commit
-	preCommitDst := hooksDir + "/pre-commit"
-	if err := os.Symlink("../../scripts/pre-commit", preCommitDst); err != nil {
-		if err := sh.Copy(preCommitDst, "scripts/pre-commit"); err != nil {
-			return err
-		}
+	var errs []error
+	if err := installHook(hooksDir, "pre-commit"); err != nil {
+		errs = append(errs, fmt.Errorf("install pre-commit: %w", err))
 	}
-	if err := sh.RunV("chmod", "+x", preCommitDst); err != nil {
-		return err
+	if err := installHook(hooksDir, "pre-push"); err != nil {
+		errs = append(errs, fmt.Errorf("install pre-push: %w", err))
 	}
+	return errors.Join(errs...)
+}
 
-	// Install pre-push
-	prePushDst := hooksDir + "/pre-push"
-	if err := os.Symlink("../../scripts/pre-push", prePushDst); err != nil {
-		if err := sh.Copy(prePushDst, "scripts/pre-push"); err != nil {
+// installHook symlinks scripts/<name> into .git/hooks/<name>, falling back
+// to a copy when the symlink fails (e.g. on Windows without privilege), and
+// finally marks the destination executable.
+func installHook(hooksDir, name string) error {
+	dst := hooksDir + "/" + name
+	if err := os.Symlink("../../scripts/"+name, dst); err != nil {
+		if err := sh.Copy(dst, "scripts/"+name); err != nil {
 			return err
 		}
 	}
-	return sh.RunV("chmod", "+x", prePushDst)
+	return sh.RunV("chmod", "+x", dst)
 }
 
 // InstallGoimports installs goimports if missing.

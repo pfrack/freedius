@@ -1,6 +1,7 @@
 package web
 
 import (
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
@@ -180,8 +181,11 @@ func TestToastRegionInLayout(t *testing.T) {
 	}
 }
 
-// TestGlobalAfterRequestListenerWired verifies §3.2: the layout includes
-// an `htmx:afterRequest` listener on document.body.
+// TestGlobalAfterRequestListenerWired verifies §3.2: the layout loads
+// app.js, which contains the global htmx:afterRequest listener and the
+// showToast helper. The wiring lives in static/app.js (extracted from the
+// inline layout script for maintainability) — the layout just includes
+// the script tag.
 func TestGlobalAfterRequestListenerWired(t *testing.T) {
 	tmpl, err := loadPageTemplate("index.html")
 	if err != nil {
@@ -194,10 +198,21 @@ func TestGlobalAfterRequestListenerWired(t *testing.T) {
 		t.Fatalf("render: %v", err)
 	}
 	body := buf.String()
-	if !strings.Contains(body, "htmx:afterRequest") {
-		t.Errorf("layout must include global htmx:afterRequest listener; got: %s", body)
+	if !strings.Contains(body, "/static/app.js") {
+		t.Errorf("layout must include <script src=\"/static/app.js\">; got: %s", body)
 	}
-	if !strings.Contains(body, "showToast") {
-		t.Errorf("layout script must define showToast; got: %s", body)
+
+	// Read app.js from the embedded static FS to verify it wires the
+	// listener and defines showToast.
+	appJSBytes, err := fs.ReadFile(StaticFS(), "app.js")
+	if err != nil {
+		t.Fatalf("read static/app.js: %v", err)
+	}
+	appJS := string(appJSBytes)
+	if !strings.Contains(appJS, "htmx:afterRequest") {
+		t.Errorf("app.js must register an htmx:afterRequest listener; got: %s", appJS)
+	}
+	if !strings.Contains(appJS, "function showToast") {
+		t.Errorf("app.js must define showToast; got: %s", appJS)
 	}
 }

@@ -18,6 +18,11 @@ const lastResponderTTL = 60 * time.Second
 // TTL eviction is lazy: callers compare time.Since(ts) at read time and drop
 // expired entries on contact. No background goroutine is required. The clock
 // is injectable so tests can advance virtual time without sleeping.
+//
+// Concurrency: all fields are guarded by mu. Every read of l.now — including
+// the function-pointer read and the call itself — happens inside the locked
+// region of Record/Lookup/Snapshot. SetClock also holds mu while writing the
+// pointer, so there is no race between SetClock and the readers.
 type LastResponder struct {
 	mu      sync.Mutex
 	entries map[string]lastResponderEntry
@@ -79,8 +84,10 @@ func (l *LastResponder) Lookup(mappingName string) (int, bool) {
 }
 
 // Snapshot returns a copy of the responder map with expired entries filtered
-// out. Used by the web endpoint to render the chevron set. Safe to call on a
-// nil receiver.
+// out. Expired entries are also deleted from the underlying map so a Snapshot
+// call alone is enough to bound map growth — callers do not need to drive
+// Lookup to evict. Used by the web endpoint to render the chevron set. Safe
+// to call on a nil receiver (returns nil).
 func (l *LastResponder) Snapshot() map[string]int {
 	if l == nil {
 		return nil
@@ -91,6 +98,7 @@ func (l *LastResponder) Snapshot() map[string]int {
 	now := l.now()
 	for k, e := range l.entries {
 		if now.Sub(e.ts) > lastResponderTTL {
+			delete(l.entries, k)
 			continue
 		}
 		out[k] = e.responder

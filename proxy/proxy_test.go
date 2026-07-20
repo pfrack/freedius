@@ -859,7 +859,7 @@ mappings:
 					return
 				default:
 				}
-				_, _, _, _ = d.resolveMapping("opus")
+				_, _, _, _, _ = d.resolveMapping("opus")
 			}
 		}()
 	}

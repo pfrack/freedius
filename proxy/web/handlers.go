@@ -108,7 +108,11 @@ func SetupMux(h *eventstream.Handlers, logger *slog.Logger) *http.ServeMux {
 		handleDeleteMapping(w, r, h, h.CfgPath)
 	})
 	mux.HandleFunc("GET /v1/mappings/last-responders", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, http.StatusOK, h.LastResponder.Snapshot())
+		snap := h.LastResponder.Snapshot()
+		if snap == nil {
+			snap = map[string]int{}
+		}
+		writeJSON(w, http.StatusOK, snap)
 	})
 
 	// Models endpoint: explicit refresh only.
@@ -268,11 +272,14 @@ func buildMappingRows(
 ) []mappingRow {
 	mappings := cfg.MappingsSnapshot()
 
+	// Cache lowercased filter once outside the loop — ToLower allocates.
+	filterLower := strings.ToLower(providerFilter)
+	hasFilter := filterLower != ""
+
 	var rows []mappingRow
 	for name, m := range mappings {
 		// Apply provider filter if set.
-		if providerFilter != "" {
-			filterLower := strings.ToLower(providerFilter)
+		if hasFilter {
 			// Check primary provider.
 			if !strings.Contains(strings.ToLower(m.ProviderName), filterLower) {
 				// Check fallback providers.
