@@ -328,9 +328,9 @@ things you only look up occasionally — out of the way at the bottom.]
 
 #### Automated
 
-- [ ] 2.1 `mage test` passes
-- [ ] 2.2 `mage lint` passes
-- [ ] 2.3 `go build ./...` passes
+- [x] 2.1 `mage test` passes — 567d0cf
+- [x] 2.2 `mage lint` passes — 567d0cf
+- [x] 2.3 `go build ./...` passes — 567d0cf
 
 #### Manual
 
