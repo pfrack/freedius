@@ -1,9 +1,10 @@
 ---
 change_id: provider-fallback-routing
 title: Provider fallback routing for model/provider failures
-status: impl_reviewed
+status: archived
 created: 2026-07-06
-updated: 2026-07-06
+updated: 2026-07-21
+archived_at: 2026-07-21T19:07:25Z
 type: research
 ---
 
