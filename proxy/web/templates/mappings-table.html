@@ -18,6 +18,9 @@
   <div class="route-card">
     <div class="route-card__header">
       <h3 class="route-card__name">{{.Name}}</h3>
+      <span class="route-card__meta">{{if .AddedAt}}{{.AddedAt}}{{else}}added: unknown{{end}}</span>
+      <span class="status-dot {{if .EnvPresent}}status-dot--present{{else}}status-dot--missing{{end}}" title="{{if .EnvPresent}}API key present{{else}}API key missing — requests to this mapping will fail{{end}}"></span>
+      {{if .Family}}<span class="badge badge--family">{{.Family}}</span>{{end}}
       {{if gt (len .Fallbacks) 0}}<span class="route-card__depth">{{len .Fallbacks}} fallback{{if ne (len .Fallbacks) 1}}s{{end}}</span>{{end}}
       <div class="route-card__actions">
         <button

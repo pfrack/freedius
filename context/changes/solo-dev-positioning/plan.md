@@ -315,9 +315,9 @@ things you only look up occasionally — out of the way at the bottom.]
 
 #### Automated
 
-- [ ] 1.1 `mage test` passes with extended/new `buildMappingRows` assertions
-- [ ] 1.2 `mage lint` passes
-- [ ] 1.3 `go build ./...` passes
+- [x] 1.1 `mage test` passes with extended/new `buildMappingRows` assertions — fa1109f
+- [x] 1.2 `mage lint` passes — fa1109f
+- [x] 1.3 `go build ./...` passes — fa1109f
 
 #### Manual
 
