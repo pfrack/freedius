@@ -343,9 +343,9 @@ things you only look up occasionally — out of the way at the bottom.]
 
 #### Automated
 
-- [ ] 3.1 No broken internal links (grep validation)
-- [ ] 3.2 `mage test` passes (build unaffected)
-- [ ] 3.3 Spellcheck passes
+- [x] 3.1 No broken internal links (grep validation) — be00154
+- [x] 3.2 `mage test` passes (build unaffected) — be00154
+- [x] 3.3 Spellcheck passes — be00154
 
 #### Manual
 
