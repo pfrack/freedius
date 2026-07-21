@@ -65,6 +65,7 @@ type Mapping struct {
 	ProviderName string    `yaml:"provider_name"`
 	ModelString  string    `yaml:"model_string"`
 	Fallback     []Mapping `yaml:"fallback,omitempty"`
+	AddedAt      string    `yaml:"added_at,omitempty"`
 }
 
 // Load reads, parses, and validates the freedius configuration at path.

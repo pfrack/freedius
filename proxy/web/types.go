@@ -70,6 +70,9 @@ type mappingRow struct {
 	Responder    int // responder index (0=primary; check HasResponder for validity)
 	HasResponder bool
 	Fallbacks    []fallbackEntry
+	AddedAt      string
+	EnvPresent   bool
+	Family       string
 }
 
 // mappingsData is the data for the mappings page.

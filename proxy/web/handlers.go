@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -313,9 +314,17 @@ func buildMappingRows(
 		}
 		proto := ""
 		url := ""
+		envPresent := false
 		if p, ok := providers[m.ProviderName]; ok {
 			proto = p.Protocol
 			url = p.DefaultBaseURL
+			if p.DefaultAPIKeyEnv != "" {
+				envPresent = os.Getenv(p.DefaultAPIKeyEnv) != ""
+			}
+		}
+		family, _ := proxy.ExtractFamily(name)
+		if family == "default" {
+			family = ""
 		}
 		responder, hasResp := 0, false
 		if lastResponder != nil {
@@ -330,6 +339,9 @@ func buildMappingRows(
 			Responder:    responder,
 			HasResponder: hasResp,
 			Fallbacks:    fallbacks,
+			AddedAt:      m.AddedAt,
+			EnvPresent:   envPresent,
+			Family:       family,
 		}
 		rows = append(rows, row)
 	}
