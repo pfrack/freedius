@@ -150,7 +150,6 @@ func Build() error {
 		"-ldflags", fmt.Sprintf("-s -w -X github.com/pfrack/freedius/cmd/freedius.version=%s", version),
 		"-tags", "netgo,osusergo",
 		"-trimpath",
-		"-gcflags=-l",
 		"./cmd/freedius",
 	)
 }

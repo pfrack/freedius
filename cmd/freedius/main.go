@@ -117,7 +117,11 @@ func run(args []string) int {
 		host = v
 	}
 	if _, ok := allowedHosts[host]; !ok {
-		return failf("freedius: invalid --host value: %s (allowed: 127.0.0.1, 0.0.0.0)", host)
+		return failf(
+			"freedius: invalid --host value: %s "+
+				"(allowed: 127.0.0.1, 0.0.0.0; set via --host or FREEDIUS_HOST env var)",
+			host,
+		)
 	}
 
 	configFlag := *flagConfig
