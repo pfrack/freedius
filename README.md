@@ -15,22 +15,15 @@ walks an ordered fallback chain.
 ## Reading the system state
 
 The web dashboard (`http://localhost:8083/`, default) is the primary way to read
-what the system is doing right now:
-
-- **Mapping cards** — routing shape (primary + fallback chain) plus provenance:
-  when added (`added_at`), a green/amber dot for whether the API key is in the
-  environment right now, and a family badge (opus/sonnet/haiku).
-- **Last-used responder** — the highlighted step shows which fallback fired on
-  the last request.
-- **Live logs** — streaming via SSE with level and provider/mapping filtering.
-
-Access at `http://localhost:8083/` (default). Set `FREEDIUS_UI_TOKEN` to require
-bearer authentication on all dashboard routes (useful for LAN/Docker exposure).
+what the system is doing right now. Mapping cards show each mapping's routing
+shape plus provenance (when added, whether the API key is present right now,
+family badge). The last-used responder highlight shows which fallback fired
+last. Logs stream live via SSE.
 
 ## Quickstart
 
 ```bash
-go build -o freedius ./cmd/freedius
+mage build      # versioned binary (git tag or "dev"), use `go build` for plain dev build
 ./freedius
 curl -X POST http://127.0.0.1:8082/v1/messages \
   -H 'Content-Type: application/json' \
@@ -40,6 +33,18 @@ curl -X POST http://127.0.0.1:8082/v1/messages \
 On first run, freedius loads an embedded default config so it serves requests
 immediately — but upstream API keys are still required for any provider you
 actually use.
+
+## Installation
+
+Pre-built static binaries for Linux, macOS, and Windows (amd64/arm64) are
+published on every tagged release. Grab the latest archive from the
+[Releases](https://github.com/pfrack/freedius/releases) page, or install via:
+
+```bash
+go install github.com/pfrack/freedius@latest
+```
+
+`freedius --version` prints the installed tag for GoReleaser-built versions.
 
 ## Configuration
 
@@ -66,17 +71,13 @@ mappings:
 
 ### Mapping resolution
 
-When a request arrives, freedius resolves the `model` field against:
-
-1. Exact match in `mappings` map
-2. Family prefix match (e.g. `claude-sonnet-4-6-20250908` matches
-   `claude-sonnet-4-6`)
+freedius resolves the `model` field against an exact match in `mappings`, then
+a family prefix match (e.g. `claude-sonnet-4-6-...` → `claude-sonnet-4-6`).
 
 ### Fallback chains
 
-Mappings support ordered fallback entries. When the primary fails (config
-error, transport failure, or upstream 4xx/5xx), freedius tries each fallback
-in order:
+When the primary fails (config error, transport failure, or upstream 4xx/5xx),
+freedius tries each fallback in order:
 
 ```yaml
 mappings:
@@ -103,36 +104,47 @@ mappings:
     added_at: 2026-07-06
 ```
 
+## Web Dashboard
+
+The embedded dashboard provides:
+
+- **Live logs** — SSE streaming with level and provider/mapping filtering
+- **Request events** — proxy requests in real-time
+- **Provider management** — add, edit, delete providers through the UI
+- **Mapping management** — add, edit, delete mappings with fallback chains
+- **Mapping cards** — routing shape plus provenance: when added (`added_at`),
+  a green/amber dot for whether the API key is in the environment right now,
+  and a family badge (opus/sonnet/haiku). The highlighted step shows the
+  last-used responder.
+- **Health check** — `GET /health` returns `{"status":"ok"}`
+
+Access at `http://localhost:8083/` (default). Set `FREEDIUS_UI_TOKEN` to require
+bearer authentication on all dashboard routes (useful for LAN/Docker exposure).
+
 ## CLI & Environment Variables
 
-```
-freedius [flags]
-
-Flags:
-  -c string            Shorthand for --config
-  -config string       Path to config file (auto-resolved if empty)
-  -host string         Host to bind (127.0.0.1 or 0.0.0.0; default 127.0.0.1)
-  -log-format string   Log output format: text, json (default text)
-  -no-export-hint      Suppress the env-export hint on startup
-  -port int            Port to listen on (default 8082)
-  -stream-timeout      Per-request upstream timeout (default 5m)
-  -verbose-errors      Include upstream error detail in error responses
-  -ui-port int         Web UI port (default 8083)
-  -ui-host string      Web UI bind address (default 127.0.0.1)
-  -help                Show help
-  -version             Print version
-```
+| Flag | Default | Description |
+|------|---------|-------------|
+| `-c`, `--config <path>` | auto-resolve | Config file path |
+| `-host` | `127.0.0.1` | Bind host (`0.0.0.0` to expose) |
+| `--log-format` | `text` | Log output: `text` or `json` |
+| `--no-export-hint` | | Suppress env-export hint on startup |
+| `-port` | `8082` | Listen port |
+| `--stream-timeout` | `5m` | Per-request upstream timeout |
+| `--verbose-errors` | | Include upstream error detail in responses |
+| `-ui-port` | `8083` | Dashboard port |
+| `-ui-host` | `127.0.0.1` | Dashboard bind address |
 
 | Variable | Description |
 |----------|-------------|
-| `FREEDIUS_PORT` | Listen port (overridden by `--port`) |
-| `FREEDIUS_HOST` | Listen host (overridden by `--host`) |
-| `FREEDIUS_LOG` | Log format: `text` or `json` |
+| `FREEDIUS_PORT` | Override `--port` |
+| `FREEDIUS_HOST` | Override `--host` |
+| `FREEDIUS_LOG` | Override `--log-format` |
 | `FREEDIUS_VERBOSE_ERRORS` | Set to `1` for verbose errors |
-| `FREEDIUS_STREAM_TIMEOUT` | Per-request upstream timeout duration |
-| `FREEDIUS_FALLBACK_TIMEOUT_MULTIPLIER` | Scales per-attempt fallback budget (default `2`) |
-| `FREEDIUS_UI_PORT` | Dashboard port (overridden by `--ui-port`) |
-| `FREEDIUS_UI_HOST` | Dashboard bind address (overridden by `--ui-host`) |
+| `FREEDIUS_STREAM_TIMEOUT` | Override `--stream-timeout` |
+| `FREEDIUS_FALLBACK_TIMEOUT_MULTIPLIER` | Per-attempt fallback budget scale (default `2`) |
+| `FREEDIUS_UI_PORT` | Override `-ui-port` |
+| `FREEDIUS_UI_HOST` | Override `-ui-host` |
 | `FREEDIUS_UI_TOKEN` | Bearer token for dashboard auth (opt-in) |
 | `NVIDIA_NIM_API_KEY` | API key for NVIDIA NIM |
 | `ANTHROPIC_API_KEY` | API key for Anthropic |

@@ -34,6 +34,11 @@ After this plan:
 - Cards render the three new signals when served at `http://localhost:8083/mappings`.
 - README opens with purpose/audience, not a provider list.
 
+### Adaptations Log
+
+- **`extractFamily` → `ExtractFamily` export** (F3): plan said "no modification," but the function is unexported in `proxy` and is called from `web` — Go forbids cross-package unexported calls. Exported with an added doc comment; body and in-package callers updated. Mechanically required, not a design choice.
+- **`default` catch-all filtered to `""`** (F4): `knownFamilies` has an empty-regex "default" entry matching every input. Mapped to empty at the display call site so cards show no badge for non-keyword names. Catch-all preserved for `proxy.go:resolveMapping` which relies on it.
+
 ## What We're NOT Doing
 
 - **Git blame integration** — rejected in favour of config annotation (no git coupling in the binary).

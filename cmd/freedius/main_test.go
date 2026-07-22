@@ -459,12 +459,27 @@ func TestRun_LazyConfigDoesNotWriteFile(t *testing.T) {
 	cmd := exec.Command(bin, "--port", "1", "--no-export-hint")
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
-	// Strip any inherited HOME from the test process before re-adding our
-	// override, so HOME points only at the empty dir we control.
+	// Strip any inherited HOME and API key env vars from the test process
+	// before re-adding our override, so HOME points only at the empty dir
+	// we control and no API keys satisfy checkRequiredEnvVars.
 	env := os.Environ()
 	filtered := env[:0]
 	for _, e := range env {
 		if strings.HasPrefix(e, "HOME=") {
+			continue
+		}
+		if strings.HasPrefix(e, "FREEDIUS_") ||
+			strings.HasPrefix(e, "OPENAI_API_KEY") ||
+			strings.HasPrefix(e, "ANTHROPIC_API_KEY") ||
+			strings.HasPrefix(e, "GEMINI_API_KEY") ||
+			strings.HasPrefix(e, "MISTRAL_API_KEY") ||
+			strings.HasPrefix(e, "DEEPSEEK_API_KEY") ||
+			strings.HasPrefix(e, "GROQ_API_KEY") ||
+			strings.HasPrefix(e, "TOGETHER_API_KEY") ||
+			strings.HasPrefix(e, "FIREWORKS_API_KEY") ||
+			strings.HasPrefix(e, "COHERE_API_KEY") ||
+			strings.HasPrefix(e, "OPENCODE_API_KEY") ||
+			strings.HasPrefix(e, "NVIDIA_NIM_API_KEY") {
 			continue
 		}
 		filtered = append(filtered, e)
@@ -478,10 +493,8 @@ func TestRun_LazyConfigDoesNotWriteFile(t *testing.T) {
 	}
 
 	output := stderr.String()
-	if !strings.Contains(output, "freedius listening on") &&
-		!strings.Contains(output, "permission denied") &&
-		!strings.Contains(output, "address already in use") {
-		t.Errorf("expected startup or bind error in stderr, got:\n%s", output)
+	if !strings.Contains(output, "freedius:") {
+		t.Errorf("expected error output, got:\n%s", output)
 	}
 }
 

@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime/debug"
 	"strconv"
 	"time"
 
@@ -112,6 +113,8 @@ func run(args []string) int {
 	host := defaultHost
 	if setFlags["host"] {
 		host = *flagHost
+	} else if v := os.Getenv("FREEDIUS_HOST"); v != "" {
+		host = v
 	}
 	if _, ok := allowedHosts[host]; !ok {
 		return failf("freedius: invalid --host value: %s (allowed: 127.0.0.1, 0.0.0.0)", host)
@@ -131,7 +134,9 @@ func run(args []string) int {
 		return failf("freedius: %s", err)
 	}
 
-	_ = checkRequiredEnvVars(cfg)
+	if err := checkRequiredEnvVars(cfg); err != nil {
+		return failf("freedius: %s", err)
+	}
 
 	serverLogger := logger.With("component", "server")
 	serverLogger.Info(
@@ -328,10 +333,22 @@ func failf(format string, args ...any) int {
 	return 1
 }
 
+func getVersion() string {
+	if version != "dev" {
+		return version
+	}
+	if info, ok := debug.ReadBuildInfo(); ok {
+		if v := info.Main.Version; v != "(devel)" && v != "" {
+			return v
+		}
+	}
+	return "dev"
+}
+
 func handleEarlyArgs(args []string) (int, bool) {
 	for _, a := range args {
 		if a == "--version" {
-			fmt.Printf("freedius %s\n", version)
+			fmt.Printf("freedius %s\n", getVersion())
 			return 0, true
 		}
 		if a == "--help" || a == "-h" {
