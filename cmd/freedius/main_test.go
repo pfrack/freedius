@@ -247,6 +247,7 @@ func TestRun_StartupBanner(t *testing.T) {
 	}
 
 	cmd := exec.Command("go", "run", ".", "--config", cfgPath, "--port", "1", "--no-export-hint")
+	cmd.Env = append(os.Environ(), "NVIDIA_NIM_API_KEY=test-key")
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	cmd.Dir = "."
