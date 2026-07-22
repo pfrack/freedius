@@ -21,6 +21,7 @@ const (
 	toolVersionGoimports    = "v0.47.0"
 	toolVersionGolines      = "v0.12.2"
 	toolVersionGci          = "v0.13.5"
+	toolVersionGoreleaser   = "v2.6.2"
 )
 
 // Build configuration
@@ -77,6 +78,7 @@ func Help() {
 	fmt.Println("  dockerBuild     - Build Docker image")
 	fmt.Println("  dockerRun       - Run Docker container")
 	fmt.Println("  dockerPush      - Push Docker image to registry")
+	fmt.Println("  goreleaser      - Run GoReleaser (use ARGS env for flags)")
 	fmt.Println()
 
 	fmt.Println("Git Hooks & CI:")
@@ -138,7 +140,18 @@ func Vet() error {
 // Build compiles the freedius binary.
 func Build() error {
 	fmt.Println("→ Building freedius binary...")
-	return sh.RunV("go", "build", "-o", "freedius", "./cmd/freedius")
+	version, _ := sh.Output("git", "describe", "--tags", "--always", "--dirty")
+	version = strings.TrimSpace(version)
+	if version == "" {
+		version = "dev"
+	}
+	return sh.RunV("go", "build",
+		"-o", "freedius",
+		"-ldflags", fmt.Sprintf("-s -w -X github.com/pfrack/freedius/cmd/freedius.version=%s", version),
+		"-tags", "netgo,osusergo",
+		"-trimpath",
+		"./cmd/freedius",
+	)
 }
 
 // Install builds and installs the binary to $GOPATH/bin.
@@ -548,6 +561,21 @@ func DockerPush() error {
 	}
 	fmt.Printf("→ Pushing Docker image: %s\n", image)
 	return sh.RunV("docker", "push", image)
+}
+
+// Goreleaser runs GoReleaser locally. Use ARGS env var for extra flags
+// (e.g. ARGS='build --clean' mage goreleaser).
+func Goreleaser() error {
+	if _, err := sh.Output("which", "goreleaser"); err != nil {
+		if err := sh.RunV("go", "install", "github.com/goreleaser/goreleaser/v2@"+toolVersionGoreleaser); err != nil {
+			return err
+		}
+	}
+	args := []string{}
+	if extra := os.Getenv("ARGS"); extra != "" {
+		args = append(args, strings.Fields(extra)...)
+	}
+	return sh.RunV("goreleaser", args...)
 }
 
 // Help2 displays detailed help information with sections and tool versions.

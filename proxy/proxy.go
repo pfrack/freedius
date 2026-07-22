@@ -129,7 +129,7 @@ func (d *Dispatcher) resolveMapping(model string) (string, config.Mapping, confi
 		provider, pok := d.Cfg.Providers[mapping.ProviderName]
 		return model, mapping, provider, true, pok
 	}
-	if family, found := extractFamily(model); found {
+	if family, found := ExtractFamily(model); found {
 		if mapping, ok := d.Cfg.Mappings[family]; ok {
 			provider, pok := d.Cfg.Providers[mapping.ProviderName]
 			return family, mapping, provider, true, pok

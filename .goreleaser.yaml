@@ -1,0 +1,43 @@
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - binary: freedius
+    main: ./cmd/freedius
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -tags=netgo,osusergo
+      - -trimpath
+      - -gcflags=-l
+    ldflags:
+      - -s -w -X github.com/pfrack/freedius/cmd/freedius.version={{.Version}}
+      - -X github.com/pfrack/freedius/cmd/freedius.commit={{.Commit}}
+      - -X github.com/pfrack/freedius/cmd/freedius.date={{.Date}}
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: "{{ .ProjectName }}_{{ .Version }}_checksums.txt"
+
+release:
+  github:
+    owner: pfrack
+    name: freedius

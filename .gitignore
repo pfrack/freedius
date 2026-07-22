@@ -8,3 +8,4 @@ coverage.out
 .idea/
 .vscode/
 freedius-test.log
+/dist/

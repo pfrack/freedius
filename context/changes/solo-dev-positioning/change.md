@@ -1,0 +1,15 @@
+---
+id: solo-dev-positioning
+title: Solo-dev positioning — install + narrative + scope coherence
+status: impl_reviewed
+created: 2026-07-21
+updated: 2026-07-22
+phase: 3
+plan: context/changes/solo-dev-positioning/plan.md
+roadmap_id: null
+prd_refs: []
+tags:
+  - positioning
+  - onboarding
+  - cold-start
+---

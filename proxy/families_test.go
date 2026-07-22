@@ -51,12 +51,12 @@ func TestExtractFamily(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, found := extractFamily(tt.model)
+			got, found := ExtractFamily(tt.model)
 			if found != tt.wantFound {
-				t.Errorf("extractFamily(%q) found = %v, want %v", tt.model, found, tt.wantFound)
+				t.Errorf("ExtractFamily(%q) found = %v, want %v", tt.model, found, tt.wantFound)
 			}
 			if got != tt.want {
-				t.Errorf("extractFamily(%q) = %q, want %q", tt.model, got, tt.want)
+				t.Errorf("ExtractFamily(%q) = %q, want %q", tt.model, got, tt.want)
 			}
 		})
 	}
