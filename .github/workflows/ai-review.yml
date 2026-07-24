@@ -1,0 +1,23 @@
+name: AI Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pfrack/review-action@v1
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          custom_api_url: 'https://inference.poolside.ai/v1',          custom_model: 'poolside/laguna-s-2.1',          custom_api_key: ${{ secrets.CUSTOM_API_KEY }}
+          nim_api_key: ${{ secrets.NIM_API_KEY }}
+          mistral_api_key: ${{ secrets.MISTRAL_API_KEY }}
+          groq_api_key: ${{ secrets.GROQ_API_KEY }}
