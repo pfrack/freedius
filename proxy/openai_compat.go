@@ -152,7 +152,9 @@ func (a *OpenAICompatibleAdapter) Handle(
 	w.Header().Set("Connection", "keep-alive")
 	w.WriteHeader(http.StatusOK)
 	rc := http.NewResponseController(w)
-	err = translate.Stream(resp.Body, w, rc.Flush)
+	// Extract the original request model from context to echo back in response.
+	modelOverride := RequestModelFromContext(r.Context())
+	err = translate.Stream(resp.Body, w, rc.Flush, modelOverride)
 	if err != nil {
 		// Response already started; write error event in-band
 		errPayload := map[string]any{

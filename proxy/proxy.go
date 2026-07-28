@@ -31,7 +31,10 @@ const MaxBodyBytes = 10 * 1024 * 1024
 
 type contextKey int
 
-const requestIDKey contextKey = iota
+const (
+	requestIDKey contextKey = iota
+	requestModelKey
+)
 
 // Dispatcher is the top-level HTTP handler that resolves a freedius request
 // to a configured model, looks up the right Provider in the Registry, and
@@ -280,9 +283,13 @@ func (d *Dispatcher) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	chain = append(chain, mapping)
 	chain = append(chain, mapping.Fallback...)
 
+	// Store the original request model in context for adapters to access.
+	// Adapters use this to echo back the client's model in response fields.
+	modelCtx := WithRequestModel(r.Context(), req.Model)
+
 	// Shared timeout budget for the entire fallback chain.
 	chainTimeout := time.Duration(float64(d.fallbackTimeoutMultiplier)) * d.streamTimeout
-	chainCtx, chainCancel := context.WithTimeout(r.Context(), chainTimeout)
+	chainCtx, chainCancel := context.WithTimeout(modelCtx, chainTimeout)
 	defer chainCancel()
 
 	var attempts []fallbackAttempt
@@ -529,6 +536,25 @@ func RequestIDMiddleware(next http.Handler) http.Handler {
 		ctx := context.WithValue(r.Context(), requestIDKey, id)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
+}
+
+// RequestModelFromContext returns the original client-requested model name
+// stored in ctx, or "" if none was set (i.e., the model was not stored via
+// WithRequestModel). This allows adapters to access the original request
+// model for response field rewriting.
+func RequestModelFromContext(ctx context.Context) string {
+	if model, ok := ctx.Value(requestModelKey).(string); ok {
+		return model
+	}
+	return ""
+}
+
+// WithRequestModel stores the client's original model name in the context,
+// making it available to adapters and translators via RequestModelFromContext.
+// Used by the dispatcher after extracting the model from the request body
+// and before invoking adapters in the fallback chain.
+func WithRequestModel(ctx context.Context, model string) context.Context {
+	return context.WithValue(ctx, requestModelKey, model)
 }
 
 // --- Panic recovery middleware ---
