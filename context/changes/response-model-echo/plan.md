@@ -226,10 +226,10 @@ Approach:
 
 #### Automated
 
-- [x] 1.1 All existing translate tests pass
-- [x] 1.2 New Stream model override test passes
-- [x] 1.3 Full test suite passes with race detection
-- [x] 1.4 Lint passes
+- [x] 1.1 All existing translate tests pass — 2dfed07
+- [x] 1.2 New Stream model override test passes — 2dfed07
+- [x] 1.3 Full test suite passes with race detection — 2dfed07
+- [x] 1.4 Lint passes — 2dfed07
 
 #### Manual
 
@@ -239,10 +239,10 @@ Approach:
 
 #### Automated
 
-- [ ] 2.1 All existing proxy tests pass
-- [ ] 2.2 New Anthropic model override test passes
-- [ ] 2.3 Full test suite passes with race detection
-- [ ] 2.4 Lint passes
+- [x] 2.1 All existing proxy tests pass
+- [x] 2.2 New Anthropic model override test passes
+- [x] 2.3 Full test suite passes with race detection
+- [x] 2.4 Lint passes
 
 #### Manual
 

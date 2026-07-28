@@ -3,14 +3,17 @@
 package proxy
 
 import (
+	"bufio"
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/pfrack/freedius/config"
@@ -138,13 +141,41 @@ func (a *AnthropicCompatibleAdapter) Handle(
 		return classifyUpstreamError(resp)
 	}
 
-	// Success path: stream the upstream response through.
+	// Success path: forward the upstream response, rewriting model field if needed.
+	// For streaming responses, only the first message_start event contains the model field.
+	// For non-streaming, it's a top-level field in the JSON response.
+	contentType := resp.Header.Get("Content-Type")
+	originalModel := RequestModelFromContext(r.Context())
+
 	for k, vv := range resp.Header {
 		for _, v := range vv {
 			w.Header().Add(k, v)
 		}
 	}
 	w.WriteHeader(resp.StatusCode)
+
+	// If model rewriting is needed, handle based on Content-Type.
+	if originalModel != "" && strings.Contains(contentType, "application/json") {
+		// Non-streaming JSON response: read, rewrite, write.
+		body, err := io.ReadAll(resp.Body)
+		if err == nil {
+			rewritten := rewriteAnthropicModelField(body, originalModel)
+			_, _ = w.Write(rewritten)
+			return nil
+		}
+		// On read error, fall back to passthrough.
+	} else if originalModel != "" && strings.Contains(contentType, "text/event-stream") {
+		// Streaming SSE response: rewrite first message_start event, passthrough rest.
+		br := bufio.NewReader(resp.Body)
+		err := forwardSSEWithModelRewrite(w, br, originalModel)
+		if err != nil && err != io.EOF {
+			// Log but don't error (response already started).
+			a.logger.Warn("sse forward error", "err", err)
+		}
+		return nil
+	}
+
+	// No model rewriting needed or not a recognized content type: passthrough.
 	_, _ = io.Copy(w, resp.Body)
 	return nil
 }
@@ -184,4 +215,100 @@ func (a *AnthropicCompatibleAdapter) writeTransportError(
 	} else {
 		writeAnthropicError(w, 529, "overloaded_error", "upstream not reachable", 15)
 	}
+}
+
+// rewriteAnthropicModelField rewrites the top-level "model" field in a JSON
+// response body. Used for non-streaming application/json responses.
+func rewriteAnthropicModelField(body []byte, newModel string) []byte {
+	var data map[string]any
+	if err := json.Unmarshal(body, &data); err != nil {
+		// Malformed JSON; return unchanged.
+		return body
+	}
+	if _, ok := data["model"]; !ok {
+		// No model field; return unchanged.
+		return body
+	}
+	// Rewrite model field.
+	data["model"] = newModel
+	rewritten, err := json.Marshal(data)
+	if err != nil {
+		// Marshalling error; return original.
+		return body
+	}
+	return rewritten
+}
+
+// forwardSSEWithModelRewrite reads an SSE stream from br and writes it to w,
+// rewriting the first message_start event's message.model field to newModel.
+// After the first event is rewritten, subsequent events are passed through unchanged.
+func forwardSSEWithModelRewrite(w io.Writer, br *bufio.Reader, newModel string) error {
+	rewritten := false
+	for {
+		line, err := br.ReadBytes('\n')
+		if len(line) > 0 {
+			// Check if this is a data: line
+			trimmed := bytes.TrimRight(line, "\r\n")
+			if bytes.HasPrefix(trimmed, []byte("data:")) && !rewritten {
+				// This might be the message_start event; try to parse and rewrite.
+				dataPayload := bytes.TrimPrefix(trimmed, []byte("data:"))
+				dataPayload = bytes.TrimLeft(dataPayload, " ")
+				if bytes.Equal(dataPayload, []byte("[DONE]")) {
+					// Not a JSON event, just pass through.
+					if _, writeErr := w.Write(line); writeErr != nil {
+						return writeErr
+					}
+				} else {
+					// Try to parse as JSON; if it's message_start, rewrite the model.
+					rewritten = tryRewriteSSEEvent(w, dataPayload, newModel, line)
+				}
+			} else {
+				// Not a data line or already rewritten; pass through.
+				if _, writeErr := w.Write(line); writeErr != nil {
+					return writeErr
+				}
+			}
+		}
+		if err != nil {
+			if err == io.EOF {
+				return nil
+			}
+			return err
+		}
+	}
+}
+
+// tryRewriteSSEEvent attempts to parse a data payload from an SSE event and
+// rewrite the message.model field if it's a message_start event. Returns true
+// if rewritten, false otherwise. Always writes to w.
+func tryRewriteSSEEvent(w io.Writer, payload []byte, newModel string, fallback []byte) bool {
+	var event map[string]any
+	if err := json.Unmarshal(payload, &event); err != nil {
+		// Not JSON; write original line and return false.
+		_, _ = w.Write(fallback)
+		return false
+	}
+	if eventType, ok := event["type"].(string); !ok || eventType != "message_start" {
+		// Not a message_start event; write original and return false.
+		_, _ = w.Write(fallback)
+		return false
+	}
+	// This is a message_start event; rewrite the message.model field.
+	if message, ok := event["message"].(map[string]any); ok {
+		message["model"] = newModel
+		rewritten, err := json.Marshal(event)
+		if err != nil {
+			// Marshal failed; write original.
+			_, _ = w.Write(fallback)
+			return false
+		}
+		// Write rewritten event and flush line ending.
+		_, _ = w.Write([]byte("data: "))
+		_, _ = w.Write(rewritten)
+		_, _ = w.Write([]byte("\n"))
+		return true
+	}
+	// message field not found or wrong type; write original.
+	_, _ = w.Write(fallback)
+	return false
 }
