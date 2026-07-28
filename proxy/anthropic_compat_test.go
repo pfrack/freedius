@@ -1,12 +1,15 @@
 package proxy
 
 import (
+	"bufio"
 	"bytes"
+	"context"
 	"errors"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/pfrack/freedius/config"
@@ -287,5 +290,126 @@ func TestAnthropicCompat_NoModelOverride_Passthrough(t *testing.T) {
 	// Without override, upstream model passes through
 	if !bytes.Contains(rec.Body.Bytes(), []byte(`"model":"zen-model"`)) {
 		t.Errorf("expected upstream model passthrough, got: %q", rec.Body.String())
+	}
+}
+
+func TestForwardSSEWithModelRewrite_MultilineAndPassthrough(t *testing.T) {
+	input := []byte(
+		"event: message_start\n" +
+			"data: {\"type\":\"message_start\",\"message\":{\"model\":\"upstream\",\n" +
+			"data: \"id\":\"msg_test\"}}\n\n" +
+			"event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n",
+	)
+	var output bytes.Buffer
+	flushes := 0
+	err := forwardSSEWithModelRewrite(
+		&output,
+		bufio.NewReader(bytes.NewReader(input)),
+		"claude-opus-4",
+		func() error {
+			flushes++
+			return nil
+		},
+	)
+	if err != nil {
+		t.Fatalf("forwardSSEWithModelRewrite returned err: %v", err)
+	}
+	if !bytes.Contains(output.Bytes(), []byte(`"model":"claude-opus-4"`)) {
+		t.Errorf("expected rewritten model, got: %q", output.String())
+	}
+	if bytes.Contains(output.Bytes(), []byte(`"model":"upstream"`)) {
+		t.Errorf("upstream model should not remain, got: %q", output.String())
+	}
+	if !bytes.HasSuffix(output.Bytes(), []byte("event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n")) {
+		t.Errorf("expected untouched remainder, got: %q", output.String())
+	}
+	if flushes != 1 {
+		t.Errorf("flushes: got %d, want 1", flushes)
+	}
+}
+
+func TestRewriteAnthropicModelField_MalformedJSONPassthrough(t *testing.T) {
+	body := []byte(`{"model":"upstream",`)
+	got := rewriteAnthropicModelField(body, "claude-opus-4")
+	if !bytes.Equal(got, body) {
+		t.Errorf("malformed JSON changed: got %q, want %q", got, body)
+	}
+}
+
+func TestAnthropicCompat_UnrecognizedContentTypePassthrough(t *testing.T) {
+	t.Setenv("ANTHROPIC_API_KEY", "sk-test")
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		w.WriteHeader(http.StatusOK)
+		_, _ = io.WriteString(w, `{"model":"upstream-model"}`)
+	}))
+	defer upstream.Close()
+
+	a := newAnthropicCompatAdapter(t)
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/v1/messages",
+		bytes.NewReader([]byte(`{"model":"claude-opus-4"}`)),
+	).WithContext(WithRequestModel(context.Background(), "claude-opus-4"))
+	err := a.Handle(
+		rec,
+		req,
+		config.Provider{
+			Behavior:         "anthropic",
+			DefaultBaseURL:   upstream.URL,
+			DefaultAPIKeyEnv: "ANTHROPIC_API_KEY",
+		},
+		config.Mapping{ProviderName: "anthropic", ModelString: "upstream-model"},
+		[]byte(`{"model":"claude-opus-4"}`),
+	)
+	if err != nil {
+		t.Fatalf("Handle returned err: %v", err)
+	}
+	if got := rec.Body.String(); got != `{"model":"upstream-model"}` {
+		t.Errorf("unexpected content type was not passed through: got %q", got)
+	}
+}
+
+func TestForwardSSEWithModelRewrite_UnexpectedEventsPassthrough(t *testing.T) {
+	input := []byte("data: malformed-json\n\ndata: {\"type\":\"message_stop\"}\n\n")
+	var output bytes.Buffer
+	flushes := 0
+	err := forwardSSEWithModelRewrite(
+		&output,
+		bufio.NewReader(bytes.NewReader(input)),
+		"claude-opus-4",
+		func() error {
+			flushes++
+			return nil
+		},
+	)
+	if err != nil {
+		t.Fatalf("forwardSSEWithModelRewrite returned err: %v", err)
+	}
+	if !bytes.Equal(output.Bytes(), input) {
+		t.Errorf("unexpected SSE input changed: got %q, want %q", output.Bytes(), input)
+	}
+	if flushes != 2 {
+		t.Errorf("flushes: got %d, want 2", flushes)
+	}
+}
+
+type failingWriter struct{}
+
+func (failingWriter) Write([]byte) (int, error) {
+	return 0, errors.New("client disconnected")
+}
+
+func TestForwardSSEWithModelRewrite_PropagatesWriteError(t *testing.T) {
+	input := []byte("data: {\"type\":\"message_stop\"}\n\n")
+	err := forwardSSEWithModelRewrite(
+		failingWriter{},
+		bufio.NewReader(bytes.NewReader(input)),
+		"claude-opus-4",
+		func() error { return nil },
+	)
+	if err == nil || !strings.Contains(err.Error(), "client disconnected") {
+		t.Fatalf("write error: got %v, want client disconnected", err)
 	}
 }

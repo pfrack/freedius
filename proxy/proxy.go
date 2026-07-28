@@ -335,6 +335,8 @@ func (d *Dispatcher) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
+		w.Header().Set("X-Freedius-Matched-Provider", target.ProviderName)
+		w.Header().Set("X-Freedius-Matched-Model", target.ModelString)
 		ww := &wroteHeaderResponseWriter{ResponseWriter: w}
 		attemptReq := r.WithContext(chainCtx)
 		attemptReq.Body = io.NopCloser(bytes.NewReader(body))

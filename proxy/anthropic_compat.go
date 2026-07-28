@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -141,11 +142,43 @@ func (a *AnthropicCompatibleAdapter) Handle(
 		return classifyUpstreamError(resp)
 	}
 
-	// Success path: forward the upstream response, rewriting model field if needed.
-	// For streaming responses, only the first message_start event contains the model field.
-	// For non-streaming, it's a top-level field in the JSON response.
 	contentType := resp.Header.Get("Content-Type")
 	originalModel := RequestModelFromContext(r.Context())
+
+	// If model rewriting is needed for a non-streaming JSON response, read and
+	// transform it before copying headers so Content-Length cannot describe the
+	// upstream body after the model field changes.
+	if originalModel != "" && strings.Contains(contentType, "application/json") {
+		responseBody, err := io.ReadAll(io.LimitReader(resp.Body, int64(MaxBodyBytes)+1))
+		if err == nil {
+			if len(responseBody) > MaxBodyBytes {
+				// Oversized JSON responses are passed through unchanged rather than
+				// retained in memory for rewriting.
+				for k, vv := range resp.Header {
+					for _, v := range vv {
+						w.Header().Add(k, v)
+					}
+				}
+				w.WriteHeader(resp.StatusCode)
+				_, _ = w.Write(responseBody)
+				_, _ = io.Copy(w, resp.Body)
+				return nil
+			}
+
+			rewritten := rewriteAnthropicModelField(responseBody, originalModel)
+			for k, vv := range resp.Header {
+				if strings.EqualFold(k, "Content-Length") {
+					continue
+				}
+				for _, v := range vv {
+					w.Header().Add(k, v)
+				}
+			}
+			w.WriteHeader(resp.StatusCode)
+			_, _ = w.Write(rewritten)
+			return nil
+		}
+	}
 
 	for k, vv := range resp.Header {
 		for _, v := range vv {
@@ -154,20 +187,11 @@ func (a *AnthropicCompatibleAdapter) Handle(
 	}
 	w.WriteHeader(resp.StatusCode)
 
-	// If model rewriting is needed, handle based on Content-Type.
-	if originalModel != "" && strings.Contains(contentType, "application/json") {
-		// Non-streaming JSON response: read, rewrite, write.
-		body, err := io.ReadAll(resp.Body)
-		if err == nil {
-			rewritten := rewriteAnthropicModelField(body, originalModel)
-			_, _ = w.Write(rewritten)
-			return nil
-		}
-		// On read error, fall back to passthrough.
-	} else if originalModel != "" && strings.Contains(contentType, "text/event-stream") {
+	if originalModel != "" && strings.Contains(contentType, "text/event-stream") {
 		// Streaming SSE response: rewrite first message_start event, passthrough rest.
 		br := bufio.NewReader(resp.Body)
-		err := forwardSSEWithModelRewrite(w, br, originalModel)
+		rc := http.NewResponseController(w)
+		err := forwardSSEWithModelRewrite(w, br, originalModel, rc.Flush)
 		if err != nil && err != io.EOF {
 			// Log but don't error (response already started).
 			a.logger.Warn("sse forward error", "err", err)
@@ -241,36 +265,38 @@ func rewriteAnthropicModelField(body []byte, newModel string) []byte {
 
 // forwardSSEWithModelRewrite reads an SSE stream from br and writes it to w,
 // rewriting the first message_start event's message.model field to newModel.
-// After the first event is rewritten, subsequent events are passed through unchanged.
-func forwardSSEWithModelRewrite(w io.Writer, br *bufio.Reader, newModel string) error {
-	rewritten := false
+// After the first event is rewritten, the remainder is copied unchanged.
+func forwardSSEWithModelRewrite(
+	w io.Writer,
+	br *bufio.Reader,
+	newModel string,
+	flush func() error,
+) error {
 	for {
-		line, err := br.ReadBytes('\n')
-		if len(line) > 0 {
-			// Check if this is a data: line
-			trimmed := bytes.TrimRight(line, "\r\n")
-			if bytes.HasPrefix(trimmed, []byte("data:")) && !rewritten {
-				// This might be the message_start event; try to parse and rewrite.
-				dataPayload := bytes.TrimPrefix(trimmed, []byte("data:"))
-				dataPayload = bytes.TrimLeft(dataPayload, " ")
-				if bytes.Equal(dataPayload, []byte("[DONE]")) {
-					// Not a JSON event, just pass through.
-					if _, writeErr := w.Write(line); writeErr != nil {
-						return writeErr
-					}
-				} else {
-					// Try to parse as JSON; if it's message_start, rewrite the model.
-					rewritten = tryRewriteSSEEvent(w, dataPayload, newModel, line)
+		lines, err := readAnthropicSSEEvent(br)
+		if len(lines) > 0 {
+			if rewritten, ok := rewriteAnthropicSSEMessageStart(lines, newModel); ok {
+				if _, writeErr := w.Write(rewritten); writeErr != nil {
+					return writeErr
 				}
-			} else {
-				// Not a data line or already rewritten; pass through.
+				if flushErr := flush(); flushErr != nil {
+					return flushErr
+				}
+				_, copyErr := io.Copy(w, br)
+				return copyErr
+			}
+
+			for _, line := range lines {
 				if _, writeErr := w.Write(line); writeErr != nil {
 					return writeErr
 				}
 			}
+			if flushErr := flush(); flushErr != nil {
+				return flushErr
+			}
 		}
 		if err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				return nil
 			}
 			return err
@@ -278,37 +304,89 @@ func forwardSSEWithModelRewrite(w io.Writer, br *bufio.Reader, newModel string) 
 	}
 }
 
-// tryRewriteSSEEvent attempts to parse a data payload from an SSE event and
-// rewrite the message.model field if it's a message_start event. Returns true
-// if rewritten, false otherwise. Always writes to w.
-func tryRewriteSSEEvent(w io.Writer, payload []byte, newModel string, fallback []byte) bool {
+// readAnthropicSSEEvent reads complete SSE event lines through the blank
+// delimiter. It returns a partial event with io.EOF if the stream ends early.
+func readAnthropicSSEEvent(br *bufio.Reader) ([][]byte, error) {
+	var lines [][]byte
+	for {
+		line, err := br.ReadBytes('\n')
+		if len(line) > 0 {
+			lines = append(lines, line)
+			if len(bytes.TrimRight(line, "\r\n")) == 0 {
+				return lines, nil
+			}
+		}
+		if err != nil {
+			return lines, err
+		}
+	}
+}
+
+// rewriteAnthropicSSEMessageStart rewrites a complete message_start event while
+// preserving its non-data lines and event delimiter. SSE data fields are joined
+// with newlines before JSON parsing, as required by the SSE format.
+func rewriteAnthropicSSEMessageStart(lines [][]byte, newModel string) ([]byte, bool) {
+	payload := anthropicSSEDataPayload(lines)
+	if len(payload) == 0 || bytes.Equal(bytes.TrimSpace(payload), []byte("[DONE]")) {
+		return nil, false
+	}
+
 	var event map[string]any
 	if err := json.Unmarshal(payload, &event); err != nil {
-		// Not JSON; write original line and return false.
-		_, _ = w.Write(fallback)
-		return false
+		return nil, false
 	}
 	if eventType, ok := event["type"].(string); !ok || eventType != "message_start" {
-		// Not a message_start event; write original and return false.
-		_, _ = w.Write(fallback)
-		return false
+		return nil, false
 	}
-	// This is a message_start event; rewrite the message.model field.
-	if message, ok := event["message"].(map[string]any); ok {
-		message["model"] = newModel
-		rewritten, err := json.Marshal(event)
-		if err != nil {
-			// Marshal failed; write original.
-			_, _ = w.Write(fallback)
-			return false
+	message, ok := event["message"].(map[string]any)
+	if !ok {
+		return nil, false
+	}
+	message["model"] = newModel
+	rewritten, err := json.Marshal(event)
+	if err != nil {
+		return nil, false
+	}
+
+	var output bytes.Buffer
+	dataWritten := false
+	for _, line := range lines {
+		trimmed := bytes.TrimRight(line, "\r\n")
+		if bytes.HasPrefix(trimmed, []byte("data:")) {
+			if dataWritten {
+				continue
+			}
+			output.WriteString("data: ")
+			output.Write(rewritten)
+			output.Write(anthropicSSELineEnding(line))
+			dataWritten = true
+			continue
 		}
-		// Write rewritten event and flush line ending.
-		_, _ = w.Write([]byte("data: "))
-		_, _ = w.Write(rewritten)
-		_, _ = w.Write([]byte("\n"))
-		return true
+		output.Write(line)
 	}
-	// message field not found or wrong type; write original.
-	_, _ = w.Write(fallback)
-	return false
+	return output.Bytes(), true
+}
+
+func anthropicSSEDataPayload(lines [][]byte) []byte {
+	var payload []byte
+	for _, line := range lines {
+		trimmed := bytes.TrimRight(line, "\r\n")
+		if !bytes.HasPrefix(trimmed, []byte("data:")) {
+			continue
+		}
+		value := bytes.TrimPrefix(trimmed, []byte("data:"))
+		value = bytes.TrimPrefix(value, []byte(" "))
+		if payload != nil {
+			payload = append(payload, '\n')
+		}
+		payload = append(payload, value...)
+	}
+	return payload
+}
+
+func anthropicSSELineEnding(line []byte) []byte {
+	if bytes.HasSuffix(line, []byte("\r\n")) {
+		return []byte("\r\n")
+	}
+	return []byte("\n")
 }
