@@ -239,10 +239,10 @@ Approach:
 
 #### Automated
 
-- [x] 2.1 All existing proxy tests pass
-- [x] 2.2 New Anthropic model override test passes
-- [x] 2.3 Full test suite passes with race detection
-- [x] 2.4 Lint passes
+- [x] 2.1 All existing proxy tests pass — fa47f4a
+- [x] 2.2 New Anthropic model override test passes — fa47f4a
+- [x] 2.3 Full test suite passes with race detection — fa47f4a
+- [x] 2.4 Lint passes — fa47f4a
 
 #### Manual
 

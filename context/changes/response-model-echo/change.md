@@ -1,7 +1,7 @@
 ---
 id: response-model-echo
 title: Echo client's original model name in response (stable across fallbacks)
-status: planned
+status: implemented
 created: 2026-07-28
 updated: 2026-07-28
 plan: context/changes/response-model-echo/plan.md
