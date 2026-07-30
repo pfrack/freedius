@@ -40,7 +40,7 @@ func TestFallback_MissingAPIKey_PrimaryFailsFallbackSucceeds(t *testing.T) {
 				ProviderName: "provA",
 				ModelString:  "gpt-4",
 				Fallback: []config.Mapping{
-					{ProviderName: "provB", ModelString: "gpt-4"},
+					{ProviderName: "provB", ModelString: "fallback-model"},
 				},
 			},
 		},
@@ -60,6 +60,12 @@ func TestFallback_MissingAPIKey_PrimaryFailsFallbackSucceeds(t *testing.T) {
 	}
 	if !calledB {
 		t.Error("fallback provider B was NOT called")
+	}
+	if got := rec.Header().Get("X-Freedius-Matched-Provider"); got != "provB" {
+		t.Errorf("matched provider: got %q, want provB", got)
+	}
+	if got := rec.Header().Get("X-Freedius-Matched-Model"); got != "fallback-model" {
+		t.Errorf("matched model: got %q, want fallback-model", got)
 	}
 }
 

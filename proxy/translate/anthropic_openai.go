@@ -393,11 +393,12 @@ func stringifyContent(c any) string {
 
 // Stream reads OpenAI-format SSE chunks from upstream, translates
 // them into Anthropic-format SSE events, writes them to downstream, and
-// flushes after each event using the provided flush callback. Returns
-// a non-nil error if the stream ended abnormally.
-func Stream(upstream io.Reader, downstream io.Writer, flush func() error) error {
+// flushes after each event using the provided flush callback. If modelOverride
+// is non-empty, the emitted message_start event uses it instead of the upstream
+// model. Returns a non-nil error if the stream ended abnormally.
+func Stream(upstream io.Reader, downstream io.Writer, flush func() error, modelOverride string) error {
 	br := bufio.NewReaderSize(upstream, 64*1024)
-	em := newAnthropicEmitter()
+	em := newAnthropicEmitter(modelOverride)
 	for {
 		chunk, err := readSSEEvent(br)
 		if err != nil {
@@ -468,6 +469,7 @@ func readSSEEvent(br *bufio.Reader) ([]byte, error) {
 type emitter struct {
 	messageID     string
 	model         string
+	modelOverride string
 	blockIndex    int
 	openBlock     string
 	toolToBlock   map[int]int
@@ -481,12 +483,13 @@ type emitter struct {
 	pendingFinish string
 }
 
-func newAnthropicEmitter() *emitter {
+func newAnthropicEmitter(modelOverride string) *emitter {
 	return &emitter{
-		messageID:   "msg_" + randomID(),
-		toolToBlock: map[int]int{},
-		toolNames:   map[int]string{},
-		toolIDs:     map[int]string{},
+		messageID:     "msg_" + randomID(),
+		modelOverride: modelOverride,
+		toolToBlock:   map[int]int{},
+		toolNames:     map[int]string{},
+		toolIDs:       map[int]string{},
 	}
 }
 
@@ -581,13 +584,18 @@ func (e *emitter) flushPending() ([][]byte, error) {
 
 func (e *emitter) emitMessageStart() ([][]byte, error) {
 	e.roleSent = true
+	// Use modelOverride if set; otherwise use the upstream model.
+	modelToEmit := e.model
+	if e.modelOverride != "" {
+		modelToEmit = e.modelOverride
+	}
 	payload := map[string]any{
 		"type": "message_start",
 		"message": map[string]any{
 			"id":            e.messageID,
 			"type":          "message",
 			"role":          "assistant",
-			"model":         e.model,
+			"model":         modelToEmit,
 			"content":       []any{},
 			"stop_reason":   nil,
 			"stop_sequence": nil,
