@@ -48,10 +48,10 @@
       </div>
       <div id="model-suggestions"></div>
 
-      <fieldset id="fallback-fieldset" style="border:1px solid #555;border-radius:4px;padding:8px;margin-top:8px;">
-        <legend style="font-size:0.85em;color:#aaa;">Fallback Chain</legend>
+      <fieldset id="fallback-fieldset" class="fallback-fieldset">
+        <legend>Fallback Chain</legend>
         <div id="fallback-rows"></div>
-        <button type="button" class="btn btn--ghost btn--sm" onclick="addFallbackRow()" style="margin-top:4px;">
+        <button type="button" class="btn btn--ghost btn--sm" onclick="addFallbackRow()">
           + Add fallback
         </button>
       </fieldset>
@@ -140,17 +140,14 @@
       var suggestId = 'fallback-suggestions-' + idx;
 
       var row = document.createElement('div');
-      row.style.marginBottom = '8px';
+      row.className = 'fallback-row';
 
       var inner = document.createElement('div');
-      inner.style.display = 'flex';
-      inner.style.gap = '6px';
-      inner.style.alignItems = 'center';
+      inner.className = 'fallback-row__inner';
 
       var select = document.createElement('select');
       select.className = 'form-select';
       select.name = 'fallback_provider_name[]';
-      select.style.flex = '1';
       var optTmpl = document.getElementById('fallback-provider-options');
       if (optTmpl && optTmpl.content) {
         select.appendChild(optTmpl.content.cloneNode(true));
@@ -160,7 +157,6 @@
       input.className = 'form-input';
       input.name = 'fallback_model_string[]';
       input.placeholder = 'model';
-      input.style.flex = '1';
       input.value = model || '';
 
       var fetchBtn = document.createElement('button');
@@ -177,7 +173,7 @@
       removeBtn.className = 'btn btn--danger btn--sm';
       removeBtn.textContent = '\u00d7';
       removeBtn.addEventListener('click', function() {
-        var rowDiv = this.closest('div[style*="margin-bottom"]');
+        var rowDiv = this.closest('.fallback-row');
         if (rowDiv) rowDiv.parentNode.removeChild(rowDiv);
       });
 

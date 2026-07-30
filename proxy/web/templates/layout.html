@@ -3,10 +3,16 @@
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="freedius — LLM proxy dashboard for managing providers, mappings, and fallback chains">
     <title>{{block "title" .}}{{end}} — freedius</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⬡</text></svg>">
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/geist@1/dist/fonts/geist-sans/style.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/geist@1/dist/fonts/geist-mono/style.css">
     <link rel="stylesheet" href="/static/app.css">
   </head>
   <body>
+    <a href="#main-content" class="skip-link">Skip to content</a>
     <button class="hamburger" onclick="document.querySelector('.sidebar').classList.toggle('sidebar--open');document.querySelector('.sidebar-overlay').classList.toggle('sidebar-overlay--visible')" aria-label="Toggle navigation">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
     </button>
@@ -37,7 +43,7 @@
       </nav>
     </aside>
 
-    <main>
+    <main id="main-content">
       {{block "content" .}}{{end}}
     </main>
     <div id="toast-region" aria-live="polite" role="status"></div>
