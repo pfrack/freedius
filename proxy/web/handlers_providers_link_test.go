@@ -27,12 +27,12 @@ func TestProvidersTable_MappingCountLink(t *testing.T) {
 	renderProvidersTable(rec, req, cfg)
 	body := rec.Body.String()
 
-	// Should contain a link to /mappings?provider=nim with text "2".
+	// Should contain a link to /mappings?provider=nim with text "2 mappings".
 	if !strings.Contains(body, `href="/mappings?provider=nim"`) {
 		t.Errorf("expected link to /mappings?provider=nim; got: %s", body)
 	}
-	if !strings.Contains(body, `>2</a>`) {
-		t.Errorf("expected mapping count '2' as link text; got: %s", body)
+	if !strings.Contains(body, `>2 mappings</a>`) {
+		t.Errorf("expected mapping count '2 mappings' as link text; got: %s", body)
 	}
 }
 

@@ -3,6 +3,45 @@
 {{define "content"}}
   <h1>Dashboard</h1>
 
+  <div class="stats-grid">
+    <div class="card card--stat">
+      <div class="card-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>
+      </div>
+      <div class="card-body">
+        <span class="card-label">Total Mappings</span>
+        <span class="card-value">{{.TotalMappings}}</span>
+      </div>
+    </div>
+    <div class="card card--stat">
+      <div class="card-icon card-icon--success">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+      </div>
+      <div class="card-body">
+        <span class="card-label">Active</span>
+        <span class="card-value">{{.ActiveMappings}}</span>
+      </div>
+    </div>
+    <div class="card card--stat">
+      <div class="card-icon card-icon--warning">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      </div>
+      <div class="card-body">
+        <span class="card-label">With Fallbacks</span>
+        <span class="card-value">{{.FallbackMappings}}</span>
+      </div>
+    </div>
+    <div class="card card--stat">
+      <div class="card-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+      </div>
+      <div class="card-body">
+        <span class="card-label">Providers</span>
+        <span class="card-value">{{.TotalProviders}}</span>
+      </div>
+    </div>
+  </div>
+
   <div class="stats-strip">
     <div class="stats-strip__item">
       <span class="stats-strip__label">Uptime</span>
@@ -14,36 +53,29 @@
     </div>
   </div>
 
-  <section class="dashboard-section">
-    <h2>Mappings</h2>
+  <section class="page-section">
+    <div class="section-header">
+      <h2>Mappings</h2>
+      <span class="section-count">{{.TotalMappings}} total</span>
+    </div>
     {{template "mappings-table" .}}
   </section>
 
-  <section class="dashboard-section">
-    <h2>Providers</h2>
-    {{if .Providers}}
-    <div class="providers-overview">
+  {{if .Providers}}
+  <section class="page-section">
+    <div class="section-header">
+      <h2>Providers</h2>
+      <span class="section-count">{{.TotalProviders}} connected</span>
+    </div>
+    <div class="providers-summary">
       {{range .Providers}}
-      <div class="providers-overview__item">
-        <span class="providers-overview__name">{{.Name}}</span>
+      <a href="/mappings?provider={{.Name}}" class="providers-summary__chip" title="{{.Name}} — {{.MappingCount}} mapping{{if ne .MappingCount 1}}s{{end}}">
+        {{.Name}}
         {{if .Protocol}}<span class="badge badge--protocol">{{.Protocol}}</span>{{end}}
-        {{if gt .MappingCount 0}}
-          <a href="/mappings?provider={{.Name}}" class="providers-overview__count">{{.MappingCount}} mapping{{if ne .MappingCount 1}}s{{end}}</a>
-        {{else}}
-          <span class="providers-overview__count text-muted">0 mappings</span>
-        {{end}}
-      </div>
+        <span class="providers-summary__count">{{.MappingCount}}</span>
+      </a>
       {{end}}
     </div>
-    {{else}}
-    <div class="empty-state">
-      <h2>No providers configured</h2>
-      <p>Define an upstream LLM endpoint with its protocol (openai or
-         anthropic), base URL, and API key environment variable.</p>
-      <button type="button" class="btn btn--primary" onclick="openAddProvider()">
-        Add your first provider
-      </button>
-    </div>
-    {{end}}
   </section>
+  {{end}}
 {{end}}

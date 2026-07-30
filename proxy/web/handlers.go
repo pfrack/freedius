@@ -67,14 +67,18 @@ func SetupMux(h *eventstream.Handlers, logger *slog.Logger) *http.ServeMux {
 		}
 
 		renderPage(w, "index.html", indexData{
-			pageData:    pageData{Active: "index"},
-			Uptime:      uptime,
-			TotalEvents: int64(h.Bus.EventCount()),
-			TotalLogs:   h.LogSink.EventCount(),
-			Port:        strconv.Itoa(h.Port),
-			Host:        h.Host,
-			Mappings:    mappings,
-			Providers:   providerRows,
+			pageData:         pageData{Active: "index"},
+			Uptime:           uptime,
+			TotalEvents:      int64(h.Bus.EventCount()),
+			TotalLogs:        h.LogSink.EventCount(),
+			Port:             strconv.Itoa(h.Port),
+			Host:             h.Host,
+			Mappings:         mappings,
+			Providers:        providerRows,
+			TotalMappings:    len(mappings),
+			ActiveMappings:   countActive(mappings),
+			FallbackMappings: countWithFallbacks(mappings),
+			TotalProviders:   len(providerRows),
 		}, logger, "mappings-table.html")
 	})
 	mux.HandleFunc("GET /logs", func(w http.ResponseWriter, r *http.Request) {
@@ -185,6 +189,8 @@ func handleLogs(w http.ResponseWriter, r *http.Request, logSink *proxy.LogSink, 
 			pageData: pageData{Active: "logs"},
 			Entries:  filtered,
 			Level:    levelSel,
+			Provider: providerFilter,
+			Mapping:  mappingFilter,
 		}, logger)
 	}
 }
@@ -346,6 +352,28 @@ func buildMappingRows(
 		rows = append(rows, row)
 	}
 	return rows
+}
+
+// countActive returns the number of mapping rows with EnvPresent == true.
+func countActive(rows []mappingRow) int {
+	n := 0
+	for _, r := range rows {
+		if r.EnvPresent {
+			n++
+		}
+	}
+	return n
+}
+
+// countWithFallbacks returns the number of mapping rows with at least one fallback.
+func countWithFallbacks(rows []mappingRow) int {
+	n := 0
+	for _, r := range rows {
+		if len(r.Fallbacks) > 0 {
+			n++
+		}
+	}
+	return n
 }
 
 // parseMinLevel parses a ?min= query parameter into a slog.Level. Returns nil

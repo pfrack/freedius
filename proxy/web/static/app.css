@@ -354,6 +354,28 @@ h2 {
 .stats-grid .card:nth-child(3) { animation-delay: 100ms; }
 .stats-grid .card:nth-child(4) { animation-delay: 150ms; }
 
+/* ── Page Sections ───────────────────────────────────────────────────────── */
+
+.page-section {
+  margin-bottom: var(--space-6);
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-3);
+}
+
+.section-header h2 {
+  margin-bottom: 0;
+}
+
+.section-count {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
 /* ── Stats Strip (Dashboard) ────────────────────────────────────────────── */
 
 .stats-strip {
@@ -427,6 +449,54 @@ h2 {
 
 .providers-overview__count:hover {
   text-decoration: underline;
+}
+
+/* ── Providers Summary (Dashboard — compact) ────────────────────────────── */
+
+.providers-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.providers-summary__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  text-decoration: none;
+  transition: background 150ms ease, border-color 150ms ease;
+}
+
+.providers-summary__chip:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-default);
+}
+
+.providers-summary__count {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  background: var(--bg-surface);
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-sm);
+}
+
+/* ── Card Icon Color Variants ───────────────────────────────────────────── */
+
+.card-icon--success {
+  background: rgba(34,197,94,0.15);
+  color: var(--color-success);
+}
+
+.card-icon--warning {
+  background: rgba(245,158,11,0.15);
+  color: var(--color-warning);
 }
 
 /* ── Table ──────────────────────────────────────────────────────────────── */
@@ -713,6 +783,28 @@ dialog h2 {
 
 /* ── Log Levels ─────────────────────────────────────────────────────────── */
 
+.log-filters {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-end;
+  margin-bottom: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.log-filters .form-group {
+  min-width: 120px;
+  max-width: 200px;
+}
+
+.log-container {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: var(--space-3);
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
 pre {
   font-family: var(--font-mono);
   padding: 0.15rem var(--space-2);
@@ -765,6 +857,22 @@ pre {
 .text-muted {
   font-size: 0.8rem;
   color: var(--text-muted);
+}
+
+/* ── Utility classes ────────────────────────────────────────────────────── */
+
+.url-truncate {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.table-actions {
+  display: flex;
+  gap: var(--space-1);
 }
 
 /* ── Animations ─────────────────────────────────────────────────────────── */
@@ -840,36 +948,77 @@ pre {
 .route-card__header {
   display: flex;
   justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: var(--space-2);
+}
+
+.route-card__title-row {
+  display: flex;
   align-items: center;
-  margin-bottom: var(--space-3);
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  min-width: 0;
 }
 
 .route-card__name {
   font-size: 1.1em;
-  font-weight: 500;
+  font-weight: 600;
   margin: 0;
 }
 
 .route-card__actions {
   display: flex;
-  gap: var(--space-2);
+  gap: var(--space-1);
+  flex-shrink: 0;
+}
+
+.route-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-bottom: var(--space-3);
+}
+
+.route-card__model {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.route-card__provider {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.route-card__provider .badge {
+  vertical-align: middle;
 }
 
 .route-chain {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
-  align-items: center;
+  align-items: stretch;
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border-subtle);
 }
 
 .route-step {
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  gap: 2px;
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-md);
   background: var(--bg-surface);
   border-left: 3px solid;
-  font-size: 0.9em;
+  font-size: 0.85em;
+  text-decoration: none;
+  color: inherit;
+  transition: background 150ms ease;
+}
+
+.route-step:hover {
+  background: var(--bg-hover);
 }
 
 .route-step--primary {
@@ -880,18 +1029,14 @@ pre {
   border-left-color: var(--color-warning);
 }
 
-.route-step::after {
-  content: "▶";
-  margin-left: var(--space-2);
+.route-step__model {
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.route-step__provider {
+  font-size: 0.75rem;
   color: var(--text-muted);
-}
-
-.route-step:last-child::after {
-  display: none;
-}
-
-.route-step:first-child::after {
-  display: none;
 }
 
 .visually-hidden {
@@ -904,12 +1049,6 @@ pre {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
-}
-
-.route-step__protocol {
-  margin-left: var(--space-2);
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
 }
 
 .route-card__depth {
@@ -926,20 +1065,29 @@ pre {
   color: var(--text-muted);
 }
 
-.status-dot {
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
+/* ── Status Badges ──────────────────────────────────────────────────────── */
+
+.badge--status-ok {
+  background: rgba(34,197,94,0.15);
+  color: var(--color-success);
+  font-size: 0.65rem;
 }
 
-.status-dot--present {
-  background: var(--color-success);
+.badge--status-warn {
+  background: rgba(245,158,11,0.15);
+  color: var(--color-warning);
+  font-size: 0.65rem;
 }
 
-.status-dot--missing {
+/* ── Danger Subtle Button ───────────────────────────────────────────────── */
+
+.btn--danger-subtle {
+  color: var(--color-error);
   background: transparent;
-  border: 1px solid var(--color-warning);
+}
+
+.btn--danger-subtle:hover {
+  background: rgba(239,68,68,0.1);
 }
 
 .badge--family {
@@ -1041,11 +1189,15 @@ pre {
 @media (max-width: 768px) {
   .route-chain {
     flex-direction: column;
-    align-items: flex-start;
+    align-items: stretch;
   }
 
-  .route-step::after {
-    content: "▼";
-    margin: var(--space-2) 0 0 var(--space-2);
+  .route-card__header {
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .route-card__actions {
+    align-self: flex-end;
   }
 }

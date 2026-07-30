@@ -54,7 +54,7 @@ func TestIndexHandler_ReturnsMappings(t *testing.T) {
 }
 
 // TestIndexHandler_ReturnsProviders verifies that the dashboard handler returns
-// provider list with mapping-count links.
+// provider summary with mapping-count links.
 func TestIndexHandler_ReturnsProviders(t *testing.T) {
 	cfg := &config.Config{
 		Providers: map[string]config.Provider{
@@ -81,8 +81,11 @@ func TestIndexHandler_ReturnsProviders(t *testing.T) {
 	}
 	body := rec.Body.String()
 
-	// Should contain provider name.
-	if !strings.Contains(body, `class="providers-overview__name">nim</span>`) {
+	// Should contain provider name in providers-summary chip.
+	if !strings.Contains(body, `providers-summary__chip`) {
+		t.Errorf("expected providers-summary__chip in body; got: %s", body)
+	}
+	if !strings.Contains(body, "nim") {
 		t.Errorf("expected provider 'nim' in body; got: %s", body)
 	}
 	// Should contain protocol badge.
@@ -93,8 +96,9 @@ func TestIndexHandler_ReturnsProviders(t *testing.T) {
 	if !strings.Contains(body, `href="/mappings?provider=nim"`) {
 		t.Errorf("expected link to /mappings?provider=nim; got: %s", body)
 	}
-	if !strings.Contains(body, `>2 mappings</a>`) {
-		t.Errorf("expected '2 mappings' link text; got: %s", body)
+	// Should contain mapping count.
+	if !strings.Contains(body, `providers-summary__count">2</span>`) {
+		t.Errorf("expected mapping count '2' in body; got: %s", body)
 	}
 }
 
@@ -128,9 +132,13 @@ func TestIndexHandler_EmptyState(t *testing.T) {
 	if !strings.Contains(body, "No mappings yet") {
 		t.Errorf("expected 'No mappings yet' in body; got: %s", body)
 	}
-	// Should contain empty state for providers.
-	if !strings.Contains(body, "No providers configured") {
-		t.Errorf("expected 'No providers configured' in body; got: %s", body)
+	// Providers section should not be rendered when no providers exist.
+	if strings.Contains(body, `providers-summary`) {
+		t.Errorf("expected no providers-summary when empty; got: %s", body)
+	}
+	// Stats grid should still show zeros.
+	if !strings.Contains(body, `class="stats-grid"`) {
+		t.Errorf("expected stats-grid in body; got: %s", body)
 	}
 }
 

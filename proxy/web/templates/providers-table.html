@@ -25,34 +25,36 @@
   <tbody>
     {{range .Providers}}
     <tr>
-      <td>{{.Name}}</td>
+      <td><strong>{{.Name}}</strong></td>
       <td>{{.Behavior}}</td>
-      <td>{{.BaseURL}}</td>
-      <td>{{.APIKeyEnv}}</td>
+      <td><span class="url-truncate" title="{{.BaseURL}}">{{.BaseURL}}</span></td>
+      <td><code class="text-muted">{{.APIKeyEnv}}</code></td>
       <td>{{if .Protocol}}<span class="badge badge--protocol">{{.Protocol}}</span>{{else}}<span class="text-muted">auto</span>{{end}}</td>
       <td>
         {{if gt .MappingCount 0}}
-          <a href="/mappings?provider={{.Name}}">{{.MappingCount}}</a>
+          <a href="/mappings?provider={{.Name}}">{{.MappingCount}} mapping{{if ne .MappingCount 1}}s{{end}}</a>
         {{else}}
           <span class="text-muted">0</span>
         {{end}}
       </td>
       <td>
-        <button
-          class="btn btn--ghost btn--sm"
-          onclick="editProvider('{{.Name | js}}','{{.Behavior | js}}','{{.BaseURL | js}}','{{.APIKeyEnv | js}}','{{.Protocol | js}}')"
-        >
-          Edit
-        </button>
-        <button
-          class="btn btn--danger btn--sm"
-          hx-delete="/v1/providers/{{.Name}}"
-          hx-confirm="Delete provider '{{.Name}}'?"
-          hx-target="#providers"
-          hx-swap="outerHTML"
-        >
-          Delete
-        </button>
+        <div class="table-actions">
+          <button
+            class="btn btn--ghost btn--sm"
+            onclick="editProvider('{{.Name | js}}','{{.Behavior | js}}','{{.BaseURL | js}}','{{.APIKeyEnv | js}}','{{.Protocol | js}}')"
+          >
+            Edit
+          </button>
+          <button
+            class="btn btn--ghost btn--sm btn--danger-subtle"
+            hx-delete="/v1/providers/{{.Name}}"
+            hx-confirm="Delete provider '{{.Name}}'?"
+            hx-target="#providers"
+            hx-swap="outerHTML"
+          >
+            Delete
+          </button>
+        </div>
       </td>
     </tr>
     {{end}}

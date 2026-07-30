@@ -42,17 +42,17 @@ func TestMappingRow_PopulatesProtocol(t *testing.T) {
 	body := rec.Body.String()
 
 	// Primary of "q" uses nim (openai).
-	openaiCount := strings.Count(body, `class="badge badge--protocol route-step__protocol">openai</span>`)
-	anthropicCount := strings.Count(body, `class="badge badge--protocol route-step__protocol">anthropic</span>`)
+	openaiCount := strings.Count(body, `class="badge badge--protocol">openai</span>`)
+	anthropicCount := strings.Count(body, `class="badge badge--protocol">anthropic</span>`)
 	if openaiCount == 0 {
 		t.Errorf("expected openai protocol badge in body; got: %s", body)
 	}
 	if anthropicCount == 0 {
 		t.Errorf("expected anthropic protocol badge in body; got: %s", body)
 	}
-	if openaiCount+anthropicCount < 3 {
-		// Two primaries + at least one fallback badge across q and r.
-		t.Errorf("expected >=3 protocol badges total, got %d (openai=%d, anthropic=%d)",
+	if openaiCount+anthropicCount < 2 {
+		// At least one badge for each protocol (shown in route-card__provider line).
+		t.Errorf("expected >=2 protocol badges total, got %d (openai=%d, anthropic=%d)",
 			openaiCount+anthropicCount, openaiCount, anthropicCount)
 	}
 }
