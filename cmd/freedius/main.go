@@ -159,6 +159,7 @@ func run(args []string) int {
 		resolveFallbackTimeoutMultiplier(), streamTimeout,
 	)
 	bus := proxy.NewEventBus(1000)
+	stats := proxy.NewStatsCollector(bus)
 
 	server, serverErr := startProxyServer(host, port, bus, dispatcher, logger, verboseErrors)
 	if err := waitForBind(serverErr); err != nil {
@@ -180,6 +181,7 @@ func run(args []string) int {
 		AuthToken:   os.Getenv("FREEDIUS_UI_TOKEN"),
 		CfgPath:     cfgPath,
 		ModelsCache: mc,
+		Stats:       stats,
 	}
 	webServer := web.NewServer(uiHost, uiPort, h, logger)
 	// Bind synchronously so a port conflict on :8083 fails the process
