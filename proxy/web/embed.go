@@ -29,6 +29,7 @@ var templateFuncs = template.FuncMap{
 		return string(b), nil
 	},
 	"add1":  func(i int) int { return i + 1 },
+	"sub1":  func(i int) int { return i - 1 },
 	"lower": strings.ToLower,
 }
 

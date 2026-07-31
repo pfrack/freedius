@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"sync"
@@ -389,13 +390,36 @@ func handleProviders(w http.ResponseWriter, r *http.Request, h *eventstream.Hand
 	}
 }
 
+// mappingFilters is the set of active query-string filters for the
+// mappings page. Empty fields mean "no filter applied". All filters
+// combine with AND logic; per Phase 4 plan §4 (Mappings Page Table
+// Refactor) this preserves the existing ?provider= behavior while
+// adding ?search=, ?status=, and ?has_fallback=.
+type mappingFilters struct {
+	Search         string
+	ProviderFilter string
+	StatusFilter   string // "active", "inactive", or ""
+	HasFallback    string // "true", "false", or ""
+}
+
+// parseMappingFilters pulls the active query-string filters from the
+// request. Unknown or empty values become "" (no filter).
+func parseMappingFilters(q url.Values) mappingFilters {
+	return mappingFilters{
+		Search:         strings.TrimSpace(q.Get("search")),
+		ProviderFilter: strings.TrimSpace(q.Get("provider")),
+		StatusFilter:   strings.TrimSpace(q.Get("status")),
+		HasFallback:    strings.TrimSpace(q.Get("has_fallback")),
+	}
+}
+
 // handleMappings renders the mappings page with a read-only table.
 func handleMappings(w http.ResponseWriter, r *http.Request, h *eventstream.Handlers, logger *slog.Logger) {
 	cfg := h.Cfg
 	providers := cfg.ProvidersSnapshot()
-	providerFilter := r.URL.Query().Get("provider")
+	filters := parseMappingFilters(r.URL.Query())
 
-	rows := buildMappingRows(cfg, providers, h.LastResponder, providerFilter)
+	rows := buildMappingRows(cfg, providers, h.LastResponder, filters)
 
 	mappingCounts := make(map[string]int)
 	for _, m := range cfg.MappingsSnapshot() {
@@ -419,45 +443,85 @@ func handleMappings(w http.ResponseWriter, r *http.Request, h *eventstream.Handl
 	} else {
 		// Direct visit: render full page.
 		renderPage(w, "mappings.html", mappingsData{
-			pageData:  pageData{Active: "mappings"},
-			Mappings:  rows,
-			Providers: providerRows,
-		}, logger, "mappings-table.html")
+			pageData:          pageData{Active: "mappings"},
+			Mappings:          rows,
+			Providers:         providerRows,
+			TotalMappings:     len(cfg.MappingsSnapshot()),
+			Search:            filters.Search,
+			ProviderFilter:    filters.ProviderFilter,
+			StatusFilter:      filters.StatusFilter,
+			HasFallbackFilter: filters.HasFallback,
+		}, logger, "mappings-routing-table.html")
 	}
 }
 
 // buildMappingRows builds the mapping rows for template rendering.
-// It filters mappings by provider name (case-insensitive substring match)
-// when providerFilter is non-empty.
+// It applies all active filters in mappingFilters (combined with AND).
+// Returns an empty slice when the config has no mappings or every
+// mapping is filtered out.
 func buildMappingRows(
 	cfg *config.Config,
 	providers map[string]config.Provider,
 	lastResponder *proxy.LastResponder,
-	providerFilter string,
+	filters mappingFilters,
 ) []mappingRow {
 	mappings := cfg.MappingsSnapshot()
 
-	// Cache lowercased filter once outside the loop — ToLower allocates.
-	filterLower := strings.ToLower(providerFilter)
-	hasFilter := filterLower != ""
+	// Cache lowercased filters once outside the loop — ToLower allocates.
+	searchLower := strings.ToLower(filters.Search)
+	hasSearch := searchLower != ""
+	providerLower := strings.ToLower(filters.ProviderFilter)
+	hasProvider := providerLower != ""
+	hasStatus := filters.StatusFilter == "active" || filters.StatusFilter == "inactive"
+	hasFallback := filters.HasFallback == "true" || filters.HasFallback == "false"
 
 	var rows []mappingRow
 	for name, m := range mappings {
-		// Apply provider filter if set.
-		if hasFilter {
-			// Check primary provider.
-			if !strings.Contains(strings.ToLower(m.ProviderName), filterLower) {
-				// Check fallback providers.
-				matched := false
+		// Apply provider filter (substring match on primary or any fallback).
+		if hasProvider {
+			matched := strings.Contains(strings.ToLower(m.ProviderName), providerLower)
+			if !matched {
 				for _, fb := range m.Fallback {
-					if strings.Contains(strings.ToLower(fb.ProviderName), filterLower) {
+					if strings.Contains(strings.ToLower(fb.ProviderName), providerLower) {
 						matched = true
 						break
 					}
 				}
-				if !matched {
+			}
+			if !matched {
+				continue
+			}
+		}
+
+		// Apply search filter (case-insensitive substring match on mapping name).
+		if hasSearch && !strings.Contains(strings.ToLower(name), searchLower) {
+			continue
+		}
+
+		// Compute env presence + status for the filter and the badge.
+		envPresent := false
+		if p, ok := providers[m.ProviderName]; ok && p.DefaultAPIKeyEnv != "" {
+			envPresent = os.Getenv(p.DefaultAPIKeyEnv) != ""
+		}
+		if hasStatus {
+			switch filters.StatusFilter {
+			case "active":
+				if !envPresent {
 					continue
 				}
+			case "inactive":
+				if envPresent {
+					continue
+				}
+			}
+		}
+
+		// Compute fallback count for the filter.
+		fbCount := len(m.Fallback)
+		if hasFallback {
+			wantFallback := filters.HasFallback == "true"
+			if wantFallback != (fbCount > 0) {
+				continue
 			}
 		}
 
@@ -478,13 +542,9 @@ func buildMappingRows(
 		}
 		proto := ""
 		url := ""
-		envPresent := false
 		if p, ok := providers[m.ProviderName]; ok {
 			proto = p.Protocol
 			url = p.DefaultBaseURL
-			if p.DefaultAPIKeyEnv != "" {
-				envPresent = os.Getenv(p.DefaultAPIKeyEnv) != ""
-			}
 		}
 		family, _ := proxy.ExtractFamily(name)
 		if family == "default" {
@@ -588,12 +648,16 @@ func renderLogEntries(w http.ResponseWriter, entries []logEntry) {
 }
 
 // renderMappingsTable renders the `<table>` fragment for mappings.
+// Loads the new mappings-routing-table template (Phase 4) which renders
+// a compact table + filter bar + delete-confirm dialog. The filter
+// query params are parsed via parseMappingFilters so the HTMX fragment
+// swap carries the same filter state as the page-level render.
 func renderMappingsTable(w http.ResponseWriter, r *http.Request, h *eventstream.Handlers) {
 	cfg := h.Cfg
 	providers := cfg.ProvidersSnapshot()
-	providerFilter := r.URL.Query().Get("provider")
+	filters := parseMappingFilters(r.URL.Query())
 
-	rows := buildMappingRows(cfg, providers, h.LastResponder, providerFilter)
+	rows := buildMappingRows(cfg, providers, h.LastResponder, filters)
 
 	mappingCounts := make(map[string]int)
 	for _, m := range cfg.MappingsSnapshot() {
@@ -611,14 +675,19 @@ func renderMappingsTable(w http.ResponseWriter, r *http.Request, h *eventstream.
 		})
 	}
 
-	tmpl, err := loadFragmentTemplate("mappings-table.html")
+	tmpl, err := loadFragmentTemplate("mappings-routing-table.html")
 	if err != nil {
 		writeJSONError(w, http.StatusInternalServerError, "template_failed", err.Error())
 		return
 	}
-	err = tmpl.ExecuteTemplate(w, "mappings-table", mappingsData{
-		Mappings:  rows,
-		Providers: providerRows,
+	err = tmpl.ExecuteTemplate(w, "mappings-routing-table", mappingsData{
+		Mappings:          rows,
+		Providers:         providerRows,
+		TotalMappings:     len(cfg.MappingsSnapshot()),
+		Search:            filters.Search,
+		ProviderFilter:    filters.ProviderFilter,
+		StatusFilter:      filters.StatusFilter,
+		HasFallbackFilter: filters.HasFallback,
 	})
 	if err != nil {
 		writeJSONError(w, http.StatusInternalServerError, "template_failed", err.Error())

@@ -178,6 +178,24 @@ type mappingsData struct {
 	pageData
 	Mappings  []mappingRow
 	Providers []providerRow
+	// TotalMappings is the count of mappings BEFORE filtering. Used by
+	// the empty-state branch in the template to distinguish "no mappings
+	// configured yet" (invite to add) from "filters excluded everything"
+	// (invite to clear filters).
+	TotalMappings int
+	// Search is the active ?search= filter ("" when no filter). Pre-fills
+	// the search input on the mappings routing table.
+	Search string
+	// ProviderFilter is the active ?provider= filter ("" when no filter).
+	// Pre-selects the matching option in the provider dropdown.
+	ProviderFilter string
+	// StatusFilter is the active ?status= filter ("active", "inactive",
+	// or "" when no filter). Pre-selects the matching option in the
+	// status dropdown.
+	StatusFilter string
+	// HasFallbackFilter is the active ?has_fallback= filter ("true",
+	// "false", or "" when no filter). Pre-checks the matching checkbox.
+	HasFallbackFilter string
 }
 
 // modelsData is the data for the models fragment template.

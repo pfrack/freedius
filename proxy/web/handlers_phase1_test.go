@@ -269,10 +269,12 @@ func TestHandleRefreshModels_InProgress(t *testing.T) {
 	}
 }
 
-// TestMappingsTable_HxConfirmBalanced is the byte-level regression guard for
-// F3: the rendered `hx-confirm` attribute on the Delete button must close
-// its quoted string before the trailing `?`.
-func TestMappingsTable_HxConfirmBalanced(t *testing.T) {
+// TestMappingsTable_DeleteUsesConfirmationDialog is the Phase 4 regression
+// guard: the new mappings-routing-table uses a confirmation dialog for
+// Delete (no browser-native hx-confirm). The Delete button must carry the
+// mapping name in a data attribute, and the dialog target must exist with
+// a placeholder form wired to hx-delete.
+func TestMappingsTable_DeleteUsesConfirmationDialog(t *testing.T) {
 	cfg := &config.Config{
 		Providers: map[string]config.Provider{"nim": {Behavior: "openai"}},
 		Mappings:  map[string]config.Mapping{"alpha": {ProviderName: "nim", ModelString: "m"}},
@@ -283,11 +285,13 @@ func TestMappingsTable_HxConfirmBalanced(t *testing.T) {
 	renderMappingsTable(rec, req, newRenderHandlers(cfg))
 
 	body := rec.Body.String()
-	if !strings.Contains(body, `hx-confirm="Delete mapping 'alpha'?"`) {
-		t.Errorf("mappings table must use balanced hx-confirm copy; got: %s", body)
+	// The new table must NOT use the legacy hx-confirm path.
+	if strings.Contains(body, `hx-confirm="Delete mapping`) {
+		t.Errorf("mappings table must not use hx-confirm in Phase 4; got: %s", body)
 	}
-	if strings.Contains(body, `Delete mapping 'alpha?"`) {
-		t.Errorf("mappings table still has unbalanced hx-confirm; got: %s", body)
+	// And must carry the mapping name for the dialog to read.
+	if !strings.Contains(body, `data-mapping-name="alpha"`) {
+		t.Errorf("Delete button must carry data-mapping-name for the dialog; got: %s", body)
 	}
 }
 
@@ -317,7 +321,7 @@ func TestProvidersTable_HxConfirmBalanced(t *testing.T) {
 // Without a browser we cannot execute the JS, but we can prove the
 // DOM contract is set up to clear `hx-put` on every Add opening.
 func TestStaleHxPutAfterEditCancel_StaticContract(t *testing.T) {
-	tmpl, err := loadPageTemplate("mappings.html", "mappings-table.html")
+	tmpl, err := loadPageTemplate("mappings.html", "mappings-routing-table.html")
 	if err != nil {
 		t.Fatalf("load mappings.html: %v", err)
 	}

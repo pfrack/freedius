@@ -77,8 +77,8 @@ func TestNonEmptyState_NoEmptyCTA(t *testing.T) {
 	if strings.Contains(body, `class="empty-state"`) {
 		t.Errorf("non-empty mappings list must NOT render empty-state; got: %s", body)
 	}
-	if !strings.Contains(body, `class="route-card"`) {
-		t.Errorf("non-empty mappings list must render cards; got: %s", body)
+	if !strings.Contains(body, `class="mappings-table"`) {
+		t.Errorf("non-empty mappings list must render mappings table; got: %s", body)
 	}
 }
 
@@ -112,16 +112,25 @@ func TestErrorMessageInResponse(t *testing.T) {
 
 // TestSaveButtonHasDisabledEltAndIndicator verifies §3.7: each Save button
 // carries hx-disabled-elt="this" and a sibling .htmx-indicator span.
+// The mappings page uses mappings-routing-table.html (Phase 4) instead of
+// the legacy mappings-table.html.
 func TestSaveButtonHasDisabledEltAndIndicator(t *testing.T) {
-	for _, page := range []string{"mappings.html", "providers.html"} {
-		t.Run(page, func(t *testing.T) {
-			tmpl, err := loadPageTemplate(page, strings.TrimSuffix(page, ".html")+"-table.html")
+	pages := []struct {
+		page       string
+		extraFiles []string
+	}{
+		{"mappings.html", []string{"mappings-routing-table.html"}},
+		{"providers.html", []string{"providers-table.html"}},
+	}
+	for _, page := range pages {
+		t.Run(page.page, func(t *testing.T) {
+			tmpl, err := loadPageTemplate(page.page, page.extraFiles...)
 			if err != nil {
-				t.Fatalf("load %s: %v", page, err)
+				t.Fatalf("load %s: %v", page.page, err)
 			}
 			var buf strings.Builder
 			if err := tmpl.ExecuteTemplate(&buf, "layout", mappingsData{
-				pageData: pageData{Active: strings.TrimSuffix(page, ".html")},
+				pageData: pageData{Active: strings.TrimSuffix(page.page, ".html")},
 				Providers: []providerRow{
 					{Name: "nim"},
 				},
@@ -131,10 +140,10 @@ func TestSaveButtonHasDisabledEltAndIndicator(t *testing.T) {
 			}
 			body := buf.String()
 			if !strings.Contains(body, `hx-disabled-elt="this"`) {
-				t.Errorf("%s Save button must carry hx-disabled-elt=\"this\"; got: %s", page, body)
+				t.Errorf("%s Save button must carry hx-disabled-elt=\"this\"; got: %s", page.page, body)
 			}
 			if !strings.Contains(body, `class="htmx-indicator"`) {
-				t.Errorf("%s Save button must carry sibling .htmx-indicator; got: %s", page, body)
+				t.Errorf("%s Save button must carry sibling .htmx-indicator; got: %s", page.page, body)
 			}
 		})
 	}

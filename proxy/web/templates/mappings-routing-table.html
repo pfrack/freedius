@@ -1,0 +1,97 @@
+{{define "mappings-routing-table"}}
+<div id="mappings-table-container" class="mappings-table-container">
+  <div class="mappings-filters" hx-get="/mappings"
+       hx-include="[name='search'],[name='provider'],[name='status'],[name='has_fallback']"
+       hx-target="#mappings-table-container" hx-swap="outerHTML" hx-trigger="input changed delay:300ms from:input, change from:select, change from:input[type=checkbox]">
+    <input type="search" name="search" class="form-input mappings-filters__search"
+           placeholder="Search by name…" value="{{.Search}}"
+           aria-label="Search mappings by name">
+    <select name="provider" class="form-select mappings-filters__provider"
+            aria-label="Filter by provider">
+      <option value="">All providers</option>
+      {{range .Providers}}<option value="{{.Name}}" {{if eq .Name $.ProviderFilter}}selected{{end}}>{{.Name}}</option>{{end}}
+    </select>
+    <select name="status" class="form-select mappings-filters__status"
+            aria-label="Filter by status">
+      <option value="">All status</option>
+      <option value="active" {{if eq .StatusFilter "active"}}selected{{end}}>Active</option>
+      <option value="inactive" {{if eq .StatusFilter "inactive"}}selected{{end}}>Inactive</option>
+    </select>
+    <label class="mappings-filters__has-fallback">
+      <input type="checkbox" name="has_fallback" value="true" {{if eq .HasFallbackFilter "true"}}checked{{end}}>
+      Has fallback
+    </label>
+  </div>
+
+  {{if not .Mappings}}
+    {{if eq .TotalMappings 0}}
+    <div class="empty-state">
+      <h2>No mappings yet</h2>
+      <p>Wire a freedius-facing model name to an upstream provider. The mapping
+         defines what the proxy serves and which fallback chain to try when
+         the primary fails.</p>
+      <button type="button" class="btn btn--primary" onclick="openAddMapping()">
+        Add your first mapping
+      </button>
+    </div>
+    {{else}}
+    <div class="empty-state">
+      <p>No mappings match the current filters.</p>
+      <button type="button" class="btn btn--ghost btn--sm" onclick="clearMappingsFilters()">Clear filters</button>
+    </div>
+    {{end}}
+  {{else}}
+  <div class="table-wrap">
+  <table class="mappings-table" aria-label="Mapping routing table">
+    <thead>
+      <tr>
+        <th>Mapping</th>
+        <th>Primary</th>
+        <th>Fallback</th>
+        <th>Status</th>
+        <th class="mappings-table__actions-col">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Mappings}}
+      {{$mapName := .Name}}
+      <tr>
+        <td><strong>{{.Name}}</strong>{{if .Family}} <span class="badge badge--family">{{.Family}}</span>{{end}}</td>
+        <td><span class="model-id" title="{{.ProviderName}} / {{.Model}}">{{.ProviderName}} / {{.Model}}</span></td>
+        <td>
+          {{if .Fallbacks}}
+            {{$fb0 := index .Fallbacks 0}}
+            <span class="model-id" title="{{$fb0.ProviderName}} / {{$fb0.Model}}">{{$fb0.ProviderName}} / {{$fb0.Model}}</span>
+            {{if gt (len .Fallbacks) 1}}<span class="badge badge--muted">+{{sub1 (len .Fallbacks)}} more</span>{{end}}
+          {{else}}
+            <span class="text-muted">—</span>
+          {{end}}
+        </td>
+        <td>
+          {{if .EnvPresent}}<span class="badge badge--status-ok">Active</span>
+          {{else}}<span class="badge badge--status-warn">Key Missing</span>{{end}}
+        </td>
+        <td class="mappings-table__actions">
+          <button
+            class="btn btn--ghost btn--sm"
+            onclick="editMapping(this)"
+            data-name="{{.Name | js}}"
+            data-provider="{{.ProviderName | js}}"
+            data-model="{{.Model | js}}"
+            data-fallbacks="{{.Fallbacks | jsonMarshal}}"
+          >Edit</button>
+          <button
+            type="button"
+            class="btn btn--ghost btn--sm btn--danger-subtle"
+            data-mapping-name="{{.Name | js}}"
+            onclick="confirmDeleteMapping(this)"
+          >Delete</button>
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  </div>
+  {{end}}
+</div>
+{{end}}

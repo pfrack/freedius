@@ -79,7 +79,7 @@ func TestBuildMappingRows_ProvenanceFields(t *testing.T) {
 				Providers: providers,
 				Mappings:  map[string]config.Mapping{tt.mappingName: tt.mapping},
 			}
-			rows := buildMappingRows(cfg, providers, nil, "")
+			rows := buildMappingRows(cfg, providers, nil, mappingFilters{})
 			if len(rows) != 1 {
 				t.Fatalf("got %d rows, want 1", len(rows))
 			}
@@ -106,7 +106,7 @@ func TestBuildMappingRows_ExtractFamilyNoDefault(t *testing.T) {
 			"xyz": {ProviderName: "nim", ModelString: "step-3.5"},
 		},
 	}
-	rows := buildMappingRows(cfg, cfg.Providers, nil, "")
+	rows := buildMappingRows(cfg, cfg.Providers, nil, mappingFilters{})
 	if len(rows) != 1 {
 		t.Fatalf("got %d rows, want 1", len(rows))
 	}
@@ -120,7 +120,7 @@ func TestBuildMappingRows_EmptyConfig(t *testing.T) {
 		Providers: map[string]config.Provider{},
 		Mappings:  map[string]config.Mapping{},
 	}
-	rows := buildMappingRows(cfg, cfg.Providers, nil, "")
+	rows := buildMappingRows(cfg, cfg.Providers, nil, mappingFilters{})
 	if len(rows) != 0 {
 		t.Errorf("got %d rows, want 0", len(rows))
 	}
