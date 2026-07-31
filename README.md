@@ -1,18 +1,25 @@
 # freedius
 
-A local HTTP proxy that routes LLM API requests from AI coding agents to
-upstream providers — with fallback chains, model-name mapping, and a live
-dashboard for the solo-dev maintainer. Compiles to a single static binary;
-the optional web dashboard loads its web font from a third-party CDN.
+A local HTTP proxy that routes LLM API requests from AI coding agents
+(Claude Code, OpenCode) to upstream providers — with fallback chains,
+model-name mapping, and a live web dashboard.
 
-## What it does
+Built for solo developers who want cheaper inference than Anthropic's
+direct pricing without spinning up a production gateway. One config
+file, one local process, no account to sign up for. For the full
+contributor guide, see [AGENTS.md](AGENTS.md).
 
-freedius sits between a coding agent (Claude Code, OpenCode) and many LLM
-upstreams. The agent sends a normal `POST` with a `model` field; freedius
-resolves it against config, forwards to the matching upstream, and on failure
-walks an ordered fallback chain. The embedded web dashboard (see below)
-shows which mapping handled the last request and which provider's key is
-set, live.
+## Installation
+
+Pre-built static binaries for Linux, macOS, and Windows (amd64/arm64) are
+published on every `v*` tag. Grab the latest archive from the
+[Releases](https://github.com/pfrack/freedius/releases) page, or install via:
+
+```bash
+go install github.com/pfrack/freedius/cmd/freedius@v0.1.0
+```
+
+`freedius --version` prints the installed tag.
 
 ## Quickstart
 
@@ -34,20 +41,7 @@ Claude-Code-specific variables. Silence it with `--no-export-hint`.
 
 freedius accepts Anthropic-format requests on `/v1/messages` and translates to
 the upstream provider's protocol (the `MixAdapter` detects from the base URL
-suffix). See `Installation` for the binary path and `Development` for build-
-from-source instructions.
-
-## Installation
-
-Pre-built static binaries for Linux, macOS, and Windows (amd64/arm64) are
-published on every `v*` tag. Grab the latest archive from the
-[Releases](https://github.com/pfrack/freedius/releases) page, or install via:
-
-```bash
-go install github.com/pfrack/freedius/cmd/freedius@v0.1.0
-```
-
-`freedius --version` prints the installed tag.
+suffix). See `Development` for build-from-source instructions.
 
 ## Configuration
 
@@ -175,6 +169,19 @@ mage lint      # staticcheck + golangci-lint
 mage ci        # full CI check
 mage format    # gofmt, goimports, golines, gci
 ```
+
+### Build from source
+
+Requires [mage](https://magefile.org) (`go install github.com/magefile/mage`):
+
+```bash
+mage build         # produce ./freedius (local binary)
+mage install       # produce $GOPATH/bin/freedius
+mage installHooks  # install pre-commit / pre-push hooks
+```
+
+For the full contributor guide — commit conventions, hook details, and
+release process — see [AGENTS.md](AGENTS.md).
 
 ## Reference
 

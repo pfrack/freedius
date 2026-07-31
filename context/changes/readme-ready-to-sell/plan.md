@@ -583,16 +583,16 @@ None. The plan does not modify the proxy, the dispatcher, or any Go code that af
 
 #### Automated
 
-- [x] 2.1 README no longer claims `added_at` is rendered (D1)
-- [x] 2.2 README no longer claims "zero external runtime dependencies" (D2)
-- [x] 2.3 README no longer claims "Request events" as a dashboard feature (D4)
-- [x] 2.4 Quickstart no longer references `mage build` (D14, 2.9)
-- [x] 2.5 CLI flag table uses `--host` / `--port` / `--ui-port` / `--ui-host` (D8)
-- [x] 2.6 `cmd/freedius/templates/starter.yaml:9-19` comment matches runtime behavior (Round 3 fix)
-- [x] 2.7 `config.example.yaml` is downgraded to schema reference (no runnable mappings)
-- [x] 2.8 `mage lint` passes
-- [x] 2.9 `mage test` passes
-- [x] 2.10 `mage ci` passes
+- [x] 2.1 README no longer claims `added_at` is rendered (D1) — 096475c
+- [x] 2.2 README no longer claims "zero external runtime dependencies" (D2) — 096475c
+- [x] 2.3 README no longer claims "Request events" as a dashboard feature (D4) — 096475c
+- [x] 2.4 Quickstart no longer references `mage build` (D14, 2.9) — 096475c
+- [x] 2.5 CLI flag table uses `--host` / `--port` / `--ui-port` / `--ui-host` (D8) — 096475c
+- [x] 2.6 `cmd/freedius/templates/starter.yaml:9-19` comment matches runtime behavior (Round 3 fix) — 096475c
+- [x] 2.7 `config.example.yaml` is downgraded to schema reference (no runnable mappings) — 096475c
+- [x] 2.8 `mage lint` passes — 096475c
+- [x] 2.9 `mage test` passes — 096475c
+- [x] 2.10 `mage ci` passes — 096475c
 
 #### Manual
 
@@ -604,14 +604,14 @@ None. The plan does not modify the proxy, the dispatcher, or any Go code that af
 
 #### Automated
 
-- [ ] 3.1 README opening is 1-2 paragraphs with a value proposition (no "maintainer" word)
-- [ ] 3.2 Quickstart is the three-step path (install / set one env var / start) plus optional verify curl
-- [ ] 3.3 Section order matches peer-tool convention (tagline → Installation → Quickstart → Configuration → Web Dashboard → CLI → Development → Reference)
-- [ ] 3.4 "Build from source" subsection added to Development section
-- [ ] 3.5 `mage lint` passes
-- [ ] 3.6 `mage test` passes
-- [ ] 3.7 `mage ci` passes
-- [ ] 3.8 Section anchor URLs resolve correctly (no slug changes)
+- [x] 3.1 README opening is 1-2 paragraphs with a value proposition (no "maintainer" word)
+- [x] 3.2 Quickstart is the three-step path (install / set one env var / start) plus optional verify curl
+- [x] 3.3 Section order matches peer-tool convention (tagline → Installation → Quickstart → Configuration → Web Dashboard → CLI → Development → Reference)
+- [x] 3.4 "Build from source" subsection added to Development section
+- [x] 3.5 `mage lint` passes
+- [x] 3.6 `mage test` passes
+- [x] 3.7 `mage ci` passes
+- [x] 3.8 Section anchor URLs resolve correctly (no slug changes)
 
 #### Manual
 
