@@ -233,11 +233,11 @@ None. No config, schema, or persisted-state changes. Behavior change is limited 
 
 #### Automated
 
-- [x] 1.1 Build passes: `go build ./...`
-- [x] 1.2 Formatting/lint clean: `mage lint`
-- [x] 1.3 Web package tests pass: `go test ./proxy/web/`
-- [x] 1.4 New test asserts unknown GET path → 404 + `text/html` + branded body markers
-- [x] 1.5 Regression test asserts `GET /` → 200 + dashboard marker
+- [x] 1.1 Build passes: `go build ./...` — 12f565b
+- [x] 1.2 Formatting/lint clean: `mage lint` — 12f565b
+- [x] 1.3 Web package tests pass: `go test ./proxy/web/` — 12f565b
+- [x] 1.4 New test asserts unknown GET path → 404 + `text/html` + branded body markers — 12f565b
+- [x] 1.5 Regression test asserts `GET /` → 200 + dashboard marker — 12f565b
 
 #### Manual
 
@@ -249,12 +249,12 @@ None. No config, schema, or persisted-state changes. Behavior change is limited 
 
 #### Automated
 
-- [ ] 2.1 Build passes: `go build ./...`
-- [ ] 2.2 Formatting/lint clean: `mage lint`
-- [ ] 2.3 Web package tests pass: `go test ./proxy/web/`
-- [ ] 2.4 New test asserts `GET /static/<missing>` → 404 + `text/html` + branded marker + no `public, max-age=300`
-- [ ] 2.5 Regression test asserts `GET /static/app.css` → 200 + `Cache-Control: …max-age=300`
-- [ ] 2.6 Full suite with race passes: `mage test`
+- [x] 2.1 Build passes: `go build ./...`
+- [x] 2.2 Formatting/lint clean: `mage lint`
+- [x] 2.3 Web package tests pass: `go test ./proxy/web/`
+- [x] 2.4 New test asserts `GET /static/<missing>` → 404 + `text/html` + branded marker + no `public, max-age=300`
+- [x] 2.5 Regression test asserts `GET /static/app.css` → 200 + `Cache-Control: …max-age=300`
+- [x] 2.6 Full suite with race passes: `mage test`
 
 #### Manual
 
