@@ -1,28 +1,26 @@
-# freedius starter config — works out of the box with free API tiers
+# freedius starter config — works out of the box with one free NVIDIA NIM key
 #
-# All providers below offer genuinely free access (no credit card required):
-#   • NVIDIA NIM  — 1000 credits on signup, 40 RPM   (build.nvidia.com)
-#   • Groq        — unlimited free tier, 30 RPM      (console.groq.com)
-#   • Google      — free tier, ~15 RPM               (aistudio.google.com)
-#   • Mistral     — ~1B tokens/month free            (console.mistral.ai)
-#
-# Set one or more API keys and freedius will route through the available
-# providers automatically. Fallback chains ensure requests succeed even if
-# one provider is overloaded or your key isn't set.
-#
-# Quick start:
+# The default starter uses NIM exclusively. Set one env var and start:
 #   export NVIDIA_NIM_API_KEY=nvapi-...   # build.nvidia.com → Generate API Key
-#   export GROQ_API_KEY=gsk_...           # console.groq.com → API Keys
-#   export GEMINI_API_KEY=AI...           # aistudio.google.com → Get API Key
-#   export MISTRAL_API_KEY=...            # console.mistral.ai → API Keys
+#   freedius
 #
-# You only need ONE key to get started — fallbacks skip providers without keys.
+# NIM's free tier gives you 1000 credits on signup and 40 RPM, which is
+# plenty for solo-dev traffic. Sign up at https://build.nvidia.com if
+# you don't have a key yet.
+#
+# Want cross-provider fallback? Set more env vars (GROQ_API_KEY,
+# GEMINI_API_KEY, MISTRAL_API_KEY) and add the corresponding providers to
+# the `providers:` block below. The starter stays NIM-only so the
+# three-step Quickstart works with one key; multi-provider setups are an
+# opt-in extension.
+#
+# Note: the startup check (`checkRequiredEnvVars` in cmd/freedius/main.go)
+# requires every provider referenced by a mapping to have its key set.
+# Because this starter only references NIM, only NVIDIA_NIM_API_KEY is
+# required.
 
 providers:
-  nim:     { behavior: openai, default_api_key_env: NVIDIA_NIM_API_KEY }
-  groq:    { behavior: openai, default_api_key_env: GROQ_API_KEY }
-  google:  { behavior: openai, default_api_key_env: GEMINI_API_KEY }
-  mistral: { behavior: openai, default_api_key_env: MISTRAL_API_KEY }
+  nim: { behavior: openai, default_api_key_env: NVIDIA_NIM_API_KEY }
 
 mappings:
   # ─── Flagship reasoning ("opus" tier) ───────────────────────────────
@@ -32,50 +30,22 @@ mappings:
     fallback:
       - provider_name: nim
         model_string: deepseek-ai/deepseek-v4-pro
-      - provider_name: google
-        model_string: gemini-2.5-pro
-      - provider_name: groq
-        model_string: openai/gpt-oss-120b
 
   # ─── Strong mid-tier ("sonnet" tier) ────────────────────────────────
   sonnet:
     provider_name: nim
     model_string: deepseek-ai/deepseek-v4-pro
-    fallback:
-      - provider_name: groq
-        model_string: openai/gpt-oss-120b
-      - provider_name: google
-        model_string: gemini-2.5-flash
-      - provider_name: mistral
-        model_string: mistral-large-latest
 
   # ─── Fast & cheap ("haiku" tier) ────────────────────────────────────
   haiku:
-    provider_name: groq
-    model_string: llama-3.3-70b-versatile
-    fallback:
-      - provider_name: nim
-        model_string: deepseek-ai/deepseek-v4-flash
-      - provider_name: google
-        model_string: gemini-2.5-flash
-      - provider_name: mistral
-        model_string: mistral-small-latest
+    provider_name: nim
+    model_string: deepseek-ai/deepseek-v4-flash
 
   # ─── Default / auto routing ─────────────────────────────────────────
   default:
     provider_name: nim
     model_string: deepseek-ai/deepseek-v4-flash
-    fallback:
-      - provider_name: groq
-        model_string: llama-3.3-70b-versatile
-      - provider_name: google
-        model_string: gemini-2.5-flash
 
   auto:
-    provider_name: groq
-    model_string: llama-3.3-70b-versatile
-    fallback:
-      - provider_name: nim
-        model_string: deepseek-ai/deepseek-v4-flash
-      - provider_name: google
-        model_string: gemini-2.5-flash
+    provider_name: nim
+    model_string: deepseek-ai/deepseek-v4-flash
