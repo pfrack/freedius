@@ -28,7 +28,9 @@ func SetupMux(h *eventstream.Handlers, logger *slog.Logger) *http.ServeMux {
 	mux := http.NewServeMux()
 
 	// Static assets.
-	mux.HandleFunc("GET /static/", serveStatic)
+	mux.HandleFunc("GET /static/", func(w http.ResponseWriter, r *http.Request) {
+		serveStatic(w, r, logger)
+	})
 
 	// Health check.
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
@@ -41,7 +43,16 @@ func SetupMux(h *eventstream.Handlers, logger *slog.Logger) *http.ServeMux {
 	h.Register(mux)
 
 	// Page handlers.
-	mux.HandleFunc("GET /", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
+		// Go 1.22 ServeMux's `GET /` matches the root subtree, so any
+		// unregistered GET path falls through here with 200 OK. Reclaim the
+		// boundary: only the exact root serves the dashboard; everything
+		// else gets the branded 404.
+		if r.URL.Path != "/" {
+			renderNotFound(w, logger)
+			return
+		}
+
 		uptime := time.Since(h.StartTime).Round(time.Second).String()
 		cfg := h.Cfg
 		providers := cfg.ProvidersSnapshot()
