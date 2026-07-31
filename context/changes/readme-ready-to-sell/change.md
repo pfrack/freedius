@@ -1,7 +1,7 @@
 ---
 id: readme-ready-to-sell
 title: README + supporting docs — ready to sell, ready to use
-status: implemented
+status: impl_reviewed
 created: 2026-07-31
 updated: 2026-07-31
 plan: context/changes/readme-ready-to-sell/plan.md
