@@ -5,7 +5,7 @@
 - **Scope**: Phases 2-5 (Phase 1 already landed on origin/main + v0.1.0 tag)
 - **Date**: 2026-07-31
 - **Verdict**: APPROVED (after review-fix commit 4317582)
-- **Findings**: 0 critical | 0 warnings | 4 observations (all FIXED in 4317582; 1 observation left for user discretion)
+- **Findings**: 0 critical | 0 warnings | 4 observations (all FIXED: 4317582 + 8d80361)
 
 ## Verdicts
 
@@ -120,7 +120,7 @@ Manual rows are intentionally left `- [ ]` (human jurisdiction). All pending:
   - Tradeoff: (b) adds a line of friction to the 3-step Quickstart.
   - Confidence: MED — verified snippet.go content; unverified OpenCode env-var behavior.
   - Blind spot: Have not run OpenCode against this snippet to confirm it reads ANTHROPIC_BASE_URL.
-- **Decision**: PENDING (user discretion — no code change)
+- **Decision**: FIXED via Fix A (commit 8d80361) — reworded the QuickStart prose to state the env-inject hint is Anthropic/Claude Code-shaped and that OpenCode consumes it only when honoring Anthropic-compatible env-var overrides. No Quickstart friction added (still one-key install). Verified `mage lint` passes post-fix.
 
 ---
 
