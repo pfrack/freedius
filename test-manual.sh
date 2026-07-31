@@ -211,7 +211,7 @@ cat > "$CFG" <<'YAML'
 providers:
   nim: { behavior: openai, default_api_key_env: NVIDIA_NIM_API_KEY }
 mappings:
-  opus: { provider_name: nim, model_string: step-3.5 }
+  opus: { provider_name: nim, model_string: deepseek-ai/deepseek-v4-flash }
 YAML
 if ! start_server; then echo "  server failed to start (no-default)"; exit 1; fi
 
@@ -230,8 +230,8 @@ cat > "$CFG" <<'YAML'
 providers:
   nim: { behavior: openai, default_api_key_env: NVIDIA_NIM_API_KEY }
 mappings:
-  opus:    { provider_name: nim, model_string: step-3.5 }
-  default: { provider_name: nim, model_string: step-3.5 }
+  opus:    { provider_name: nim, model_string: deepseek-ai/deepseek-v4-flash }
+  default: { provider_name: nim, model_string: deepseek-ai/deepseek-v4-flash }
 YAML
 if ! start_server; then echo "  server failed to start (known)"; exit 1; fi
 

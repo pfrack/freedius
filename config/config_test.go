@@ -125,6 +125,30 @@ mappings:
 			errSubstr: `invalid behavior "bogus"`,
 		},
 		{
+			name: "provider name with URL-unsafe slash",
+			yaml: `providers:
+  my/provider:
+    behavior: openai
+    default_api_key_env: TEST_KEY
+`,
+			wantErr:   true,
+			errSubstr: "URL-unsafe characters",
+		},
+		{
+			name: "mapping name with URL-unsafe query",
+			yaml: `providers:
+  nim:
+    behavior: openai
+    default_api_key_env: NVIDIA_NIM_API_KEY
+mappings:
+  my?mapping:
+    provider_name: nim
+    model_string: foo
+`,
+			wantErr:   true,
+			errSubstr: "URL-unsafe characters",
+		},
+		{
 			name: "unknown field typo",
 			yaml: `providers:
   nim:
@@ -296,7 +320,7 @@ mappings:
 			errSubstr: "default_api_key_env with invalid characters",
 		},
 		{
-			name: "empty mapping key accepted (validation gap)",
+			name: "empty mapping key rejected",
 			yaml: `providers:
   nim: { behavior: openai }
 mappings:
@@ -304,7 +328,8 @@ mappings:
     provider_name: nim
     model_string: x
 `,
-			wantErr: false,
+			wantErr:   true,
+			errSubstr: "mapping name is empty",
 		},
 		{
 			name: "empty behavior string",

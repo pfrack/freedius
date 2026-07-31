@@ -58,15 +58,16 @@ freedius reads a YAML config file. Resolution order:
 
 ```yaml
 providers:
-  nim:  { behavior: openai }
-  zen:  { behavior: mix, default_base_url: https://opencode.ai/zen/v1/messages, default_api_key_env: OPENCODE_API_KEY }
-  go:   { behavior: mix, default_base_url: https://opencode.ai/zen/go/v1/chat/completions, default_api_key_env: OPENCODE_API_KEY }
+  nim:     { behavior: openai, default_api_key_env: NVIDIA_NIM_API_KEY }
+  groq:    { behavior: openai, default_api_key_env: GROQ_API_KEY }
+  google:  { behavior: openai, default_api_key_env: GEMINI_API_KEY }
+  mistral: { behavior: openai, default_api_key_env: MISTRAL_API_KEY }
 
 mappings:
-  default: { provider_name: nim, model_string: step-3.5 }
-  opus:    { provider_name: go,  model_string: deepseek-v4-pro }
-  sonnet:  { provider_name: go,  model_string: minimax-m3 }
-  haiku:   { provider_name: zen, model_string: claude-sonnet-4-6 }
+  default: { provider_name: nim, model_string: deepseek-ai/deepseek-v4-flash }
+  opus:    { provider_name: nim, model_string: nvidia/nemotron-3-ultra-550b-a55b }
+  sonnet:  { provider_name: nim, model_string: deepseek-ai/deepseek-v4-pro }
+  haiku:   { provider_name: groq, model_string: llama-3.3-70b-versatile }
 ```
 
 ### Mapping resolution
@@ -82,13 +83,13 @@ freedius tries each fallback in order:
 ```yaml
 mappings:
   opus:
-    provider_name: go
-    model_string: deepseek-v4-pro
+    provider_name: nim
+    model_string: nvidia/nemotron-3-ultra-550b-a55b
     fallback:
-      - provider_name: zen
-        model_string: claude-sonnet-4-6
       - provider_name: nim
-        model_string: step-3.5
+        model_string: deepseek-ai/deepseek-v4-pro
+      - provider_name: groq
+        model_string: openai/gpt-oss-120b
 ```
 
 ### Provenance annotation

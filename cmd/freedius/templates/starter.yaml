@@ -1,30 +1,81 @@
-# freedius starter config — edit and save as freedius.yaml
-# For more examples, see: config.example.yaml
+# freedius starter config — works out of the box with free API tiers
 #
-# Model families recognized in requests:
-#   opus, sonnet, haiku, auto, default
-# Provider behaviors: openai, anthropic, mix
+# All providers below offer genuinely free access (no credit card required):
+#   • NVIDIA NIM  — 1000 credits on signup, 40 RPM   (build.nvidia.com)
+#   • Groq        — unlimited free tier, 30 RPM      (console.groq.com)
+#   • Google      — free tier, ~15 RPM               (aistudio.google.com)
+#   • Mistral     — ~1B tokens/month free            (console.mistral.ai)
 #
-# Export OPENCODE_API_KEY before running freedius:
-#   export OPENCODE_API_KEY=<your-key>
-# (freedius reads keys from environment, not from this file).
+# Set one or more API keys and freedius will route through the available
+# providers automatically. Fallback chains ensure requests succeed even if
+# one provider is overloaded or your key isn't set.
+#
+# Quick start:
+#   export NVIDIA_NIM_API_KEY=nvapi-...   # build.nvidia.com → Generate API Key
+#   export GROQ_API_KEY=gsk_...           # console.groq.com → API Keys
+#   export GEMINI_API_KEY=AI...           # aistudio.google.com → Get API Key
+#   export MISTRAL_API_KEY=...            # console.mistral.ai → API Keys
+#
+# You only need ONE key to get started — fallbacks skip providers without keys.
 
 providers:
-  # NVIDIA NIM — built-in defaults
-  nim: { behavior: openai, default_api_key_env: NVIDIA_NIM_API_KEY }
-  # Opencode Zen — Anthropic-format endpoint
-  zen: { behavior: mix, default_base_url: https://opencode.ai/zen/v1/messages, default_api_key_env: OPENCODE_API_KEY }
-  # Opencode Go — openai-format /v1/chat/completions
-  go:  { behavior: mix, default_base_url: https://opencode.ai/zen/go/v1/chat/completions, default_api_key_env: OPENCODE_API_KEY }
+  nim:     { behavior: openai, default_api_key_env: NVIDIA_NIM_API_KEY }
+  groq:    { behavior: openai, default_api_key_env: GROQ_API_KEY }
+  google:  { behavior: openai, default_api_key_env: GEMINI_API_KEY }
+  mistral: { behavior: openai, default_api_key_env: MISTRAL_API_KEY }
 
 mappings:
-  # Opencode Go (OpenAI-format base_url)
-  opus:    { provider_name: go, model_string: deepseek-v4-pro }
-  # Opencode Go (OpenAI-format base_url)
-  sonnet:  { provider_name: go, model_string: deepseek-v4-flash }
-  # NVIDIA NIM (built-in defaults)
-  haiku:   { provider_name: nim, model_string: stepfun-ai/step-3.5-flash }
-  # Opencode Go (OpenAI-format base_url)
-  auto:    { provider_name: go, model_string: deepseek-v4-flash }
-  # Catch-all for any Claude Code model not matched above
-  default: { provider_name: go, model_string: deepseek-v4-pro }
+  # ─── Flagship reasoning ("opus" tier) ───────────────────────────────
+  opus:
+    provider_name: nim
+    model_string: nvidia/nemotron-3-ultra-550b-a55b
+    fallback:
+      - provider_name: nim
+        model_string: deepseek-ai/deepseek-v4-pro
+      - provider_name: google
+        model_string: gemini-2.5-pro
+      - provider_name: groq
+        model_string: openai/gpt-oss-120b
+
+  # ─── Strong mid-tier ("sonnet" tier) ────────────────────────────────
+  sonnet:
+    provider_name: nim
+    model_string: deepseek-ai/deepseek-v4-pro
+    fallback:
+      - provider_name: groq
+        model_string: openai/gpt-oss-120b
+      - provider_name: google
+        model_string: gemini-2.5-flash
+      - provider_name: mistral
+        model_string: mistral-large-latest
+
+  # ─── Fast & cheap ("haiku" tier) ────────────────────────────────────
+  haiku:
+    provider_name: groq
+    model_string: llama-3.3-70b-versatile
+    fallback:
+      - provider_name: nim
+        model_string: deepseek-ai/deepseek-v4-flash
+      - provider_name: google
+        model_string: gemini-2.5-flash
+      - provider_name: mistral
+        model_string: mistral-small-latest
+
+  # ─── Default / auto routing ─────────────────────────────────────────
+  default:
+    provider_name: nim
+    model_string: deepseek-ai/deepseek-v4-flash
+    fallback:
+      - provider_name: groq
+        model_string: llama-3.3-70b-versatile
+      - provider_name: google
+        model_string: gemini-2.5-flash
+
+  auto:
+    provider_name: groq
+    model_string: llama-3.3-70b-versatile
+    fallback:
+      - provider_name: nim
+        model_string: deepseek-ai/deepseek-v4-flash
+      - provider_name: google
+        model_string: gemini-2.5-flash
