@@ -6,6 +6,12 @@
 //
 // escapeHTML is the same sanitizer used inside the inline error slot in the
 // htmx:afterRequest handler below.
+//
+// The mapping-details drawer is wired here too: openDrawer / closeDrawer
+// toggle the .drawer--open class on #mapping-drawer, focus management
+// moves keyboard focus into the drawer on open and returns it to the
+// triggering row on close, and Escape closes an open drawer. The drawer
+// container and row triggers are defined in templates/index.html.
 
 function showToast(message, kind) {
   var region = document.getElementById('toast-region');
@@ -24,6 +30,65 @@ function escapeHTML(s) {
     return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c];
   });
 }
+
+// drawerOpener remembers the element that triggered the current drawer
+// open so closeDrawer() can return focus to it.
+var drawerOpener = null;
+
+// openDrawer marks the drawer container as open and moves focus into it.
+// Called automatically by the htmx:afterSwap handler below; not invoked
+// directly so the swap and open are atomic from the user's perspective.
+function openDrawer(drawer) {
+  if (!drawer) return;
+  drawer.classList.add('drawer--open');
+  setTimeout(function() {
+    var closeBtn = drawer.querySelector('.drawer__close');
+    if (closeBtn) closeBtn.focus();
+  }, 0);
+}
+
+// closeDrawer hides the drawer, clears its content, and returns focus to
+// the element that opened it. Invoked by the close button (inline onclick
+// in mapping-drawer.html) and the Escape key handler.
+function closeDrawer() {
+  var drawer = document.getElementById('mapping-drawer');
+  if (drawer) {
+    drawer.classList.remove('drawer--open');
+    // Clear content so stale fragments don't linger for screen readers or
+    // future HTMX swaps that re-target the container.
+    drawer.innerHTML = '';
+  }
+  if (drawerOpener && drawerOpener.focus) {
+    drawerOpener.focus();
+  }
+  drawerOpener = null;
+}
+
+// Capture the trigger before HTMX swaps the drawer content in, so we
+// can restore focus to that exact element on close. Limiting to drawer
+// requests leaves drawerOpener untouched for unrelated htmx:beforeRequest
+// events.
+document.body.addEventListener('htmx:beforeRequest', function(evt) {
+  if (evt.target && evt.target.id === 'mapping-drawer') {
+    drawerOpener = document.activeElement;
+  }
+});
+
+document.body.addEventListener('htmx:afterSwap', function(evt) {
+  if (evt.target && evt.target.id === 'mapping-drawer') {
+    openDrawer(evt.target);
+  }
+});
+
+// Escape closes the drawer when it's open. Document-level so the key
+// works regardless of which element inside the drawer has focus.
+document.addEventListener('keydown', function(evt) {
+  if (evt.key !== 'Escape') return;
+  var drawer = document.getElementById('mapping-drawer');
+  if (drawer && drawer.classList.contains('drawer--open')) {
+    closeDrawer();
+  }
+});
 
 document.body.addEventListener('htmx:afterRequest', function(evt) {
   var xhr = evt.detail && evt.detail.xhr;

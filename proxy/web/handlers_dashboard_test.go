@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/pfrack/freedius/config"
 	"github.com/pfrack/freedius/internal/eventstream"
@@ -232,4 +233,139 @@ func TestDashboard_NoAttentionPanel(t *testing.T) {
 	if strings.Contains(body, `class="attention-panel"`) {
 		t.Errorf("expected NO attention-panel when everything is configured correctly")
 	}
+}
+
+// TestMappingDrawer covers the GET /v1/mappings/{name}/detail endpoint:
+//   - happy path returns 200 + an HTML fragment with mapping details,
+//   - unknown mapping returns a 404 JSON error,
+//   - the rendered fragment includes the route chain (primary + fallbacks),
+//   - stats counters from StatsCollector are rendered when present.
+func TestMappingDrawer(t *testing.T) {
+	cfg := &config.Config{
+		Providers: map[string]config.Provider{
+			"nim":  {Behavior: "openai", Protocol: "openai"},
+			"groq": {Behavior: "openai", Protocol: "openai"},
+		},
+		Mappings: map[string]config.Mapping{
+			"haiku": {
+				ProviderName: "nim",
+				ModelString:  "anthropic/claude-3-5-haiku",
+				Fallback: []config.Mapping{
+					{ProviderName: "groq", ModelString: "llama-3.1-70b"},
+				},
+			},
+		},
+	}
+
+	t.Run("returns fragment with route chain for known mapping", func(t *testing.T) {
+		h := &eventstream.Handlers{
+			Bus:           proxy.NewEventBus(1),
+			LogSink:       proxy.NewLogSink(1),
+			Cfg:           cfg,
+			LastResponder: proxy.NewLastResponder(),
+		}
+		mux := SetupMux(h, slog.New(slog.NewTextHandler(sink{}, nil)))
+
+		req := httptest.NewRequest(http.MethodGet, "/v1/mappings/haiku/detail", nil)
+		req.Header.Set("HX-Request", "true")
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d; body: %s", rec.Code, rec.Body.String())
+		}
+		if ct := rec.Header().Get("Content-Type"); !strings.Contains(ct, "text/html") {
+			t.Errorf("Content-Type = %q, want text/html", ct)
+		}
+		body := rec.Body.String()
+
+		// Mapping name + primary route must be rendered.
+		for _, want := range []string{
+			"haiku",
+			"anthropic/claude-3-5-haiku",
+			"nim",
+			"groq",
+			"llama-3.1-70b",
+			"route-step--primary",
+			"route-step--fallback",
+			"Edit on Mappings page",
+		} {
+			if !strings.Contains(body, want) {
+				t.Errorf("expected %q in drawer fragment; body: %s", want, body)
+			}
+		}
+	})
+
+	t.Run("returns 404 JSON for unknown mapping", func(t *testing.T) {
+		h := &eventstream.Handlers{
+			Bus:           proxy.NewEventBus(1),
+			LogSink:       proxy.NewLogSink(1),
+			Cfg:           cfg,
+			LastResponder: proxy.NewLastResponder(),
+		}
+		mux := SetupMux(h, slog.New(slog.NewTextHandler(sink{}, nil)))
+
+		req := httptest.NewRequest(http.MethodGet, "/v1/mappings/does-not-exist/detail", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusNotFound {
+			t.Fatalf("status = %d, want 404; body: %s", rec.Code, rec.Body.String())
+		}
+		if ct := rec.Header().Get("Content-Type"); !strings.Contains(ct, "application/json") {
+			t.Errorf("Content-Type = %q, want application/json", ct)
+		}
+		if !strings.Contains(rec.Body.String(), "not_found") {
+			t.Errorf("expected not_found in JSON body; got %s", rec.Body.String())
+		}
+	})
+
+	t.Run("reflects stats counters from StatsCollector", func(t *testing.T) {
+		bus := proxy.NewEventBus(10)
+		stats := proxy.NewStatsCollector(bus)
+		// Rebuild handlers using the bus the collector subscribes to. The
+		// shared bus pattern is established in Phase 1; here we just need the
+		// collector's snapshot to surface non-zero counters in the fragment.
+		h := &eventstream.Handlers{
+			Bus:           bus,
+			LogSink:       proxy.NewLogSink(1),
+			Cfg:           cfg,
+			LastResponder: proxy.NewLastResponder(),
+			Stats:         stats,
+		}
+		mux := SetupMux(h, slog.New(slog.NewTextHandler(sink{}, nil)))
+
+		// Inject three events so counters and timestamps are non-zero. The
+		// collector subscribes asynchronously; a short sleep lets the
+		// internal goroutine drain the buffered channel before we snapshot.
+		now := time.Now()
+		for i := 0; i < 3; i++ {
+			bus.Emit(proxy.RequestEvent{
+				Model:           "haiku",
+				Provider:        "nim",
+				Status:          200,
+				MatchedProvider: "nim",
+				MatchedModel:    "anthropic/claude-3-5-haiku",
+				Timestamp:       now.Add(time.Duration(i) * time.Second),
+				Latency:         42 * time.Millisecond,
+			})
+		}
+		time.Sleep(50 * time.Millisecond)
+
+		req := httptest.NewRequest(http.MethodGet, "/v1/mappings/haiku/detail", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d; body: %s", rec.Code, rec.Body.String())
+		}
+		body := rec.Body.String()
+
+		if !strings.Contains(body, ">3<") {
+			t.Errorf("expected RequestCount=3 in drawer stats; body: %s", body)
+		}
+		if strings.Contains(body, "No traffic") {
+			t.Errorf("expected last activity to reflect recent traffic; body: %s", body)
+		}
+	})
 }

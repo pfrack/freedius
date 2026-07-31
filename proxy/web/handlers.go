@@ -273,6 +273,11 @@ func SetupMux(h *eventstream.Handlers, logger *slog.Logger) *http.ServeMux {
 		writeJSON(w, http.StatusOK, snap)
 	})
 
+	// Drawer endpoint: HTMX-loaded fragment for the mapping details drawer.
+	mux.HandleFunc("GET /v1/mappings/{name}/detail", func(w http.ResponseWriter, r *http.Request) {
+		handleMappingDetail(w, r, h, logger)
+	})
+
 	// Models endpoint: explicit refresh only.
 	mux.HandleFunc("POST /v1/providers/{name}/models/refresh", func(w http.ResponseWriter, r *http.Request) {
 		handleRefreshModels(w, r, h, logger)
@@ -617,6 +622,92 @@ func renderMappingsTable(w http.ResponseWriter, r *http.Request, h *eventstream.
 	})
 	if err != nil {
 		writeJSONError(w, http.StatusInternalServerError, "template_failed", err.Error())
+	}
+}
+
+// handleMappingDetail renders the mapping details drawer fragment for a
+// named mapping. HTMX-only endpoint — never returns a full page. Returns
+// 404 JSON when the mapping is unknown so callers (the dashboard row
+// handler) get a structured error rather than an empty HTML shell.
+func handleMappingDetail(w http.ResponseWriter, r *http.Request, h *eventstream.Handlers, logger *slog.Logger) {
+	name := r.PathValue("name")
+	if name == "" {
+		writeJSONError(w, http.StatusBadRequest, "bad_path", "missing mapping name")
+		return
+	}
+
+	mappings := h.Cfg.MappingsSnapshot()
+	m, ok := mappings[name]
+	if !ok {
+		writeJSONError(w, http.StatusNotFound, "not_found", "mapping not found")
+		return
+	}
+
+	providers := h.Cfg.ProvidersSnapshot()
+	proto := ""
+	baseURL := ""
+	envPresent := false
+	if p, ok := providers[m.ProviderName]; ok {
+		proto = p.Protocol
+		baseURL = p.DefaultBaseURL
+		if p.DefaultAPIKeyEnv != "" {
+			envPresent = os.Getenv(p.DefaultAPIKeyEnv) != ""
+		}
+	}
+
+	var fallbacks []drawerFallback
+	for _, fb := range m.Fallback {
+		fallbacks = append(fallbacks, drawerFallback{
+			Model:        fb.ModelString,
+			ProviderName: fb.ProviderName,
+		})
+	}
+
+	var ms proxy.MappingStats
+	if h.Stats != nil {
+		ms = h.Stats.MappingSnapshot()[name]
+	}
+	lastActivity := "No traffic"
+	if !ms.LastActivity.IsZero() {
+		lastActivity = formatTimeAgo(ms.LastActivity)
+	}
+	statusLabel := "Unknown"
+	switch {
+	case !envPresent:
+		statusLabel = "Key Missing"
+	case ms.RequestCount == 0:
+		// keep "Unknown"
+	case ms.RecentErrorRate > 0.5:
+		statusLabel = "Degraded"
+	default:
+		statusLabel = "Healthy"
+	}
+
+	data := drawerData{
+		Name:           name,
+		StatusLabel:    statusLabel,
+		Model:          m.ModelString,
+		ProviderName:   m.ProviderName,
+		Protocol:       proto,
+		BaseURL:        baseURL,
+		Fallbacks:      fallbacks,
+		RequestCount:   ms.RequestCount,
+		ErrorCount:     ms.ErrorCount,
+		FallbackEvents: ms.FallbackCount,
+		LastActivity:   lastActivity,
+		AddedAt:        m.AddedAt,
+		EnvPresent:     envPresent,
+	}
+
+	tmpl, err := loadFragmentTemplate("mapping-drawer.html")
+	if err != nil {
+		logger.Error("load drawer template", "err", err)
+		writeJSONError(w, http.StatusInternalServerError, "template_failed", err.Error())
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := tmpl.ExecuteTemplate(w, "mapping-drawer", data); err != nil {
+		logger.Error("execute drawer template", "err", err)
 	}
 }
 

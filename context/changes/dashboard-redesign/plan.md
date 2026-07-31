@@ -735,11 +735,11 @@ Add 3-5 targeted Playwright browser tests covering the JS/SSE/HTMX interactions 
 
 #### Automated
 
-- [x] 2.1 Build succeeds: `mage build`
-- [x] 2.2 Handler tests pass: `go test ./proxy/web/ -run TestDashboard`
-- [x] 2.3 Attention rules tests pass: `go test ./proxy/web/ -run TestComputeAlerts`
-- [x] 2.4 Lint passes: `mage lint`
-- [x] 2.5 Full test suite: `mage test`
+- [x] 2.1 Build succeeds: `mage build` — d486689
+- [x] 2.2 Handler tests pass: `go test ./proxy/web/ -run TestDashboard` — d486689
+- [x] 2.3 Attention rules tests pass: `go test ./proxy/web/ -run TestComputeAlerts` — d486689
+- [x] 2.4 Lint passes: `mage lint` — d486689
+- [x] 2.5 Full test suite: `mage test` — d486689
 
 #### Manual
 
@@ -752,10 +752,10 @@ Add 3-5 targeted Playwright browser tests covering the JS/SSE/HTMX interactions 
 
 #### Automated
 
-- [ ] 3.1 Build succeeds: `mage build`
-- [ ] 3.2 Drawer handler test passes: `go test ./proxy/web/ -run TestMappingDrawer`
-- [ ] 3.3 Lint passes: `mage lint`
-- [ ] 3.4 Full test suite: `mage test`
+- [x] 3.1 Build succeeds: `mage build`
+- [x] 3.2 Drawer handler test passes: `go test ./proxy/web/ -run TestMappingDrawer`
+- [x] 3.3 Lint passes: `mage lint`
+- [x] 3.4 Full test suite: `mage test`
 
 #### Manual
 

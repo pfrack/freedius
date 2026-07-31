@@ -145,6 +145,34 @@ type mappingRow struct {
 	Family       string
 }
 
+// drawerData is the data for the mapping details drawer fragment, loaded
+// via HTMX when a routing table row is clicked. Read-only view of one
+// mapping enriched with live StatsCollector counters.
+type drawerData struct {
+	Name           string
+	StatusLabel    string
+	Model          string
+	ProviderName   string
+	Protocol       string
+	BaseURL        string
+	Fallbacks      []drawerFallback
+	RequestCount   int64
+	ErrorCount     int64
+	FallbackEvents int64
+	LastActivity   string
+	AddedAt        string
+	EnvPresent     bool
+}
+
+// drawerFallback is a single fallback entry rendered inside the drawer.
+// Kept distinct from fallbackEntry so the drawer's simpler read-only
+// shape (Model + ProviderName only) isn't dragging in BaseURL/Protocol
+// fields the drawer doesn't use.
+type drawerFallback struct {
+	Model        string
+	ProviderName string
+}
+
 // mappingsData is the data for the mappings page.
 type mappingsData struct {
 	pageData
