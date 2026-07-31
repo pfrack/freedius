@@ -566,9 +566,9 @@ None. The plan does not modify the proxy, the dispatcher, or any Go code that af
 
 #### Automated
 
-- [ ] 1.1 Add MIT LICENSE file at repo root
-- [ ] 1.2 `mage lint` passes with LICENSE present
-- [ ] 1.3 `mage ci` passes with LICENSE present
+- [x] 1.1 Add MIT LICENSE file at repo root — f932f22
+- [x] 1.2 `mage lint` passes with LICENSE present — f932f22
+- [x] 1.3 `mage ci` passes with LICENSE present — f932f22
 
 #### Manual
 

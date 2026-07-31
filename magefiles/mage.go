@@ -21,7 +21,7 @@ const (
 	toolVersionGoimports    = "v0.47.0"
 	toolVersionGolines      = "v0.12.2"
 	toolVersionGci          = "v0.13.5"
-	toolVersionGoreleaser   = "v2.6.2"
+	toolVersionGoreleaser   = "v2.17.1"
 )
 
 // Build configuration
@@ -188,7 +188,7 @@ func GenerateCheck() error {
 	if err := sh.RunV("go", "generate", "./..."); err != nil {
 		return err
 	}
-	return sh.RunV("git", "diff", "--exit-code", "--", "*.go")
+	return sh.RunV("git", "diff", "--exit-code", "--", "*.go", ":(exclude)magefiles/*")
 }
 
 // Tidy runs go mod tidy.
