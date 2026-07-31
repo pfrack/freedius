@@ -9,8 +9,10 @@
 # to ~/.config/freedius/config.yaml, and uncomment + edit the sections you
 # need. Resolution order is documented in the README under "Configuration".
 #
-# DO NOT copy this file as-is to your config path — the comments and
-# placeholder values are not valid freedius input.
+# DO NOT copy this file as-is to your config path — it is entirely
+# comments. freedius will load it, find no providers or mappings, and
+# reject it at startup with "config: input contains no model mappings".
+# Uncomment and fill in the fields you need first.
 
 # Schema: each entry under `providers:` is a named provider with one of three
 # behavior classes (openai | anthropic | mix). All fields shown are optional

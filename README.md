@@ -158,6 +158,7 @@ that file and running `go generate ./...`.
 | OpenCode Zen | mix | `OPENCODE_API_KEY` |
 | OpenCode Go | mix | `OPENCODE_API_KEY` |
 | OpenAI (BYO endpoint) | openai | _(set in your config)_ |
+| mix (passthrough) | mix | _(set in your config)_ |
 | custom | mix | _(set in your config)_ |
 
 Behavior classes:
@@ -203,8 +204,8 @@ bearer authentication on all dashboard routes (useful for LAN/Docker exposure).
 | `FREEDIUS_VERBOSE_ERRORS` | Set to `1` for verbose errors |
 | `FREEDIUS_STREAM_TIMEOUT` | Override `--stream-timeout` |
 | `FREEDIUS_FALLBACK_TIMEOUT_MULTIPLIER` | Scales the total fallback-chain timeout as a multiple of the per-attempt stream timeout (default `2`) |
-| `FREEDIUS_UI_PORT` | Override `-ui-port` |
-| `FREEDIUS_UI_HOST` | Override `-ui-host` |
+| `FREEDIUS_UI_PORT` | Override `--ui-port` |
+| `FREEDIUS_UI_HOST` | Override `--ui-host` |
 | `FREEDIUS_UI_TOKEN` | Bearer token for dashboard auth (opt-in) |
 | `NVIDIA_NIM_API_KEY` | API key for NVIDIA NIM |
 | `ANTHROPIC_API_KEY` | API key for Anthropic |
@@ -218,6 +219,9 @@ bearer authentication on all dashboard routes (useful for LAN/Docker exposure).
 | `OPENCODE_API_KEY` | API key for OpenCode Go/Zen |
 
 ## Development
+
+For the full contributor guide — commit conventions, hook details, and
+release process — see [AGENTS.md](AGENTS.md).
 
 ```bash
 mage test      # tests with race detection and coverage
