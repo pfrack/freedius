@@ -767,10 +767,10 @@ Add 3-5 targeted Playwright browser tests covering the JS/SSE/HTMX interactions 
 
 #### Automated
 
-- [x] 4.1 Build succeeds: `mage build`
-- [x] 4.2 Handler tests pass: `go test ./proxy/web/ -run TestMappings`
-- [x] 4.3 Lint passes: `mage lint`
-- [x] 4.4 Full test suite: `mage test`
+- [x] 4.1 Build succeeds: `mage build` — e81d9c9
+- [x] 4.2 Handler tests pass: `go test ./proxy/web/ -run TestMappings` — e81d9c9
+- [x] 4.3 Lint passes: `mage lint` — e81d9c9
+- [x] 4.4 Full test suite: `mage test` — e81d9c9
 
 #### Manual
 
@@ -812,8 +812,8 @@ Add 3-5 targeted Playwright browser tests covering the JS/SSE/HTMX interactions 
 
 #### Automated
 
-- [ ] 7.1 Build succeeds: `mage build`
-- [ ] 7.2 Lint passes: `mage lint`
+- [x] 7.1 Build succeeds: `mage build`
+- [x] 7.2 Lint passes: `mage lint`
 
 #### Manual
 

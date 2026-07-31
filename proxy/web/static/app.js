@@ -80,13 +80,89 @@ document.body.addEventListener('htmx:afterSwap', function(evt) {
   }
 });
 
-// Escape closes the drawer when it's open. Document-level so the key
-// works regardless of which element inside the drawer has focus.
+// Escape closes the drawer when it's open. Tab while the drawer is open
+// is trapped inside the drawer so keyboard users can't accidentally focus
+// the page underneath. Both handlers are document-level so they work
+// regardless of which element currently has focus.
 document.addEventListener('keydown', function(evt) {
-  if (evt.key !== 'Escape') return;
   var drawer = document.getElementById('mapping-drawer');
-  if (drawer && drawer.classList.contains('drawer--open')) {
+  var isOpen = drawer && drawer.classList.contains('drawer--open');
+
+  if (evt.key === 'Escape' && isOpen) {
     closeDrawer();
+    return;
+  }
+  if (evt.key === 'Tab' && isOpen) {
+    trapDrawerTab(evt, drawer);
+  }
+});
+
+// trapDrawerTab keeps keyboard focus inside the drawer. It loops Tab from
+// the last focusable back to the first, and Shift+Tab from the first back
+// to the last. No effect if the drawer has no focusable elements.
+function trapDrawerTab(evt, drawer) {
+  var focusables = drawer.querySelectorAll(
+    'a[href], button:not([disabled]), input:not([disabled]), ' +
+    'select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+  );
+  if (!focusables.length) return;
+  var first = focusables[0];
+  var last = focusables[focusables.length - 1];
+  var active = document.activeElement;
+  if (evt.shiftKey && active === first) {
+    evt.preventDefault();
+    last.focus();
+  } else if (!evt.shiftKey && active === last) {
+    evt.preventDefault();
+    first.focus();
+  }
+}
+
+// Table row keyboard navigation: arrow keys move focus between rows in
+// any table with role="grid" (the routing table). Enter/Space activates
+// the row's primary action (clicks the row, which is what HTMX does for
+// hx-get rows).
+document.addEventListener('keydown', function(evt) {
+  var grid = evt.target && evt.target.closest && evt.target.closest('table[role="grid"]');
+  if (!grid) return;
+  if (evt.key !== 'ArrowDown' && evt.key !== 'ArrowUp' &&
+      evt.key !== 'Enter' && evt.key !== ' ') {
+    return;
+  }
+  var rows = Array.from(grid.querySelectorAll('tbody tr'));
+  if (!rows.length) return;
+  var idx = rows.indexOf(evt.target.closest('tr'));
+  if (evt.key === 'ArrowDown') {
+    evt.preventDefault();
+    var next = rows[Math.min(idx + 1, rows.length - 1)];
+    if (next) next.focus();
+  } else if (evt.key === 'ArrowUp') {
+    evt.preventDefault();
+    var prev = rows[Math.max(idx - 1, 0)];
+    if (prev) prev.focus();
+  } else if (evt.key === 'Enter' || evt.key === ' ') {
+    // Avoid scrolling on Space; let the row's HTMX handler do its thing.
+    evt.preventDefault();
+    evt.target.click();
+  }
+});
+
+// Click-to-copy for .model-id elements. The full ID lives in the title
+// attribute (so screen readers and hover tooltips still see it); click
+// copies the title to the clipboard and flashes a "Copied!" toast.
+document.addEventListener('click', function(evt) {
+  var el = evt.target && evt.target.closest && evt.target.closest('.model-id');
+  if (!el) return;
+  var text = el.getAttribute('title') || el.textContent;
+  if (!text) return;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(function() {
+      el.classList.add('model-id--copied');
+      showToast('Copied: ' + text, 'success');
+      setTimeout(function() { el.classList.remove('model-id--copied'); }, 1200);
+    }, function() {
+      showToast('Copy failed', 'error');
+    });
   }
 });
 
