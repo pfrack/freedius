@@ -1,9 +1,10 @@
 ---
 id: solo-dev-distribution
 title: Solo-dev distribution — brew/npx/goreleaser packaging
-status: impl_reviewed
+status: archived
 created: 2026-07-22
-updated: 2026-07-22T14:00:00+02:00
+updated: 2026-07-31
+archived_at: 2026-07-31T18:37:27Z
 plan: context/changes/solo-dev-distribution/plan.md
 roadmap_id: null
 prd_refs: []
