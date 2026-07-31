@@ -62,9 +62,11 @@ curl -X POST http://127.0.0.1:8082/v1/messages \
 On first run, freedius loads an embedded default config (see
 `cmd/freedius/templates/starter.yaml`) so it serves requests immediately.
 The binary prints a shell snippet to stderr (the `env-inject` hint) —
-copy those lines to point Claude Code or OpenCode at freedius. The hint
-includes `ANTHROPIC_BASE_URL`, `ANTHROPIC_API_KEY`, and a few optional
-Claude-Code-specific variables. Silence it with `--no-export-hint`.
+copy those lines to point Claude Code at freedius. The hint is
+Anthropic-shaped (`ANTHROPIC_BASE_URL`, `ANTHROPIC_API_KEY`, and a few
+Claude-Code-specific variables); OpenCode can consume it as well when it
+honors Anthropic-compatible env-var overrides. Silence it with
+`--no-export-hint`.
 
 freedius accepts Anthropic-format requests on `/v1/messages` and translates to
 the upstream provider's protocol (the `MixAdapter` detects from the base URL
