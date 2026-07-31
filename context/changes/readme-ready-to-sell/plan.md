@@ -604,14 +604,14 @@ None. The plan does not modify the proxy, the dispatcher, or any Go code that af
 
 #### Automated
 
-- [x] 3.1 README opening is 1-2 paragraphs with a value proposition (no "maintainer" word)
-- [x] 3.2 Quickstart is the three-step path (install / set one env var / start) plus optional verify curl
-- [x] 3.3 Section order matches peer-tool convention (tagline → Installation → Quickstart → Configuration → Web Dashboard → CLI → Development → Reference)
-- [x] 3.4 "Build from source" subsection added to Development section
-- [x] 3.5 `mage lint` passes
-- [x] 3.6 `mage test` passes
-- [x] 3.7 `mage ci` passes
-- [x] 3.8 Section anchor URLs resolve correctly (no slug changes)
+- [x] 3.1 README opening is 1-2 paragraphs with a value proposition (no "maintainer" word) — e4921a4
+- [x] 3.2 Quickstart is the three-step path (install / set one env var / start) plus optional verify curl — e4921a4
+- [x] 3.3 Section order matches peer-tool convention (tagline → Installation → Quickstart → Configuration → Web Dashboard → CLI → Development → Reference) — e4921a4
+- [x] 3.4 "Build from source" subsection added to Development section — e4921a4
+- [x] 3.5 `mage lint` passes — e4921a4
+- [x] 3.6 `mage test` passes — e4921a4
+- [x] 3.7 `mage ci` passes — e4921a4
+- [x] 3.8 Section anchor URLs resolve correctly (no slug changes) — e4921a4
 
 #### Manual
 
@@ -622,13 +622,13 @@ None. The plan does not modify the proxy, the dispatcher, or any Go code that af
 
 #### Automated
 
-- [ ] 4.1 Docker subsection exists in the README
-- [ ] 4.2 README Development section links to `AGENTS.md`
-- [ ] 4.3 "Contributing" subsection exists
-- [ ] 4.4 Hooks reference exists in the Development section
-- [ ] 4.5 `mage lint` passes
-- [ ] 4.6 `mage test` passes
-- [ ] 4.7 `mage ci` passes
+- [x] 4.1 Docker subsection exists in the README
+- [x] 4.2 README Development section links to `AGENTS.md`
+- [x] 4.3 "Contributing" subsection exists
+- [x] 4.4 Hooks reference exists in the Development section
+- [x] 4.5 `mage lint` passes
+- [x] 4.6 `mage test` passes
+- [x] 4.7 `mage ci` passes
 
 #### Manual
 

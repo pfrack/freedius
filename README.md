@@ -21,6 +21,22 @@ go install github.com/pfrack/freedius/cmd/freedius@v0.1.0
 
 `freedius --version` prints the installed tag.
 
+## Docker
+
+`Dockerfile` (distroless static, `nonroot` user, ports 8082/8083) and
+`docker-compose.yml` are real artifacts for local container runs.
+`magefiles/mage.go` exposes `mage dockerBuild`, `mage dockerRun`, and
+`mage dockerPush` for the workflow.
+
+```bash
+mage dockerBuild && mage dockerRun
+```
+
+The container expects `FREEDIUS_HOST=0.0.0.0` and `FREEDIUS_UI_HOST=0.0.0.0`
+to bind on the Docker network; `docker-compose.yml` already sets them.
+No image is published to a registry yet — that pipeline is a separate
+future change.
+
 ## Quickstart
 
 ```bash
@@ -180,8 +196,21 @@ mage install       # produce $GOPATH/bin/freedius
 mage installHooks  # install pre-commit / pre-push hooks
 ```
 
+`scripts/pre-commit` runs `mage lint` + `mage generateCheck` before
+every commit. `scripts/pre-push` runs `go test -race` on the packages
+you changed versus `origin/main`. To skip the push hook in an
+emergency, use `git push --no-verify`.
+
 For the full contributor guide — commit conventions, hook details, and
 release process — see [AGENTS.md](AGENTS.md).
+
+## Contributing
+
+Bug reports, pull requests, and feature proposals are welcome. The
+build, test, and commit conventions live in [AGENTS.md](AGENTS.md);
+this README keeps only the user-facing surface. `CONTRIBUTING.md`,
+`CHANGELOG.md`, and `SECURITY.md` are not yet present and may land in
+future changes.
 
 ## Reference
 
