@@ -1,5 +1,9 @@
 # freedius
 
+[![CI](https://github.com/pfrack/freedius/actions/workflows/ci.yml/badge.svg)](https://github.com/pfrack/freedius/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/pfrack/freedius)](https://github.com/pfrack/freedius/releases/latest)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 A local HTTP proxy that routes LLM API requests from AI coding agents
 (Claude Code, OpenCode) to upstream providers — with fallback chains,
 model-name mapping, and a live web dashboard.
@@ -8,6 +12,13 @@ Built for solo developers who want cheaper inference than Anthropic's
 direct pricing without spinning up a production gateway. One config
 file, one local process, no account to sign up for. For the full
 contributor guide, see [AGENTS.md](AGENTS.md).
+
+> **Why freedius?** Your coding agent already speaks the Anthropic API.
+> freedius sits in front of any LLM upstream — free tiers (NVIDIA NIM),
+> cheaper providers (DeepSeek, Groq), or local models (Ollama, LM
+> Studio) — and translates protocols as needed. Configure a fallback
+> chain once and your dev loop survives provider outages, rate limits,
+> or credit exhaustion without editing the config again.
 
 ## Installation
 
@@ -124,6 +135,35 @@ mappings:
     model_string: nvidia/nemotron-3-ultra-550b-a55b
     added_at: 2026-07-06
 ```
+
+## Supported Providers
+
+The full provider list lives in
+[`providers.yaml`](providers.yaml) — add a new provider by editing
+that file and running `go generate ./...`.
+
+| Provider | Behavior | API key env var |
+|----------|----------|------------------|
+| NVIDIA NIM | openai | `NVIDIA_NIM_API_KEY` _(free tier)_ |
+| Groq | openai | `GROQ_API_KEY` _(free tier)_ |
+| Google Gemini | openai | `GEMINI_API_KEY` _(free tier)_ |
+| Mistral | openai | `MISTRAL_API_KEY` _(free tier)_ |
+| DeepSeek | openai | `DEEPSEEK_API_KEY` |
+| Together | openai | `TOGETHER_API_KEY` |
+| Fireworks | openai | `FIREWORKS_API_KEY` |
+| Cohere | openai | `COHERE_API_KEY` |
+| Ollama (local) | openai | _(no key — local server)_ |
+| LM Studio (local) | openai | _(no key — local server)_ |
+| Anthropic | anthropic | `ANTHROPIC_API_KEY` |
+| OpenCode Zen | mix | `OPENCODE_API_KEY` |
+| OpenCode Go | mix | `OPENCODE_API_KEY` |
+| OpenAI (BYO endpoint) | openai | _(set in your config)_ |
+| custom | mix | _(set in your config)_ |
+
+Behavior classes:
+- `openai` — standard OpenAI-format upstreams.
+- `anthropic` — Anthropic-format upstreams.
+- `mix` — protocol auto-detected from the `base_url` suffix (`/v1/messages` → Anthropic, `/v1/chat/completions` → OpenAI).
 
 ## Web Dashboard
 

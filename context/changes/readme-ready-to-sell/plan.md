@@ -622,13 +622,13 @@ None. The plan does not modify the proxy, the dispatcher, or any Go code that af
 
 #### Automated
 
-- [x] 4.1 Docker subsection exists in the README
-- [x] 4.2 README Development section links to `AGENTS.md`
-- [x] 4.3 "Contributing" subsection exists
-- [x] 4.4 Hooks reference exists in the Development section
-- [x] 4.5 `mage lint` passes
-- [x] 4.6 `mage test` passes
-- [x] 4.7 `mage ci` passes
+- [x] 4.1 Docker subsection exists in the README — fb33ba7
+- [x] 4.2 README Development section links to `AGENTS.md` — fb33ba7
+- [x] 4.3 "Contributing" subsection exists — fb33ba7
+- [x] 4.4 Hooks reference exists in the Development section — fb33ba7
+- [x] 4.5 `mage lint` passes — fb33ba7
+- [x] 4.6 `mage test` passes — fb33ba7
+- [x] 4.7 `mage ci` passes — fb33ba7
 
 #### Manual
 
@@ -640,12 +640,12 @@ None. The plan does not modify the proxy, the dispatcher, or any Go code that af
 
 #### Automated
 
-- [ ] 5.1 Three badges (CI, release, license) render in the README opening
-- [ ] 5.2 "Why freedius?" callout exists between opening and Installation
-- [ ] 5.3 Supported-providers list exists and matches `providers.yaml`
-- [ ] 5.4 `mage lint` passes
-- [ ] 5.5 `mage test` passes
-- [ ] 5.6 `mage ci` passes
+- [x] 5.1 Three badges (CI, release, license) render in the README opening
+- [x] 5.2 "Why freedius?" callout exists between opening and Installation
+- [x] 5.3 Supported-providers list exists and matches `providers.yaml`
+- [x] 5.4 `mage lint` passes
+- [x] 5.5 `mage test` passes
+- [x] 5.6 `mage ci` passes
 
 #### Manual
 
