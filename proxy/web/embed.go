@@ -88,13 +88,29 @@ func StaticFS() fs.FS {
 }
 
 // serveStatic serves files from the embedded static directory with caching.
-func serveStatic(w http.ResponseWriter, r *http.Request) {
+func serveStatic(w http.ResponseWriter, r *http.Request, logger *slog.Logger) {
 	w.Header().Set("Cache-Control", "public, max-age=300")
-	http.StripPrefix("/static/", http.FileServerFS(StaticFS())).ServeHTTP(w, r)
+	wrapped := &notFoundInterceptWriter{ResponseWriter: w, logger: logger}
+	http.StripPrefix("/static/", http.FileServerFS(StaticFS())).ServeHTTP(wrapped, r)
 }
 
 // renderPage loads the layout + a page template and executes the layout.
 func renderPage(w http.ResponseWriter, pageFile string, data any, logger *slog.Logger, extraFiles ...string) {
+	renderPageStatus(w, http.StatusOK, pageFile, data, logger, extraFiles...)
+}
+
+// renderPageStatus loads the layout + a page template and writes the rendered
+// page with an explicit HTTP status. Use this when the rendered page must
+// emit a non-200 status (e.g. 404) — the status must be written before any
+// body bytes, so callers cannot simply set it after rendering.
+func renderPageStatus(
+	w http.ResponseWriter,
+	status int,
+	pageFile string,
+	data any,
+	logger *slog.Logger,
+	extraFiles ...string,
+) {
 	tmpl, err := loadPageTemplate(pageFile, extraFiles...)
 	if err != nil {
 		logger.Error("template load failed", "err", err)
@@ -102,7 +118,42 @@ func renderPage(w http.ResponseWriter, pageFile string, data any, logger *slog.L
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(status)
 	if err := tmpl.ExecuteTemplate(w, "layout", data); err != nil {
 		logger.Error("template execute failed", "err", err)
 	}
+}
+
+// renderNotFound writes the branded 404 page. It clears any Cache-Control
+// headers set upstream (e.g. by serveStatic) so error pages are not cached
+// for 5 minutes, then delegates to renderPageStatus with 404.
+func renderNotFound(w http.ResponseWriter, logger *slog.Logger) {
+	w.Header().Del("Cache-Control")
+	renderPageStatus(w, http.StatusNotFound, "404.html", pageData{Active: ""}, logger)
+}
+
+// notFoundInterceptWriter wraps an http.ResponseWriter to intercept the
+// http.FileServer's plain-text 404 response and re-render it as the branded
+// HTML 404 page. Any other status (200, 304, 206, …) passes through
+// untouched so conditional requests and range responses are unaffected.
+type notFoundInterceptWriter struct {
+	http.ResponseWriter
+	logger      *slog.Logger
+	intercepted bool
+}
+
+func (w *notFoundInterceptWriter) WriteHeader(code int) {
+	if code == http.StatusNotFound {
+		w.intercepted = true
+		renderNotFound(w.ResponseWriter, w.logger)
+		return
+	}
+	w.ResponseWriter.WriteHeader(code)
+}
+
+func (w *notFoundInterceptWriter) Write(b []byte) (int, error) {
+	if w.intercepted {
+		return len(b), nil
+	}
+	return w.ResponseWriter.Write(b)
 }

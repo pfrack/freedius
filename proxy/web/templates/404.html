@@ -1,0 +1,20 @@
+{{define "404"}}{{template "layout" .}}{{end}}
+{{define "title"}}Page not found{{end}}
+{{define "content"}}
+  <section class="not-found">
+    <div class="not-found__code" aria-hidden="true">404</div>
+    <h1>Page not found</h1>
+    <p>The page you tried to open isn't here. It may have been moved, renamed, or never existed.</p>
+    <div class="not-found__actions">
+      <a href="/" class="btn btn--primary">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+        Back to dashboard
+      </a>
+    </div>
+    <nav class="not-found__links" aria-label="Quick links">
+      <a href="/mappings">Mappings</a>
+      <a href="/providers">Providers</a>
+      <a href="/logs">Logs</a>
+    </nav>
+  </section>
+{{end}}
