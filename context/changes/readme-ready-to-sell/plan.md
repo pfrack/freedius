@@ -640,12 +640,12 @@ None. The plan does not modify the proxy, the dispatcher, or any Go code that af
 
 #### Automated
 
-- [x] 5.1 Three badges (CI, release, license) render in the README opening
-- [x] 5.2 "Why freedius?" callout exists between opening and Installation
-- [x] 5.3 Supported-providers list exists and matches `providers.yaml`
-- [x] 5.4 `mage lint` passes
-- [x] 5.5 `mage test` passes
-- [x] 5.6 `mage ci` passes
+- [x] 5.1 Three badges (CI, release, license) render in the README opening — fadab5c
+- [x] 5.2 "Why freedius?" callout exists between opening and Installation — fadab5c
+- [x] 5.3 Supported-providers list exists and matches `providers.yaml` — fadab5c
+- [x] 5.4 `mage lint` passes — fadab5c
+- [x] 5.5 `mage test` passes — fadab5c
+- [x] 5.6 `mage ci` passes — fadab5c
 
 #### Manual
 
