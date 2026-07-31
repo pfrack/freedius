@@ -1,68 +1,71 @@
-# freedius config — 100% free tier, no credit card required
-# View and edit at http://localhost:8083/providers
+# config.example.yaml — schema reference for freedius user configs.
 #
-# Free providers (sign up and export one or more keys):
-#   export NVIDIA_NIM_API_KEY=nvapi-...   # build.nvidia.com
-#   export GROQ_API_KEY=gsk_...           # console.groq.com
-#   export GEMINI_API_KEY=AI...           # aistudio.google.com
-#   export MISTRAL_API_KEY=...            # console.mistral.ai
+# This file is documentation only. freedius does NOT load it. The runnable
+# example is the embedded starter at cmd/freedius/templates/starter.yaml
+# (loaded automatically when no config file is present), which is what a
+# fresh install serves on first run.
 #
-# Supported providers are defined in providers.yaml
+# To customize: copy this file to freedius.yaml in the working directory, or
+# to ~/.config/freedius/config.yaml, and uncomment + edit the sections you
+# need. Resolution order is documented in the README under "Configuration".
+#
+# DO NOT copy this file as-is to your config path — it is entirely
+# comments. freedius will load it, find no providers or mappings, and
+# reject it at startup with "config: input contains no model mappings".
+# Uncomment and fill in the fields you need first.
 
-providers:
-  nim:     { behavior: openai, default_api_key_env: NVIDIA_NIM_API_KEY }
-  groq:    { behavior: openai, default_api_key_env: GROQ_API_KEY }
-  google:  { behavior: openai, default_api_key_env: GEMINI_API_KEY }
-  mistral: { behavior: openai, default_api_key_env: MISTRAL_API_KEY }
+# Schema: each entry under `providers:` is a named provider with one of three
+# behavior classes (openai | anthropic | mix). All fields shown are optional
+# except behavior; defaults are applied from providers.yaml at startup.
+#
+# providers:
+#   # openai: standard OpenAI-format upstreams (NIM, Groq, Google, Mistral, ...)
+#   my_openai:
+#     behavior: openai
+#     default_base_url: https://api.example.com/v1/chat/completions
+#     default_api_key_env: MY_PROVIDER_API_KEY
+#     # openai-specific tweaks (optional):
+#     # openai:
+#     #   no_stream_usage: true
+#     #   pre_send_hook: myHookFunc
+#
+#   # anthropic: Anthropic-format upstreams
+#   my_anthropic:
+#     behavior: anthropic
+#     default_base_url: https://api.example.com/v1/messages
+#     default_api_key_env: MY_PROVIDER_API_KEY
+#
+#   # mix: freedius auto-detects protocol from the base_url suffix
+#   # (/v1/messages → anthropic, /v1/chat/completions → openai)
+#   my_mix:
+#     behavior: mix
+#     default_base_url: https://api.example.com/v1/chat/completions
+#     default_api_key_env: MY_PROVIDER_API_KEY
 
-mappings:
-  opus:
-    provider_name: nim
-    model_string: nvidia/nemotron-3-ultra-550b-a55b
-    fallback:
-      - provider_name: nim
-        model_string: deepseek-ai/deepseek-v4-pro
-      - provider_name: google
-        model_string: gemini-2.5-pro
-      - provider_name: groq
-        model_string: openai/gpt-oss-120b
-
-  sonnet:
-    provider_name: nim
-    model_string: deepseek-ai/deepseek-v4-pro
-    fallback:
-      - provider_name: groq
-        model_string: openai/gpt-oss-120b
-      - provider_name: google
-        model_string: gemini-2.5-flash
-      - provider_name: mistral
-        model_string: mistral-large-latest
-
-  haiku:
-    provider_name: groq
-    model_string: llama-3.3-70b-versatile
-    fallback:
-      - provider_name: nim
-        model_string: deepseek-ai/deepseek-v4-flash
-      - provider_name: google
-        model_string: gemini-2.5-flash
-      - provider_name: mistral
-        model_string: mistral-small-latest
-
-  default:
-    provider_name: nim
-    model_string: deepseek-ai/deepseek-v4-flash
-    fallback:
-      - provider_name: groq
-        model_string: llama-3.3-70b-versatile
-      - provider_name: google
-        model_string: gemini-2.5-flash
-
-  auto:
-    provider_name: groq
-    model_string: llama-3.3-70b-versatile
-    fallback:
-      - provider_name: nim
-        model_string: deepseek-ai/deepseek-v4-flash
-      - provider_name: google
-        model_string: gemini-2.5-flash
+# Schema: each entry under `mappings:` is a name → provider+model binding.
+# The `model` field on incoming requests is matched against mapping keys
+# (exact match, then family prefix match, then the `default:` mapping).
+# Each mapping may have an ordered `fallback:` list of provider+model
+# pairs tried when the primary fails for reasons other than a missing
+# key.
+#
+# mappings:
+#   opus:
+#     provider_name: my_openai
+#     model_string: my-provider-flagship-model
+#     fallback:
+#       - provider_name: my_anthropic
+#         model_string: my-anthropic-flagship-model
+#
+#   default:
+#     provider_name: my_openai
+#     model_string: my-provider-default-model
+#
+# # `added_at` is a free-form string shown in the dashboard's edit dialog.
+# # It is NOT currently rendered on the mapping card itself; that rendering
+# # is tracked in the `mapping-first-ui-refactor` change.
+# # mappings:
+# #   opus:
+# #     provider_name: my_openai
+# #     model_string: my-provider-flagship-model
+# #     added_at: 2026-07-06

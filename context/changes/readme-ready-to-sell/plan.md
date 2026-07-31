@@ -566,30 +566,33 @@ None. The plan does not modify the proxy, the dispatcher, or any Go code that af
 
 #### Automated
 
-- [x] 1.1 Add MIT LICENSE file at repo root — f932f22
-- [x] 1.2 `mage lint` passes with LICENSE present — f932f22
-- [x] 1.3 `mage ci` passes with LICENSE present — f932f22
+- [x] 1.1 Add MIT LICENSE file at repo root — 926051f
+- [x] 1.2 `mage lint` passes with LICENSE present — 926051f
+- [x] 1.3 `mage ci` passes with LICENSE present — 926051f
+- [x] 1.4 `git tag -a v0.1.0` and `git push origin v0.1.0` — 926051f
+- [x] 1.5 GitHub Releases page shows six archives + checksums + LICENSE per archive — 926051f
+- [x] 1.6 `go install github.com/pfrack/freedius@v0.1.0 && freedius --version` prints `freedius v0.1.0` — 926051f (verified with `.../cmd/freedius@v0.1.0`; the plan's literal text is wrong, the recipe will be fixed in Phase 2 per D5)
 
 #### Manual
 
-- [ ] 1.4 `git tag -a v0.1.0` and `git push origin v0.1.0`
-- [ ] 1.5 GitHub Releases page shows six archives + checksums + LICENSE per archive
-- [ ] 1.6 `go install github.com/pfrack/freedius@v0.1.0 && freedius --version` prints `freedius v0.1.0`
+- [x] 1.4 `git tag -a v0.1.0` and `git push origin v0.1.0`
+- [x] 1.5 GitHub Releases page shows six archives + checksums + LICENSE per archive
+- [x] 1.6 `go install github.com/pfrack/freedius@v0.1.0 && freedius --version` prints `freedius v0.1.0`
 
 ### Phase 2: Defect-Fix Pass on Existing Copy
 
 #### Automated
 
-- [ ] 2.1 README no longer claims `added_at` is rendered (D1)
-- [ ] 2.2 README no longer claims "zero external runtime dependencies" (D2)
-- [ ] 2.3 README no longer claims "Request events" as a dashboard feature (D4)
-- [ ] 2.4 Quickstart no longer references `mage build` (D14, 2.9)
-- [ ] 2.5 CLI flag table uses `--host` / `--port` / `--ui-port` / `--ui-host` (D8)
-- [ ] 2.6 `cmd/freedius/templates/starter.yaml:9-19` comment matches runtime behavior (Round 3 fix)
-- [ ] 2.7 `config.example.yaml` is downgraded to schema reference (no runnable mappings)
-- [ ] 2.8 `mage lint` passes
-- [ ] 2.9 `mage test` passes
-- [ ] 2.10 `mage ci` passes
+- [x] 2.1 README no longer claims `added_at` is rendered (D1) — 096475c
+- [x] 2.2 README no longer claims "zero external runtime dependencies" (D2) — 096475c
+- [x] 2.3 README no longer claims "Request events" as a dashboard feature (D4) — 096475c
+- [x] 2.4 Quickstart no longer references `mage build` (D14, 2.9) — 096475c
+- [x] 2.5 CLI flag table uses `--host` / `--port` / `--ui-port` / `--ui-host` (D8) — 096475c
+- [x] 2.6 `cmd/freedius/templates/starter.yaml:9-19` comment matches runtime behavior (Round 3 fix) — 096475c
+- [x] 2.7 `config.example.yaml` is downgraded to schema reference (no runnable mappings) — 096475c
+- [x] 2.8 `mage lint` passes — 096475c
+- [x] 2.9 `mage test` passes — 096475c
+- [x] 2.10 `mage ci` passes — 096475c
 
 #### Manual
 
@@ -601,14 +604,14 @@ None. The plan does not modify the proxy, the dispatcher, or any Go code that af
 
 #### Automated
 
-- [ ] 3.1 README opening is 1-2 paragraphs with a value proposition (no "maintainer" word)
-- [ ] 3.2 Quickstart is the three-step path (install / set one env var / start) plus optional verify curl
-- [ ] 3.3 Section order matches peer-tool convention (tagline → Installation → Quickstart → Configuration → Web Dashboard → CLI → Development → Reference)
-- [ ] 3.4 "Build from source" subsection added to Development section
-- [ ] 3.5 `mage lint` passes
-- [ ] 3.6 `mage test` passes
-- [ ] 3.7 `mage ci` passes
-- [ ] 3.8 Section anchor URLs resolve correctly (no slug changes)
+- [x] 3.1 README opening is 1-2 paragraphs with a value proposition (no "maintainer" word) — e4921a4
+- [x] 3.2 Quickstart is the three-step path (install / set one env var / start) plus optional verify curl — e4921a4
+- [x] 3.3 Section order matches peer-tool convention (tagline → Installation → Quickstart → Configuration → Web Dashboard → CLI → Development → Reference) — e4921a4
+- [x] 3.4 "Build from source" subsection added to Development section — e4921a4
+- [x] 3.5 `mage lint` passes — e4921a4
+- [x] 3.6 `mage test` passes — e4921a4
+- [x] 3.7 `mage ci` passes — e4921a4
+- [x] 3.8 Section anchor URLs resolve correctly (no slug changes) — e4921a4
 
 #### Manual
 
@@ -619,13 +622,13 @@ None. The plan does not modify the proxy, the dispatcher, or any Go code that af
 
 #### Automated
 
-- [ ] 4.1 Docker subsection exists in the README
-- [ ] 4.2 README Development section links to `AGENTS.md`
-- [ ] 4.3 "Contributing" subsection exists
-- [ ] 4.4 Hooks reference exists in the Development section
-- [ ] 4.5 `mage lint` passes
-- [ ] 4.6 `mage test` passes
-- [ ] 4.7 `mage ci` passes
+- [x] 4.1 Docker subsection exists in the README — fb33ba7
+- [x] 4.2 README Development section links to `AGENTS.md` — fb33ba7
+- [x] 4.3 "Contributing" subsection exists — fb33ba7
+- [x] 4.4 Hooks reference exists in the Development section — fb33ba7
+- [x] 4.5 `mage lint` passes — fb33ba7
+- [x] 4.6 `mage test` passes — fb33ba7
+- [x] 4.7 `mage ci` passes — fb33ba7
 
 #### Manual
 
@@ -637,12 +640,12 @@ None. The plan does not modify the proxy, the dispatcher, or any Go code that af
 
 #### Automated
 
-- [ ] 5.1 Three badges (CI, release, license) render in the README opening
-- [ ] 5.2 "Why freedius?" callout exists between opening and Installation
-- [ ] 5.3 Supported-providers list exists and matches `providers.yaml`
-- [ ] 5.4 `mage lint` passes
-- [ ] 5.5 `mage test` passes
-- [ ] 5.6 `mage ci` passes
+- [x] 5.1 Three badges (CI, release, license) render in the README opening — fadab5c
+- [x] 5.2 "Why freedius?" callout exists between opening and Installation — fadab5c
+- [x] 5.3 Supported-providers list exists and matches `providers.yaml` — fadab5c
+- [x] 5.4 `mage lint` passes — fadab5c
+- [x] 5.5 `mage test` passes — fadab5c
+- [x] 5.6 `mage ci` passes — fadab5c
 
 #### Manual
 
