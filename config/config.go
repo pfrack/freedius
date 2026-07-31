@@ -201,7 +201,27 @@ func (c *Config) validate(path string) error {
 	return nil
 }
 
+func validateResourceName(path, kind, name string) error {
+	if name == "" {
+		return fmt.Errorf(
+			"config: config file at %s: %s name is empty",
+			path, kind,
+		)
+	}
+	if strings.ContainsAny(name, "/?#&=% \t\r\n") {
+		return fmt.Errorf(
+			"config: config file at %s: %s %q has URL-unsafe characters"+
+				" (must not contain /, ?, #, &, =, %%, space, or control characters)",
+			path, kind, name,
+		)
+	}
+	return nil
+}
+
 func validateProvider(path, name string, p Provider) error {
+	if err := validateResourceName(path, "provider", name); err != nil {
+		return err
+	}
 	switch p.Behavior {
 	case "openai", "anthropic", "mix":
 		// valid
@@ -259,6 +279,9 @@ func validateProvider(path, name string, p Provider) error {
 }
 
 func validateMapping(path, name string, m Mapping, providers map[string]Provider) error {
+	if err := validateResourceName(path, "mapping", name); err != nil {
+		return err
+	}
 	if m.ProviderName == "" {
 		return fmt.Errorf(
 			"config: config file at %s: mapping %q has no \"provider_name\" field",
