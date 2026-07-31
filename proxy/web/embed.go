@@ -11,6 +11,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"strings"
 	"sync"
 )
 
@@ -27,7 +28,8 @@ var templateFuncs = template.FuncMap{
 		}
 		return string(b), nil
 	},
-	"add1": func(i int) int { return i + 1 },
+	"add1":  func(i int) int { return i + 1 },
+	"lower": strings.ToLower,
 }
 
 // pageTemplates caches one *template.Template per page file. The layout

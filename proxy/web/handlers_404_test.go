@@ -55,8 +55,8 @@ func TestRootDashboardStillReturns200(t *testing.T) {
 		t.Errorf("Content-Type = %q, want text/html", ct)
 	}
 	body := rec.Body.String()
-	if !strings.Contains(body, `class="stats-grid"`) {
-		t.Errorf("dashboard body missing stats-grid marker; got first 200 chars: %q", body[:min(200, len(body))])
+	if !strings.Contains(body, `class="health-strip"`) {
+		t.Errorf("dashboard body missing health-strip marker; got first 200 chars: %q", body[:min(200, len(body))])
 	}
 	if strings.Contains(body, "not-found__code") {
 		t.Error("dashboard should not render the 404 page")

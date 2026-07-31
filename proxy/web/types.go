@@ -9,21 +9,83 @@ type pageData struct {
 	Active string
 }
 
-// indexData is the data for the index/dashboard page.
-type indexData struct {
+// dashboardData is the data for the redesigned dashboard page.
+type dashboardData struct {
 	pageData
-	Uptime           string
-	TotalEvents      int64
-	TotalLogs        int64
-	Port             string
-	Host             string
-	Mappings         []mappingRow
-	Providers        []providerRow
-	TotalMappings    int
-	ActiveMappings   int
-	FallbackMappings int
-	TotalProviders   int
+	Health         healthStrip
+	Alerts         []attentionAlert
+	Rows           []routingTableRow
+	ProviderHealth providerHealthSummary
+	RecentActivity []activityRow
 }
+
+// healthStrip displays the router's high-level operational state.
+type healthStrip struct {
+	State            string // Healthy, Degraded, Down
+	Uptime           string
+	Endpoint         string
+	LastRequest      string // formatted timestamp or "No traffic"
+	ErrorsLastHour   int64
+	FallbacksLast24h int64
+	TotalRequests    int64
+}
+
+// attentionAlert is a single alert shown in the conditional attention panel.
+type attentionAlert struct {
+	Severity string // error, warning
+	Message  string
+	Link     string
+	Icon     string
+}
+
+// routingTableRow is a single row in the dashboard's compact routing table.
+type routingTableRow struct {
+	Name            string
+	ProviderName    string
+	Model           string
+	FallbackSummary string // "provider / model" or "" if no fallback
+	FallbackCount   int    // number of fallback entries
+	StatusLabel     string // Healthy, Degraded, Error, Unknown
+	RequestCount    int64
+	ErrorCount      int64
+	FallbackEvents  int64
+	LastActivity    string // formatted timestamp or "No traffic"
+	EnvPresent      bool
+}
+
+// providerHealthSummary is the aggregated provider health section.
+type providerHealthSummary struct {
+	Total    int
+	Healthy  int
+	Degraded int
+	Error    int
+	Unknown  int
+	Badges   []providerHealthBadge
+}
+
+// providerHealthBadge is a single provider badge in the health summary.
+type providerHealthBadge struct {
+	Name         string
+	Status       string // healthy, degraded, error, unknown
+	LastChecked  string
+	MappingCount int
+}
+
+// activityRow is a single row in the recent activity feed.
+type activityRow struct {
+	Timestamp    string
+	Mapping      string
+	Route        string // "provider / model"
+	FallbackUsed bool
+	Latency      string
+	Status       int
+	StatusLabel  string // "OK" or error type
+	LogsLink     string
+}
+
+// indexData is kept for backward compatibility with existing test assertions
+// that reference this type. The dashboard handler now uses dashboardData.
+type indexData = dashboardData
 
 // logEntry represents a single log line for template rendering.
 type logEntry struct {

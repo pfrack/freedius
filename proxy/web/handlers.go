@@ -9,7 +9,6 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -24,6 +23,8 @@ var modelFetchInflight sync.Map
 
 // SetupMux builds the HTTP mux for the web server: page handlers, static
 // assets, health check, eventstream routes, and writeback CRUD.
+//
+//nolint:gocyclo // route registration function; complexity is inherent.
 func SetupMux(h *eventstream.Handlers, logger *slog.Logger) *http.ServeMux {
 	mux := http.NewServeMux()
 
@@ -53,44 +54,185 @@ func SetupMux(h *eventstream.Handlers, logger *slog.Logger) *http.ServeMux {
 			return
 		}
 
-		uptime := time.Since(h.StartTime).Round(time.Second).String()
 		cfg := h.Cfg
 		providers := cfg.ProvidersSnapshot()
+		mappings := cfg.MappingsSnapshot()
 
-		// Build mapping rows (no filter for dashboard).
-		mappings := buildMappingRows(cfg, providers, h.LastResponder, "")
+		// Gather stats snapshots (nil-safe).
+		var mappingStats map[string]proxy.MappingStats
+		var providerStats map[string]proxy.ProviderStats
+		if h.Stats != nil {
+			mappingStats = h.Stats.MappingSnapshot()
+			providerStats = h.Stats.ProviderSnapshot()
+		}
 
-		// Build provider rows with mapping counts.
+		// Build health strip.
+		uptime := time.Since(h.StartTime).Round(time.Second).String()
+		endpoint := fmt.Sprintf("%s:%d", h.Host, h.Port)
+		health := healthStrip{
+			State:         "Healthy",
+			Uptime:        uptime,
+			Endpoint:      endpoint,
+			LastRequest:   "No traffic",
+			TotalRequests: int64(h.Bus.EventCount()),
+		}
+		// Compute last request time and error/fallback counts from stats.
+		var lastReqTime time.Time
+		for _, ms := range mappingStats {
+			health.ErrorsLastHour += ms.ErrorCount
+			health.FallbacksLast24h += ms.FallbackCount
+			if ms.LastActivity.After(lastReqTime) {
+				lastReqTime = ms.LastActivity
+			}
+		}
+		if !lastReqTime.IsZero() {
+			health.LastRequest = formatTimeAgo(lastReqTime)
+		}
+		// Determine overall state from provider stats.
+		hasErrors := false
+		for _, ps := range providerStats {
+			if ps.RecentErrorRate > 0.5 && ps.RequestCount >= 3 {
+				hasErrors = true
+				break
+			}
+		}
+		if hasErrors {
+			health.State = "Degraded"
+		}
+
+		// Compute attention alerts.
+		alerts := computeAlerts(cfg, mappingStats, providerStats, providers)
+
+		// Build routing table rows.
+		var rows []routingTableRow
+		for name, m := range mappings {
+			fallbackSummary := ""
+			fallbackCount := len(m.Fallback)
+			if fallbackCount > 0 {
+				fb := m.Fallback[0]
+				fallbackSummary = fb.ProviderName + " / " + fb.ModelString
+			}
+			ms := mappingStats[name]
+			lastActivity := "No traffic"
+			if !ms.LastActivity.IsZero() {
+				lastActivity = formatTimeAgo(ms.LastActivity)
+			}
+			statusLabel := "Unknown"
+			envPresent := false
+			if p, ok := providers[m.ProviderName]; ok {
+				if p.DefaultAPIKeyEnv != "" {
+					envPresent = os.Getenv(p.DefaultAPIKeyEnv) != ""
+				}
+			}
+			switch {
+			case !envPresent:
+				statusLabel = "Key Missing"
+			case ms.RequestCount == 0:
+				// keep "Unknown"
+			case ms.RecentErrorRate > 0.5:
+				statusLabel = "Degraded"
+			default:
+				statusLabel = "Healthy"
+			}
+			rows = append(rows, routingTableRow{
+				Name:            name,
+				ProviderName:    m.ProviderName,
+				Model:           m.ModelString,
+				FallbackSummary: fallbackSummary,
+				FallbackCount:   fallbackCount,
+				StatusLabel:     statusLabel,
+				RequestCount:    ms.RequestCount,
+				ErrorCount:      ms.ErrorCount,
+				FallbackEvents:  ms.FallbackCount,
+				LastActivity:    lastActivity,
+				EnvPresent:      envPresent,
+			})
+		}
+
+		// Build provider health summary.
 		mappingCounts := make(map[string]int)
-		for _, m := range cfg.MappingsSnapshot() {
+		for _, m := range mappings {
 			mappingCounts[m.ProviderName]++
 		}
-		var providerRows []providerRow
-		for name, p := range providers {
-			providerRows = append(providerRows, providerRow{
+		phSummary := providerHealthSummary{
+			Total: len(providers),
+		}
+		for name := range providers {
+			ps := providerStats[name]
+			status := "unknown"
+			switch {
+			case ps.RequestCount == 0:
+				// keep "unknown"
+			case ps.RecentErrorRate > 0.5:
+				status = "error"
+			case ps.RecentErrorRate > 0.2:
+				status = "degraded"
+			default:
+				status = "healthy"
+			}
+			switch status {
+			case "healthy":
+				phSummary.Healthy++
+			case "degraded":
+				phSummary.Degraded++
+			case "error":
+				phSummary.Error++
+			default:
+				phSummary.Unknown++
+			}
+			lastChecked := "Never"
+			if !ps.LastSuccess.IsZero() {
+				lastChecked = formatTimeAgo(ps.LastSuccess)
+			} else if !ps.LastError.IsZero() {
+				lastChecked = formatTimeAgo(ps.LastError)
+			}
+			phSummary.Badges = append(phSummary.Badges, providerHealthBadge{
 				Name:         name,
-				Behavior:     p.Behavior,
-				BaseURL:      p.DefaultBaseURL,
-				APIKeyEnv:    p.DefaultAPIKeyEnv,
-				Protocol:     p.Protocol,
+				Status:       status,
+				LastChecked:  lastChecked,
 				MappingCount: mappingCounts[name],
 			})
 		}
 
-		renderPage(w, "index.html", indexData{
-			pageData:         pageData{Active: "index"},
-			Uptime:           uptime,
-			TotalEvents:      int64(h.Bus.EventCount()),
-			TotalLogs:        h.LogSink.EventCount(),
-			Port:             strconv.Itoa(h.Port),
-			Host:             h.Host,
-			Mappings:         mappings,
-			Providers:        providerRows,
-			TotalMappings:    len(mappings),
-			ActiveMappings:   countActive(mappings),
-			FallbackMappings: countWithFallbacks(mappings),
-			TotalProviders:   len(providerRows),
-		}, logger, "mappings-table.html")
+		// Build recent activity from EventBus ring (last 20).
+		var recentActivity []activityRow
+		events, _, _ := h.Bus.Since(0)
+		startIdx := 0
+		if len(events) > 20 {
+			startIdx = len(events) - 20
+		}
+		for i := len(events) - 1; i >= startIdx; i-- {
+			ev := events[i]
+			if ev.Model == "" {
+				continue
+			}
+			statusLabel := "OK"
+			if ev.Status >= 400 {
+				statusLabel = ev.ErrorType
+				if statusLabel == "" {
+					statusLabel = fmt.Sprintf("%d", ev.Status)
+				}
+			}
+			recentActivity = append(recentActivity, activityRow{
+				Timestamp:    ev.Timestamp.Format("15:04:05"),
+				Mapping:      ev.Model,
+				Route:        ev.MatchedProvider + " / " + ev.MatchedModel,
+				FallbackUsed: false, // TODO: enrich from LastResponder
+				Latency:      formatLatency(ev.Latency),
+				Status:       ev.Status,
+				StatusLabel:  statusLabel,
+				LogsLink:     fmt.Sprintf("/logs?mapping=%s&provider=%s", ev.Model, ev.MatchedProvider),
+			})
+		}
+
+		renderPage(w, "index.html", dashboardData{
+			pageData:       pageData{Active: "index"},
+			Health:         health,
+			Alerts:         alerts,
+			Rows:           rows,
+			ProviderHealth: phSummary,
+			RecentActivity: recentActivity,
+		}, logger)
 	})
 	mux.HandleFunc("GET /logs", func(w http.ResponseWriter, r *http.Request) {
 		handleLogs(w, r, h.LogSink, logger)
@@ -363,28 +505,6 @@ func buildMappingRows(
 		rows = append(rows, row)
 	}
 	return rows
-}
-
-// countActive returns the number of mapping rows with EnvPresent == true.
-func countActive(rows []mappingRow) int {
-	n := 0
-	for _, r := range rows {
-		if r.EnvPresent {
-			n++
-		}
-	}
-	return n
-}
-
-// countWithFallbacks returns the number of mapping rows with at least one fallback.
-func countWithFallbacks(rows []mappingRow) int {
-	n := 0
-	for _, r := range rows {
-		if len(r.Fallbacks) > 0 {
-			n++
-		}
-	}
-	return n
 }
 
 // parseMinLevel parses a ?min= query parameter into a slog.Level. Returns nil
@@ -907,6 +1027,35 @@ func formatDuration(d time.Duration) string {
 		return fmt.Sprintf("%dm", int(d.Minutes()))
 	}
 	return fmt.Sprintf("%dh", int(d.Hours()))
+}
+
+// formatTimeAgo renders a time.Time as a human-readable "Xm ago" string.
+func formatTimeAgo(t time.Time) string {
+	if t.IsZero() {
+		return "Never"
+	}
+	d := time.Since(t)
+	if d < time.Minute {
+		return fmt.Sprintf("%ds ago", int(d.Seconds()))
+	}
+	if d < time.Hour {
+		return fmt.Sprintf("%dm ago", int(d.Minutes()))
+	}
+	if d < 24*time.Hour {
+		return fmt.Sprintf("%dh ago", int(d.Hours()))
+	}
+	return t.Format("Jan 2 15:04")
+}
+
+// formatLatency renders a duration as a compact latency string.
+func formatLatency(d time.Duration) string {
+	if d < time.Millisecond {
+		return fmt.Sprintf("%dµs", d.Microseconds())
+	}
+	if d < time.Second {
+		return fmt.Sprintf("%dms", d.Milliseconds())
+	}
+	return fmt.Sprintf("%.1fs", d.Seconds())
 }
 
 // --- JSON response helpers ---
