@@ -12,13 +12,17 @@ type pageData struct {
 // indexData is the data for the index/dashboard page.
 type indexData struct {
 	pageData
-	Uptime      string
-	TotalEvents int64
-	TotalLogs   int64
-	Port        string
-	Host        string
-	Mappings    []mappingRow
-	Providers   []providerRow
+	Uptime           string
+	TotalEvents      int64
+	TotalLogs        int64
+	Port             string
+	Host             string
+	Mappings         []mappingRow
+	Providers        []providerRow
+	TotalMappings    int
+	ActiveMappings   int
+	FallbackMappings int
+	TotalProviders   int
 }
 
 // logEntry represents a single log line for template rendering.
@@ -34,6 +38,10 @@ type logsData struct {
 	// Level is the active ?min= filter ("" when no filter). Used by logs.html
 	// to highlight the selected option in the dropdown — see plan §2.6.
 	Level string
+	// Provider is the active ?provider= filter ("" when no filter).
+	Provider string
+	// Mapping is the active ?mapping= filter ("" when no filter).
+	Mapping string
 }
 
 // providerRow represents a single provider for template rendering.

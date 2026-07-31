@@ -2,25 +2,60 @@
 {{define "title"}}Logs{{end}}
 {{define "content"}}
   <h1>Logs</h1>
-  <label class="form-label" for="level-filter">Filter</label>
-  <select
-    id="level-filter"
-    class="form-select"
-    name="min"
-    hx-get="/logs"
-    hx-target="#log"
-    hx-trigger="change"
-    hx-replace-url="true"
-    style="max-width: 200px; margin-bottom: 1rem;"
-  >
-    <option value="" {{if not .Level}}selected{{end}}>All</option>
-    <option value="debug" {{if eq .Level "debug"}}selected{{end}}>Debug</option>
-    <option value="info" {{if eq .Level "info"}}selected{{end}}>Info</option>
-    <option value="warn" {{if eq .Level "warn"}}selected{{end}}>Warn</option>
-    <option value="error" {{if eq .Level "error"}}selected{{end}}>Error</option>
-  </select>
+  <div class="log-filters">
+    <div class="form-group">
+      <label class="form-label" for="level-filter">Level</label>
+      <select
+        id="level-filter"
+        class="form-select"
+        name="min"
+        hx-get="/logs"
+        hx-target="#log"
+        hx-trigger="change"
+        hx-include=".log-filters [name]"
+        hx-replace-url="true"
+      >
+        <option value="" {{if not .Level}}selected{{end}}>All</option>
+        <option value="debug" {{if eq .Level "debug"}}selected{{end}}>Debug</option>
+        <option value="info" {{if eq .Level "info"}}selected{{end}}>Info</option>
+        <option value="warn" {{if eq .Level "warn"}}selected{{end}}>Warn</option>
+        <option value="error" {{if eq .Level "error"}}selected{{end}}>Error</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="provider-filter">Provider</label>
+      <input
+        id="provider-filter"
+        class="form-input"
+        name="provider"
+        placeholder="Filter provider…"
+        value="{{.Provider}}"
+        hx-get="/logs"
+        hx-target="#log"
+        hx-trigger="keyup changed delay:300ms"
+        hx-include=".log-filters [name]"
+        hx-replace-url="true"
+      >
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="mapping-filter">Mapping</label>
+      <input
+        id="mapping-filter"
+        class="form-input"
+        name="mapping"
+        placeholder="Filter mapping…"
+        value="{{.Mapping}}"
+        hx-get="/logs"
+        hx-target="#log"
+        hx-trigger="keyup changed delay:300ms"
+        hx-include=".log-filters [name]"
+        hx-replace-url="true"
+      >
+    </div>
+  </div>
   <div
     id="log"
+    class="log-container"
     hx-ext="sse"
     sse-connect="/v1/logs"
   >
