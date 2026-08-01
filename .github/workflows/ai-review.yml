@@ -27,3 +27,4 @@ jobs:
           nim_api_key: ${{ secrets.NIM_API_KEY }}
           mistral_api_key: ${{ secrets.MISTRAL_API_KEY }}
           groq_api_key: ${{ secrets.GROQ_API_KEY }}
+          custom_swe_score: ${{ secrets.CUSTOM_SWE_SCORE }}
