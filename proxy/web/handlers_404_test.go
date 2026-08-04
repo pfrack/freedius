@@ -81,6 +81,9 @@ func TestMissingStaticAsset_ReturnsBranded404(t *testing.T) {
 	if !strings.Contains(body, "<!DOCTYPE html>") {
 		t.Error("missing static asset should render the branded 404 HTML page")
 	}
+	if !strings.Contains(body, "not-found__code") {
+		t.Error("missing static asset 404 body missing not-found__code brand marker")
+	}
 	if strings.Contains(body, "404 page not found") {
 		t.Error("missing static asset should NOT use the FileServer's plain-text 404 body")
 	}

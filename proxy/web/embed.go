@@ -91,6 +91,12 @@ func StaticFS() fs.FS {
 }
 
 // serveStatic serves files from the embedded static directory with caching.
+//
+// On the 404 branch the interceptor (notFoundInterceptWriter) hands the
+// response to renderNotFound, which Header().Del("Cache-Control")s before
+// flushing the headers. Do not reorder: setting Cache-Control after
+// WriteHeader has no effect, so the 404 would inherit max-age=300 and be
+// cached by intermediaries for 5 minutes.
 func serveStatic(w http.ResponseWriter, r *http.Request, logger *slog.Logger) {
 	w.Header().Set("Cache-Control", "public, max-age=300")
 	wrapped := &notFoundInterceptWriter{ResponseWriter: w, logger: logger}
@@ -159,4 +165,11 @@ func (w *notFoundInterceptWriter) Write(b []byte) (int, error) {
 		return len(b), nil
 	}
 	return w.ResponseWriter.Write(b)
+}
+
+// Unwrap exposes the underlying http.ResponseWriter so Go 1.20+
+// http.NewResponseController can reach Flush/Hijack/SetReadDeadline
+// on the real writer. Safe no-op for callers that don't use it.
+func (w *notFoundInterceptWriter) Unwrap() http.ResponseWriter {
+	return w.ResponseWriter
 }

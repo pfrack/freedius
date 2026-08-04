@@ -225,6 +225,10 @@ None. No config, schema, or persisted-state changes. Behavior change is limited 
 - Header/cache test precedent: `proxy/web/handlers_test.go:80-90`
 - Prior UI work (design tokens, z-index scale): `context/changes/web-ui-design-upgrade/`
 
+## Addenda
+
+- **A1 — Phase 1, Change #3 "no new colors" contract.** The `.not-found::before` gradient uses `rgba(255,255,255,0.08)` literally. This deviates from the strict "no new colors" wording but matches the existing convention in `.card::before` (app.css:414) and `.providers-summary::before` (app.css:1247), which use the same literal rgba. Left as-is for file-pattern consistency; tokenizing `--surface-overlay` is deferred to a future refactor that touches all three rules together. Triaged via impl-review F1 (Fix A).
+
 ## Progress
 
 > Convention: `- [ ]` pending, `- [x]` done. Append ` — <commit sha>` when a step lands. Do not rename step titles. See `references/progress-format.md`.
