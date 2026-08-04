@@ -241,9 +241,9 @@ None. No config, schema, or persisted-state changes. Behavior change is limited 
 
 #### Manual
 
-- [ ] 1.6 Bad path shows styled 404 with sidebar and working "Back to dashboard"
-- [ ] 1.7 Quick links (Mappings/Providers/Logs) navigate correctly
-- [ ] 1.8 404 correct in dark + light and respects reduced-motion
+- [x] 1.6 Bad path shows styled 404 with sidebar and working "Back to dashboard"
+- [x] 1.7 Quick links (Mappings/Providers/Logs) navigate correctly
+- [x] 1.8 404 correct in dark + light and respects reduced-motion
 
 ### Phase 2: Extend 404 to static-asset misses
 
@@ -258,5 +258,5 @@ None. No config, schema, or persisted-state changes. Behavior change is limited 
 
 #### Manual
 
-- [ ] 2.7 Direct visit to `/static/nope.js` shows the branded 404 (not plain text)
-- [ ] 2.8 Dashboard still loads its real CSS/JS (no console 404s)
+- [x] 2.7 Direct visit to `/static/nope.js` shows the branded 404 (not plain text)
+- [x] 2.8 Dashboard still loads its real CSS/JS (no console 404s)
