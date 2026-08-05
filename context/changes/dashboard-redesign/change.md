@@ -1,9 +1,9 @@
 ---
 id: dashboard-redesign
 title: Dashboard GUI Redesign — Operator-Friendly Monitoring
-status: implementing
+status: implemented
 created: 2026-07-31
-updated: 2026-08-01
+updated: 2026-08-05
 ---
 
 Redesign the Freedius web dashboard from a configuration-heavy card UI into an
