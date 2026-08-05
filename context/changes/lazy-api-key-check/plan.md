@@ -136,10 +136,10 @@ checkRequiredEnvVars(logger, cfg)
 
 #### Automated
 
-- [x] 1.1 All tests pass: `go test ./cmd/freedius/...`
-- [x] 1.2 Linting passes: `golangci-lint run ./...`
-- [x] 1.3 Build succeeds: `go build ./cmd/freedius`
-- [x] 1.4 No data race: `go test -race ./cmd/freedius/...`
+- [x] 1.1 All tests pass: `go test ./cmd/freedius/...` — c14fc41
+- [x] 1.2 Linting passes: `golangci-lint run ./...` — c14fc41
+- [x] 1.3 Build succeeds: `go build ./cmd/freedius` — c14fc41
+- [x] 1.4 No data race: `go test -race ./cmd/freedius/...` — c14fc41
 
 #### Manual
 
