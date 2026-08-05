@@ -4,9 +4,12 @@
 package web
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -22,10 +25,125 @@ import (
 // modelFetchInflight prevents concurrent upstream fetches for the same provider.
 var modelFetchInflight sync.Map
 
+// testClient is a shared HTTP client for the provider "Test Connection" probe.
+// It reuses one Transport (with idle-connection cleanup and proxy support)
+// rather than allocating a fresh Transport per click, which would leak idle
+// connections until the upstream dropped them. Redirects are treated as the
+// final response (ErrUseLastResponse) because a reachability probe should not
+// follow a provider URL to an unrelated host.
+var testClient = &http.Client{
+	Timeout: 5 * time.Second,
+	CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+		return http.ErrUseLastResponse
+	},
+	Transport: &http.Transport{
+		Proxy:                 http.ProxyFromEnvironment,
+		DialContext:           (&net.Dialer{Timeout: 5 * time.Second}).DialContext,
+		IdleConnTimeout:       90 * time.Second,
+		MaxIdleConns:          10,
+		MaxIdleConnsPerHost:   2,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+		ForceAttemptHTTP2:     true,
+	},
+}
+
+// mappingStatus derives the routing-table/drawer status label and its CSS slug
+// from live stats and the provider's API-key presence. A provider that declares
+// no API-key env var (e.g. local Ollama, llama.cpp) is treated as OK — only a
+// *declared-but-missing* key is flagged "Key Missing". This matches the
+// attention-panel rule in attention.go (Rule 1) so the two never disagree.
+func mappingStatus(ms proxy.MappingStats, envDeclared, envPresent bool) (string, string) {
+	if envDeclared && !envPresent {
+		return "Key Missing", "key-missing"
+	}
+	switch {
+	case ms.RequestCount == 0:
+		return "Unknown", "unknown"
+	case ms.RecentErrorRate > 0.5:
+		return "Degraded", "degraded"
+	default:
+		return "Healthy", "healthy"
+	}
+}
+
+// csrfGuard blocks cross-origin mutating requests to the writeback API. The
+// dashboard is served from 127.0.0.1 with an empty AuthToken by default, so a
+// malicious page the operator visits could otherwise drive state-changing
+// requests (including the outbound Test Connection call). Browsers send
+// Sec-Fetch-Site for fetch/XHR/form submissions; HTMX requests from the
+// same-origin dashboard carry "same-origin", so they pass untouched. GET
+// routes (/v1/events, /v1/stats, /v1/config, /v1/logs) are read-only and
+// exempt.
+func csrfGuard(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if isMutating(r.Method) && strings.HasPrefix(r.URL.Path, "/v1/") {
+			if !requestIsSameOrigin(r) {
+				http.Error(w, "cross-origin request blocked", http.StatusForbidden)
+				return
+			}
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func isMutating(method string) bool {
+	switch method {
+	case http.MethodPost, http.MethodPut, http.MethodDelete, http.MethodPatch:
+		return true
+	}
+	return false
+}
+
+func requestIsSameOrigin(r *http.Request) bool {
+	// Preferred signal: browsers set Sec-Fetch-Site for fetch/XHR/form
+	// submissions. Same-origin HTMX requests carry "same-origin".
+	if site := r.Header.Get("Sec-Fetch-Site"); site != "" {
+		return site == "same-origin"
+	}
+	// Fall back to an explicit Origin header when present.
+	if origin := r.Header.Get("Origin"); origin != "" {
+		return sameOriginHost(r.Host, origin)
+	}
+	// No browser fetch metadata and no Origin: treat as first-party
+	// (e.g. curl, local tooling). The AuthToken boundary still applies if set.
+	return true
+}
+
+// sameOriginHost reports whether origin (e.g. "http://localhost:8083") refers to
+// the same host:port as host, filling in the default port for the scheme when a
+// port is omitted.
+func sameOriginHost(host, origin string) bool {
+	u, err := url.Parse(origin)
+	if err != nil || u.Host == "" {
+		return false
+	}
+	originHost := u.Hostname()
+	originPort := u.Port()
+	if originPort == "" {
+		originPort = defaultPort(u.Scheme)
+	}
+	ph, err := url.Parse("http://" + host)
+	if err != nil {
+		return false
+	}
+	portHost := ph.Hostname()
+	portPort := ph.Port()
+	if portPort == "" {
+		portPort = defaultPort("http")
+	}
+	return originHost == portHost && originPort == portPort
+}
+
+func defaultPort(scheme string) string {
+	if scheme == "https" {
+		return "443"
+	}
+	return "80"
+}
+
 // SetupMux builds the HTTP mux for the web server: page handlers, static
 // assets, health check, eventstream routes, and writeback CRUD.
-//
-//nolint:gocyclo // route registration function; complexity is inherent.
 func SetupMux(h *eventstream.Handlers, logger *slog.Logger) *http.ServeMux {
 	mux := http.NewServeMux()
 
@@ -118,23 +236,15 @@ func SetupMux(h *eventstream.Handlers, logger *slog.Logger) *http.ServeMux {
 			if !ms.LastActivity.IsZero() {
 				lastActivity = formatTimeAgo(ms.LastActivity)
 			}
-			statusLabel := "Unknown"
+			envDeclared := false
 			envPresent := false
 			if p, ok := providers[m.ProviderName]; ok {
 				if p.DefaultAPIKeyEnv != "" {
+					envDeclared = true
 					envPresent = os.Getenv(p.DefaultAPIKeyEnv) != ""
 				}
 			}
-			switch {
-			case !envPresent:
-				statusLabel = "Key Missing"
-			case ms.RequestCount == 0:
-				// keep "Unknown"
-			case ms.RecentErrorRate > 0.5:
-				statusLabel = "Degraded"
-			default:
-				statusLabel = "Healthy"
-			}
+			statusLabel, statusSlug := mappingStatus(ms, envDeclared, envPresent)
 			rows = append(rows, routingTableRow{
 				Name:            name,
 				ProviderName:    m.ProviderName,
@@ -142,6 +252,7 @@ func SetupMux(h *eventstream.Handlers, logger *slog.Logger) *http.ServeMux {
 				FallbackSummary: fallbackSummary,
 				FallbackCount:   fallbackCount,
 				StatusLabel:     statusLabel,
+				StatusSlug:      statusSlug,
 				RequestCount:    ms.RequestCount,
 				ErrorCount:      ms.ErrorCount,
 				FallbackEvents:  ms.FallbackCount,
@@ -160,17 +271,7 @@ func SetupMux(h *eventstream.Handlers, logger *slog.Logger) *http.ServeMux {
 		}
 		for name := range providers {
 			ps := providerStats[name]
-			status := "unknown"
-			switch {
-			case ps.RequestCount == 0:
-				// keep "unknown"
-			case ps.RecentErrorRate > 0.5:
-				status = "error"
-			case ps.RecentErrorRate > 0.2:
-				status = "degraded"
-			default:
-				status = "healthy"
-			}
+			status := deriveProviderStatus(ps)
 			switch status {
 			case "healthy":
 				phSummary.Healthy++
@@ -195,14 +296,10 @@ func SetupMux(h *eventstream.Handlers, logger *slog.Logger) *http.ServeMux {
 			})
 		}
 
-		// Build recent activity from EventBus ring (last 20).
+		// Build recent activity from EventBus ring (last 20), newest first.
 		var recentActivity []activityRow
-		events, _, _ := h.Bus.Since(0)
-		startIdx := 0
-		if len(events) > 20 {
-			startIdx = len(events) - 20
-		}
-		for i := len(events) - 1; i >= startIdx; i-- {
+		events := h.Bus.Recent(20)
+		for i := len(events) - 1; i >= 0; i-- {
 			ev := events[i]
 			if ev.Model == "" {
 				continue
@@ -233,6 +330,7 @@ func SetupMux(h *eventstream.Handlers, logger *slog.Logger) *http.ServeMux {
 			Rows:           rows,
 			ProviderHealth: phSummary,
 			RecentActivity: recentActivity,
+			CurrentSeq:     h.Bus.CurrentSeq(),
 		}, logger)
 	})
 	mux.HandleFunc("GET /logs", func(w http.ResponseWriter, r *http.Request) {
@@ -282,6 +380,11 @@ func SetupMux(h *eventstream.Handlers, logger *slog.Logger) *http.ServeMux {
 	// Models endpoint: explicit refresh only.
 	mux.HandleFunc("POST /v1/providers/{name}/models/refresh", func(w http.ResponseWriter, r *http.Request) {
 		handleRefreshModels(w, r, h, logger)
+	})
+
+	// Test connection: lightweight reachability check.
+	mux.HandleFunc("POST /v1/providers/{name}/test", func(w http.ResponseWriter, r *http.Request) {
+		handleTestConnection(w, r, h, logger)
 	})
 
 	return mux
@@ -459,6 +562,11 @@ func handleProviders(w http.ResponseWriter, r *http.Request, h *eventstream.Hand
 // deriveProviderStatus computes a passive health label from ProviderStats.
 // error rate > 50% → "degraded", last 3 consecutive errors → "error",
 // no traffic → "unknown", otherwise "healthy".
+// deriveProviderStatus is the single source of truth for a provider's health
+// badge, used by both the dashboard health summary and the providers page so
+// the two never disagree. A provider with no traffic is "unknown"; a high
+// recent error rate (>=50%) is "degraded"; a most-recent failure
+// (LastError after LastSuccess) is "error"; otherwise "healthy".
 func deriveProviderStatus(ps proxy.ProviderStats) string {
 	switch {
 	case ps.RequestCount == 0:
@@ -819,11 +927,13 @@ func handleMappingDetail(w http.ResponseWriter, r *http.Request, h *eventstream.
 	providers := h.Cfg.ProvidersSnapshot()
 	proto := ""
 	baseURL := ""
+	envDeclared := false
 	envPresent := false
 	if p, ok := providers[m.ProviderName]; ok {
 		proto = p.Protocol
 		baseURL = p.DefaultBaseURL
 		if p.DefaultAPIKeyEnv != "" {
+			envDeclared = true
 			envPresent = os.Getenv(p.DefaultAPIKeyEnv) != ""
 		}
 	}
@@ -844,21 +954,12 @@ func handleMappingDetail(w http.ResponseWriter, r *http.Request, h *eventstream.
 	if !ms.LastActivity.IsZero() {
 		lastActivity = formatTimeAgo(ms.LastActivity)
 	}
-	statusLabel := "Unknown"
-	switch {
-	case !envPresent:
-		statusLabel = "Key Missing"
-	case ms.RequestCount == 0:
-		// keep "Unknown"
-	case ms.RecentErrorRate > 0.5:
-		statusLabel = "Degraded"
-	default:
-		statusLabel = "Healthy"
-	}
+	statusLabel, statusSlug := mappingStatus(ms, envDeclared, envPresent)
 
 	data := drawerData{
 		Name:           name,
 		StatusLabel:    statusLabel,
+		StatusSlug:     statusSlug,
 		Model:          m.ModelString,
 		ProviderName:   m.ProviderName,
 		Protocol:       proto,
@@ -1279,6 +1380,84 @@ func renderModelsFragment(w http.ResponseWriter, data modelsData, logger *slog.L
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := tmpl.Execute(w, data); err != nil {
 		logger.Error("execute fragment template", "err", err)
+	}
+}
+
+// handleTestConnection performs a lightweight reachability check against a
+// provider's base URL and renders a simple success/failure fragment into
+// the test-dialog-body. It does NOT fetch models — just checks if the
+// endpoint responds (any HTTP status = reachable, connection error = unreachable).
+func handleTestConnection(w http.ResponseWriter, r *http.Request, h *eventstream.Handlers, logger *slog.Logger) {
+	name := r.PathValue("name")
+	if name == "" {
+		writeJSONError(w, http.StatusBadRequest, "bad_path", "missing provider name")
+		return
+	}
+
+	providers := h.Cfg.ProvidersSnapshot()
+	p, ok := providers[name]
+	if !ok {
+		writeJSONError(w, http.StatusNotFound, "not_found", "provider not found")
+		return
+	}
+
+	result := testResultData{Provider: name}
+	if p.DefaultBaseURL == "" {
+		result.Reachable = false
+		result.Message = "No base URL configured"
+		renderTestResultFragment(w, result, logger)
+		return
+	}
+
+	// Lightweight check: short timeout, any response (even 401/403) = reachable.
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, p.DefaultBaseURL, nil)
+	if err != nil {
+		result.Reachable = false
+		result.Message = fmt.Sprintf("Request error: %s", err)
+		renderTestResultFragment(w, result, logger)
+		return
+	}
+
+	start := time.Now()
+	resp, err := testClient.Do(req)
+	elapsed := time.Since(start)
+	if err != nil {
+		result.Reachable = false
+		result.Message = fmt.Sprintf("Connection failed: %s", err)
+		renderTestResultFragment(w, result, logger)
+		return
+	}
+	defer func() { _, _ = io.Copy(io.Discard, resp.Body); _ = resp.Body.Close() }()
+
+	result.Reachable = true
+	result.StatusCode = resp.StatusCode
+	result.Latency = elapsed.Milliseconds()
+	result.Message = fmt.Sprintf("Reachable (HTTP %d, %d ms)", resp.StatusCode, result.Latency)
+	renderTestResultFragment(w, result, logger)
+}
+
+// testResultData is the data for the test-connection result fragment.
+type testResultData struct {
+	Provider   string
+	Reachable  bool
+	StatusCode int
+	Latency    int64
+	Message    string
+}
+
+func renderTestResultFragment(w http.ResponseWriter, data testResultData, logger *slog.Logger) {
+	tmpl, err := loadFragmentTemplate("test-result.html")
+	if err != nil {
+		logger.Error("load test result template", "err", err)
+		writeJSONError(w, http.StatusInternalServerError, "template_failed", err.Error())
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := tmpl.Execute(w, data); err != nil {
+		logger.Error("execute test result template", "err", err)
 	}
 }
 

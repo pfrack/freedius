@@ -39,6 +39,9 @@ func NewServer(
 	if h.AuthToken != "" {
 		handler = h.RequireAuth(mux)
 	}
+	// CSRF/origin guard wraps the whole mux so cross-origin mutating requests to
+	// the writeback API are rejected even when AuthToken is unset.
+	handler = csrfGuard(handler)
 
 	return &Server{
 		host: host,

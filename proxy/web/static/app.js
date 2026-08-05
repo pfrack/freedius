@@ -41,6 +41,8 @@ var drawerOpener = null;
 function openDrawer(drawer) {
   if (!drawer) return;
   drawer.classList.add('drawer--open');
+  var overlay = document.getElementById('drawer-overlay');
+  if (overlay) overlay.classList.add('drawer-overlay--visible');
   setTimeout(function() {
     var closeBtn = drawer.querySelector('.drawer__close');
     if (closeBtn) closeBtn.focus();
@@ -51,6 +53,8 @@ function openDrawer(drawer) {
 // the element that opened it. Invoked by the close button (inline onclick
 // in mapping-drawer.html) and the Escape key handler.
 function closeDrawer() {
+  var overlay = document.getElementById('drawer-overlay');
+  if (overlay) overlay.classList.remove('drawer-overlay--visible');
   var drawer = document.getElementById('mapping-drawer');
   if (drawer) {
     drawer.classList.remove('drawer--open');
@@ -69,7 +73,8 @@ function closeDrawer() {
 // requests leaves drawerOpener untouched for unrelated htmx:beforeRequest
 // events.
 document.body.addEventListener('htmx:beforeRequest', function(evt) {
-  if (evt.target && evt.target.id === 'mapping-drawer') {
+  var target = evt.detail && evt.detail.target;
+  if (target && target.id === 'mapping-drawer') {
     drawerOpener = document.activeElement;
   }
 });
@@ -94,6 +99,13 @@ document.addEventListener('keydown', function(evt) {
   }
   if (evt.key === 'Tab' && isOpen) {
     trapDrawerTab(evt, drawer);
+  }
+});
+
+// Clicking the backdrop overlay closes the drawer.
+document.addEventListener('click', function(evt) {
+  if (evt.target && evt.target.id === 'drawer-overlay') {
+    closeDrawer();
   }
 });
 

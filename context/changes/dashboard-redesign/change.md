@@ -1,7 +1,7 @@
 ---
 id: dashboard-redesign
 title: Dashboard GUI Redesign — Operator-Friendly Monitoring
-status: implemented
+status: impl_reviewed
 created: 2026-07-31
 updated: 2026-08-05
 ---

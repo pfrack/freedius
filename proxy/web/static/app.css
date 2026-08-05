@@ -1685,7 +1685,8 @@ body::before {
 .badge--status-healthy,
 .badge--status-degraded,
 .badge--status-error,
-.badge--status-unknown {
+.badge--status-unknown,
+.badge--status-key-missing {
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
@@ -1719,6 +1720,11 @@ body::before {
 .badge--status-unknown {
   background: var(--badge-unknown-bg);
   color: var(--text-secondary);
+}
+
+.badge--status-key-missing {
+  background: var(--badge-error-bg);
+  color: var(--color-error);
 }
 
 .badge--disabled {
@@ -2250,6 +2256,34 @@ body::before {
   border-top: 1px solid var(--border-subtle);
 }
 
+/* ── Test Connection Result ─────────────────────────────────────────────── */
+
+.test-result {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: 1rem;
+}
+
+.test-result--ok {
+  color: var(--color-success);
+}
+
+.test-result--fail {
+  color: var(--color-error);
+}
+
+.test-result__detail {
+  margin-top: var(--space-2);
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.dialog--test {
+  width: 420px;
+  max-width: 90vw;
+}
+
 /* ── Skip Link ──────────────────────────────────────────────────────────── */
 
 .skip-link {
@@ -2311,8 +2345,9 @@ body::before {
 /* ── Responsive: mobile (Phase 7 §5) — hide low-priority columns ────────── */
 
 @media (max-width: 480px) {
-  .routing-table th:nth-child(5),
-  .routing-table td:nth-child(5),
+  /* Hide low-priority columns: Fallback count (6) and Last Activity (7). */
+  .routing-table th:nth-child(6),
+  .routing-table td:nth-child(6),
   .routing-table th:nth-child(7),
   .routing-table td:nth-child(7) {
     display: none;
@@ -2325,9 +2360,11 @@ body::before {
   html {
     scroll-behavior: auto;
   }
+  /* Keep the drawer off-screen by default (base transform: translateX(100%))
+     and only disable the slide transition. Inline .drawer--open still flips it
+     into view instantly. */
   .drawer,
   .drawer--open {
     transition: none;
-    transform: translateX(0);
   }
 }

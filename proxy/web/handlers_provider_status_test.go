@@ -121,8 +121,8 @@ func TestProvider_TestConnectionButton(t *testing.T) {
 	renderProvidersTable(rec, req, h)
 	body := rec.Body.String()
 
-	if !strings.Contains(body, `hx-post="/v1/providers/nim/models/refresh"`) {
-		t.Errorf("expected Test button to POST to models refresh endpoint; got: %s", body)
+	if !strings.Contains(body, `hx-post="/v1/providers/nim/test"`) {
+		t.Errorf("expected Test button to POST to test endpoint; got: %s", body)
 	}
 }
 

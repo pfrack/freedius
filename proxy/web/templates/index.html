@@ -68,7 +68,7 @@
     </div>
     {{else}}
     <div class="table-wrap">
-    <table class="routing-table" aria-label="Mapping routing table">
+    <table class="routing-table" role="grid" aria-label="Mapping routing table">
       <thead>
         <tr>
           <th>Mapping</th>
@@ -83,7 +83,7 @@
       <tbody>
         {{range .Rows}}
         <tr tabindex="0" role="button" aria-label="View details for {{.Name}}"
-            hx-get="/v1/mappings/{{.Name}}/detail" hx-target="#mapping-drawer" hx-swap="innerHTML">
+            hx-get="/v1/mappings/{{.Name | urlPath}}/detail" hx-target="#mapping-drawer" hx-swap="innerHTML">
           <td><strong>{{.Name}}</strong></td>
           <td><span class="model-id" title="{{.Model}}">{{.ProviderName}} / {{.Model}}</span></td>
           <td>
@@ -94,7 +94,7 @@
               <span class="text-muted">—</span>
             {{end}}
           </td>
-          <td><span class="badge badge--status-{{.StatusLabel | lower}}">{{.StatusLabel}}</span></td>
+          <td><span class="badge badge--status-{{.StatusSlug}}">{{.StatusLabel}}</span></td>
           <td>{{if eq .RequestCount 0}}<span class="text-muted">—</span>{{else}}{{.RequestCount}}{{end}}</td>
           <td>{{if eq .FallbackEvents 0}}<span class="text-muted">—</span>{{else}}{{.FallbackEvents}}{{end}}</td>
           <td>{{.LastActivity}}</td>
@@ -137,7 +137,7 @@
     <div class="section-header">
       <h2>Recent Activity</h2>
     </div>
-    <div id="activity-feed" class="activity-feed" hx-ext="sse" sse-connect="/v1/events">
+    <div id="activity-feed" class="activity-feed" hx-ext="sse" sse-connect="/v1/events?since={{.CurrentSeq}}" hx-trigger="sse:event">
       {{if not .RecentActivity}}
       <p class="text-muted">Waiting for routing events…</p>
       {{else}}
@@ -173,13 +173,15 @@
   </section>
 
   {{/* Drawer container (loaded via HTMX) */}}
+  <div class="drawer-overlay" id="drawer-overlay"></div>
   <aside id="mapping-drawer" class="drawer" aria-label="Mapping details"></aside>
 {{end}}
 {{define "scripts"}}
 <script>
   // SSE activity feed: append new events to the activity table.
+  // htmx dispatches `htmx:sseMessage` for SSE `event:` messages; e.detail is the
+  // raw MessageEvent, so the payload lives in e.detail.data.
   document.addEventListener('htmx:sseMessage', function(e) {
-    if (e.detail.type !== 'event') return;
     try {
       var data = JSON.parse(e.detail.data);
       if (!data.Model) return;

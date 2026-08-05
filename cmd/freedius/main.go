@@ -158,6 +158,7 @@ func run(args []string) int {
 	)
 	bus := proxy.NewEventBus(1000)
 	stats := proxy.NewStatsCollector(bus)
+	dispatcher.Stats = stats
 
 	server, serverErr := startProxyServer(host, port, bus, dispatcher, logger, verboseErrors)
 	if err := waitForBind(serverErr); err != nil {

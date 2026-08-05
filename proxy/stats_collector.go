@@ -113,11 +113,18 @@ func (sc *StatsCollector) Close() {
 }
 
 // record processes a single RequestEvent and updates counters.
+//
+// The mapping stat is keyed on ev.MappingName (the mapping resolved by the
+// dispatcher, which may differ from the requested Model when matched by family).
+// Unmatched requests carry an empty MappingName and fall back to Model so the
+// collector still records *something*; matched requests (including family
+// matches like a `default` mapping) are attributed to the configured mapping
+// name, keeping the map bounded to known mappings.
 func (sc *StatsCollector) record(ev RequestEvent) {
-	// Determine the mapping name from the Model field (the freedius-facing
-	// name sent in the request body). Skip non-routing events (health checks
-	// and events with no model).
-	mappingName := ev.Model
+	mappingName := ev.MappingName
+	if mappingName == "" {
+		mappingName = ev.Model
+	}
 	if mappingName == "" {
 		return
 	}
@@ -127,22 +134,6 @@ func (sc *StatsCollector) record(ev RequestEvent) {
 	}
 
 	isError := ev.Status >= 400
-	// Detect fallback: if the original request model resolves to a mapping
-	// whose primary provider differs from the matched provider, it's a
-	// fallback event. However, we don't have access to config here — instead
-	// we use the ErrorType heuristic: if the error mentions "all providers
-	// failed" or the event has specific fallback indicators.
-	// Simpler approach: the LastResponder records fallback usage; here we
-	// detect fallback by checking if ErrorType contains "fallback" in the
-	// aggregated error, or by trusting that the caller will enrich.
-	//
-	// Actually, the most reliable signal: if the event has a non-empty
-	// ErrorType that is NOT a client error (4xx from the proxy itself),
-	// and the MatchedProvider is present, we count it as routed to that
-	// provider. For fallback detection, we rely on the proxy logging
-	// "fallback succeeded" which means the response came from a non-primary.
-	// Since we can't distinguish primary vs fallback from RequestEvent alone,
-	// we'll track fallback separately via a dedicated method.
 
 	sc.mu.Lock()
 	defer sc.mu.Unlock()

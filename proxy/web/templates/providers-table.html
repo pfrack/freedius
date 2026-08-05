@@ -69,9 +69,10 @@
         <div class="table-actions">
           <button
             class="btn btn--ghost btn--sm"
-            hx-post="/v1/providers/{{.Name}}/models/refresh"
-            hx-target="#providers"
-            hx-swap="outerHTML"
+            hx-post="/v1/providers/{{.Name | urlPath}}/test"
+            hx-target="#test-dialog-body"
+            hx-swap="innerHTML"
+            hx-on::after-request="if(event.detail.successful) document.getElementById('test-dialog').showModal()"
           >
             Test
           </button>
@@ -83,7 +84,7 @@
           </button>
           <button
             class="btn btn--ghost btn--sm btn--danger-subtle"
-            hx-delete="/v1/providers/{{.Name}}"
+            hx-delete="/v1/providers/{{.Name | urlPath}}"
             hx-confirm="Delete provider '{{.Name}}'?"
             hx-target="#providers"
             hx-swap="outerHTML"
