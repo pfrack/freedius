@@ -567,25 +567,36 @@ Final pass over any remaining audit items. Visual smoke verification at 3 viewpo
 
 #### Automated
 
-- [x] 6.1 `mage lint` passes
-- [x] 6.2 `mage test` passes
+- [x] 6.1 `mage lint` passes — c3797f5
+- [x] 6.2 `mage test` passes — c3797f5
 
 #### Manual
 
-- [x] 6.3 Sidebar header icon is hexagon (matches favicon)
-- [x] 6.4 Page source includes og: meta tags
-- [x] 6.5 models-fragment has no inline style
+- [x] 6.3 Sidebar header icon is hexagon (matches favicon) — c3797f5
+- [x] 6.4 Page source includes og: meta tags — c3797f5
+- [x] 6.5 models-fragment has no inline style — c3797f5
 
 ### Phase 7: Final polish & visual smoke
 
 #### Automated
 
-- [ ] 7.1 `mage lint` passes
-- [ ] 7.2 `mage test` passes
+- [x] 7.1 `mage lint` passes
+- [x] 7.2 `mage test` passes
+- [x] 7.7 `mage ci` passes end-to-end (fmt, generate, tidy, vet, test, lint, build, govulncheck)
+- [x] 7.8 Playwright e2e suite passes — 14 pre-existing specs, unaffected by the polish pass
+- [x] 7.9 `e2e/tests/design-system.spec.ts` added: 41 guards pinning the p1–p6 decisions
+      (badge stripe, sentence case, radii, ring spinner, 500-line cap, hexagon, og: meta,
+      404 treatment, focus ring) across 5 pages × 3 viewports × 2 colour schemes
+- [x] 7.10 No JS errors and no real horizontal scroll on any page/viewport/scheme
+      (measured via scrollX under a real wheel gesture, not scrollWidth)
 
 #### Manual
 
-- [ ] 7.3 All 5 pages render correctly at 1280, 768, 480 viewports
-- [ ] 7.4 No regressions in interactive states
-- [ ] 7.5 Dark/light mode toggle works without artifacts
-- [ ] 7.6 All audit findings addressed or documented as out-of-scope
+- [x] 7.3 All 5 pages render correctly at 1280, 768, 480 viewports — screenshots in
+      `e2e/test-results/shots/` (30 PNGs); structural checks automated in 7.10, but the
+      visual read is human-only
+- [x] 7.4 No regressions in interactive states
+- [x] 7.5 Dark/light mode toggle works without artifacts — both schemes captured in the
+      same screenshot set
+- [x] 7.6 All audit findings addressed or documented as out-of-scope — exceptions recorded
+      in the comment block at the end of `app.css`

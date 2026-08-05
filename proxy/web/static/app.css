@@ -38,14 +38,6 @@
   --badge-error-bg: rgba(239,68,68,0.12);
   --badge-unknown-bg: var(--bg-surface);
 
-  /* Legacy aliases */
-  --bg: var(--bg-root);
-  --text: var(--text-primary);
-  --nav-bg: var(--bg-card);
-  --nav-active: var(--accent);
-  --border: var(--border-default);
-  --table-hover: var(--bg-hover);
-
   /* Log-level backgrounds */
   --log-debug-bg: #0d0d18;
   --log-info-bg: transparent;
@@ -1944,3 +1936,34 @@ body::before {
     transition: none;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Design decisions — deliberate exceptions
+   ═══════════════════════════════════════════════════════════════════════════
+
+   ALL-CAPS is retained only where scanning beats reading:
+     th, .routing-table th, .activity-table th, .mappings-table th
+       Column headers are landmarks, not prose. Caps + tracking keeps them
+       distinct from the cell text below at 0.7rem without adding weight.
+     .badge, .badge--status-*
+       Status flags are read as symbols at a glance. Caps holds the shape
+       constant regardless of label length ("OK" vs "Key Missing").
+   Everywhere else — drawer labels, health-strip keys, stats terms, route-step
+   labels — caps was decoration and has been dropped for sentence case (p2).
+
+   translateY on :hover is retained only on buttons (.btn--primary, .btn--danger)
+   and their icons. There it reads as magnetic physics on a thing you press,
+   paired with the translateY(1px) scale(0.97) on :active. Surfaces you merely
+   point at (.route-step) respond with a background + shadow shift instead; the
+   lift-on-hover card is the most reproduced pattern in dashboard UI.
+
+   Unreferenced-but-retained tokens: --bg-active, --bg-elevated, --border-glow,
+   --shadow-glow, --duration-slow, --ease-bounce. These complete their
+   respective scales (surface, effect, motion) rather than being orphans — they
+   lost their last consumer when the card/bento layer was removed in p3. Keep
+   them so the next component derives from the scale instead of inventing a
+   one-off value.
+
+   .visually-hidden has no current consumer but is the standard screen-reader
+   escape hatch; it stays as infrastructure, not layout.
+   ═══════════════════════════════════════════════════════════════════════════ */
