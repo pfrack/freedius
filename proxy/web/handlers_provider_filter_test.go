@@ -30,10 +30,10 @@ func TestMappingsProviderFilter_SubstringMatch(t *testing.T) {
 	body := rec.Body.String()
 
 	// Both mappings should appear because "nim" is a substring of "nim" and "openai-nim".
-	if !strings.Contains(body, `class="route-card__name">q</h3>`) {
+	if !strings.Contains(body, `<strong>q</strong>`) {
 		t.Errorf("expected mapping 'q' in body; got: %s", body)
 	}
-	if !strings.Contains(body, `class="route-card__name">r</h3>`) {
+	if !strings.Contains(body, `<strong>r</strong>`) {
 		t.Errorf("expected mapping 'r' in body; got: %s", body)
 	}
 }
@@ -64,7 +64,7 @@ func TestMappingsProviderFilter_FallbackMatch(t *testing.T) {
 	body := rec.Body.String()
 
 	// The mapping should appear because "beta" is a fallback provider.
-	if !strings.Contains(body, `class="route-card__name">q</h3>`) {
+	if !strings.Contains(body, `<strong>q</strong>`) {
 		t.Errorf("expected mapping 'q' in body (fallback match); got: %s", body)
 	}
 }
@@ -88,7 +88,7 @@ func TestMappingsProviderFilter_CaseInsensitive(t *testing.T) {
 	body := rec.Body.String()
 
 	// The mapping should appear because the filter is case-insensitive.
-	if !strings.Contains(body, `class="route-card__name">q</h3>`) {
+	if !strings.Contains(body, `<strong>q</strong>`) {
 		t.Errorf("expected mapping 'q' in body (case-insensitive match); got: %s", body)
 	}
 }
@@ -114,10 +114,10 @@ func TestMappingsProviderFilter_EmptyShowsAll(t *testing.T) {
 	body := rec.Body.String()
 
 	// Both mappings should appear when no filter is set.
-	if !strings.Contains(body, `class="route-card__name">q</h3>`) {
+	if !strings.Contains(body, `<strong>q</strong>`) {
 		t.Errorf("expected mapping 'q' in body; got: %s", body)
 	}
-	if !strings.Contains(body, `class="route-card__name">r</h3>`) {
+	if !strings.Contains(body, `<strong>r</strong>`) {
 		t.Errorf("expected mapping 'r' in body; got: %s", body)
 	}
 }
@@ -144,7 +144,7 @@ func TestMappingsProviderFilter_NoMatchShowsEmpty(t *testing.T) {
 	if !strings.Contains(body, `class="empty-state"`) {
 		t.Errorf("expected empty-state for non-matching filter; got: %s", body)
 	}
-	if strings.Contains(body, `class="route-card__name">q</h3>`) {
+	if strings.Contains(body, `<strong>q</strong>`) {
 		t.Errorf("expected no mappings for non-matching filter; got: %s", body)
 	}
 }

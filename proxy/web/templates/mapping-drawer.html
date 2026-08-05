@@ -1,0 +1,58 @@
+{{define "mapping-drawer"}}
+<div class="drawer__content">
+  <div class="drawer__header">
+    <h2 class="drawer__title">{{.Name}}</h2>
+    <button class="drawer__close" onclick="closeDrawer()" aria-label="Close drawer">✕</button>
+  </div>
+
+  <div class="drawer__body">
+    <div class="drawer__field">
+      <span class="drawer__label">Status</span>
+      <span class="badge badge--status-{{.StatusLabel | lower}}">{{.StatusLabel}}</span>
+    </div>
+
+    <div class="drawer__section">
+      <h3>Route Chain</h3>
+      <div class="route-chain" role="list">
+        <div class="route-step route-step--primary" role="listitem">
+          <span class="route-step__label">Primary</span>
+          <span class="route-step__model">{{.Model}}</span>
+          <span class="route-step__provider">via {{.ProviderName}}</span>
+        </div>
+        {{range $idx, $fb := .Fallbacks}}
+        <div class="route-step route-step--fallback" role="listitem">
+          <span class="route-step__label">Fallback {{add1 $idx}}</span>
+          <span class="route-step__model">{{$fb.Model}}</span>
+          <span class="route-step__provider">via {{$fb.ProviderName}}</span>
+        </div>
+        {{end}}
+      </div>
+    </div>
+
+    <div class="drawer__section">
+      <h3>Statistics</h3>
+      <dl class="drawer__stats">
+        <dt>Requests</dt>
+        <dd>{{.RequestCount}}</dd>
+        <dt>Errors</dt>
+        <dd>{{.ErrorCount}}</dd>
+        <dt>Fallback Events</dt>
+        <dd>{{.FallbackEvents}}</dd>
+        <dt>Last Activity</dt>
+        <dd>{{.LastActivity}}</dd>
+      </dl>
+    </div>
+
+    {{if .AddedAt}}
+    <div class="drawer__field">
+      <span class="drawer__label">Added</span>
+      <span>{{.AddedAt}}</span>
+    </div>
+    {{end}}
+
+    <div class="drawer__actions">
+      <a href="/mappings" class="btn btn--primary">Edit on Mappings page</a>
+    </div>
+  </div>
+</div>
+{{end}}

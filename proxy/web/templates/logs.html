@@ -52,6 +52,40 @@
         hx-replace-url="true"
       >
     </div>
+    <div class="form-group">
+      <label class="form-label" for="outcome-filter">Outcome</label>
+      <select
+        id="outcome-filter"
+        class="form-select"
+        name="outcome"
+        hx-get="/logs"
+        hx-target="#log"
+        hx-trigger="change"
+        hx-include=".log-filters [name]"
+        hx-replace-url="true"
+      >
+        <option value="" {{if not .Outcome}}selected{{end}}>All</option>
+        <option value="success" {{if eq .Outcome "success"}}selected{{end}}>Success</option>
+        <option value="error" {{if eq .Outcome "error"}}selected{{end}}>Error</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="fallback-filter">Fallback</label>
+      <select
+        id="fallback-filter"
+        class="form-select"
+        name="fallback"
+        hx-get="/logs"
+        hx-target="#log"
+        hx-trigger="change"
+        hx-include=".log-filters [name]"
+        hx-replace-url="true"
+      >
+        <option value="" {{if not .Fallback}}selected{{end}}>All</option>
+        <option value="true" {{if eq .Fallback "true"}}selected{{end}}>Yes</option>
+        <option value="false" {{if eq .Fallback "false"}}selected{{end}}>No</option>
+      </select>
+    </div>
   </div>
   <div
     id="log"
@@ -67,12 +101,25 @@
 {{end}}
 {{define "scripts"}}
 <script>
+  // System-log detection heuristic: lines containing startup/listening/config
+  // keywords get the .log-system class for visual distinction from routing logs.
+  function isSystemLog(line) {
+    var lower = line.toLowerCase();
+    return lower.indexOf('listening') !== -1 ||
+           lower.indexOf('loaded config') !== -1 ||
+           lower.indexOf('starting') !== -1 ||
+           lower.indexOf('config loaded') !== -1;
+  }
+
   document.addEventListener('htmx:sseMessage', function(e) {
     if (e.detail.eventName !== 'log') return;
     try {
       var data = JSON.parse(e.detail.data);
       var pre = document.createElement('pre');
       pre.className = 'log-' + data.level;
+      if (isSystemLog(data.line)) {
+        pre.className += ' log-system';
+      }
       pre.textContent = data.line;
       document.getElementById('log').appendChild(pre);
       // Auto-scroll to bottom

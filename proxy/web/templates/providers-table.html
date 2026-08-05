@@ -10,26 +10,48 @@
 </div>
 {{else}}
 <div class="table-wrap">
-<table id="providers">
+<table id="providers" aria-label="Providers table">
   <thead>
     <tr>
       <th>Name</th>
-      <th>Behavior</th>
-      <th>Base URL</th>
-      <th>API Key Env</th>
-      <th>Protocol</th>
+      <th>Status</th>
       <th>Mappings</th>
+      <th>Last Checked</th>
+      <th>Last Error</th>
       <th>Actions</th>
     </tr>
   </thead>
   <tbody>
     {{range .Providers}}
     <tr>
-      <td><strong>{{.Name}}</strong></td>
-      <td>{{.Behavior}}</td>
-      <td><span class="url-truncate" title="{{.BaseURL}}">{{.BaseURL}}</span></td>
-      <td><code class="text-muted">{{.APIKeyEnv}}</code></td>
-      <td>{{if .Protocol}}<span class="badge badge--protocol">{{.Protocol}}</span>{{else}}<span class="text-muted">auto</span>{{end}}</td>
+      <td>
+        <strong>{{.Name}}</strong>
+        <details class="provider-details">
+          <summary class="provider-details__summary">Details</summary>
+          <dl class="provider-details__list">
+            <dt>Base URL</dt><dd><span class="url-truncate" title="{{.BaseURL}}">{{.BaseURL}}</span></dd>
+            <dt>API Key Env</dt><dd><code class="text-muted">{{.APIKeyEnv}}</code></dd>
+            <dt>Protocol</dt><dd>{{if .Protocol}}<span class="badge badge--protocol">{{.Protocol}}</span>{{else}}<span class="text-muted">auto</span>{{end}}</dd>
+            <dt>Behavior</dt><dd>{{.Behavior}}</dd>
+            <dt>Requests</dt><dd>{{.RequestCount}}</dd>
+          </dl>
+        </details>
+      </td>
+      <td>
+        {{if eq .Status "healthy"}}<span class="badge badge--healthy">
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          Healthy</span>
+        {{else if eq .Status "degraded"}}<span class="badge badge--degraded">
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          Degraded</span>
+        {{else if eq .Status "error"}}<span class="badge badge--error">
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+          Error</span>
+        {{else}}<span class="badge badge--unknown">
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+          Unknown</span>
+        {{end}}
+      </td>
       <td>
         {{if gt .MappingCount 0}}
           <a href="/mappings?provider={{.Name}}">{{.MappingCount}} mapping{{if ne .MappingCount 1}}s{{end}}</a>
@@ -37,8 +59,22 @@
           <span class="text-muted">0</span>
         {{end}}
       </td>
+      <td>{{if .LastSuccess}}{{.LastSuccess}}{{else}}<span class="text-muted">Never</span>{{end}}</td>
+      <td>
+        {{if .LastError}}
+          <span class="provider-error" title="{{.LastErrorMessage}}">{{.LastError}}{{if .LastErrorMessage}}: {{.LastErrorMessage}}{{end}}</span>
+        {{else}}<span class="text-muted">&mdash;</span>{{end}}
+      </td>
       <td>
         <div class="table-actions">
+          <button
+            class="btn btn--ghost btn--sm"
+            hx-post="/v1/providers/{{.Name}}/models/refresh"
+            hx-target="#providers"
+            hx-swap="outerHTML"
+          >
+            Test
+          </button>
           <button
             class="btn btn--ghost btn--sm"
             onclick="editProvider('{{.Name | js}}','{{.Behavior | js}}','{{.BaseURL | js}}','{{.APIKeyEnv | js}}','{{.Protocol | js}}')"

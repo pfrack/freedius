@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -24,6 +24,8 @@ var modelFetchInflight sync.Map
 
 // SetupMux builds the HTTP mux for the web server: page handlers, static
 // assets, health check, eventstream routes, and writeback CRUD.
+//
+//nolint:gocyclo // route registration function; complexity is inherent.
 func SetupMux(h *eventstream.Handlers, logger *slog.Logger) *http.ServeMux {
 	mux := http.NewServeMux()
 
@@ -53,44 +55,185 @@ func SetupMux(h *eventstream.Handlers, logger *slog.Logger) *http.ServeMux {
 			return
 		}
 
-		uptime := time.Since(h.StartTime).Round(time.Second).String()
 		cfg := h.Cfg
 		providers := cfg.ProvidersSnapshot()
+		mappings := cfg.MappingsSnapshot()
 
-		// Build mapping rows (no filter for dashboard).
-		mappings := buildMappingRows(cfg, providers, h.LastResponder, "")
+		// Gather stats snapshots (nil-safe).
+		var mappingStats map[string]proxy.MappingStats
+		var providerStats map[string]proxy.ProviderStats
+		if h.Stats != nil {
+			mappingStats = h.Stats.MappingSnapshot()
+			providerStats = h.Stats.ProviderSnapshot()
+		}
 
-		// Build provider rows with mapping counts.
+		// Build health strip.
+		uptime := time.Since(h.StartTime).Round(time.Second).String()
+		endpoint := fmt.Sprintf("%s:%d", h.Host, h.Port)
+		health := healthStrip{
+			State:         "Healthy",
+			Uptime:        uptime,
+			Endpoint:      endpoint,
+			LastRequest:   "No traffic",
+			TotalRequests: int64(h.Bus.EventCount()),
+		}
+		// Compute last request time and error/fallback counts from stats.
+		var lastReqTime time.Time
+		for _, ms := range mappingStats {
+			health.ErrorsLastHour += ms.ErrorCount
+			health.FallbacksLast24h += ms.FallbackCount
+			if ms.LastActivity.After(lastReqTime) {
+				lastReqTime = ms.LastActivity
+			}
+		}
+		if !lastReqTime.IsZero() {
+			health.LastRequest = formatTimeAgo(lastReqTime)
+		}
+		// Determine overall state from provider stats.
+		hasErrors := false
+		for _, ps := range providerStats {
+			if ps.RecentErrorRate > 0.5 && ps.RequestCount >= 3 {
+				hasErrors = true
+				break
+			}
+		}
+		if hasErrors {
+			health.State = "Degraded"
+		}
+
+		// Compute attention alerts.
+		alerts := computeAlerts(cfg, mappingStats, providerStats, providers)
+
+		// Build routing table rows.
+		var rows []routingTableRow
+		for name, m := range mappings {
+			fallbackSummary := ""
+			fallbackCount := len(m.Fallback)
+			if fallbackCount > 0 {
+				fb := m.Fallback[0]
+				fallbackSummary = fb.ProviderName + " / " + fb.ModelString
+			}
+			ms := mappingStats[name]
+			lastActivity := "No traffic"
+			if !ms.LastActivity.IsZero() {
+				lastActivity = formatTimeAgo(ms.LastActivity)
+			}
+			statusLabel := "Unknown"
+			envPresent := false
+			if p, ok := providers[m.ProviderName]; ok {
+				if p.DefaultAPIKeyEnv != "" {
+					envPresent = os.Getenv(p.DefaultAPIKeyEnv) != ""
+				}
+			}
+			switch {
+			case !envPresent:
+				statusLabel = "Key Missing"
+			case ms.RequestCount == 0:
+				// keep "Unknown"
+			case ms.RecentErrorRate > 0.5:
+				statusLabel = "Degraded"
+			default:
+				statusLabel = "Healthy"
+			}
+			rows = append(rows, routingTableRow{
+				Name:            name,
+				ProviderName:    m.ProviderName,
+				Model:           m.ModelString,
+				FallbackSummary: fallbackSummary,
+				FallbackCount:   fallbackCount,
+				StatusLabel:     statusLabel,
+				RequestCount:    ms.RequestCount,
+				ErrorCount:      ms.ErrorCount,
+				FallbackEvents:  ms.FallbackCount,
+				LastActivity:    lastActivity,
+				EnvPresent:      envPresent,
+			})
+		}
+
+		// Build provider health summary.
 		mappingCounts := make(map[string]int)
-		for _, m := range cfg.MappingsSnapshot() {
+		for _, m := range mappings {
 			mappingCounts[m.ProviderName]++
 		}
-		var providerRows []providerRow
-		for name, p := range providers {
-			providerRows = append(providerRows, providerRow{
+		phSummary := providerHealthSummary{
+			Total: len(providers),
+		}
+		for name := range providers {
+			ps := providerStats[name]
+			status := "unknown"
+			switch {
+			case ps.RequestCount == 0:
+				// keep "unknown"
+			case ps.RecentErrorRate > 0.5:
+				status = "error"
+			case ps.RecentErrorRate > 0.2:
+				status = "degraded"
+			default:
+				status = "healthy"
+			}
+			switch status {
+			case "healthy":
+				phSummary.Healthy++
+			case "degraded":
+				phSummary.Degraded++
+			case "error":
+				phSummary.Error++
+			default:
+				phSummary.Unknown++
+			}
+			lastChecked := "Never"
+			if !ps.LastSuccess.IsZero() {
+				lastChecked = formatTimeAgo(ps.LastSuccess)
+			} else if !ps.LastError.IsZero() {
+				lastChecked = formatTimeAgo(ps.LastError)
+			}
+			phSummary.Badges = append(phSummary.Badges, providerHealthBadge{
 				Name:         name,
-				Behavior:     p.Behavior,
-				BaseURL:      p.DefaultBaseURL,
-				APIKeyEnv:    p.DefaultAPIKeyEnv,
-				Protocol:     p.Protocol,
+				Status:       status,
+				LastChecked:  lastChecked,
 				MappingCount: mappingCounts[name],
 			})
 		}
 
-		renderPage(w, "index.html", indexData{
-			pageData:         pageData{Active: "index"},
-			Uptime:           uptime,
-			TotalEvents:      int64(h.Bus.EventCount()),
-			TotalLogs:        h.LogSink.EventCount(),
-			Port:             strconv.Itoa(h.Port),
-			Host:             h.Host,
-			Mappings:         mappings,
-			Providers:        providerRows,
-			TotalMappings:    len(mappings),
-			ActiveMappings:   countActive(mappings),
-			FallbackMappings: countWithFallbacks(mappings),
-			TotalProviders:   len(providerRows),
-		}, logger, "mappings-table.html")
+		// Build recent activity from EventBus ring (last 20).
+		var recentActivity []activityRow
+		events, _, _ := h.Bus.Since(0)
+		startIdx := 0
+		if len(events) > 20 {
+			startIdx = len(events) - 20
+		}
+		for i := len(events) - 1; i >= startIdx; i-- {
+			ev := events[i]
+			if ev.Model == "" {
+				continue
+			}
+			statusLabel := "OK"
+			if ev.Status >= 400 {
+				statusLabel = ev.ErrorType
+				if statusLabel == "" {
+					statusLabel = fmt.Sprintf("%d", ev.Status)
+				}
+			}
+			recentActivity = append(recentActivity, activityRow{
+				Timestamp:    ev.Timestamp.Format("15:04:05"),
+				Mapping:      ev.Model,
+				Route:        ev.MatchedProvider + " / " + ev.MatchedModel,
+				FallbackUsed: false, // TODO: enrich from LastResponder
+				Latency:      formatLatency(ev.Latency),
+				Status:       ev.Status,
+				StatusLabel:  statusLabel,
+				LogsLink:     fmt.Sprintf("/logs?mapping=%s&provider=%s", ev.Model, ev.MatchedProvider),
+			})
+		}
+
+		renderPage(w, "index.html", dashboardData{
+			pageData:       pageData{Active: "index"},
+			Health:         health,
+			Alerts:         alerts,
+			Rows:           rows,
+			ProviderHealth: phSummary,
+			RecentActivity: recentActivity,
+		}, logger)
 	})
 	mux.HandleFunc("GET /logs", func(w http.ResponseWriter, r *http.Request) {
 		handleLogs(w, r, h.LogSink, logger)
@@ -131,6 +274,11 @@ func SetupMux(h *eventstream.Handlers, logger *slog.Logger) *http.ServeMux {
 		writeJSON(w, http.StatusOK, snap)
 	})
 
+	// Drawer endpoint: HTMX-loaded fragment for the mapping details drawer.
+	mux.HandleFunc("GET /v1/mappings/{name}/detail", func(w http.ResponseWriter, r *http.Request) {
+		handleMappingDetail(w, r, h, logger)
+	})
+
 	// Models endpoint: explicit refresh only.
 	mux.HandleFunc("POST /v1/providers/{name}/models/refresh", func(w http.ResponseWriter, r *http.Request) {
 		handleRefreshModels(w, r, h, logger)
@@ -140,8 +288,9 @@ func SetupMux(h *eventstream.Handlers, logger *slog.Logger) *http.ServeMux {
 }
 
 // handleLogs renders the log page with server-rendered entries from the ring
-// buffer. Filters: ?min=<level>, ?provider=<name>, ?mapping=<name> — all
-// optional; multiple combine via AND. Provider/matching is a case-insensitive
+// buffer. Filters: ?min=<level>, ?provider=<name>, ?mapping=<name>,
+// ?outcome=<success|error>, ?fallback=<true|false> — all optional;
+// multiple combine via AND. Provider/matching is a case-insensitive
 // substring match against the rendered log line.
 func handleLogs(w http.ResponseWriter, r *http.Request, logSink *proxy.LogSink, logger *slog.Logger) {
 	q := r.URL.Query()
@@ -153,6 +302,8 @@ func handleLogs(w http.ResponseWriter, r *http.Request, logSink *proxy.LogSink, 
 	}
 	providerFilter := strings.ToLower(strings.TrimSpace(q.Get("provider")))
 	mappingFilter := strings.ToLower(strings.TrimSpace(q.Get("mapping")))
+	outcomeFilter := parseOutcomeFilter(q.Get("outcome"))
+	fallbackFilter := parseFallbackFilter(q.Get("fallback"))
 
 	entries, _, _ := logSink.SnapshotSince(0)
 
@@ -171,6 +322,24 @@ func handleLogs(w http.ResponseWriter, r *http.Request, logSink *proxy.LogSink, 
 				continue
 			}
 			if mappingFilter != "" && !strings.Contains(line, mappingFilter) {
+				continue
+			}
+		}
+		if outcomeFilter != "" {
+			isError := e.Level >= slog.LevelError
+			if outcomeFilter == "error" && !isError {
+				continue
+			}
+			if outcomeFilter == "success" && isError {
+				continue
+			}
+		}
+		if fallbackFilter != "" {
+			hasFallback := strings.Contains(strings.ToLower(e.Line), "fallback")
+			if fallbackFilter == "true" && !hasFallback {
+				continue
+			}
+			if fallbackFilter == "false" && hasFallback {
 				continue
 			}
 		}
@@ -202,7 +371,32 @@ func handleLogs(w http.ResponseWriter, r *http.Request, logSink *proxy.LogSink, 
 			Level:    levelSel,
 			Provider: providerFilter,
 			Mapping:  mappingFilter,
+			Outcome:  outcomeFilter,
+			Fallback: fallbackFilter,
 		}, logger)
+	}
+}
+
+// parseOutcomeFilter normalizes the ?outcome= query parameter. Returns ""
+// for empty/invalid values (no filter applied). Valid values: "success",
+// "error".
+func parseOutcomeFilter(s string) string {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "success", "error":
+		return strings.ToLower(strings.TrimSpace(s))
+	default:
+		return ""
+	}
+}
+
+// parseFallbackFilter normalizes the ?fallback= query parameter. Returns ""
+// for empty/invalid values (no filter applied). Valid values: "true", "false".
+func parseFallbackFilter(s string) string {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "true", "false":
+		return strings.ToLower(strings.TrimSpace(s))
+	default:
+		return ""
 	}
 }
 
@@ -218,21 +412,41 @@ func handleProviders(w http.ResponseWriter, r *http.Request, h *eventstream.Hand
 		counts[m.ProviderName]++
 	}
 
+	// Gather provider stats (nil-safe).
+	var providerStats map[string]proxy.ProviderStats
+	if h.Stats != nil {
+		providerStats = h.Stats.ProviderSnapshot()
+	}
+
 	var rows []providerRow
 	for name, p := range providers {
-		rows = append(rows, providerRow{
+		row := providerRow{
 			Name:         name,
 			Behavior:     p.Behavior,
 			BaseURL:      p.DefaultBaseURL,
 			APIKeyEnv:    p.DefaultAPIKeyEnv,
 			Protocol:     p.Protocol,
 			MappingCount: counts[name],
-		})
+		}
+		if ps, ok := providerStats[name]; ok && ps.RequestCount > 0 {
+			row.Status = deriveProviderStatus(ps)
+			row.RequestCount = ps.RequestCount
+			if !ps.LastSuccess.IsZero() {
+				row.LastSuccess = formatTimeAgo(ps.LastSuccess)
+			}
+			if !ps.LastError.IsZero() {
+				row.LastError = formatTimeAgo(ps.LastError)
+				row.LastErrorMessage = ps.LastErrorMessage
+			}
+		} else {
+			row.Status = "unknown"
+		}
+		rows = append(rows, row)
 	}
 
 	// HTMX request: render only the table fragment.
 	if r.Header.Get("HX-Request") == "true" {
-		renderProvidersTable(w, r, h.Cfg)
+		renderProvidersTable(w, r, h)
 	} else {
 		// Direct visit: render full page.
 		renderPage(w, "providers.html", providersData{
@@ -242,13 +456,52 @@ func handleProviders(w http.ResponseWriter, r *http.Request, h *eventstream.Hand
 	}
 }
 
+// deriveProviderStatus computes a passive health label from ProviderStats.
+// error rate > 50% → "degraded", last 3 consecutive errors → "error",
+// no traffic → "unknown", otherwise "healthy".
+func deriveProviderStatus(ps proxy.ProviderStats) string {
+	switch {
+	case ps.RequestCount == 0:
+		return "unknown"
+	case ps.RecentErrorRate > 0.5:
+		return "degraded"
+	case ps.LastError.After(ps.LastSuccess):
+		return "error"
+	default:
+		return "healthy"
+	}
+}
+
+// mappingFilters is the set of active query-string filters for the
+// mappings page. Empty fields mean "no filter applied". All filters
+// combine with AND logic; per Phase 4 plan §4 (Mappings Page Table
+// Refactor) this preserves the existing ?provider= behavior while
+// adding ?search=, ?status=, and ?has_fallback=.
+type mappingFilters struct {
+	Search         string
+	ProviderFilter string
+	StatusFilter   string // "active", "inactive", or ""
+	HasFallback    string // "true", "false", or ""
+}
+
+// parseMappingFilters pulls the active query-string filters from the
+// request. Unknown or empty values become "" (no filter).
+func parseMappingFilters(q url.Values) mappingFilters {
+	return mappingFilters{
+		Search:         strings.TrimSpace(q.Get("search")),
+		ProviderFilter: strings.TrimSpace(q.Get("provider")),
+		StatusFilter:   strings.TrimSpace(q.Get("status")),
+		HasFallback:    strings.TrimSpace(q.Get("has_fallback")),
+	}
+}
+
 // handleMappings renders the mappings page with a read-only table.
 func handleMappings(w http.ResponseWriter, r *http.Request, h *eventstream.Handlers, logger *slog.Logger) {
 	cfg := h.Cfg
 	providers := cfg.ProvidersSnapshot()
-	providerFilter := r.URL.Query().Get("provider")
+	filters := parseMappingFilters(r.URL.Query())
 
-	rows := buildMappingRows(cfg, providers, h.LastResponder, providerFilter)
+	rows := buildMappingRows(cfg, providers, h.LastResponder, filters)
 
 	mappingCounts := make(map[string]int)
 	for _, m := range cfg.MappingsSnapshot() {
@@ -272,45 +525,85 @@ func handleMappings(w http.ResponseWriter, r *http.Request, h *eventstream.Handl
 	} else {
 		// Direct visit: render full page.
 		renderPage(w, "mappings.html", mappingsData{
-			pageData:  pageData{Active: "mappings"},
-			Mappings:  rows,
-			Providers: providerRows,
-		}, logger, "mappings-table.html")
+			pageData:          pageData{Active: "mappings"},
+			Mappings:          rows,
+			Providers:         providerRows,
+			TotalMappings:     len(cfg.MappingsSnapshot()),
+			Search:            filters.Search,
+			ProviderFilter:    filters.ProviderFilter,
+			StatusFilter:      filters.StatusFilter,
+			HasFallbackFilter: filters.HasFallback,
+		}, logger, "mappings-routing-table.html")
 	}
 }
 
 // buildMappingRows builds the mapping rows for template rendering.
-// It filters mappings by provider name (case-insensitive substring match)
-// when providerFilter is non-empty.
+// It applies all active filters in mappingFilters (combined with AND).
+// Returns an empty slice when the config has no mappings or every
+// mapping is filtered out.
 func buildMappingRows(
 	cfg *config.Config,
 	providers map[string]config.Provider,
 	lastResponder *proxy.LastResponder,
-	providerFilter string,
+	filters mappingFilters,
 ) []mappingRow {
 	mappings := cfg.MappingsSnapshot()
 
-	// Cache lowercased filter once outside the loop — ToLower allocates.
-	filterLower := strings.ToLower(providerFilter)
-	hasFilter := filterLower != ""
+	// Cache lowercased filters once outside the loop — ToLower allocates.
+	searchLower := strings.ToLower(filters.Search)
+	hasSearch := searchLower != ""
+	providerLower := strings.ToLower(filters.ProviderFilter)
+	hasProvider := providerLower != ""
+	hasStatus := filters.StatusFilter == "active" || filters.StatusFilter == "inactive"
+	hasFallback := filters.HasFallback == "true" || filters.HasFallback == "false"
 
 	var rows []mappingRow
 	for name, m := range mappings {
-		// Apply provider filter if set.
-		if hasFilter {
-			// Check primary provider.
-			if !strings.Contains(strings.ToLower(m.ProviderName), filterLower) {
-				// Check fallback providers.
-				matched := false
+		// Apply provider filter (substring match on primary or any fallback).
+		if hasProvider {
+			matched := strings.Contains(strings.ToLower(m.ProviderName), providerLower)
+			if !matched {
 				for _, fb := range m.Fallback {
-					if strings.Contains(strings.ToLower(fb.ProviderName), filterLower) {
+					if strings.Contains(strings.ToLower(fb.ProviderName), providerLower) {
 						matched = true
 						break
 					}
 				}
-				if !matched {
+			}
+			if !matched {
+				continue
+			}
+		}
+
+		// Apply search filter (case-insensitive substring match on mapping name).
+		if hasSearch && !strings.Contains(strings.ToLower(name), searchLower) {
+			continue
+		}
+
+		// Compute env presence + status for the filter and the badge.
+		envPresent := false
+		if p, ok := providers[m.ProviderName]; ok && p.DefaultAPIKeyEnv != "" {
+			envPresent = os.Getenv(p.DefaultAPIKeyEnv) != ""
+		}
+		if hasStatus {
+			switch filters.StatusFilter {
+			case "active":
+				if !envPresent {
 					continue
 				}
+			case "inactive":
+				if envPresent {
+					continue
+				}
+			}
+		}
+
+		// Compute fallback count for the filter.
+		fbCount := len(m.Fallback)
+		if hasFallback {
+			wantFallback := filters.HasFallback == "true"
+			if wantFallback != (fbCount > 0) {
+				continue
 			}
 		}
 
@@ -331,13 +624,9 @@ func buildMappingRows(
 		}
 		proto := ""
 		url := ""
-		envPresent := false
 		if p, ok := providers[m.ProviderName]; ok {
 			proto = p.Protocol
 			url = p.DefaultBaseURL
-			if p.DefaultAPIKeyEnv != "" {
-				envPresent = os.Getenv(p.DefaultAPIKeyEnv) != ""
-			}
 		}
 		family, _ := proxy.ExtractFamily(name)
 		if family == "default" {
@@ -365,28 +654,6 @@ func buildMappingRows(
 	return rows
 }
 
-// countActive returns the number of mapping rows with EnvPresent == true.
-func countActive(rows []mappingRow) int {
-	n := 0
-	for _, r := range rows {
-		if r.EnvPresent {
-			n++
-		}
-	}
-	return n
-}
-
-// countWithFallbacks returns the number of mapping rows with at least one fallback.
-func countWithFallbacks(rows []mappingRow) int {
-	n := 0
-	for _, r := range rows {
-		if len(r.Fallbacks) > 0 {
-			n++
-		}
-	}
-	return n
-}
-
 // parseMinLevel parses a ?min= query parameter into a slog.Level. Returns nil
 // for the empty string (no filtering). Returns an error for non-empty unknown
 // values per plan §2.9 ("?min=invalid returns 400 with JSON error").
@@ -412,7 +679,9 @@ func parseMinLevel(s string) (*slog.Level, error) {
 }
 
 // renderProvidersTable renders the `<table>` fragment for providers.
-func renderProvidersTable(w http.ResponseWriter, _ *http.Request, cfg *config.Config) {
+// Re-enriches rows with live stats so the fragment matches the page render.
+func renderProvidersTable(w http.ResponseWriter, _ *http.Request, h *eventstream.Handlers) {
+	cfg := h.Cfg
 	providers := cfg.ProvidersSnapshot()
 	mappings := cfg.MappingsSnapshot()
 
@@ -422,16 +691,36 @@ func renderProvidersTable(w http.ResponseWriter, _ *http.Request, cfg *config.Co
 		counts[m.ProviderName]++
 	}
 
+	// Gather provider stats (nil-safe).
+	var providerStats map[string]proxy.ProviderStats
+	if h.Stats != nil {
+		providerStats = h.Stats.ProviderSnapshot()
+	}
+
 	var rows []providerRow
 	for name, p := range providers {
-		rows = append(rows, providerRow{
+		row := providerRow{
 			Name:         name,
 			Behavior:     p.Behavior,
 			BaseURL:      p.DefaultBaseURL,
 			APIKeyEnv:    p.DefaultAPIKeyEnv,
 			Protocol:     p.Protocol,
 			MappingCount: counts[name],
-		})
+		}
+		if ps, ok := providerStats[name]; ok && ps.RequestCount > 0 {
+			row.Status = deriveProviderStatus(ps)
+			row.RequestCount = ps.RequestCount
+			if !ps.LastSuccess.IsZero() {
+				row.LastSuccess = formatTimeAgo(ps.LastSuccess)
+			}
+			if !ps.LastError.IsZero() {
+				row.LastError = formatTimeAgo(ps.LastError)
+				row.LastErrorMessage = ps.LastErrorMessage
+			}
+		} else {
+			row.Status = "unknown"
+		}
+		rows = append(rows, row)
 	}
 
 	tmpl, err := loadFragmentTemplate("providers-table.html")
@@ -463,12 +752,16 @@ func renderLogEntries(w http.ResponseWriter, entries []logEntry) {
 }
 
 // renderMappingsTable renders the `<table>` fragment for mappings.
+// Loads the new mappings-routing-table template (Phase 4) which renders
+// a compact table + filter bar + delete-confirm dialog. The filter
+// query params are parsed via parseMappingFilters so the HTMX fragment
+// swap carries the same filter state as the page-level render.
 func renderMappingsTable(w http.ResponseWriter, r *http.Request, h *eventstream.Handlers) {
 	cfg := h.Cfg
 	providers := cfg.ProvidersSnapshot()
-	providerFilter := r.URL.Query().Get("provider")
+	filters := parseMappingFilters(r.URL.Query())
 
-	rows := buildMappingRows(cfg, providers, h.LastResponder, providerFilter)
+	rows := buildMappingRows(cfg, providers, h.LastResponder, filters)
 
 	mappingCounts := make(map[string]int)
 	for _, m := range cfg.MappingsSnapshot() {
@@ -486,17 +779,108 @@ func renderMappingsTable(w http.ResponseWriter, r *http.Request, h *eventstream.
 		})
 	}
 
-	tmpl, err := loadFragmentTemplate("mappings-table.html")
+	tmpl, err := loadFragmentTemplate("mappings-routing-table.html")
 	if err != nil {
 		writeJSONError(w, http.StatusInternalServerError, "template_failed", err.Error())
 		return
 	}
-	err = tmpl.ExecuteTemplate(w, "mappings-table", mappingsData{
-		Mappings:  rows,
-		Providers: providerRows,
+	err = tmpl.ExecuteTemplate(w, "mappings-routing-table", mappingsData{
+		Mappings:          rows,
+		Providers:         providerRows,
+		TotalMappings:     len(cfg.MappingsSnapshot()),
+		Search:            filters.Search,
+		ProviderFilter:    filters.ProviderFilter,
+		StatusFilter:      filters.StatusFilter,
+		HasFallbackFilter: filters.HasFallback,
 	})
 	if err != nil {
 		writeJSONError(w, http.StatusInternalServerError, "template_failed", err.Error())
+	}
+}
+
+// handleMappingDetail renders the mapping details drawer fragment for a
+// named mapping. HTMX-only endpoint — never returns a full page. Returns
+// 404 JSON when the mapping is unknown so callers (the dashboard row
+// handler) get a structured error rather than an empty HTML shell.
+func handleMappingDetail(w http.ResponseWriter, r *http.Request, h *eventstream.Handlers, logger *slog.Logger) {
+	name := r.PathValue("name")
+	if name == "" {
+		writeJSONError(w, http.StatusBadRequest, "bad_path", "missing mapping name")
+		return
+	}
+
+	mappings := h.Cfg.MappingsSnapshot()
+	m, ok := mappings[name]
+	if !ok {
+		writeJSONError(w, http.StatusNotFound, "not_found", "mapping not found")
+		return
+	}
+
+	providers := h.Cfg.ProvidersSnapshot()
+	proto := ""
+	baseURL := ""
+	envPresent := false
+	if p, ok := providers[m.ProviderName]; ok {
+		proto = p.Protocol
+		baseURL = p.DefaultBaseURL
+		if p.DefaultAPIKeyEnv != "" {
+			envPresent = os.Getenv(p.DefaultAPIKeyEnv) != ""
+		}
+	}
+
+	var fallbacks []drawerFallback
+	for _, fb := range m.Fallback {
+		fallbacks = append(fallbacks, drawerFallback{
+			Model:        fb.ModelString,
+			ProviderName: fb.ProviderName,
+		})
+	}
+
+	var ms proxy.MappingStats
+	if h.Stats != nil {
+		ms = h.Stats.MappingSnapshot()[name]
+	}
+	lastActivity := "No traffic"
+	if !ms.LastActivity.IsZero() {
+		lastActivity = formatTimeAgo(ms.LastActivity)
+	}
+	statusLabel := "Unknown"
+	switch {
+	case !envPresent:
+		statusLabel = "Key Missing"
+	case ms.RequestCount == 0:
+		// keep "Unknown"
+	case ms.RecentErrorRate > 0.5:
+		statusLabel = "Degraded"
+	default:
+		statusLabel = "Healthy"
+	}
+
+	data := drawerData{
+		Name:           name,
+		StatusLabel:    statusLabel,
+		Model:          m.ModelString,
+		ProviderName:   m.ProviderName,
+		Protocol:       proto,
+		BaseURL:        baseURL,
+		Fallbacks:      fallbacks,
+		RequestCount:   ms.RequestCount,
+		ErrorCount:     ms.ErrorCount,
+		FallbackEvents: ms.FallbackCount,
+		LastActivity:   lastActivity,
+		AddedAt:        m.AddedAt,
+		EnvPresent:     envPresent,
+	}
+
+	tmpl, err := loadFragmentTemplate("mapping-drawer.html")
+	if err != nil {
+		logger.Error("load drawer template", "err", err)
+		writeJSONError(w, http.StatusInternalServerError, "template_failed", err.Error())
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := tmpl.ExecuteTemplate(w, "mapping-drawer", data); err != nil {
+		logger.Error("execute drawer template", "err", err)
 	}
 }
 
@@ -544,7 +928,7 @@ func handleCreateProvider(w http.ResponseWriter, r *http.Request, h *eventstream
 	cfg.Unlock()
 	// HTMX request: render the updated table fragment.
 	if r.Header.Get("HX-Request") == "true" {
-		renderProvidersTable(w, r, h.Cfg)
+		renderProvidersTable(w, r, h)
 	} else {
 		// Non-HTMX request: return JSON.
 		writeJSON(w, http.StatusCreated, map[string]string{"status": "created", "name": name})
@@ -595,7 +979,7 @@ func handleUpdateProvider(w http.ResponseWriter, r *http.Request, h *eventstream
 	cfg.Unlock()
 	// HTMX request: render the updated table fragment.
 	if r.Header.Get("HX-Request") == "true" {
-		renderProvidersTable(w, r, h.Cfg)
+		renderProvidersTable(w, r, h)
 	} else {
 		// Non-HTMX request: return JSON.
 		writeJSON(w, http.StatusOK, map[string]string{"status": "updated", "name": name})
@@ -658,7 +1042,7 @@ func handleDeleteProvider(w http.ResponseWriter, r *http.Request, h *eventstream
 	cfg.Unlock()
 	// HTMX request: render the updated table fragment.
 	if r.Header.Get("HX-Request") == "true" {
-		renderProvidersTable(w, r, h.Cfg)
+		renderProvidersTable(w, r, h)
 	} else {
 		// Non-HTMX request: return JSON.
 		writeJSON(w, http.StatusOK, map[string]string{"status": "deleted", "name": name})
@@ -907,6 +1291,35 @@ func formatDuration(d time.Duration) string {
 		return fmt.Sprintf("%dm", int(d.Minutes()))
 	}
 	return fmt.Sprintf("%dh", int(d.Hours()))
+}
+
+// formatTimeAgo renders a time.Time as a human-readable "Xm ago" string.
+func formatTimeAgo(t time.Time) string {
+	if t.IsZero() {
+		return "Never"
+	}
+	d := time.Since(t)
+	if d < time.Minute {
+		return fmt.Sprintf("%ds ago", int(d.Seconds()))
+	}
+	if d < time.Hour {
+		return fmt.Sprintf("%dm ago", int(d.Minutes()))
+	}
+	if d < 24*time.Hour {
+		return fmt.Sprintf("%dh ago", int(d.Hours()))
+	}
+	return t.Format("Jan 2 15:04")
+}
+
+// formatLatency renders a duration as a compact latency string.
+func formatLatency(d time.Duration) string {
+	if d < time.Millisecond {
+		return fmt.Sprintf("%dµs", d.Microseconds())
+	}
+	if d < time.Second {
+		return fmt.Sprintf("%dms", d.Milliseconds())
+	}
+	return fmt.Sprintf("%.1fs", d.Seconds())
 }
 
 // --- JSON response helpers ---

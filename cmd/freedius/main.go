@@ -138,9 +138,7 @@ func run(args []string) int {
 		return failf("freedius: %s", err)
 	}
 
-	if err := checkRequiredEnvVars(cfg); err != nil {
-		return failf("freedius: %s", err)
-	}
+	warnMissingEnvVars(logger, cfg)
 
 	serverLogger := logger.With("component", "server")
 	serverLogger.Info(
@@ -159,6 +157,7 @@ func run(args []string) int {
 		resolveFallbackTimeoutMultiplier(), streamTimeout,
 	)
 	bus := proxy.NewEventBus(1000)
+	stats := proxy.NewStatsCollector(bus)
 
 	server, serverErr := startProxyServer(host, port, bus, dispatcher, logger, verboseErrors)
 	if err := waitForBind(serverErr); err != nil {
@@ -180,6 +179,7 @@ func run(args []string) int {
 		AuthToken:   os.Getenv("FREEDIUS_UI_TOKEN"),
 		CfgPath:     cfgPath,
 		ModelsCache: mc,
+		Stats:       stats,
 	}
 	webServer := web.NewServer(uiHost, uiPort, h, logger)
 	// Bind synchronously so a port conflict on :8083 fails the process
@@ -195,7 +195,7 @@ func run(args []string) int {
 	}()
 
 	logger.Info("web dashboard on http://" + net.JoinHostPort(uiHost, strconv.Itoa(uiPort)))
-	return waitForShutdownWithWeb(server, webServer, serverErr, logger)
+	return waitForShutdownWithWeb(server, webServer, serverErr, stats, logger)
 }
 
 func newLogger(format string, w io.Writer, sink *proxy.LogSink) (*slog.Logger, error) {
@@ -266,11 +266,13 @@ func waitForShutdownWithWeb(
 	server *http.Server,
 	webServer *web.Server,
 	serverErr <-chan error,
+	stats *proxy.StatsCollector,
 	logger *slog.Logger,
 ) int {
 	if err := waitForShutdown(server, func() error {
 		ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 		defer cancel()
+		stats.Close()
 		return webServer.Shutdown(ctx)
 	}); err != nil {
 		logger.Error("shutdown error", "err", err)
@@ -394,23 +396,33 @@ func resolveFallbackTimeoutMultiplier() int {
 	return defaultFallbackTimeoutMul
 }
 
-func checkRequiredEnvVars(cfg *config.Config) error {
+// warnMissingEnvVars emits a structured warning for each mapping whose
+// provider declares a DefaultAPIKeyEnv that is not set in the environment.
+// It never fails startup: freedius boots regardless of missing keys, and the
+// request fails with authentication_error at request time instead. (Renamed
+// from checkRequiredEnvVars to make clear it only logs, it does not abort.)
+func warnMissingEnvVars(logger *slog.Logger, cfg *config.Config) {
 	providers := cfg.ProvidersSnapshot()
+	// Warn once per provider, not once per mapping: a provider referenced by
+	// multiple mappings would otherwise emit a duplicate warning per mapping.
+	warned := make(map[string]struct{})
 	for name, m := range cfg.MappingsSnapshot() {
 		p, ok := providers[m.ProviderName]
 		if !ok {
 			continue
 		}
 		if p.DefaultAPIKeyEnv != "" && os.Getenv(p.DefaultAPIKeyEnv) == "" {
-			return fmt.Errorf(
-				"%s env var required (mapping %q references provider %q)",
-				p.DefaultAPIKeyEnv,
-				name,
-				m.ProviderName,
+			if _, done := warned[m.ProviderName]; done {
+				continue
+			}
+			warned[m.ProviderName] = struct{}{}
+			logger.With("component", "startup").Warn("API key not set",
+				"env", p.DefaultAPIKeyEnv,
+				"mapping", name,
+				"provider", m.ProviderName,
 			)
 		}
 	}
-	return nil
 }
 
 func resolveInt(flagVal int, flagSet bool, envKey string, def int) int {

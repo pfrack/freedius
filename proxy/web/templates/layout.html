@@ -46,6 +46,14 @@
     <main id="main-content">
       {{block "content" .}}{{end}}
     </main>
+    <footer class="footer">
+      <div class="footer__content">
+        <span class="footer__copyright">freedius</span>
+        <nav class="footer__nav" aria-label="Legal">
+          <a href="https://github.com/pfrack/freedius/blob/main/LICENSE">License</a>
+        </nav>
+      </div>
+    </footer>
     <div id="toast-region" aria-live="polite" role="status"></div>
     {{block "scripts" .}}{{end}}
     <script src="/static/htmx.min.js"></script>

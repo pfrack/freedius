@@ -55,8 +55,8 @@ func TestRootDashboardStillReturns200(t *testing.T) {
 		t.Errorf("Content-Type = %q, want text/html", ct)
 	}
 	body := rec.Body.String()
-	if !strings.Contains(body, `class="stats-grid"`) {
-		t.Errorf("dashboard body missing stats-grid marker; got first 200 chars: %q", body[:min(200, len(body))])
+	if !strings.Contains(body, `class="health-strip"`) {
+		t.Errorf("dashboard body missing health-strip marker; got first 200 chars: %q", body[:min(200, len(body))])
 	}
 	if strings.Contains(body, "not-found__code") {
 		t.Error("dashboard should not render the 404 page")
@@ -80,6 +80,9 @@ func TestMissingStaticAsset_ReturnsBranded404(t *testing.T) {
 	body := rec.Body.String()
 	if !strings.Contains(body, "<!DOCTYPE html>") {
 		t.Error("missing static asset should render the branded 404 HTML page")
+	}
+	if !strings.Contains(body, "not-found__code") {
+		t.Error("missing static asset 404 body missing not-found__code brand marker")
 	}
 	if strings.Contains(body, "404 page not found") {
 		t.Error("missing static asset should NOT use the FileServer's plain-text 404 body")

@@ -7,17 +7,38 @@
     Add Mapping
   </button>
   <div id="mapping-form-error" class="form-error"></div>
-  {{template "mappings-table" .}}
+  {{template "mappings-routing-table" .}}
 
   <template id="fallback-provider-options">
     {{range .Providers}}<option value="{{.Name}}">{{.Name}}</option>{{end}}
   </template>
 
+  <dialog id="delete-confirm-dialog">
+    <form
+      id="delete-confirm-form"
+      hx-delete="/v1/mappings/__pending__"
+      hx-target="#mappings-table-container"
+      hx-swap="outerHTML"
+      hx-on::after-request="if(event.detail.successful) this.closest('dialog').close()"
+    >
+      <h2>Delete mapping</h2>
+      <p>Are you sure you want to delete <strong id="delete-mapping-name">this mapping</strong>?</p>
+      <p class="text-muted">This cannot be undone.</p>
+      <div class="form-actions">
+        <button type="submit" class="btn btn--danger" hx-disabled-elt="this">
+          <span class="htmx-indicator" aria-hidden="true">⟳</span>
+          Delete
+        </button>
+        <button type="button" class="btn-cancel" onclick="closeDeleteDialog()">Cancel</button>
+      </div>
+    </form>
+  </dialog>
+
   <dialog id="mapping-dialog">
     <form
       id="mapping-form"
       hx-post="/v1/mappings"
-      hx-target="#mappings"
+      hx-target="#mappings-table-container"
       hx-swap="outerHTML"
       hx-on::after-request="if(event.detail.successful) this.closest('dialog').close()"
     >
@@ -123,6 +144,40 @@
       document.getElementById('mapping-form').elements.model_string.value = li.dataset.modelId;
       this.innerHTML = '';
     });
+
+    // Delete confirmation flow — replaces hx-confirm with a dialog so the
+    // mapping name is surfaced and a click on Cancel does NOT delete.
+    function confirmDeleteMapping(btn) {
+      var name = btn.dataset.mappingName;
+      if (!name) return;
+      document.getElementById('delete-mapping-name').textContent = name;
+      var form = document.getElementById('delete-confirm-form');
+      form.setAttribute('hx-delete', '/v1/mappings/' + encodeURIComponent(name));
+      // htmx re-reads hx-* attributes on the next request; the safest way
+      // to ensure the new value is used is to drop and re-add the attribute.
+      htmx.process(form);
+      document.getElementById('delete-confirm-dialog').showModal();
+    }
+
+    function closeDeleteDialog() {
+      document.getElementById('delete-confirm-dialog').close();
+    }
+
+    function clearMappingsFilters() {
+      var root = document.getElementById('mappings-table-container');
+      if (!root) return;
+      var s = root.querySelector('input[name="search"]');
+      if (s) s.value = '';
+      var p = root.querySelector('select[name="provider"]');
+      if (p) p.value = '';
+      var st = root.querySelector('select[name="status"]');
+      if (st) st.value = '';
+      var hf = root.querySelector('input[name="has_fallback"]');
+      if (hf) hf.checked = false;
+      // Trigger the filter HTMX request by dispatching the same event the
+      // input would, so the table re-renders without filters.
+      htmx.trigger(root.querySelector('.mappings-filters'), 'change');
+    }
 
     function filterModels(input) {
       var q = input.value.toLowerCase();

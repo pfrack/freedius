@@ -14,10 +14,11 @@
 # three-step Quickstart works with one key; multi-provider setups are an
 # opt-in extension.
 #
-# Note: the startup check (`checkRequiredEnvVars` in cmd/freedius/main.go)
-# requires every provider referenced by a mapping to have its key set.
-# Because this starter only references NIM, only NVIDIA_NIM_API_KEY is
-# required.
+# Note: missing API keys now log a startup warning (checkRequiredEnvVars in
+# cmd/freedius/main.go) instead of failing startup. A request to a provider
+# with a missing key fails at request time with authentication_error.
+# Because this starter only references NIM, only NVIDIA_NIM_API_KEY is needed
+# for NIM calls.
 
 providers:
   nim: { behavior: openai, default_api_key_env: NVIDIA_NIM_API_KEY }

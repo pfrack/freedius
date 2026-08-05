@@ -106,3 +106,115 @@ func TestHandleLogs_InvalidFilter(t *testing.T) {
 		t.Errorf("Content-Type = %q, want application/json", ct)
 	}
 }
+
+func TestParseOutcomeFilter(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"", ""},
+		{"success", "success"},
+		{"error", "error"},
+		{"SUCCESS", "success"},
+		{"Error", "error"},
+		{"invalid", ""},
+		{"all", ""},
+		{"  success  ", "success"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			got := parseOutcomeFilter(tt.input)
+			if got != tt.want {
+				t.Errorf("parseOutcomeFilter(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestParseFallbackFilter(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"", ""},
+		{"true", "true"},
+		{"false", "false"},
+		{"TRUE", "true"},
+		{"False", "false"},
+		{"invalid", ""},
+		{"yes", ""},
+		{"  true  ", "true"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			got := parseFallbackFilter(tt.input)
+			if got != tt.want {
+				t.Errorf("parseFallbackFilter(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestHandleLogs_OutcomeFilter(t *testing.T) {
+	logSink := proxy.NewLogSink(100)
+	// Use a RingHandler to emit log entries into the sink.
+	inner := slog.NewTextHandler(sink{}, nil)
+	handler := proxy.NewRingHandler(inner, logSink)
+	logger := slog.New(handler)
+
+	// Emit an error-level log line.
+	logger.Error("request failed: upstream 500")
+
+	req := httptest.NewRequest(http.MethodGet, "/logs?outcome=error", nil)
+	rec := httptest.NewRecorder()
+	handleLogs(rec, req, logSink, logger)
+
+	if rec.Code != 200 {
+		t.Errorf("status = %d, want 200; body: %s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "request failed") {
+		t.Errorf("expected error log line in filtered results; got: %s", body)
+	}
+
+	// Now filter for success — error line should NOT appear.
+	req2 := httptest.NewRequest(http.MethodGet, "/logs?outcome=success", nil)
+	rec2 := httptest.NewRecorder()
+	handleLogs(rec2, req2, logSink, logger)
+	body2 := rec2.Body.String()
+	if strings.Contains(body2, "request failed") {
+		t.Errorf("error log line should not appear with outcome=success; got: %s", body2)
+	}
+}
+
+func TestHandleLogs_FallbackFilter(t *testing.T) {
+	logSink := proxy.NewLogSink(100)
+	// Use a RingHandler to emit log entries into the sink.
+	inner := slog.NewTextHandler(sink{}, nil)
+	handler := proxy.NewRingHandler(inner, logSink)
+	logger := slog.New(handler)
+
+	// Emit a log line containing "fallback".
+	logger.Info("fallback succeeded: using secondary provider")
+
+	req := httptest.NewRequest(http.MethodGet, "/logs?fallback=true", nil)
+	rec := httptest.NewRecorder()
+	handleLogs(rec, req, logSink, logger)
+
+	if rec.Code != 200 {
+		t.Errorf("status = %d, want 200; body: %s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "fallback succeeded") {
+		t.Errorf("expected fallback log line in filtered results; got: %s", body)
+	}
+
+	// Now filter for fallback=false — fallback line should NOT appear.
+	req2 := httptest.NewRequest(http.MethodGet, "/logs?fallback=false", nil)
+	rec2 := httptest.NewRecorder()
+	handleLogs(rec2, req2, logSink, logger)
+	body2 := rec2.Body.String()
+	if strings.Contains(body2, "fallback succeeded") {
+		t.Errorf("fallback log line should not appear with fallback=false; got: %s", body2)
+	}
+}

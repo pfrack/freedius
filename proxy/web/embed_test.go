@@ -20,19 +20,19 @@ func TestAssets_Open(t *testing.T) {
 }
 
 func TestLoadPageTemplate(t *testing.T) {
-	tmpl, err := loadPageTemplate("index.html", "mappings-table.html")
+	tmpl, err := loadPageTemplate("index.html")
 	if err != nil {
 		t.Fatalf("loadPageTemplate: %v", err)
 	}
 
 	var buf strings.Builder
-	data := indexData{
-		pageData:    pageData{Active: "index"},
-		Uptime:      "0s",
-		TotalEvents: 0,
-		TotalLogs:   0,
-		Port:        "8080",
-		Host:        "localhost",
+	data := dashboardData{
+		pageData: pageData{Active: "index"},
+		Health: healthStrip{
+			State:    "Healthy",
+			Uptime:   "0s",
+			Endpoint: "localhost:8080",
+		},
 	}
 	if err := tmpl.ExecuteTemplate(&buf, "layout", data); err != nil {
 		t.Fatalf("execute layout: %v", err)

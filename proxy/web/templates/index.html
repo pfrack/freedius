@@ -3,79 +3,211 @@
 {{define "content"}}
   <h1>Dashboard</h1>
 
-  <div class="stats-grid">
-    <div class="card card--stat">
-      <div class="card-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>
-      </div>
-      <div class="card-body">
-        <span class="card-label">Total Mappings</span>
-        <span class="card-value">{{.TotalMappings}}</span>
-      </div>
+  {{/* Health Strip */}}
+  <div class="health-strip">
+    <div class="health-strip__state health-strip__state--{{.Health.State | lower}}">
+      <span class="health-strip__icon" aria-hidden="true">
+        {{if eq .Health.State "Healthy"}}✓{{else if eq .Health.State "Degraded"}}⚠{{else}}✕{{end}}
+      </span>
+      <span class="health-strip__label">{{.Health.State}}</span>
     </div>
-    <div class="card card--stat">
-      <div class="card-icon card-icon--success">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-      </div>
-      <div class="card-body">
-        <span class="card-label">Active</span>
-        <span class="card-value">{{.ActiveMappings}}</span>
-      </div>
+    <div class="health-strip__item">
+      <span class="health-strip__key">Uptime</span>
+      <span class="health-strip__value">{{.Health.Uptime}}</span>
     </div>
-    <div class="card card--stat">
-      <div class="card-icon card-icon--warning">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-      </div>
-      <div class="card-body">
-        <span class="card-label">With Fallbacks</span>
-        <span class="card-value">{{.FallbackMappings}}</span>
-      </div>
+    <div class="health-strip__item">
+      <span class="health-strip__key">Endpoint</span>
+      <span class="health-strip__value">{{.Health.Endpoint}}</span>
     </div>
-    <div class="card card--stat">
-      <div class="card-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
-      </div>
-      <div class="card-body">
-        <span class="card-label">Providers</span>
-        <span class="card-value">{{.TotalProviders}}</span>
-      </div>
+    <div class="health-strip__item">
+      <span class="health-strip__key">Last Request</span>
+      <span class="health-strip__value">{{.Health.LastRequest}}</span>
+    </div>
+    <div class="health-strip__item">
+      <span class="health-strip__key">Requests</span>
+      <span class="health-strip__value">{{.Health.TotalRequests}}</span>
+    </div>
+    <div class="health-strip__item">
+      <span class="health-strip__key">Errors</span>
+      <span class="health-strip__value">{{.Health.ErrorsLastHour}}</span>
+    </div>
+    <div class="health-strip__item">
+      <span class="health-strip__key">Fallbacks</span>
+      <span class="health-strip__value">{{.Health.FallbacksLast24h}}</span>
     </div>
   </div>
 
-  <div class="stats-strip">
-    <div class="stats-strip__item">
-      <span class="stats-strip__label">Uptime</span>
-      <span class="stats-strip__value">{{.Uptime}}</span>
-    </div>
-    <div class="stats-strip__item">
-      <span class="stats-strip__label">Listening On</span>
-      <span class="stats-strip__value">{{.Host}}:{{.Port}}</span>
-    </div>
-  </div>
+  {{/* Attention Panel — conditional */}}
+  {{if .Alerts}}
+  <section class="attention-panel" aria-label="Issues requiring attention">
+    <h2 class="attention-panel__title">
+      <span class="attention-panel__icon" aria-hidden="true">⚠</span>
+      Needs Attention ({{len .Alerts}})
+    </h2>
+    <ul class="attention-panel__list">
+      {{range .Alerts}}
+      <li class="attention-panel__item attention-panel__item--{{.Severity}}">
+        <a href="{{.Link}}" class="attention-panel__link">
+          {{.Message}}
+        </a>
+      </li>
+      {{end}}
+    </ul>
+  </section>
+  {{end}}
 
+  {{/* Routing Table */}}
   <section class="page-section">
     <div class="section-header">
-      <h2>Mappings</h2>
-      <span class="section-count">{{.TotalMappings}} total</span>
+      <h2>Routing</h2>
+      <span class="section-count">{{len .Rows}} mapping{{if ne (len .Rows) 1}}s{{end}}</span>
     </div>
-    {{template "mappings-table" .}}
+    {{if not .Rows}}
+    <div class="empty-state">
+      <p>No mappings configured. <a href="/mappings">Add your first mapping</a>.</p>
+    </div>
+    {{else}}
+    <div class="table-wrap">
+    <table class="routing-table" aria-label="Mapping routing table">
+      <thead>
+        <tr>
+          <th>Mapping</th>
+          <th>Primary Route</th>
+          <th>Fallback</th>
+          <th>Status</th>
+          <th>Requests</th>
+          <th>Fallbacks</th>
+          <th>Last Activity</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .Rows}}
+        <tr tabindex="0" role="button" aria-label="View details for {{.Name}}"
+            hx-get="/v1/mappings/{{.Name}}/detail" hx-target="#mapping-drawer" hx-swap="innerHTML">
+          <td><strong>{{.Name}}</strong></td>
+          <td><span class="model-id" title="{{.Model}}">{{.ProviderName}} / {{.Model}}</span></td>
+          <td>
+            {{if .FallbackSummary}}
+              <span class="model-id" title="{{.FallbackSummary}}">{{.FallbackSummary}}</span>
+              {{if gt .FallbackCount 1}}<span class="badge badge--muted">+{{sub1 .FallbackCount}} more</span>{{end}}
+            {{else}}
+              <span class="text-muted">—</span>
+            {{end}}
+          </td>
+          <td><span class="badge badge--status-{{.StatusLabel | lower}}">{{.StatusLabel}}</span></td>
+          <td>{{if eq .RequestCount 0}}<span class="text-muted">—</span>{{else}}{{.RequestCount}}{{end}}</td>
+          <td>{{if eq .FallbackEvents 0}}<span class="text-muted">—</span>{{else}}{{.FallbackEvents}}{{end}}</td>
+          <td>{{.LastActivity}}</td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+    </div>
+    {{end}}
   </section>
 
-  {{if .Providers}}
+  {{/* Provider Health Summary */}}
+  {{if gt .ProviderHealth.Total 0}}
   <section class="page-section">
     <div class="section-header">
       <h2>Providers</h2>
-      <span class="section-count">{{.TotalProviders}} connected</span>
+      <span class="section-count">
+        {{.ProviderHealth.Total}} configured
+        {{if gt .ProviderHealth.Healthy 0}} · {{.ProviderHealth.Healthy}} healthy{{end}}
+        {{if gt .ProviderHealth.Degraded 0}} · {{.ProviderHealth.Degraded}} degraded{{end}}
+        {{if gt .ProviderHealth.Error 0}} · {{.ProviderHealth.Error}} error{{end}}
+      </span>
     </div>
     <div class="providers-summary">
-      {{range .Providers}}
-      <a href="/mappings?provider={{.Name}}" class="providers-summary__chip" title="{{.Name}} — {{.MappingCount}} mapping{{if ne .MappingCount 1}}s{{end}}">
-        {{.Name}}
-        {{if .Protocol}}<span class="badge badge--protocol">{{.Protocol}}</span>{{end}}
-        <span class="providers-summary__count">{{.MappingCount}}</span>
+      {{range .ProviderHealth.Badges}}
+      <a href="/logs?provider={{.Name}}" class="provider-badge provider-badge--{{.Status}}" title="{{.Name}} — {{.Status}} — {{.MappingCount}} mapping(s) — last: {{.LastChecked}}">
+        <span class="provider-badge__icon" aria-hidden="true">
+          {{if eq .Status "healthy"}}✓{{else if eq .Status "degraded"}}⚠{{else if eq .Status "error"}}✕{{else}}?{{end}}
+        </span>
+        <span class="provider-badge__name">{{.Name}}</span>
+        <span class="provider-badge__count">{{.MappingCount}}</span>
       </a>
       {{end}}
     </div>
   </section>
   {{end}}
+
+  {{/* Recent Activity Feed */}}
+  <section class="page-section">
+    <div class="section-header">
+      <h2>Recent Activity</h2>
+    </div>
+    <div id="activity-feed" class="activity-feed" hx-ext="sse" sse-connect="/v1/events">
+      {{if not .RecentActivity}}
+      <p class="text-muted">Waiting for routing events…</p>
+      {{else}}
+      <div class="table-wrap">
+      <table class="activity-table" aria-label="Recent routing activity">
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Mapping</th>
+            <th>Route</th>
+            <th>Latency</th>
+            <th>Result</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{range .RecentActivity}}
+          <tr>
+            <td><time>{{.Timestamp}}</time></td>
+            <td>{{.Mapping}}</td>
+            <td><span class="model-id" title="{{.Route}}">{{.Route}}</span></td>
+            <td>{{.Latency}}</td>
+            <td>
+              {{if lt .Status 400}}<span class="badge badge--status-healthy">{{.StatusLabel}}</span>
+              {{else}}<span class="badge badge--status-error">{{.StatusLabel}}</span>{{end}}
+            </td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+      </div>
+      {{end}}
+    </div>
+  </section>
+
+  {{/* Drawer container (loaded via HTMX) */}}
+  <aside id="mapping-drawer" class="drawer" aria-label="Mapping details"></aside>
+{{end}}
+{{define "scripts"}}
+<script>
+  // SSE activity feed: append new events to the activity table.
+  document.addEventListener('htmx:sseMessage', function(e) {
+    if (e.detail.type !== 'event') return;
+    try {
+      var data = JSON.parse(e.detail.data);
+      if (!data.Model) return;
+      var feed = document.getElementById('activity-feed');
+      var tbody = feed.querySelector('tbody');
+      if (!tbody) {
+        // First event: replace placeholder with table.
+        feed.innerHTML = '<div class="table-wrap"><table class="activity-table" aria-label="Recent routing activity"><thead><tr><th>Time</th><th>Mapping</th><th>Route</th><th>Latency</th><th>Result</th></tr></thead><tbody></tbody></table></div>';
+        tbody = feed.querySelector('tbody');
+      }
+      var tr = document.createElement('tr');
+      var ts = data.Timestamp ? new Date(data.Timestamp).toLocaleTimeString() : '';
+      var route = (data.MatchedProvider || '') + ' / ' + (data.MatchedModel || '');
+      var latMs = data.Latency ? Math.round(data.Latency / 1000000) + 'ms' : '';
+      var status = data.Status || 0;
+      var statusLabel = status >= 400 ? (data.ErrorType || String(status)) : 'OK';
+      var badgeClass = status >= 400 ? 'badge--status-error' : 'badge--status-healthy';
+      tr.innerHTML = '<td><time>' + ts + '</time></td>'
+        + '<td>' + escapeHTML(data.Model) + '</td>'
+        + '<td><span class="model-id">' + escapeHTML(route) + '</span></td>'
+        + '<td>' + latMs + '</td>'
+        + '<td><span class="badge ' + badgeClass + '">' + escapeHTML(statusLabel) + '</span></td>';
+      tbody.insertBefore(tr, tbody.firstChild);
+      // Keep max 20 rows.
+      while (tbody.children.length > 20) {
+        tbody.removeChild(tbody.lastChild);
+      }
+    } catch (err) { /* ignore malformed events */ }
+  });
+</script>
 {{end}}

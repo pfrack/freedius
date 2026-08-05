@@ -44,3 +44,22 @@ jobs:
           path: coverage.out
           if-no-files-found: warn
           retention-days: 30
+
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.4'
+          cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: e2e/package-lock.json
+      - name: Install Playwright dependencies
+        run: cd e2e && npm ci && npx playwright install --with-deps chromium
+      - name: Run E2E tests
+        run: cd e2e && npx playwright test
