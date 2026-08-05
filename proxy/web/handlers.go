@@ -366,27 +366,63 @@ func handleProviders(w http.ResponseWriter, r *http.Request, h *eventstream.Hand
 		counts[m.ProviderName]++
 	}
 
+	// Gather provider stats (nil-safe).
+	var providerStats map[string]proxy.ProviderStats
+	if h.Stats != nil {
+		providerStats = h.Stats.ProviderSnapshot()
+	}
+
 	var rows []providerRow
 	for name, p := range providers {
-		rows = append(rows, providerRow{
+		row := providerRow{
 			Name:         name,
 			Behavior:     p.Behavior,
 			BaseURL:      p.DefaultBaseURL,
 			APIKeyEnv:    p.DefaultAPIKeyEnv,
 			Protocol:     p.Protocol,
 			MappingCount: counts[name],
-		})
+		}
+		if ps, ok := providerStats[name]; ok && ps.RequestCount > 0 {
+			row.Status = deriveProviderStatus(ps)
+			row.RequestCount = ps.RequestCount
+			if !ps.LastSuccess.IsZero() {
+				row.LastSuccess = formatTimeAgo(ps.LastSuccess)
+			}
+			if !ps.LastError.IsZero() {
+				row.LastError = formatTimeAgo(ps.LastError)
+				row.LastErrorMessage = ps.LastErrorMessage
+			}
+		} else {
+			row.Status = "unknown"
+		}
+		rows = append(rows, row)
 	}
 
 	// HTMX request: render only the table fragment.
 	if r.Header.Get("HX-Request") == "true" {
-		renderProvidersTable(w, r, h.Cfg)
+		renderProvidersTable(w, r, h)
 	} else {
 		// Direct visit: render full page.
 		renderPage(w, "providers.html", providersData{
 			pageData:  pageData{Active: "providers"},
 			Providers: rows,
 		}, logger, "providers-table.html")
+	}
+}
+
+// deriveProviderStatus computes a passive health label from ProviderStats.
+// error rate > 50% → "degraded", last 3 consecutive errors → "error",
+// no traffic → "unknown", otherwise "healthy".
+func deriveProviderStatus(ps proxy.ProviderStats) string {
+	switch {
+	case ps.RequestCount == 0:
+		return "unknown"
+	case ps.RecentErrorRate > 0.5:
+		return "degraded"
+	case ps.LastError.After(ps.LastSuccess):
+		return "error"
+	default:
+		return "healthy"
 	}
 }
 
@@ -597,7 +633,9 @@ func parseMinLevel(s string) (*slog.Level, error) {
 }
 
 // renderProvidersTable renders the `<table>` fragment for providers.
-func renderProvidersTable(w http.ResponseWriter, _ *http.Request, cfg *config.Config) {
+// Re-enriches rows with live stats so the fragment matches the page render.
+func renderProvidersTable(w http.ResponseWriter, _ *http.Request, h *eventstream.Handlers) {
+	cfg := h.Cfg
 	providers := cfg.ProvidersSnapshot()
 	mappings := cfg.MappingsSnapshot()
 
@@ -607,16 +645,36 @@ func renderProvidersTable(w http.ResponseWriter, _ *http.Request, cfg *config.Co
 		counts[m.ProviderName]++
 	}
 
+	// Gather provider stats (nil-safe).
+	var providerStats map[string]proxy.ProviderStats
+	if h.Stats != nil {
+		providerStats = h.Stats.ProviderSnapshot()
+	}
+
 	var rows []providerRow
 	for name, p := range providers {
-		rows = append(rows, providerRow{
+		row := providerRow{
 			Name:         name,
 			Behavior:     p.Behavior,
 			BaseURL:      p.DefaultBaseURL,
 			APIKeyEnv:    p.DefaultAPIKeyEnv,
 			Protocol:     p.Protocol,
 			MappingCount: counts[name],
-		})
+		}
+		if ps, ok := providerStats[name]; ok && ps.RequestCount > 0 {
+			row.Status = deriveProviderStatus(ps)
+			row.RequestCount = ps.RequestCount
+			if !ps.LastSuccess.IsZero() {
+				row.LastSuccess = formatTimeAgo(ps.LastSuccess)
+			}
+			if !ps.LastError.IsZero() {
+				row.LastError = formatTimeAgo(ps.LastError)
+				row.LastErrorMessage = ps.LastErrorMessage
+			}
+		} else {
+			row.Status = "unknown"
+		}
+		rows = append(rows, row)
 	}
 
 	tmpl, err := loadFragmentTemplate("providers-table.html")
@@ -824,7 +882,7 @@ func handleCreateProvider(w http.ResponseWriter, r *http.Request, h *eventstream
 	cfg.Unlock()
 	// HTMX request: render the updated table fragment.
 	if r.Header.Get("HX-Request") == "true" {
-		renderProvidersTable(w, r, h.Cfg)
+		renderProvidersTable(w, r, h)
 	} else {
 		// Non-HTMX request: return JSON.
 		writeJSON(w, http.StatusCreated, map[string]string{"status": "created", "name": name})
@@ -875,7 +933,7 @@ func handleUpdateProvider(w http.ResponseWriter, r *http.Request, h *eventstream
 	cfg.Unlock()
 	// HTMX request: render the updated table fragment.
 	if r.Header.Get("HX-Request") == "true" {
-		renderProvidersTable(w, r, h.Cfg)
+		renderProvidersTable(w, r, h)
 	} else {
 		// Non-HTMX request: return JSON.
 		writeJSON(w, http.StatusOK, map[string]string{"status": "updated", "name": name})
@@ -938,7 +996,7 @@ func handleDeleteProvider(w http.ResponseWriter, r *http.Request, h *eventstream
 	cfg.Unlock()
 	// HTMX request: render the updated table fragment.
 	if r.Header.Get("HX-Request") == "true" {
-		renderProvidersTable(w, r, h.Cfg)
+		renderProvidersTable(w, r, h)
 	} else {
 		// Non-HTMX request: return JSON.
 		writeJSON(w, http.StatusOK, map[string]string{"status": "deleted", "name": name})

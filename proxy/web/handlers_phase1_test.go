@@ -300,10 +300,11 @@ func TestProvidersTable_HxConfirmBalanced(t *testing.T) {
 		Providers: map[string]config.Provider{"alpha": {Behavior: "openai"}},
 		Mappings:  map[string]config.Mapping{},
 	}
+	h := newRenderHandlers(cfg)
 
 	req := httptest.NewRequest(http.MethodGet, "/providers", nil)
 	rec := httptest.NewRecorder()
-	renderProvidersTable(rec, req, cfg)
+	renderProvidersTable(rec, req, h)
 
 	body := rec.Body.String()
 	if !strings.Contains(body, `hx-confirm="Delete provider 'alpha'?"`) {

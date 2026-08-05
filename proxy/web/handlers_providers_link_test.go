@@ -21,10 +21,11 @@ func TestProvidersTable_MappingCountLink(t *testing.T) {
 			"r": {ProviderName: "nim", ModelString: "m2"},
 		},
 	}
+	h := newRenderHandlers(cfg)
 
 	req := httptest.NewRequest(http.MethodGet, "/providers", nil)
 	rec := httptest.NewRecorder()
-	renderProvidersTable(rec, req, cfg)
+	renderProvidersTable(rec, req, h)
 	body := rec.Body.String()
 
 	// Should contain a link to /mappings?provider=nim with text "2 mappings".
@@ -45,10 +46,11 @@ func TestProvidersTable_ZeroMappingCount(t *testing.T) {
 		},
 		Mappings: map[string]config.Mapping{},
 	}
+	h := newRenderHandlers(cfg)
 
 	req := httptest.NewRequest(http.MethodGet, "/providers", nil)
 	rec := httptest.NewRecorder()
-	renderProvidersTable(rec, req, cfg)
+	renderProvidersTable(rec, req, h)
 	body := rec.Body.String()
 
 	// Should contain a muted "0" span, not a link.

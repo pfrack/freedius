@@ -108,12 +108,17 @@ type logsData struct {
 
 // providerRow represents a single provider for template rendering.
 type providerRow struct {
-	Name         string
-	Behavior     string
-	BaseURL      string
-	APIKeyEnv    string
-	Protocol     string
-	MappingCount int
+	Name             string
+	Behavior         string
+	BaseURL          string
+	APIKeyEnv        string
+	Protocol         string
+	MappingCount     int
+	Status           string // healthy, degraded, error, unknown
+	LastSuccess      string
+	LastError        string
+	LastErrorMessage string
+	RequestCount     int64
 }
 
 // providersData is the data for the providers page.
