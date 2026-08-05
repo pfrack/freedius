@@ -553,28 +553,28 @@ Final pass over any remaining audit items. Visual smoke verification at 3 viewpo
 
 #### Automated
 
-- [x] 5.1 `mage lint` passes
-- [x] 5.2 `mage test` passes
+- [x] 5.1 `mage lint` passes — 470ccc2
+- [x] 5.2 `mage test` passes — 470ccc2
 
 #### Manual
 
-- [x] 5.3 Sidebar icons visually distinct from Lucide defaults
-- [x] 5.4 Hamburger uses hexagonal mark
-- [x] 5.5 404 page no longer shows giant accent digits
-- [x] 5.6 Status badges show left-edge accent stripe
+- [x] 5.3 Sidebar icons visually distinct from Lucide defaults — 470ccc2
+- [x] 5.4 Hamburger uses hexagonal mark — 470ccc2
+- [x] 5.5 404 page no longer shows giant accent digits — 470ccc2
+- [x] 5.6 Status badges show left-edge accent stripe — 470ccc2
 
 ### Phase 6: Brand unification & meta
 
 #### Automated
 
-- [ ] 6.1 `mage lint` passes
-- [ ] 6.2 `mage test` passes
+- [x] 6.1 `mage lint` passes
+- [x] 6.2 `mage test` passes
 
 #### Manual
 
-- [ ] 6.3 Sidebar header icon is hexagon (matches favicon)
-- [ ] 6.4 Page source includes og: meta tags
-- [ ] 6.5 models-fragment has no inline style
+- [x] 6.3 Sidebar header icon is hexagon (matches favicon)
+- [x] 6.4 Page source includes og: meta tags
+- [x] 6.5 models-fragment has no inline style
 
 ### Phase 7: Final polish & visual smoke
 
