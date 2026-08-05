@@ -364,6 +364,18 @@ main {
 }
 
 /* ── Typography ─────────────────────────────────────────────────────────── */
+/* Weight scale (Geist is a variable font — intermediate weights are real):
+     400  body copy, table cells, secondary prose
+     500  quiet labels: .form-label, .drawer__label, .health-strip__key,
+          .drawer__stats dt, .stats-strip__label, .section-count
+     550  emphasis inside dense UI: buttons, chips, values, badges
+     600  h3, table headers, .stats-strip__value, .drawer__title
+     650  h2, .route-card__name
+     700  .sidebar-header, .health-strip__icon
+     750  .card-value (single hero metric per tile)
+     800  h1
+   500 is the deliberate step between body (400) and emphasis (550) — it keeps
+   label→value hierarchy graduated instead of binary. */
 
 h1 {
   font-size: 2.25rem;
@@ -837,7 +849,7 @@ tr:last-child td {
 
 .form-label {
   font-size: 0.75rem;
-  font-weight: 550;
+  font-weight: 500;
   color: var(--text-secondary);
   letter-spacing: 0.01em;
 }
@@ -1354,11 +1366,9 @@ pre {
 }
 
 .route-step__label {
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   font-weight: 500;
   color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
 }
 
 .route-step__model {
@@ -1779,9 +1789,8 @@ body::before {
 }
 
 .health-strip__label {
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  font-size: 0.7rem;
+  font-size: 0.75rem;
+  font-weight: 500;
 }
 
 .health-strip__state--healthy { color: var(--color-success); }
@@ -1796,10 +1805,9 @@ body::before {
 }
 
 .health-strip__key {
-  font-size: 0.65rem;
+  font-size: 0.75rem;
+  font-weight: 500;
   color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
 }
 
 .health-strip__value {
@@ -2208,10 +2216,9 @@ body::before {
 }
 
 .drawer__label {
-  font-size: 0.7rem;
+  font-size: 0.75rem;
+  font-weight: 500;
   color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
 }
 
 .drawer__section {
@@ -2220,11 +2227,10 @@ body::before {
 }
 
 .drawer__section h3 {
-  font-size: 0.85rem;
-  font-weight: 550;
+  font-size: 0.9rem;
+  font-weight: 600;
   color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: -0.01em;
   margin: 0 0 var(--space-3) 0;
 }
 
@@ -2236,10 +2242,9 @@ body::before {
 }
 
 .drawer__stats dt {
-  font-size: 0.7rem;
+  font-size: 0.75rem;
+  font-weight: 500;
   color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
 }
 
 .drawer__stats dd {

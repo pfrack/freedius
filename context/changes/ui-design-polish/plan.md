@@ -502,25 +502,25 @@ Final pass over any remaining audit items. Visual smoke verification at 3 viewpo
 
 #### Automated
 
-- [x] 1.1 `mage lint` passes
-- [x] 1.2 `mage test` passes
+- [x] 1.1 `mage lint` passes — 198c953
+- [x] 1.2 `mage test` passes — 198c953
 
 #### Manual
 
-- [x] 1.3 Light-mode status badges legible
-- [x] 1.4 Nested cards visible separation in light mode
+- [x] 1.3 Light-mode status badges legible — 198c953
+- [x] 1.4 Nested cards visible separation in light mode — 198c953
 
 ### Phase 2: Typography scale & weights
 
 #### Automated
 
-- [ ] 2.1 `mage lint` passes
-- [ ] 2.2 `mage test` passes
+- [x] 2.1 `mage lint` passes
+- [x] 2.2 `mage test` passes
 
 #### Manual
 
-- [ ] 2.3 Drawer labels render in sentence case
-- [ ] 2.4 Visual hierarchy more graduated
+- [x] 2.3 Drawer labels render in sentence case
+- [x] 2.4 Visual hierarchy more graduated
 
 ### Phase 3: Layout & spacing
 
