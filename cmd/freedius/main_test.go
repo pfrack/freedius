@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -12,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/pfrack/freedius/config"
 	"github.com/pfrack/freedius/proxy"
@@ -25,7 +27,15 @@ func testLoggerWithBuffer() (*slog.Logger, *bytes.Buffer) {
 func countWarnings(buf *bytes.Buffer) int {
 	n := 0
 	for _, line := range strings.Split(buf.String(), "\n") {
-		if strings.TrimSpace(line) != "" {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		var entry map[string]any
+		if err := json.Unmarshal([]byte(line), &entry); err != nil {
+			continue
+		}
+		if entry["level"] == "WARN" {
 			n++
 		}
 	}
@@ -53,7 +63,7 @@ func TestCheckRequiredEnvVars_PresetEnvVarMissing(t *testing.T) {
 		t.Fatalf("expected 1 warning for missing NVIDIA_NIM_API_KEY, got %d", countWarnings(buf))
 	}
 	var warn map[string]any
-	if err := json.Unmarshal(buf.Bytes(), &warn); err != nil {
+	if err := json.Unmarshal([]byte(strings.TrimSpace(buf.String())), &warn); err != nil {
 		t.Fatalf("warning is not valid JSON: %v", err)
 	}
 	if warn["env"] != "NVIDIA_NIM_API_KEY" || warn["provider"] != "nim" {
@@ -78,7 +88,7 @@ func TestCheckRequiredEnvVars_PerProviderOverrideMissing(t *testing.T) {
 		t.Fatalf("expected 1 warning for missing OPENCODE_API_KEY, got %d", countWarnings(buf))
 	}
 	var warn map[string]any
-	if err := json.Unmarshal(buf.Bytes(), &warn); err != nil {
+	if err := json.Unmarshal([]byte(strings.TrimSpace(buf.String())), &warn); err != nil {
 		t.Fatalf("warning is not valid JSON: %v", err)
 	}
 	if warn["env"] != "OPENCODE_API_KEY" {
@@ -106,7 +116,7 @@ func TestCheckRequiredEnvVars_AllSet(t *testing.T) {
 	}
 }
 
-func TestCheckRequiredEnvVars_CustomNoDefault(t *testing.T) {
+func TestCheckRequiredEnvVars_CustomKeySet(t *testing.T) {
 	t.Setenv("NVIDIA_NIM_API_KEY", "k1")
 	t.Setenv("CUSTOM_KEY", "k2")
 	cfg := &config.Config{
@@ -125,6 +135,24 @@ func TestCheckRequiredEnvVars_CustomNoDefault(t *testing.T) {
 	checkRequiredEnvVars(logger, cfg)
 	if countWarnings(buf) != 0 {
 		t.Errorf("expected 0 warnings for custom with key set, got %d", countWarnings(buf))
+	}
+}
+
+func TestCheckRequiredEnvVars_NoDefaultAPIKeyEnv(t *testing.T) {
+	// Providers without a DefaultAPIKeyEnv (e.g. ollama) must not produce a
+	// warning even when referenced by a mapping.
+	cfg := &config.Config{
+		Providers: map[string]config.Provider{
+			"ollama": {Behavior: "openai", DefaultAPIKeyEnv: ""},
+		},
+		Mappings: map[string]config.Mapping{
+			"test": {ProviderName: "ollama", ModelString: "test"},
+		},
+	}
+	logger, buf := testLoggerWithBuffer()
+	checkRequiredEnvVars(logger, cfg)
+	if countWarnings(buf) != 0 {
+		t.Errorf("expected 0 warnings for provider without DefaultAPIKeyEnv, got %d", countWarnings(buf))
 	}
 }
 
@@ -166,11 +194,50 @@ func TestCheckRequiredEnvVars_MappingDoesNotTriggerCheck(t *testing.T) {
 		t.Fatalf("expected 1 warning for missing OPENCODE_API_KEY, got %d", countWarnings(buf))
 	}
 	var warn map[string]any
-	if err := json.Unmarshal(buf.Bytes(), &warn); err != nil {
+	if err := json.Unmarshal([]byte(strings.TrimSpace(buf.String())), &warn); err != nil {
 		t.Fatalf("warning is not valid JSON: %v", err)
 	}
 	if warn["env"] != "OPENCODE_API_KEY" {
 		t.Errorf("warning should mention provider env: %v", warn)
+	}
+}
+
+func TestCheckRequiredEnvVars_MultipleMissingKeys(t *testing.T) {
+	t.Setenv("NVIDIA_NIM_API_KEY", "")
+	t.Setenv("OPENCODE_API_KEY", "")
+	cfg := &config.Config{
+		Providers: map[string]config.Provider{
+			"nim": {Behavior: "openai", DefaultAPIKeyEnv: "NVIDIA_NIM_API_KEY"},
+			"zen": {Behavior: "mix", DefaultAPIKeyEnv: "OPENCODE_API_KEY"},
+		},
+		Mappings: map[string]config.Mapping{
+			"m1": {ProviderName: "nim", ModelString: "test"},
+			"m2": {ProviderName: "zen", ModelString: "test"},
+		},
+	}
+	logger, buf := testLoggerWithBuffer()
+	checkRequiredEnvVars(logger, cfg)
+	if countWarnings(buf) != 2 {
+		t.Fatalf("expected 2 warnings (no early exit), got %d", countWarnings(buf))
+	}
+	envs := map[string]bool{}
+	for _, line := range strings.Split(buf.String(), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		var entry map[string]any
+		if err := json.Unmarshal([]byte(line), &entry); err != nil {
+			t.Fatalf("warning is not valid JSON: %v", err)
+		}
+		if entry["level"] == "WARN" {
+			if e, ok := entry["env"].(string); ok {
+				envs[e] = true
+			}
+		}
+	}
+	if !envs["NVIDIA_NIM_API_KEY"] || !envs["OPENCODE_API_KEY"] {
+		t.Errorf("expected warnings for both missing env vars, got %v", envs)
 	}
 }
 
@@ -225,7 +292,7 @@ func TestNewLogger_InvalidFormat(t *testing.T) {
 	}
 }
 
-func TestCheckRequiredEnvVars_ProviderNameInError(t *testing.T) {
+func TestCheckRequiredEnvVars_ProviderNameInWarning(t *testing.T) {
 	// The warning must reference the provider's user-defined name.
 	t.Setenv("OPENCODE_API_KEY", "")
 	cfg := &config.Config{
@@ -242,7 +309,7 @@ func TestCheckRequiredEnvVars_ProviderNameInError(t *testing.T) {
 		t.Fatalf("expected 1 warning for missing OPENCODE_API_KEY, got %d", countWarnings(buf))
 	}
 	var warn map[string]any
-	if err := json.Unmarshal(buf.Bytes(), &warn); err != nil {
+	if err := json.Unmarshal([]byte(strings.TrimSpace(buf.String())), &warn); err != nil {
 		t.Fatalf("warning is not valid JSON: %v", err)
 	}
 	if warn["provider"] != "zen" {
@@ -269,7 +336,7 @@ func TestCheckRequiredEnvVars_ReferencesConfiguredProvider(t *testing.T) {
 		t.Fatalf("expected 1 warning, got %d", countWarnings(buf))
 	}
 	var warn map[string]any
-	if err := json.Unmarshal(buf.Bytes(), &warn); err != nil {
+	if err := json.Unmarshal([]byte(strings.TrimSpace(buf.String())), &warn); err != nil {
 		t.Fatalf("warning is not valid JSON: %v", err)
 	}
 	if warn["provider"] != "nim" {
@@ -501,12 +568,18 @@ func TestRun_LazyConfigDoesNotWriteFile(t *testing.T) {
 		t.Fatalf("go build: %v\n%s", err, out)
 	}
 
-	cmd := exec.Command(bin, "--port", "1", "--no-export-hint")
+	// Bound the run with a timeout: since startup no longer fails on missing
+	// keys, the binary proceeds to bind port 1 and then blocks on SIGINT.
+	// On a root container (CAP_NET_BIND_SERVICE) an unbounded cmd.Run() would
+	// hang to the go test timeout; the context kills it after 5s instead.
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, bin, "--port", "1", "--no-export-hint")
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	// Strip any inherited HOME and API key env vars from the test process
 	// before re-adding our override, so HOME points only at the empty dir
-	// we control and no API keys satisfy checkRequiredEnvVars.
+	// we control and no API keys are picked up from the ambient environment.
 	env := os.Environ()
 	filtered := env[:0]
 	for _, e := range env {
@@ -531,15 +604,10 @@ func TestRun_LazyConfigDoesNotWriteFile(t *testing.T) {
 	}
 	filtered = append(filtered, "HOME="+dir)
 	cmd.Env = filtered
-	cmd.Run()
+	_ = cmd.Run()
 
 	if _, err := os.Stat(expectedXDGPath); err == nil {
 		t.Errorf("config file should NOT be created on disk during lazy startup, but found at %s", expectedXDGPath)
-	}
-
-	output := stderr.String()
-	if !strings.Contains(output, "freedius:") {
-		t.Errorf("expected error output, got:\n%s", output)
 	}
 }
 

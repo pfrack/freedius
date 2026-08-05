@@ -394,15 +394,26 @@ func resolveFallbackTimeoutMultiplier() int {
 	return defaultFallbackTimeoutMul
 }
 
+// checkRequiredEnvVars emits a structured warning for each mapping whose
+// provider declares a DefaultAPIKeyEnv that is not set in the environment.
+// It no longer fails startup: freedius boots regardless of missing keys, and
+// the request fails with authentication_error at request time instead.
 func checkRequiredEnvVars(logger *slog.Logger, cfg *config.Config) {
 	providers := cfg.ProvidersSnapshot()
+	// Warn once per provider, not once per mapping: a provider referenced by
+	// multiple mappings would otherwise emit a duplicate warning per mapping.
+	warned := make(map[string]struct{})
 	for name, m := range cfg.MappingsSnapshot() {
 		p, ok := providers[m.ProviderName]
 		if !ok {
 			continue
 		}
 		if p.DefaultAPIKeyEnv != "" && os.Getenv(p.DefaultAPIKeyEnv) == "" {
-			logger.Warn("API key not set",
+			if _, done := warned[m.ProviderName]; done {
+				continue
+			}
+			warned[m.ProviderName] = struct{}{}
+			logger.With("component", "startup").Warn("API key not set",
 				"env", p.DefaultAPIKeyEnv,
 				"mapping", name,
 				"provider", m.ProviderName,
