@@ -812,8 +812,8 @@ Add 3-5 targeted Playwright browser tests covering the JS/SSE/HTMX interactions 
 
 #### Automated
 
-- [x] 7.1 Build succeeds: `mage build`
-- [x] 7.2 Lint passes: `mage lint`
+- [x] 7.1 Build succeeds: `mage build` — 44ba8c2
+- [x] 7.2 Lint passes: `mage lint` — 44ba8c2
 
 #### Manual
 

@@ -32,6 +32,12 @@
   --color-warning: #f59e0b;
   --color-error: #ef4444;
 
+  /* Badge backgrounds (overridden in light mode for WCAG AA) */
+  --badge-success-bg: rgba(34,197,94,0.12);
+  --badge-warning-bg: rgba(245,158,11,0.12);
+  --badge-error-bg: rgba(239,68,68,0.12);
+  --badge-unknown-bg: var(--bg-surface);
+
   /* Legacy aliases */
   --bg: var(--bg-root);
   --text: var(--text-primary);
@@ -143,6 +149,15 @@
 
     --inner-highlight: inset 0 1px 0 rgba(255,255,255,0.8);
     --inner-highlight-strong: inset 0 1px 1px rgba(255,255,255,0.9);
+
+    /* Solid badge backgrounds for WCAG AA contrast in light mode */
+    --badge-success-bg: rgba(34,197,94,0.14);
+    --badge-warning-bg: rgba(245,158,11,0.14);
+    --badge-error-bg: rgba(239,68,68,0.14);
+    --badge-unknown-bg: #e5e5e6;
+
+    --log-warn-bg: rgba(245,158,11,0.08);
+    --log-error-bg: rgba(239,68,68,0.08);
   }
 }
 
@@ -172,7 +187,7 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Ambient background mesh gradient — subtle glowing orb */
+/* Ambient background mesh gradient — subtle glowing orbs */
 body::after {
   content: "";
   position: fixed;
@@ -184,6 +199,20 @@ body::after {
   background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%);
   pointer-events: none;
   z-index: -1;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  bottom: -15%;
+  left: -10%;
+  width: 40vw;
+  height: 40vw;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: -1;
+  opacity: 0.5;
 }
 
 /* ── Sidebar — Glass Treatment ──────────────────────────────────────────── */
@@ -1037,6 +1066,7 @@ pre {
 
 .model-filter-input {
   margin-bottom: var(--space-2);
+  width: 100%;
 }
 
 .model-list {
@@ -1312,6 +1342,14 @@ pre {
 
 .route-step--fallback {
   border-left-color: var(--color-warning);
+}
+
+.route-step__label {
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .route-step__model {
@@ -1652,25 +1690,25 @@ body::before {
 
 .badge--healthy,
 .badge--status-healthy {
-  background: rgba(34,197,94,0.12);
+  background: var(--badge-success-bg);
   color: var(--color-success);
 }
 
 .badge--degraded,
 .badge--status-degraded {
-  background: rgba(245,158,11,0.12);
+  background: var(--badge-warning-bg);
   color: var(--color-warning);
 }
 
 .badge--error,
 .badge--status-error {
-  background: rgba(239,68,68,0.12);
+  background: var(--badge-error-bg);
   color: var(--color-error);
 }
 
 .badge--unknown,
 .badge--status-unknown {
-  background: var(--bg-surface);
+  background: var(--badge-unknown-bg);
   color: var(--text-secondary);
 }
 
@@ -2058,6 +2096,25 @@ body::before {
 
 /* ── Drawer (Phase 7 §2 + Phase 3 §4) ────────────────────────────────────── */
 
+.drawer-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--duration-base) var(--ease-spring);
+  z-index: var(--z-overlay);
+  pointer-events: none;
+}
+
+.drawer-overlay--visible {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
 .drawer {
   position: fixed;
   top: 0;
@@ -2067,10 +2124,10 @@ body::before {
   height: 100vh;
   background: var(--bg-card);
   border-left: 1px solid var(--border-default);
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow-lg), var(--inner-highlight);
   transform: translateX(100%);
-  transition: transform var(--duration-fast) var(--ease-spring);
-  z-index: var(--z-overlay);
+  transition: transform var(--duration-base) var(--ease-spring);
+  z-index: var(--z-dialog);
   overflow-y: auto;
   box-sizing: border-box;
 }

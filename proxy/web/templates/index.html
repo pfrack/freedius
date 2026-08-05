@@ -89,7 +89,7 @@
           <td>
             {{if .FallbackSummary}}
               <span class="model-id" title="{{.FallbackSummary}}">{{.FallbackSummary}}</span>
-              {{if gt .FallbackCount 1}}<span class="badge badge--muted">+{{add1 (add1 -1)}} more</span>{{end}}
+              {{if gt .FallbackCount 1}}<span class="badge badge--muted">+{{sub1 .FallbackCount}} more</span>{{end}}
             {{else}}
               <span class="text-muted">—</span>
             {{end}}
