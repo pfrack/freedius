@@ -4,9 +4,12 @@
 package web
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -282,6 +285,11 @@ func SetupMux(h *eventstream.Handlers, logger *slog.Logger) *http.ServeMux {
 	// Models endpoint: explicit refresh only.
 	mux.HandleFunc("POST /v1/providers/{name}/models/refresh", func(w http.ResponseWriter, r *http.Request) {
 		handleRefreshModels(w, r, h, logger)
+	})
+
+	// Test connection: lightweight reachability check.
+	mux.HandleFunc("POST /v1/providers/{name}/test", func(w http.ResponseWriter, r *http.Request) {
+		handleTestConnection(w, r, h, logger)
 	})
 
 	return mux
@@ -1279,6 +1287,90 @@ func renderModelsFragment(w http.ResponseWriter, data modelsData, logger *slog.L
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := tmpl.Execute(w, data); err != nil {
 		logger.Error("execute fragment template", "err", err)
+	}
+}
+
+// handleTestConnection performs a lightweight reachability check against a
+// provider's base URL and renders a simple success/failure fragment into
+// the test-dialog-body. It does NOT fetch models — just checks if the
+// endpoint responds (any HTTP status = reachable, connection error = unreachable).
+func handleTestConnection(w http.ResponseWriter, r *http.Request, h *eventstream.Handlers, logger *slog.Logger) {
+	name := r.PathValue("name")
+	if name == "" {
+		writeJSONError(w, http.StatusBadRequest, "bad_path", "missing provider name")
+		return
+	}
+
+	providers := h.Cfg.ProvidersSnapshot()
+	p, ok := providers[name]
+	if !ok {
+		writeJSONError(w, http.StatusNotFound, "not_found", "provider not found")
+		return
+	}
+
+	result := testResultData{Provider: name}
+	if p.DefaultBaseURL == "" {
+		result.Reachable = false
+		result.Message = "No base URL configured"
+		renderTestResultFragment(w, result, logger)
+		return
+	}
+
+	// Lightweight check: short timeout, any response (even 401/403) = reachable.
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	client := &http.Client{
+		Timeout: 5 * time.Second,
+		Transport: &http.Transport{
+			DialContext: (&net.Dialer{Timeout: 5 * time.Second}).DialContext,
+		},
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, p.DefaultBaseURL, nil)
+	if err != nil {
+		result.Reachable = false
+		result.Message = fmt.Sprintf("Request error: %s", err)
+		renderTestResultFragment(w, result, logger)
+		return
+	}
+
+	start := time.Now()
+	resp, err := client.Do(req)
+	elapsed := time.Since(start)
+	if err != nil {
+		result.Reachable = false
+		result.Message = fmt.Sprintf("Connection failed: %s", err)
+		renderTestResultFragment(w, result, logger)
+		return
+	}
+	defer func() { _, _ = io.Copy(io.Discard, resp.Body); _ = resp.Body.Close() }()
+
+	result.Reachable = true
+	result.StatusCode = resp.StatusCode
+	result.Latency = elapsed.Milliseconds()
+	result.Message = fmt.Sprintf("Reachable (HTTP %d, %d ms)", resp.StatusCode, result.Latency)
+	renderTestResultFragment(w, result, logger)
+}
+
+// testResultData is the data for the test-connection result fragment.
+type testResultData struct {
+	Provider   string
+	Reachable  bool
+	StatusCode int
+	Latency    int64
+	Message    string
+}
+
+func renderTestResultFragment(w http.ResponseWriter, data testResultData, logger *slog.Logger) {
+	tmpl, err := loadFragmentTemplate("test-result.html")
+	if err != nil {
+		logger.Error("load test result template", "err", err)
+		writeJSONError(w, http.StatusInternalServerError, "template_failed", err.Error())
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := tmpl.Execute(w, data); err != nil {
+		logger.Error("execute test result template", "err", err)
 	}
 }
 

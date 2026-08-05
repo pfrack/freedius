@@ -370,7 +370,7 @@ Replace the card grid on the Mappings page with a compact `<table>` layout using
 
 ### Overview
 
-Add operational visibility to the Providers page: connection state indicator (passive health derived from StatsCollector), last-checked timestamp, last-error info, and a "Test Connection" button. Move low-frequency technical fields (base URL, API key env) into an expandable detail row.
+Add operational visibility to the Providers page: connection state indicator (passive health derived from StatsCollector), last-checked timestamp, last-error info, and a "Test Connection" button (lightweight reachability check — does NOT fetch models). Move low-frequency technical fields (base URL, API key env) into an expandable detail row.
 
 ### Changes Required:
 
@@ -388,7 +388,7 @@ Add operational visibility to the Providers page: connection state indicator (pa
 
 **Intent**: Redesign table columns. Primary columns: Name, Status (badge), Mappings, Last Checked, Last Error, Actions. Technical fields (Base URL, API Key Env, Protocol, Behavior) shown in expandable `<details>` row or a toggle. Add "Test Connection" button in actions column.
 
-**Contract**: Table uses `<details>` element or a collapsible row for technical fields. "Test Connection" button uses existing `POST /v1/providers/{name}/models/refresh` endpoint (repurposed as a lightweight connectivity check). Status badges use icon + text.
+**Contract**: Table uses `<details>` element for technical fields. "Test Connection" button POSTs to `POST /v1/providers/{name}/test` (new lightweight reachability endpoint) and opens a `<dialog id="test-dialog">` modal showing the result. Status badges use icon + text.
 
 #### 3. Update providers-table fragment
 
@@ -402,15 +402,23 @@ Add operational visibility to the Providers page: connection state indicator (pa
 
 **File**: `proxy/web/handlers.go`
 
-**Intent**: In `handleProviders`, enrich `providerRow` with stats from `h.Stats.ProviderSnapshot()`. Derive status label per provider.
+**Intent**: In `handleProviders`, enrich `providerRow` with stats from `h.Stats.ProviderSnapshot()`. Derive status label per provider. Add `handleTestConnection` for lightweight reachability check.
 
-**Contract**: Handler reads `h.Stats` (nil-safe — if nil, all providers show "unknown" status).
+**Contract**: Handler reads `h.Stats` (nil-safe — if nil, all providers show "unknown" status). New `POST /v1/providers/{name}/test` endpoint performs a 5s-timeout HTTP GET to the provider's base URL; any response (even 401/403) = reachable, connection error = unreachable. Renders `test-result.html` fragment.
 
-#### 5. Provider page tests
+#### 5. Test result fragment
+
+**File**: `proxy/web/templates/test-result.html`
+
+**Intent**: New fragment showing reachable/unreachable status with icon + message + latency. No model list.
+
+**Contract**: `{{if .Reachable}}` shows green checkmark + "Reachable (HTTP {status}, {latency} ms)". `{{else}}` shows red X + error message.
+
+#### 6. Provider page tests
 
 **File**: `proxy/web/handlers_provider_filter_test.go` (or extend existing)
 
-**Intent**: Test that provider table renders status badges, that "Test Connection" endpoint returns updated fragment, that expandable details are present.
+**Intent**: Test that provider table renders status badges, that expandable details are present.
 
 **Contract**: Assert rendered HTML contains status badges, last-error text when errors exist, and "unknown" when no traffic data.
 
@@ -428,7 +436,7 @@ Add operational visibility to the Providers page: connection state indicator (pa
 - Providers page shows status badges for each provider
 - Provider with recent errors shows "Degraded" or "Error" badge
 - Provider with no traffic shows "Unknown"
-- "Test Connection" button triggers a fetch and updates the row
+- "Test Connection" button opens a modal showing reachability (✓ Reachable with HTTP status + latency, or ✗ Unreachable with error); table stays intact; Close dismisses modal
 - Technical details (base URL, API key env) are hidden by default, expandable
 
 **Implementation Note**: After completing this phase and all automated verification passes, pause here for manual confirmation from the human that the manual testing was successful before proceeding to the next phase.

@@ -59,6 +59,16 @@
     </form>
   </dialog>
 
+  <dialog id="test-dialog" class="dialog--test">
+    <h2 id="test-dialog-title">Test Connection</h2>
+    <div id="test-dialog-body"></div>
+    <div class="form-actions">
+      <button type="button" class="btn-cancel" onclick="document.getElementById('test-dialog').close()">
+        Close
+      </button>
+    </div>
+  </dialog>
+
   <script>
     function resetProviderForm() {
       var f = document.getElementById('provider-form');

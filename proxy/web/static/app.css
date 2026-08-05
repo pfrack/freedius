@@ -2250,6 +2250,34 @@ body::before {
   border-top: 1px solid var(--border-subtle);
 }
 
+/* ── Test Connection Result ─────────────────────────────────────────────── */
+
+.test-result {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: 1rem;
+}
+
+.test-result--ok {
+  color: var(--color-success);
+}
+
+.test-result--fail {
+  color: var(--color-error);
+}
+
+.test-result__detail {
+  margin-top: var(--space-2);
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.dialog--test {
+  width: 420px;
+  max-width: 90vw;
+}
+
 /* ── Skip Link ──────────────────────────────────────────────────────────── */
 
 .skip-link {
