@@ -11,6 +11,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 )
@@ -31,6 +32,11 @@ var templateFuncs = template.FuncMap{
 	"add1":  func(i int) int { return i + 1 },
 	"sub1":  func(i int) int { return i - 1 },
 	"lower": strings.ToLower,
+	// urlPath escapes a value for safe inclusion in a URL path segment.
+	// htmx attributes (hx-get/hx-post/hx-delete) are not URL-escaped by
+	// html/template, so provider/mapping names containing '/', '..' or '?'
+	// would otherwise be interpreted as path traversal or query separation.
+	"urlPath": url.PathEscape,
 }
 
 // pageTemplates caches one *template.Template per page file. The layout

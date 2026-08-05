@@ -16,6 +16,7 @@ type RequestEvent struct {
 	Method          string
 	Path            string
 	Model           string
+	MappingName     string // Resolved mapping name (from dispatcher); empty if unmatched.
 	Provider        string
 	Status          int
 	Latency         time.Duration
@@ -53,6 +54,13 @@ func NewEventBus(_ int) *EventBus {
 		ring:    make([]RequestEvent, 0, 10000),
 		ringCap: 10000,
 	}
+}
+
+// CurrentSeq returns the sequence number assigned to the most recently emitted
+// event. Clients use it as the `?since=` cursor for SSE subscription so they
+// receive only live events and skip the buffered replay.
+func (b *EventBus) CurrentSeq() int64 {
+	return b.seq.Load()
 }
 
 // Emit sends an event to the subscriber channel without blocking. If the
@@ -193,4 +201,26 @@ func (b *EventBus) Since(seq int64) ([]RequestEvent, int64, bool) {
 	result := make([]RequestEvent, len(out))
 	copy(result, out)
 	return result, currentSeq, evicted
+}
+
+// Recent returns the last n buffered events in chronological order (oldest of
+// the window first). Used by the dashboard to render the activity feed without
+// copying the entire ring on every page load. n <= 0 returns nil.
+func (b *EventBus) Recent(n int) []RequestEvent {
+	if b == nil || n <= 0 {
+		return nil
+	}
+	b.ringMu.RLock()
+	defer b.ringMu.RUnlock()
+	if b.ringLen == 0 {
+		return nil
+	}
+	if n > b.ringLen {
+		n = b.ringLen
+	}
+	out := make([]RequestEvent, n)
+	for i := 0; i < n; i++ {
+		out[i] = b.ring[(b.head+b.ringLen-n+i)%b.ringCap]
+	}
+	return out
 }

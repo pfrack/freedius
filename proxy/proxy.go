@@ -59,6 +59,10 @@ type Dispatcher struct {
 	// per mapping (nil-safe; the dispatch path skips recording when nil).
 	// Wired by main.go after construction; tests leave it nil.
 	LastResponder *LastResponder
+	// Stats aggregates per-mapping/per-provider telemetry (nil-safe; the
+	// dispatch path skips recording when nil). Wired by main.go after
+	// construction; tests leave it nil.
+	Stats *StatsCollector
 }
 
 // NewDispatcher returns a Dispatcher wired to the given config, registry, and
@@ -273,6 +277,7 @@ func (d *Dispatcher) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	)
 	w.Header().Set("X-Freedius-Matched-Provider", mapping.ProviderName)
 	w.Header().Set("X-Freedius-Matched-Model", mapping.ModelString)
+	w.Header().Set("X-Freedius-Matched-Mapping", mappingName)
 	if isCountTokensPath(r.URL.Path) && !provider.SupportsCountTokens {
 		d.serveLocalCountTokens(w, r, mapping, body)
 		return
@@ -354,6 +359,9 @@ func (d *Dispatcher) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				)
 				if d.LastResponder != nil && mappingName != "" {
 					d.LastResponder.Record(mappingName, i)
+				}
+				if d.Stats != nil && mappingName != "" {
+					d.Stats.RecordFallback(mappingName)
 				}
 			}
 			return
@@ -686,6 +694,7 @@ func EventBusMiddleware(bus *EventBus, next http.Handler) http.Handler {
 		id := RequestIDFromContext(r.Context())
 		matchedProvider := ww.Header().Get("X-Freedius-Matched-Provider")
 		matchedModel := ww.Header().Get("X-Freedius-Matched-Model")
+		matchedMapping := ww.Header().Get("X-Freedius-Matched-Mapping")
 		status := ww.code
 		if status == 0 {
 			status = http.StatusOK
@@ -695,6 +704,7 @@ func EventBusMiddleware(bus *EventBus, next http.Handler) http.Handler {
 			Method:          r.Method,
 			Path:            r.URL.Path,
 			Model:           modelName,
+			MappingName:     matchedMapping,
 			Provider:        matchedProvider,
 			Status:          status,
 			Latency:         time.Since(start),
