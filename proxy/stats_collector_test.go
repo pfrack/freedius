@@ -255,6 +255,41 @@ func TestStatsCollector_ConcurrentAccess(t *testing.T) {
 	}
 }
 
+func TestStatsCollector_MappingNameResolution(t *testing.T) {
+	bus := NewEventBus(100)
+	sc := NewStatsCollector(bus)
+
+	// A request for "claude-sonnet-4-20250514" resolves to mapping "sonnet"
+	// by family. The collector must attribute to the resolved mapping name,
+	// not the raw requested model.
+	bus.Emit(RequestEvent{
+		Model:           "claude-sonnet-4-20250514",
+		MappingName:     "sonnet",
+		MatchedProvider: "nim",
+		Status:          200,
+	})
+	time.Sleep(20 * time.Millisecond)
+
+	ms := sc.MappingSnapshot()
+	if _, ok := ms["sonnet"]; !ok {
+		t.Fatalf("expected stats keyed under resolved mapping 'sonnet', got keys %v", keysOf(ms))
+	}
+	if _, ok := ms["claude-sonnet-4-20250514"]; ok {
+		t.Errorf("stats should NOT be keyed under the raw requested model")
+	}
+	if ms["sonnet"].RequestCount != 1 {
+		t.Errorf("expected 1 request under 'sonnet', got %d", ms["sonnet"].RequestCount)
+	}
+}
+
+func keysOf[V any](m map[string]V) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	return out
+}
+
 func TestStatsCollector_MultipleProviders(t *testing.T) {
 	bus := NewEventBus(100)
 	sc := NewStatsCollector(bus)

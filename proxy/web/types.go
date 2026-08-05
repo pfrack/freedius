@@ -17,6 +17,10 @@ type dashboardData struct {
 	Rows           []routingTableRow
 	ProviderHealth providerHealthSummary
 	RecentActivity []activityRow
+	// CurrentSeq is the latest event sequence number, used as the `?since=`
+	// cursor for the SSE activity feed so the browser receives only live
+	// events and skips the buffered replay.
+	CurrentSeq int64
 }
 
 // healthStrip displays the router's high-level operational state.
@@ -45,7 +49,8 @@ type routingTableRow struct {
 	Model           string
 	FallbackSummary string // "provider / model" or "" if no fallback
 	FallbackCount   int    // number of fallback entries
-	StatusLabel     string // Healthy, Degraded, Error, Unknown
+	StatusLabel     string // Healthy, Degraded, Error, Unknown, Key Missing
+	StatusSlug      string // slug used for the badge CSS class (badge--status-<slug>)
 	RequestCount    int64
 	ErrorCount      int64
 	FallbackEvents  int64
@@ -160,6 +165,7 @@ type mappingRow struct {
 type drawerData struct {
 	Name           string
 	StatusLabel    string
+	StatusSlug     string // slug used for the badge CSS class (badge--status-<slug>)
 	Model          string
 	ProviderName   string
 	Protocol       string

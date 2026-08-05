@@ -118,7 +118,7 @@
       var d = document.getElementById('mapping-dialog');
       var f = document.getElementById('mapping-form');
       f.removeAttribute('hx-post');
-      f.setAttribute('hx-put', '/v1/mappings/' + ds.name);
+      f.setAttribute('hx-put', '/v1/mappings/' + encodeURIComponent(ds.name));
       f.elements.name.value = ds.name;
       f.elements.name.readOnly = true;
       f.elements.provider_name.value = ds.provider;
