@@ -138,9 +138,7 @@ func run(args []string) int {
 		return failf("freedius: %s", err)
 	}
 
-	if err := checkRequiredEnvVars(cfg); err != nil {
-		return failf("freedius: %s", err)
-	}
+	checkRequiredEnvVars(logger, cfg)
 
 	serverLogger := logger.With("component", "server")
 	serverLogger.Info(
@@ -396,7 +394,7 @@ func resolveFallbackTimeoutMultiplier() int {
 	return defaultFallbackTimeoutMul
 }
 
-func checkRequiredEnvVars(cfg *config.Config) error {
+func checkRequiredEnvVars(logger *slog.Logger, cfg *config.Config) {
 	providers := cfg.ProvidersSnapshot()
 	for name, m := range cfg.MappingsSnapshot() {
 		p, ok := providers[m.ProviderName]
@@ -404,15 +402,13 @@ func checkRequiredEnvVars(cfg *config.Config) error {
 			continue
 		}
 		if p.DefaultAPIKeyEnv != "" && os.Getenv(p.DefaultAPIKeyEnv) == "" {
-			return fmt.Errorf(
-				"%s env var required (mapping %q references provider %q)",
-				p.DefaultAPIKeyEnv,
-				name,
-				m.ProviderName,
+			logger.Warn("API key not set",
+				"env", p.DefaultAPIKeyEnv,
+				"mapping", name,
+				"provider", m.ProviderName,
 			)
 		}
 	}
-	return nil
 }
 
 func resolveInt(flagVal int, flagSet bool, envKey string, def int) int {

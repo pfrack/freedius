@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"log/slog"
 	"net"
 	"os"
 	"os/exec"
@@ -15,6 +16,21 @@ import (
 	"github.com/pfrack/freedius/config"
 	"github.com/pfrack/freedius/proxy"
 )
+
+func testLoggerWithBuffer() (*slog.Logger, *bytes.Buffer) {
+	var buf bytes.Buffer
+	return slog.New(slog.NewJSONHandler(&buf, nil)), &buf
+}
+
+func countWarnings(buf *bytes.Buffer) int {
+	n := 0
+	for _, line := range strings.Split(buf.String(), "\n") {
+		if strings.TrimSpace(line) != "" {
+			n++
+		}
+	}
+	return n
+}
 
 const minimalConfigYAML = "providers:\n" +
 	"  nim: {behavior: openai}\n" +
@@ -31,13 +47,17 @@ func TestCheckRequiredEnvVars_PresetEnvVarMissing(t *testing.T) {
 			"test": {ProviderName: "nim", ModelString: "test"},
 		},
 	}
-	err := checkRequiredEnvVars(cfg)
-	if err == nil {
-		t.Fatal("expected error for missing NVIDIA_NIM_API_KEY")
+	logger, buf := testLoggerWithBuffer()
+	checkRequiredEnvVars(logger, cfg)
+	if countWarnings(buf) != 1 {
+		t.Fatalf("expected 1 warning for missing NVIDIA_NIM_API_KEY, got %d", countWarnings(buf))
 	}
-	if !strings.Contains(err.Error(), "NVIDIA_NIM_API_KEY") ||
-		!strings.Contains(err.Error(), "nim") {
-		t.Errorf("error should mention env var and provider: %v", err)
+	var warn map[string]any
+	if err := json.Unmarshal(buf.Bytes(), &warn); err != nil {
+		t.Fatalf("warning is not valid JSON: %v", err)
+	}
+	if warn["env"] != "NVIDIA_NIM_API_KEY" || warn["provider"] != "nim" {
+		t.Errorf("warning should mention env var and provider: %v", warn)
 	}
 }
 
@@ -52,12 +72,17 @@ func TestCheckRequiredEnvVars_PerProviderOverrideMissing(t *testing.T) {
 			"test": {ProviderName: "zen", ModelString: "test"},
 		},
 	}
-	err := checkRequiredEnvVars(cfg)
-	if err == nil {
-		t.Fatal("expected error for missing OPENCODE_API_KEY")
+	logger, buf := testLoggerWithBuffer()
+	checkRequiredEnvVars(logger, cfg)
+	if countWarnings(buf) != 1 {
+		t.Fatalf("expected 1 warning for missing OPENCODE_API_KEY, got %d", countWarnings(buf))
 	}
-	if !strings.Contains(err.Error(), "OPENCODE_API_KEY") {
-		t.Errorf("error should mention env var: %v", err)
+	var warn map[string]any
+	if err := json.Unmarshal(buf.Bytes(), &warn); err != nil {
+		t.Fatalf("warning is not valid JSON: %v", err)
+	}
+	if warn["env"] != "OPENCODE_API_KEY" {
+		t.Errorf("warning should mention env var: %v", warn)
 	}
 }
 
@@ -74,13 +99,16 @@ func TestCheckRequiredEnvVars_AllSet(t *testing.T) {
 			"m2": {ProviderName: "openai", ModelString: "test"},
 		},
 	}
-	if err := checkRequiredEnvVars(cfg); err != nil {
-		t.Errorf("unexpected error: %v", err)
+	logger, buf := testLoggerWithBuffer()
+	checkRequiredEnvVars(logger, cfg)
+	if countWarnings(buf) != 0 {
+		t.Errorf("expected 0 warnings when all keys set, got %d", countWarnings(buf))
 	}
 }
 
 func TestCheckRequiredEnvVars_CustomNoDefault(t *testing.T) {
 	t.Setenv("NVIDIA_NIM_API_KEY", "k1")
+	t.Setenv("CUSTOM_KEY", "k2")
 	cfg := &config.Config{
 		Providers: map[string]config.Provider{
 			"custom": {
@@ -93,9 +121,10 @@ func TestCheckRequiredEnvVars_CustomNoDefault(t *testing.T) {
 			"test": {ProviderName: "custom", ModelString: "test"},
 		},
 	}
-	t.Setenv("CUSTOM_KEY", "k2")
-	if err := checkRequiredEnvVars(cfg); err != nil {
-		t.Errorf("unexpected error for custom (no preset default): %v", err)
+	logger, buf := testLoggerWithBuffer()
+	checkRequiredEnvVars(logger, cfg)
+	if countWarnings(buf) != 0 {
+		t.Errorf("expected 0 warnings for custom with key set, got %d", countWarnings(buf))
 	}
 }
 
@@ -111,15 +140,16 @@ func TestCheckRequiredEnvVars_NoProvidersWithEnv(t *testing.T) {
 			},
 		},
 	}
-	if err := checkRequiredEnvVars(cfg); err != nil {
-		t.Errorf("unexpected error when nim not referenced: %v", err)
+	logger, buf := testLoggerWithBuffer()
+	checkRequiredEnvVars(logger, cfg)
+	if countWarnings(buf) != 0 {
+		t.Errorf("expected 0 warnings when no provider referenced by mapping, got %d", countWarnings(buf))
 	}
 }
 
 func TestCheckRequiredEnvVars_MappingDoesNotTriggerCheck(t *testing.T) {
-	// Env var checks are provider-level now; mappings referencing a provider
-	// with a missing env should still surface the error via the provider, not
-	// independently per-mapping.
+	// Mappings referencing a provider with a missing env should surface a
+	// warning via the provider, not independently per-mapping.
 	t.Setenv("NVIDIA_NIM_API_KEY", "k1")
 	t.Setenv("OPENCODE_API_KEY", "")
 	cfg := &config.Config{
@@ -130,12 +160,17 @@ func TestCheckRequiredEnvVars_MappingDoesNotTriggerCheck(t *testing.T) {
 			"haiku": {ProviderName: "zen", ModelString: "x"},
 		},
 	}
-	err := checkRequiredEnvVars(cfg)
-	if err == nil {
-		t.Fatal("expected error for missing OPENCODE_API_KEY")
+	logger, buf := testLoggerWithBuffer()
+	checkRequiredEnvVars(logger, cfg)
+	if countWarnings(buf) != 1 {
+		t.Fatalf("expected 1 warning for missing OPENCODE_API_KEY, got %d", countWarnings(buf))
 	}
-	if !strings.Contains(err.Error(), "OPENCODE_API_KEY") {
-		t.Errorf("error should mention provider env: %v", err)
+	var warn map[string]any
+	if err := json.Unmarshal(buf.Bytes(), &warn); err != nil {
+		t.Fatalf("warning is not valid JSON: %v", err)
+	}
+	if warn["env"] != "OPENCODE_API_KEY" {
+		t.Errorf("warning should mention provider env: %v", warn)
 	}
 }
 
@@ -191,8 +226,7 @@ func TestNewLogger_InvalidFormat(t *testing.T) {
 }
 
 func TestCheckRequiredEnvVars_ProviderNameInError(t *testing.T) {
-	// Under the new schema, the env-var check is provider-level. The error
-	// must reference the provider's user-defined name.
+	// The warning must reference the provider's user-defined name.
 	t.Setenv("OPENCODE_API_KEY", "")
 	cfg := &config.Config{
 		Providers: map[string]config.Provider{
@@ -202,15 +236,20 @@ func TestCheckRequiredEnvVars_ProviderNameInError(t *testing.T) {
 			"test": {ProviderName: "zen", ModelString: "test"},
 		},
 	}
-	err := checkRequiredEnvVars(cfg)
-	if err == nil {
-		t.Fatal("expected error for missing OPENCODE_API_KEY")
+	logger, buf := testLoggerWithBuffer()
+	checkRequiredEnvVars(logger, cfg)
+	if countWarnings(buf) != 1 {
+		t.Fatalf("expected 1 warning for missing OPENCODE_API_KEY, got %d", countWarnings(buf))
 	}
-	if !strings.Contains(err.Error(), "zen") {
-		t.Errorf("error should reference the provider name (zen), got: %v", err)
+	var warn map[string]any
+	if err := json.Unmarshal(buf.Bytes(), &warn); err != nil {
+		t.Fatalf("warning is not valid JSON: %v", err)
 	}
-	if !strings.Contains(err.Error(), "OPENCODE_API_KEY") {
-		t.Errorf("error should reference the env var, got: %v", err)
+	if warn["provider"] != "zen" {
+		t.Errorf("warning should reference the provider name (zen), got: %v", warn)
+	}
+	if warn["env"] != "OPENCODE_API_KEY" {
+		t.Errorf("warning should reference the env var, got: %v", warn)
 	}
 }
 
@@ -224,12 +263,17 @@ func TestCheckRequiredEnvVars_ReferencesConfiguredProvider(t *testing.T) {
 			"test": {ProviderName: "nim", ModelString: "test"},
 		},
 	}
-	err := checkRequiredEnvVars(cfg)
-	if err == nil {
-		t.Fatal("expected error")
+	logger, buf := testLoggerWithBuffer()
+	checkRequiredEnvVars(logger, cfg)
+	if countWarnings(buf) != 1 {
+		t.Fatalf("expected 1 warning, got %d", countWarnings(buf))
 	}
-	if !strings.Contains(err.Error(), "provider \"nim\"") {
-		t.Errorf("error should reference the configured provider (nim), got: %v", err)
+	var warn map[string]any
+	if err := json.Unmarshal(buf.Bytes(), &warn); err != nil {
+		t.Fatalf("warning is not valid JSON: %v", err)
+	}
+	if warn["provider"] != "nim" {
+		t.Errorf("warning should reference the configured provider (nim), got: %v", warn)
 	}
 }
 
