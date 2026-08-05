@@ -514,27 +514,27 @@ Final pass over any remaining audit items. Visual smoke verification at 3 viewpo
 
 #### Automated
 
-- [x] 2.1 `mage lint` passes
-- [x] 2.2 `mage test` passes
+- [x] 2.1 `mage lint` passes — 80101fe
+- [x] 2.2 `mage test` passes — 80101fe
 
 #### Manual
 
-- [x] 2.3 Drawer labels render in sentence case
-- [x] 2.4 Visual hierarchy more graduated
+- [x] 2.3 Drawer labels render in sentence case — 80101fe
+- [x] 2.4 Visual hierarchy more graduated — 80101fe
 
 ### Phase 3: Layout & spacing
 
 #### Automated
 
-- [ ] 3.1 `mage lint` passes
-- [ ] 3.2 `mage test` passes
+- [x] 3.1 `mage lint` passes
+- [x] 3.2 `mage test` passes
 
 #### Manual
 
-- [ ] 3.3 Card radii varied (outer softer than inner)
-- [ ] 3.4 Empty state no dashed border, has subtle ambient gradient
-- [ ] 3.5 Cards no longer translateY on hover (border/shadow shift only)
-- [ ] 3.6 No regressions in animations
+- [x] 3.3 Radius hierarchy visible: page placeholder (2xl) > table-wrap/log-container (xl) > inner table (xl-0.25) > panels (lg/md)
+- [x] 3.4 Empty state no dashed border, has subtle ambient gradient
+- [x] 3.5 No translateY card-hover on live surfaces (.route-step uses surface+shadow shift; buttons keep theirs); dead card/route-card/stats-strip/providers-overview CSS removed
+- [x] 3.6 No regressions in animations
 
 ### Phase 4: Interactivity upgrades
 
