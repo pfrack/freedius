@@ -827,8 +827,8 @@ Add 3-5 targeted Playwright browser tests covering the JS/SSE/HTMX interactions 
 
 #### Automated
 
-- [ ] 8.1 Playwright tests pass: `cd e2e && npx playwright test`
-- [ ] 8.2 CI workflow includes E2E step
+- [x] 8.1 Playwright tests pass: `cd e2e && npx playwright test`
+- [x] 8.2 CI workflow includes E2E step
 
 #### Manual
 
