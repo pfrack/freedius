@@ -104,6 +104,10 @@ type logsData struct {
 	Provider string
 	// Mapping is the active ?mapping= filter ("" when no filter).
 	Mapping string
+	// Outcome is the active ?outcome= filter ("success", "error", or "").
+	Outcome string
+	// Fallback is the active ?fallback= filter ("true", "false", or "").
+	Fallback string
 }
 
 // providerRow represents a single provider for template rendering.

@@ -288,8 +288,9 @@ func SetupMux(h *eventstream.Handlers, logger *slog.Logger) *http.ServeMux {
 }
 
 // handleLogs renders the log page with server-rendered entries from the ring
-// buffer. Filters: ?min=<level>, ?provider=<name>, ?mapping=<name> — all
-// optional; multiple combine via AND. Provider/matching is a case-insensitive
+// buffer. Filters: ?min=<level>, ?provider=<name>, ?mapping=<name>,
+// ?outcome=<success|error>, ?fallback=<true|false> — all optional;
+// multiple combine via AND. Provider/matching is a case-insensitive
 // substring match against the rendered log line.
 func handleLogs(w http.ResponseWriter, r *http.Request, logSink *proxy.LogSink, logger *slog.Logger) {
 	q := r.URL.Query()
@@ -301,6 +302,8 @@ func handleLogs(w http.ResponseWriter, r *http.Request, logSink *proxy.LogSink, 
 	}
 	providerFilter := strings.ToLower(strings.TrimSpace(q.Get("provider")))
 	mappingFilter := strings.ToLower(strings.TrimSpace(q.Get("mapping")))
+	outcomeFilter := parseOutcomeFilter(q.Get("outcome"))
+	fallbackFilter := parseFallbackFilter(q.Get("fallback"))
 
 	entries, _, _ := logSink.SnapshotSince(0)
 
@@ -319,6 +322,24 @@ func handleLogs(w http.ResponseWriter, r *http.Request, logSink *proxy.LogSink, 
 				continue
 			}
 			if mappingFilter != "" && !strings.Contains(line, mappingFilter) {
+				continue
+			}
+		}
+		if outcomeFilter != "" {
+			isError := e.Level >= slog.LevelError
+			if outcomeFilter == "error" && !isError {
+				continue
+			}
+			if outcomeFilter == "success" && isError {
+				continue
+			}
+		}
+		if fallbackFilter != "" {
+			hasFallback := strings.Contains(strings.ToLower(e.Line), "fallback")
+			if fallbackFilter == "true" && !hasFallback {
+				continue
+			}
+			if fallbackFilter == "false" && hasFallback {
 				continue
 			}
 		}
@@ -350,7 +371,32 @@ func handleLogs(w http.ResponseWriter, r *http.Request, logSink *proxy.LogSink, 
 			Level:    levelSel,
 			Provider: providerFilter,
 			Mapping:  mappingFilter,
+			Outcome:  outcomeFilter,
+			Fallback: fallbackFilter,
 		}, logger)
+	}
+}
+
+// parseOutcomeFilter normalizes the ?outcome= query parameter. Returns ""
+// for empty/invalid values (no filter applied). Valid values: "success",
+// "error".
+func parseOutcomeFilter(s string) string {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "success", "error":
+		return strings.ToLower(strings.TrimSpace(s))
+	default:
+		return ""
+	}
+}
+
+// parseFallbackFilter normalizes the ?fallback= query parameter. Returns ""
+// for empty/invalid values (no filter applied). Valid values: "true", "false".
+func parseFallbackFilter(s string) string {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "true", "false":
+		return strings.ToLower(strings.TrimSpace(s))
+	default:
+		return ""
 	}
 }
 

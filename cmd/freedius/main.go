@@ -138,7 +138,7 @@ func run(args []string) int {
 		return failf("freedius: %s", err)
 	}
 
-	checkRequiredEnvVars(logger, cfg)
+	warnMissingEnvVars(logger, cfg)
 
 	serverLogger := logger.With("component", "server")
 	serverLogger.Info(
@@ -195,7 +195,7 @@ func run(args []string) int {
 	}()
 
 	logger.Info("web dashboard on http://" + net.JoinHostPort(uiHost, strconv.Itoa(uiPort)))
-	return waitForShutdownWithWeb(server, webServer, serverErr, logger)
+	return waitForShutdownWithWeb(server, webServer, serverErr, stats, logger)
 }
 
 func newLogger(format string, w io.Writer, sink *proxy.LogSink) (*slog.Logger, error) {
@@ -266,11 +266,13 @@ func waitForShutdownWithWeb(
 	server *http.Server,
 	webServer *web.Server,
 	serverErr <-chan error,
+	stats *proxy.StatsCollector,
 	logger *slog.Logger,
 ) int {
 	if err := waitForShutdown(server, func() error {
 		ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 		defer cancel()
+		stats.Close()
 		return webServer.Shutdown(ctx)
 	}); err != nil {
 		logger.Error("shutdown error", "err", err)
@@ -394,11 +396,12 @@ func resolveFallbackTimeoutMultiplier() int {
 	return defaultFallbackTimeoutMul
 }
 
-// checkRequiredEnvVars emits a structured warning for each mapping whose
+// warnMissingEnvVars emits a structured warning for each mapping whose
 // provider declares a DefaultAPIKeyEnv that is not set in the environment.
-// It no longer fails startup: freedius boots regardless of missing keys, and
-// the request fails with authentication_error at request time instead.
-func checkRequiredEnvVars(logger *slog.Logger, cfg *config.Config) {
+// It never fails startup: freedius boots regardless of missing keys, and the
+// request fails with authentication_error at request time instead. (Renamed
+// from checkRequiredEnvVars to make clear it only logs, it does not abort.)
+func warnMissingEnvVars(logger *slog.Logger, cfg *config.Config) {
 	providers := cfg.ProvidersSnapshot()
 	// Warn once per provider, not once per mapping: a provider referenced by
 	// multiple mappings would otherwise emit a duplicate warning per mapping.

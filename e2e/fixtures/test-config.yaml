@@ -1,0 +1,19 @@
+providers:
+  test-primary:
+    behavior: openai
+    default_base_url: https://api.example.com/v1
+    default_api_key_env: TEST_PRIMARY_API_KEY
+    protocol: openai
+  test-fallback:
+    behavior: openai
+    default_base_url: https://api.fallback-example.com/v1
+    default_api_key_env: TEST_FALLBACK_API_KEY
+    protocol: openai
+
+mappings:
+  test-chat:
+    provider_name: test-primary
+    model_string: gpt-4
+    fallback:
+      - provider_name: test-fallback
+        model_string: gpt-3.5-turbo

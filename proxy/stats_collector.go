@@ -39,6 +39,9 @@ type StatsCollector struct {
 	mu        sync.RWMutex
 	mappings  map[string]*mappingAccum
 	providers map[string]*providerAccum
+	bus       *EventBus
+	sub       <-chan RequestEvent
+	closed    bool
 }
 
 // mappingAccum is the internal accumulator for a mapping's stats.
@@ -72,19 +75,41 @@ func NewStatsCollector(bus *EventBus) *StatsCollector {
 	sc := &StatsCollector{
 		mappings:  make(map[string]*mappingAccum),
 		providers: make(map[string]*providerAccum),
+		bus:       bus,
 	}
 	if bus != nil {
 		ch := bus.Subscribe()
+		sc.sub = ch
 		go sc.consume(ch)
 	}
 	return sc
 }
 
-// consume drains the subscriber channel and updates internal state.
+// consume drains the subscriber channel and updates internal state. It exits
+// when the channel is closed, which happens on Close() (via bus.Unsubscribe).
 func (sc *StatsCollector) consume(ch <-chan RequestEvent) {
 	for ev := range ch {
 		sc.record(ev)
 	}
+}
+
+// Close stops the background consume goroutine and releases the EventBus
+// subscription, preventing a goroutine leak if the collector is discarded.
+// Safe to call multiple times and on a nil receiver or an inert collector
+// (created with a nil bus).
+func (sc *StatsCollector) Close() {
+	if sc == nil {
+		return
+	}
+	sc.mu.Lock()
+	if sc.closed || sc.bus == nil {
+		sc.mu.Unlock()
+		return
+	}
+	sc.closed = true
+	sub := sc.sub
+	sc.mu.Unlock()
+	sc.bus.Unsubscribe(sub)
 }
 
 // record processes a single RequestEvent and updates counters.

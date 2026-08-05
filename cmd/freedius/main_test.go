@@ -58,7 +58,7 @@ func TestCheckRequiredEnvVars_PresetEnvVarMissing(t *testing.T) {
 		},
 	}
 	logger, buf := testLoggerWithBuffer()
-	checkRequiredEnvVars(logger, cfg)
+	warnMissingEnvVars(logger, cfg)
 	if countWarnings(buf) != 1 {
 		t.Fatalf("expected 1 warning for missing NVIDIA_NIM_API_KEY, got %d", countWarnings(buf))
 	}
@@ -83,7 +83,7 @@ func TestCheckRequiredEnvVars_PerProviderOverrideMissing(t *testing.T) {
 		},
 	}
 	logger, buf := testLoggerWithBuffer()
-	checkRequiredEnvVars(logger, cfg)
+	warnMissingEnvVars(logger, cfg)
 	if countWarnings(buf) != 1 {
 		t.Fatalf("expected 1 warning for missing OPENCODE_API_KEY, got %d", countWarnings(buf))
 	}
@@ -110,7 +110,7 @@ func TestCheckRequiredEnvVars_AllSet(t *testing.T) {
 		},
 	}
 	logger, buf := testLoggerWithBuffer()
-	checkRequiredEnvVars(logger, cfg)
+	warnMissingEnvVars(logger, cfg)
 	if countWarnings(buf) != 0 {
 		t.Errorf("expected 0 warnings when all keys set, got %d", countWarnings(buf))
 	}
@@ -132,7 +132,7 @@ func TestCheckRequiredEnvVars_CustomKeySet(t *testing.T) {
 		},
 	}
 	logger, buf := testLoggerWithBuffer()
-	checkRequiredEnvVars(logger, cfg)
+	warnMissingEnvVars(logger, cfg)
 	if countWarnings(buf) != 0 {
 		t.Errorf("expected 0 warnings for custom with key set, got %d", countWarnings(buf))
 	}
@@ -150,7 +150,7 @@ func TestCheckRequiredEnvVars_NoDefaultAPIKeyEnv(t *testing.T) {
 		},
 	}
 	logger, buf := testLoggerWithBuffer()
-	checkRequiredEnvVars(logger, cfg)
+	warnMissingEnvVars(logger, cfg)
 	if countWarnings(buf) != 0 {
 		t.Errorf("expected 0 warnings for provider without DefaultAPIKeyEnv, got %d", countWarnings(buf))
 	}
@@ -169,7 +169,7 @@ func TestCheckRequiredEnvVars_NoProvidersWithEnv(t *testing.T) {
 		},
 	}
 	logger, buf := testLoggerWithBuffer()
-	checkRequiredEnvVars(logger, cfg)
+	warnMissingEnvVars(logger, cfg)
 	if countWarnings(buf) != 0 {
 		t.Errorf("expected 0 warnings when no provider referenced by mapping, got %d", countWarnings(buf))
 	}
@@ -189,7 +189,7 @@ func TestCheckRequiredEnvVars_MappingDoesNotTriggerCheck(t *testing.T) {
 		},
 	}
 	logger, buf := testLoggerWithBuffer()
-	checkRequiredEnvVars(logger, cfg)
+	warnMissingEnvVars(logger, cfg)
 	if countWarnings(buf) != 1 {
 		t.Fatalf("expected 1 warning for missing OPENCODE_API_KEY, got %d", countWarnings(buf))
 	}
@@ -216,7 +216,7 @@ func TestCheckRequiredEnvVars_MultipleMissingKeys(t *testing.T) {
 		},
 	}
 	logger, buf := testLoggerWithBuffer()
-	checkRequiredEnvVars(logger, cfg)
+	warnMissingEnvVars(logger, cfg)
 	if countWarnings(buf) != 2 {
 		t.Fatalf("expected 2 warnings (no early exit), got %d", countWarnings(buf))
 	}
@@ -304,7 +304,7 @@ func TestCheckRequiredEnvVars_ProviderNameInWarning(t *testing.T) {
 		},
 	}
 	logger, buf := testLoggerWithBuffer()
-	checkRequiredEnvVars(logger, cfg)
+	warnMissingEnvVars(logger, cfg)
 	if countWarnings(buf) != 1 {
 		t.Fatalf("expected 1 warning for missing OPENCODE_API_KEY, got %d", countWarnings(buf))
 	}
@@ -331,7 +331,7 @@ func TestCheckRequiredEnvVars_ReferencesConfiguredProvider(t *testing.T) {
 		},
 	}
 	logger, buf := testLoggerWithBuffer()
-	checkRequiredEnvVars(logger, cfg)
+	warnMissingEnvVars(logger, cfg)
 	if countWarnings(buf) != 1 {
 		t.Fatalf("expected 1 warning, got %d", countWarnings(buf))
 	}

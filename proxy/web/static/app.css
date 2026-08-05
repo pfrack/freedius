@@ -1062,6 +1062,15 @@ pre {
   color: var(--color-error);
 }
 
+/* System/startup logs: visually distinct from routing request logs via a
+   muted left-border. Applied by the SSE handler JS when the log line
+   matches startup keywords (listening, starting, loaded config). */
+.log-system {
+  border-left: 3px solid var(--text-muted);
+  opacity: 0.7;
+  font-style: italic;
+}
+
 /* ── Model List ─────────────────────────────────────────────────────────── */
 
 .model-filter-input {
