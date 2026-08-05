@@ -540,28 +540,28 @@ Final pass over any remaining audit items. Visual smoke verification at 3 viewpo
 
 #### Automated
 
-- [x] 4.1 `mage lint` passes
-- [x] 4.2 `mage test` passes
+- [x] 4.1 `mage lint` passes — 6e5b2d9
+- [x] 4.2 `mage test` passes — 6e5b2d9
 
 #### Manual
 
-- [x] 4.3 Spinner shows clean rotating circle during save
-- [x] 4.4 Drawer has inner-edge highlight on open
-- [x] 4.5 Logs page caps DOM at 500 lines
+- [x] 4.3 Spinner shows clean rotating circle during save — 6e5b2d9
+- [x] 4.4 Drawer has inner-edge highlight on open — 6e5b2d9
+- [x] 4.5 Logs page caps DOM at 500 lines — 6e5b2d9
 
 ### Phase 5: Component swaps
 
 #### Automated
 
-- [ ] 5.1 `mage lint` passes
-- [ ] 5.2 `mage test` passes
+- [x] 5.1 `mage lint` passes
+- [x] 5.2 `mage test` passes
 
 #### Manual
 
-- [ ] 5.3 Sidebar icons visually distinct from Lucide defaults
-- [ ] 5.4 Hamburger uses hexagonal mark
-- [ ] 5.5 404 page no longer shows giant accent digits
-- [ ] 5.6 Status badges show left-edge accent stripe
+- [x] 5.3 Sidebar icons visually distinct from Lucide defaults
+- [x] 5.4 Hamburger uses hexagonal mark
+- [x] 5.5 404 page no longer shows giant accent digits
+- [x] 5.6 Status badges show left-edge accent stripe
 
 ### Phase 6: Brand unification & meta
 

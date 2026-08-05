@@ -1139,17 +1139,21 @@ pre {
   pointer-events: none;
 }
 
+/* Composed, not a monster number: the giant accent-coloured 404 is the single
+   most reproduced error-page cliché. Kept small and muted so the heading and
+   the recovery action carry the page; the -2deg tilt is the only flourish. */
 .not-found__code {
+  display: inline-block;
   font-family: var(--font-sans);
-  font-size: clamp(6rem, 18vw, 10rem);
+  font-size: clamp(2.5rem, 6vw, 4rem);
   font-weight: 800;
   line-height: 0.9;
   letter-spacing: -0.06em;
-  color: var(--accent);
+  color: var(--text-muted);
   font-variant-numeric: tabular-nums;
-  text-shadow: 0 0 40px var(--accent-glow);
   margin-bottom: var(--space-4);
   user-select: none;
+  transform: rotate(-2deg);
 }
 
 .not-found h1 {
@@ -1267,12 +1271,11 @@ body::before {
   flex: 1;
 }
 
-/* ── Status Badges (Phase 7 §1 — icon + text, never color-only) ────────── */
+/* ── Status Badges (icon + text, never color-only) ──────────────────────── */
+/* Square flags with a left-edge accent stripe rather than pills — the pill
+   status badge is the default look every dashboard ships with. The stripe
+   inherits the badge's own semantic colour via currentColor. */
 
-.badge--healthy,
-.badge--degraded,
-.badge--error,
-.badge--unknown,
 .badge--status-healthy,
 .badge--status-degraded,
 .badge--status-error,
@@ -1286,28 +1289,26 @@ body::before {
   letter-spacing: 0.02em;
   text-transform: uppercase;
   padding: var(--space-1) var(--space-2);
-  border-radius: var(--radius-sm);
+  padding-left: calc(var(--space-2) - 3px);
+  border-radius: 0;
+  border-left: 3px solid currentColor;
 }
 
-.badge--healthy,
 .badge--status-healthy {
   background: var(--badge-success-bg);
   color: var(--color-success);
 }
 
-.badge--degraded,
 .badge--status-degraded {
   background: var(--badge-warning-bg);
   color: var(--color-warning);
 }
 
-.badge--error,
 .badge--status-error {
   background: var(--badge-error-bg);
   color: var(--color-error);
 }
 
-.badge--unknown,
 .badge--status-unknown {
   background: var(--badge-unknown-bg);
   color: var(--text-secondary);
