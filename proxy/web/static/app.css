@@ -1196,6 +1196,11 @@ pre {
 
 .htmx-indicator {
   display: none;
+  width: 14px;
+  height: 14px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
 }
 
 .htmx-request .htmx-indicator,

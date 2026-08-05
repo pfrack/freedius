@@ -526,28 +526,28 @@ Final pass over any remaining audit items. Visual smoke verification at 3 viewpo
 
 #### Automated
 
-- [x] 3.1 `mage lint` passes
-- [x] 3.2 `mage test` passes
+- [x] 3.1 `mage lint` passes — 75dd31b
+- [x] 3.2 `mage test` passes — 75dd31b
 
 #### Manual
 
-- [x] 3.3 Radius hierarchy visible: page placeholder (2xl) > table-wrap/log-container (xl) > inner table (xl-0.25) > panels (lg/md)
-- [x] 3.4 Empty state no dashed border, has subtle ambient gradient
-- [x] 3.5 No translateY card-hover on live surfaces (.route-step uses surface+shadow shift; buttons keep theirs); dead card/route-card/stats-strip/providers-overview CSS removed
-- [x] 3.6 No regressions in animations
+- [x] 3.3 Radius hierarchy visible: page placeholder (2xl) > table-wrap/log-container (xl) > inner table (xl-0.25) > panels (lg/md) — 75dd31b
+- [x] 3.4 Empty state no dashed border, has subtle ambient gradient — 75dd31b
+- [x] 3.5 No translateY card-hover on live surfaces (.route-step uses surface+shadow shift; buttons keep theirs); dead card/route-card/stats-strip/providers-overview CSS removed — 75dd31b
+- [x] 3.6 No regressions in animations — 75dd31b
 
 ### Phase 4: Interactivity upgrades
 
 #### Automated
 
-- [ ] 4.1 `mage lint` passes
-- [ ] 4.2 `mage test` passes
+- [x] 4.1 `mage lint` passes
+- [x] 4.2 `mage test` passes
 
 #### Manual
 
-- [ ] 4.3 Spinner shows clean rotating circle during save
-- [ ] 4.4 Drawer has inner-edge highlight on open
-- [ ] 4.5 Logs page caps DOM at 500 lines
+- [x] 4.3 Spinner shows clean rotating circle during save
+- [x] 4.4 Drawer has inner-edge highlight on open
+- [x] 4.5 Logs page caps DOM at 500 lines
 
 ### Phase 5: Component swaps
 
