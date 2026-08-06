@@ -100,14 +100,14 @@ Every archived change, in order:
 | 30 | testing-proxy-integration | Testing proxy integration | #24 | 2026-07-02 |
 | 31 | streaming-edge-cases | Streaming edge cases | #25 | 2026-07-02 |
 | 32 | web-ui | Web UI dashboard (replaces TUI) | #26 | 2026-07-02 |
-| 33 | test-plan-refresh | Test plan refresh | #27 | 2026-07-05 |
+| 33 | test-plan-refresh-2026-07-05 | Test plan refresh | #27 | 2026-07-05 |
 | 34 | provider-model-discovery | Provider model discovery (fetch upstream models) | #28 | 2026-07-05 |
 | 35 | web-ui-redesign | Web UI redesign (zinc dark palette, responsive) | #29 | 2026-07-05 |
 | 36 | mapping-graph-visualization | Mapping graph visualization (breadcrumb chains) | #30 | 2026-07-06 |
 | 37 | provider-fallback-routing | Provider fallback routing (research) | — | 2026-07-06 |
 | 38 | routing-visibility | Routing visibility across the web UI | — | 2026-07-07 |
 | 39 | web-ui-friendliness | Web UI friendliness improvements | — | 2026-07-07 |
-| 40 | auto-review | Auto AI review workflow | #31 | 2026-07-13 |
+| 40 | auto-review | Auto AI review workflow | #31, #39 | 2026-07-20 |
 | 41 | solo-dev-positioning | Solo-dev positioning — install + narrative + scope | — | 2026-07-21 |
 | 42 | solo-dev-distribution | Solo-dev distribution (goreleaser, brew, scoop) | #32 | 2026-07-22 |
 | 43 | response-model-echo | Response model echo (stable across fallbacks) | #33 | 2026-07-28 |
@@ -118,3 +118,6 @@ Every archived change, in order:
 | 48 | ui-design-polish | UI design polish — anti-slop visual quality pass | #40 | 2026-08-06 |
 | 49 | dashboard-redesign | Dashboard GUI redesign — operator monitoring | #38, #39 | 2026-08-05 |
 | 50 | custom-to-mix-protocol | Custom provider → mix rewrite + protocol field | #9 | 2026-06-18 |
+
+> **Rows without archive folders** (CI/tooling-only changes, no `context/archive/<id>/` tree):
+> - `auto-review` (#40) — ships as `.github/workflows/ai-review.yml` (added as `code-review.yml` in #31, renamed/sync'd via #39). Plumbing change, no change record.
