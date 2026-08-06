@@ -11,7 +11,7 @@ import * as path from 'path';
 
 // test-results/ is gitignored; screenshots are diagnostic output, not fixtures.
 const OUT = path.join(__dirname, '..', 'test-results', 'shots');
-fs.mkdirSync(OUT, { recursive: true });
+
 
 const VIEWPORTS = [
   { name: '1280', width: 1280, height: 800 },
@@ -26,6 +26,9 @@ const PAGES = [
   { name: 'logs', path: '/logs' },
   { name: '404', path: '/nope-not-a-route' },
 ];
+test.describe('ui-design-polish guards', () => {
+  // Create the diagnostic output dir once at run time, not at collection time.
+  test.beforeAll(() => fs.mkdirSync(OUT, { recursive: true }));
 
 for (const scheme of ['dark', 'light'] as const) {
   for (const vp of VIEWPORTS) {
@@ -36,7 +39,7 @@ for (const scheme of ['dark', 'light'] as const) {
         const errors: string[] = [];
         page.on('pageerror', (e) => errors.push(String(e)));
         await page.goto(pg.path);
-        await page.waitForTimeout(250);
+        await expect(page.locator('#main-content')).toBeVisible();
         await page.screenshot({
           path: `${OUT}/${scheme}-${vp.name}-${pg.name}.png`,
           fullPage: true,
@@ -59,24 +62,34 @@ for (const scheme of ['dark', 'light'] as const) {
 }
 
 test('p5: status badges render as square flags with left stripe', async ({ page }) => {
+  const stripe = async (loc) => {
+    await expect(loc.first()).toBeVisible();
+    const s = await loc.first().evaluate((el) => {
+      const c = getComputedStyle(el);
+      return {
+        radius: c.borderTopLeftRadius,
+        leftWidth: c.borderLeftWidth,
+        leftStyle: c.borderLeftStyle,
+        leftColor: c.borderLeftColor,
+        color: c.color,
+        bg: c.backgroundColor,
+      };
+    });
+    expect(s.radius).toBe('0px');
+    expect(s.leftWidth).toBe('3px');
+    expect(s.leftStyle).toBe('solid');
+    // currentColor: stripe must equal the badge's own semantic colour.
+    expect(s.leftColor).toBe(s.color);
+    // A square flag must carry a real tinted background, not the bare base.
+    expect(s.bg).not.toBe('rgba(0, 0, 0, 0)');
+  };
+  // Dashboard uses the --status-* prefixed variant.
   await page.goto('/');
-  const badge = page.locator('[class*="badge--status-"]').first();
-  await expect(badge).toBeVisible();
-  const s = await badge.evaluate((el) => {
-    const c = getComputedStyle(el);
-    return {
-      radius: c.borderTopLeftRadius,
-      leftWidth: c.borderLeftWidth,
-      leftStyle: c.borderLeftStyle,
-      leftColor: c.borderLeftColor,
-      color: c.color,
-    };
-  });
-  expect(s.radius).toBe('0px');
-  expect(s.leftWidth).toBe('3px');
-  expect(s.leftStyle).toBe('solid');
-  // currentColor: stripe must equal the badge's own semantic colour.
-  expect(s.leftColor).toBe(s.color);
+  await stripe(page.locator('[class*="badge--status-"]'));
+  // Providers page uses the legacy non-prefixed aliases (.badge--healthy,
+  // -degraded, -error, -unknown) which must share the same square-flag style.
+  await page.goto('/providers');
+  await stripe(page.locator('.badge--healthy, .badge--degraded, .badge--error, .badge--unknown'));
 });
 
 test('p2: drawer + strip labels are sentence case', async ({ page }) => {
@@ -204,8 +217,8 @@ for (const scheme of ['dark', 'light'] as const) {
       return { size: parseFloat(c.fontSize), color: c.color, transform: c.transform };
     });
     expect(s.size).toBeLessThanOrEqual(64); // clamp max 4rem
-    // --text-muted: #5c5c66 dark / #9a9aa0 light. Must not be the accent.
-    expect(s.color).toBe(scheme === 'dark' ? 'rgb(92, 92, 102)' : 'rgb(154, 154, 160)');
+    // --text-secondary: #9a9aa0 dark / #52525b light. Must not be the accent.
+    expect(s.color).toBe(scheme === 'dark' ? 'rgb(154, 154, 160)' : 'rgb(82, 82, 91)');
     expect(s.transform).not.toBe('none'); // -2deg tilt
   });
 }
@@ -221,3 +234,5 @@ test('a11y: focus ring is visible on interactive elements', async ({ page }) => 
   expect(s.style).not.toBe('none');
   expect(parseFloat(s.width)).toBeGreaterThanOrEqual(2);
 });
+});
+

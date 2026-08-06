@@ -1,7 +1,7 @@
 ---
 id: ui-design-polish
 title: UI Design Polish — Anti-Slop Visual Quality Pass
-status: implemented
+status: impl_reviewed
 created: 2026-08-01
 updated: 2026-08-06
 ---

@@ -1141,7 +1141,7 @@ pre {
   font-weight: 800;
   line-height: 0.9;
   letter-spacing: -0.06em;
-  color: var(--text-muted);
+  color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
   margin-bottom: var(--space-4);
   user-select: none;
@@ -1268,6 +1268,10 @@ body::before {
    status badge is the default look every dashboard ships with. The stripe
    inherits the badge's own semantic colour via currentColor. */
 
+.badge--healthy,
+.badge--degraded,
+.badge--error,
+.badge--unknown,
 .badge--status-healthy,
 .badge--status-degraded,
 .badge--status-error,
@@ -1286,21 +1290,25 @@ body::before {
   border-left: 3px solid currentColor;
 }
 
+.badge--healthy,
 .badge--status-healthy {
   background: var(--badge-success-bg);
   color: var(--color-success);
 }
 
+.badge--degraded,
 .badge--status-degraded {
   background: var(--badge-warning-bg);
   color: var(--color-warning);
 }
 
+.badge--error,
 .badge--status-error {
   background: var(--badge-error-bg);
   color: var(--color-error);
 }
 
+.badge--unknown,
 .badge--status-unknown {
   background: var(--badge-unknown-bg);
   color: var(--text-secondary);
@@ -1966,4 +1974,10 @@ body::before {
 
    .visually-hidden has no current consumer but is the standard screen-reader
    escape hatch; it stays as infrastructure, not layout.
+
+   Status-badge contrast in light mode is delivered through the --badge-*
+   tokens (--badge-warning-bg / --badge-error-bg at 0.14), which the status
+   badges actually consume, rather than the legacy --log-warn-bg /
+   --log-error-bg (left at 0.08). Error uses 0.14 rather than the plan's
+   literal 0.12 for a slightly stronger raise; no WCAG regression.
    ═══════════════════════════════════════════════════════════════════════════ */

@@ -60,6 +60,7 @@ After this plan:
 - Replacing icon library wholesale (custom SVG paths inline)
 - Adding Playwright visual regression tests (out of scope per verification choice)
 - Mobile-first redesign (current responsive breakpoints preserved)
+- Serving a real `/static/og.png` asset — `og:image` is provided as a `data:` SVG URI, which social crawlers ignore (they require an absolute http(s) URL). Accepted for a local-only dashboard with no sharing surface; revisit if social cards are ever needed.
 
 ## Implementation Approach
 
