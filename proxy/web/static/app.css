@@ -1319,6 +1319,11 @@ body::before {
   color: var(--color-error);
 }
 
+.badge--disabled {
+  background: var(--bg-surface);
+  color: var(--text-muted);
+}
+
 .badge--muted {
   background: var(--bg-surface);
   color: var(--text-secondary);
