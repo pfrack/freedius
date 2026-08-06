@@ -127,7 +127,7 @@
   }
 
   document.addEventListener('htmx:sseMessage', function(e) {
-    if (e.detail.eventName !== 'log') return;
+    if (!e.detail || e.detail.eventName !== 'log' || typeof e.detail.data !== 'string') return;
     var pre = document.createElement('pre');
     try {
       var data = JSON.parse(e.detail.data);
