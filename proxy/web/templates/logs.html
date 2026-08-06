@@ -111,26 +111,37 @@
            lower.indexOf('config loaded') !== -1;
   }
 
+  // Cap DOM growth for long-running sessions. The server-side ring buffer
+  // (10k entries) is unaffected — this only bounds what the browser holds.
+  var MAX_LOG_LINES = 500;
+
+  // Order matters: append -> scroll -> trim. Scrolling before the trim keeps
+  // the view pinned to the newest line during bursts.
+  function appendLogLine(pre) {
+    var logEl = document.getElementById('log');
+    logEl.appendChild(pre);
+    logEl.scrollTop = logEl.scrollHeight;
+    while (logEl.children.length > MAX_LOG_LINES) {
+      logEl.removeChild(logEl.firstElementChild);
+    }
+  }
+
   document.addEventListener('htmx:sseMessage', function(e) {
-    if (e.detail.eventName !== 'log') return;
+    if (!e.detail || e.detail.eventName !== 'log' || typeof e.detail.data !== 'string') return;
+    var pre = document.createElement('pre');
     try {
       var data = JSON.parse(e.detail.data);
-      var pre = document.createElement('pre');
       pre.className = 'log-' + data.level;
       if (isSystemLog(data.line)) {
         pre.className += ' log-system';
       }
       pre.textContent = data.line;
-      document.getElementById('log').appendChild(pre);
-      // Auto-scroll to bottom
-      var logEl = document.getElementById('log');
-      logEl.scrollTop = logEl.scrollHeight;
+      appendLogLine(pre);
     } catch (err) {
       // Fallback: render raw data as info
-      var pre = document.createElement('pre');
       pre.className = 'log-info';
       pre.textContent = e.detail.data;
-      document.getElementById('log').appendChild(pre);
+      appendLogLine(pre);
     }
   });
 </script>

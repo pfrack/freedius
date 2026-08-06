@@ -1,9 +1,9 @@
 ---
 id: ui-design-polish
 title: UI Design Polish — Anti-Slop Visual Quality Pass
-status: implementing
+status: impl_reviewed
 created: 2026-08-01
-updated: 2026-08-04
+updated: 2026-08-06
 ---
 
 Polish the freedius web UI to remove generic design fingerprints and elevate

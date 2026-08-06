@@ -38,14 +38,6 @@
   --badge-error-bg: rgba(239,68,68,0.12);
   --badge-unknown-bg: var(--bg-surface);
 
-  /* Legacy aliases */
-  --bg: var(--bg-root);
-  --text: var(--text-primary);
-  --nav-bg: var(--bg-card);
-  --nav-active: var(--accent);
-  --border: var(--border-default);
-  --table-hover: var(--bg-hover);
-
   /* Log-level backgrounds */
   --log-debug-bg: #0d0d18;
   --log-info-bg: transparent;
@@ -113,7 +105,7 @@
   :root {
     --bg-root: #fafaf9;
     --bg-card: #ffffff;
-    --bg-card-inner: #ffffff;
+    --bg-card-inner: #fafaf9;
     --bg-surface: #f3f3f2;
     --bg-elevated: #ffffff;
     --bg-hover: rgba(0,0,0,0.03);
@@ -133,14 +125,17 @@
     --accent-subtle: rgba(15,118,110,0.08);
     --accent-glow: rgba(15,118,110,0.04);
 
-    --color-success: #16a34a;
-    --color-warning: #d97706;
-    --color-error: #dc2626;
+    /* Darkened vs. dark-mode hues so badge text clears WCAG AA (>=4.5:1) on
+       the translucent tints below; also lifts .toast--success, .btn--danger,
+       .log-warn and .health-strip__icon contrast in light mode. */
+    --color-success: #166534;
+    --color-warning: #92400e;
+    --color-error: #b91c1c;
 
     --log-debug-bg: #f5f5f8;
     --log-info-bg: transparent;
-    --log-warn-bg: rgba(245,158,11,0.06);
-    --log-error-bg: rgba(239,68,68,0.06);
+    --log-warn-bg: rgba(245,158,11,0.08);
+    --log-error-bg: rgba(239,68,68,0.08);
 
     --shadow-sm: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.03);
     --shadow-md: 0 4px 16px rgba(0,0,0,0.06), 0 2px 6px rgba(0,0,0,0.04);
@@ -155,9 +150,6 @@
     --badge-warning-bg: rgba(245,158,11,0.14);
     --badge-error-bg: rgba(239,68,68,0.14);
     --badge-unknown-bg: #e5e5e6;
-
-    --log-warn-bg: rgba(245,158,11,0.08);
-    --log-error-bg: rgba(239,68,68,0.08);
   }
 }
 
@@ -364,6 +356,18 @@ main {
 }
 
 /* ── Typography ─────────────────────────────────────────────────────────── */
+/* Weight scale (Geist is a variable font — intermediate weights are real):
+     400  body copy, table cells, secondary prose
+     500  quiet labels: .form-label, .drawer__label, .health-strip__key,
+          .drawer__stats dt, .stats-strip__label, .section-count
+     550  emphasis inside dense UI: buttons, chips, values, badges
+     600  h3, table headers, .stats-strip__value, .drawer__title
+     650  h2, .route-card__name
+     700  .sidebar-header, .health-strip__icon
+     750  .card-value (single hero metric per tile)
+     800  h1
+   500 is the deliberate step between body (400) and emphasis (550) — it keeps
+   label→value hierarchy graduated instead of binary. */
 
 h1 {
   font-size: 2.25rem;
@@ -390,114 +394,6 @@ h3 {
   font-weight: 600;
   letter-spacing: -0.015em;
 }
-
-/* ── Cards — Double-Bezel Architecture ──────────────────────────────────── */
-/* Outer shell = subtle bg + hairline ring + padding → Inner core = distinct bg + inner highlight */
-
-.card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-2xl);
-  padding: var(--space-2);
-  box-shadow: var(--shadow-sm), var(--inner-highlight);
-  transition: all var(--duration-base) var(--ease-spring);
-  overflow: hidden;
-  position: relative;
-}
-
-.card::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  padding: 1px;
-  background: linear-gradient(135deg, rgba(255,255,255,0.08), transparent 50%);
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  pointer-events: none;
-}
-
-.card:hover {
-  box-shadow: var(--shadow-md), var(--shadow-glow);
-  border-color: var(--border-default);
-  transform: translateY(-1px);
-}
-
-/* Inner core for stat cards */
-.card--stat {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-4);
-  padding: var(--space-5);
-  background: var(--bg-card-inner);
-  border-radius: calc(var(--radius-2xl) - 0.25rem);
-}
-
-.card--stat .card-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: var(--radius-lg);
-  background: var(--accent-subtle);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  color: var(--accent);
-  box-shadow: var(--inner-highlight);
-  transition: transform var(--duration-fast) var(--ease-spring);
-}
-
-.card:hover .card-icon {
-  transform: scale(1.05);
-}
-
-.card--stat .card-icon svg {
-  width: 20px;
-  height: 20px;
-}
-
-.card--stat .card-body {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  overflow: hidden;
-}
-
-.card--stat .card-label {
-  font-size: 0.75rem;
-  font-weight: 500;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
-.card--stat .card-value {
-  font-size: 1.5rem;
-  font-weight: 750;
-  color: var(--text-primary);
-  line-height: 1.2;
-  margin-top: var(--space-1);
-  overflow-wrap: break-word;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.02em;
-}
-
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: var(--space-4);
-  margin-bottom: var(--space-8);
-}
-
-.stats-grid .card {
-  animation: card-enter var(--duration-slow) var(--ease-out-expo) backwards;
-}
-
-.stats-grid .card:nth-child(1) { animation-delay: 0ms; }
-.stats-grid .card:nth-child(2) { animation-delay: 80ms; }
-.stats-grid .card:nth-child(3) { animation-delay: 160ms; }
-.stats-grid .card:nth-child(4) { animation-delay: 240ms; }
 
 /* ── Page Sections ───────────────────────────────────────────────────────── */
 
@@ -526,92 +422,6 @@ h3 {
   letter-spacing: 0.02em;
 }
 
-/* ── Stats Strip (Dashboard) ────────────────────────────────────────────── */
-
-.stats-strip {
-  display: flex;
-  gap: var(--space-6);
-  margin-bottom: var(--space-10);
-  padding: var(--space-4) var(--space-5);
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--inner-highlight), var(--shadow-sm);
-}
-
-.stats-strip__item {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.stats-strip__label {
-  color: var(--text-muted);
-  font-size: 0.8rem;
-  font-weight: 500;
-}
-
-.stats-strip__value {
-  color: var(--text-primary);
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-
-/* ── Dashboard Sections ─────────────────────────────────────────────────── */
-
-.dashboard-section {
-  margin-bottom: var(--space-12);
-}
-
-.dashboard-section h2 {
-  font-size: 1.35rem;
-  font-weight: 650;
-  margin-bottom: var(--space-5);
-  color: var(--text-primary);
-}
-
-/* ── Providers Overview (Dashboard) ─────────────────────────────────────── */
-
-.providers-overview {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-.providers-overview__item {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-4);
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--inner-highlight);
-  transition: all var(--duration-fast) var(--ease-spring);
-}
-
-.providers-overview__item:hover {
-  border-color: var(--border-default);
-  transform: translateX(2px);
-}
-
-.providers-overview__name {
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.providers-overview__count {
-  margin-left: auto;
-  color: var(--accent);
-  text-decoration: none;
-  font-size: 0.875rem;
-  font-weight: 500;
-}
-
-.providers-overview__count:hover {
-  text-decoration: underline;
-}
-
 /* ── Providers Summary (Dashboard — compact) ────────────────────────────── */
 
 .providers-summary {
@@ -620,56 +430,12 @@ h3 {
   gap: var(--space-3);
 }
 
-.providers-summary__chip {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-3) var(--space-4);
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-xl);
-  font-size: 0.8rem;
-  font-weight: 550;
-  color: var(--text-primary);
-  text-decoration: none;
-  box-shadow: var(--inner-highlight);
-  transition: all var(--duration-fast) var(--ease-spring);
-}
-
-.providers-summary__chip:hover {
-  background: var(--bg-hover);
-  border-color: var(--border-glow);
-  box-shadow: var(--shadow-glow), var(--inner-highlight);
-  transform: translateY(-1px);
-}
-
-.providers-summary__count {
-  font-size: 0.7rem;
-  color: var(--text-muted);
-  background: var(--bg-surface);
-  padding: var(--space-1) var(--space-2);
-  border-radius: var(--radius-sm);
-  font-weight: 600;
-}
-
-/* ── Card Icon Color Variants ───────────────────────────────────────────── */
-
-.card-icon--success {
-  background: rgba(34,197,94,0.15);
-  color: var(--color-success);
-}
-
-.card-icon--warning {
-  background: rgba(245,158,11,0.15);
-  color: var(--color-warning);
-}
-
 /* ── Table — Double-Bezel Wrapper ────────────────────────────────────────── */
 
 .table-wrap {
   background: var(--bg-card);
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-2xl);
+  border-radius: var(--radius-xl);
   overflow-x: auto;
   box-shadow: var(--shadow-sm), var(--inner-highlight);
   padding: var(--space-1);
@@ -678,7 +444,7 @@ h3 {
 table {
   width: 100%;
   border-collapse: collapse;
-  border-radius: calc(var(--radius-2xl) - 0.25rem);
+  border-radius: calc(var(--radius-xl) - 0.25rem);
   overflow: hidden;
 }
 
@@ -763,18 +529,6 @@ tr:last-child td {
   transform: translateY(1px) scale(0.97);
 }
 
-.btn--secondary {
-  background: var(--bg-surface);
-  color: var(--text-primary);
-  border: 1px solid var(--border-default);
-  box-shadow: var(--inner-highlight);
-}
-
-.btn--secondary:hover {
-  background: var(--bg-elevated);
-  border-color: var(--border-strong);
-}
-
 .btn--danger {
   background: var(--color-error);
   color: #fff;
@@ -799,12 +553,6 @@ tr:last-child td {
 .btn--sm {
   padding: var(--space-1) var(--space-3);
   font-size: 0.8rem;
-}
-
-.btn--lg {
-  padding: var(--space-4) var(--space-8);
-  font-size: 1rem;
-  font-weight: 600;
 }
 
 .btn-cancel {
@@ -837,7 +585,7 @@ tr:last-child td {
 
 .form-label {
   font-size: 0.75rem;
-  font-weight: 550;
+  font-weight: 500;
   color: var(--text-secondary);
   letter-spacing: 0.01em;
 }
@@ -993,16 +741,6 @@ dialog .form-actions {
   transition: all var(--duration-fast) var(--ease-spring);
 }
 
-.badge--openai {
-  background: rgba(16,163,127,0.12);
-  color: #10a37f;
-}
-
-.badge--anthropic {
-  background: rgba(204,119,54,0.12);
-  color: #cc7736;
-}
-
 .badge--protocol {
   background: var(--accent-subtle);
   color: var(--accent);
@@ -1026,7 +764,7 @@ dialog .form-actions {
 .log-container {
   background: var(--bg-card);
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-2xl);
+  border-radius: var(--radius-xl);
   padding: var(--space-4);
   max-height: 70vh;
   overflow-y: auto;
@@ -1174,22 +912,6 @@ pre {
   }
 }
 
-@keyframes fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@keyframes slide-up {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
 /* ── Reduced Motion ─────────────────────────────────────────────────────── */
 
 @media (prefers-reduced-motion: reduce) {
@@ -1231,91 +953,6 @@ pre {
 
 /* ── Breadcrumb-Chain Mapping Visualization ────────────────────────────── */
 
-.mappings-grid {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-5);
-}
-
-.route-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-2xl);
-  padding: var(--space-5);
-  box-shadow: var(--shadow-sm), var(--inner-highlight);
-  transition: all var(--duration-base) var(--ease-spring);
-  position: relative;
-}
-
-.route-card::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  padding: 1px;
-  background: linear-gradient(135deg, rgba(255,255,255,0.06), transparent 50%);
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  pointer-events: none;
-}
-
-.route-card:hover {
-  box-shadow: var(--shadow-md), var(--shadow-glow);
-  border-color: var(--border-default);
-  transform: translateY(-1px);
-}
-
-.route-card__header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: var(--space-3);
-}
-
-.route-card__title-row {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  flex-wrap: wrap;
-  min-width: 0;
-}
-
-.route-card__name {
-  font-size: 1.1em;
-  font-weight: 650;
-  margin: 0;
-  letter-spacing: -0.01em;
-}
-
-.route-card__actions {
-  display: flex;
-  gap: var(--space-2);
-  flex-shrink: 0;
-}
-
-.route-card__body {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  margin-bottom: var(--space-4);
-}
-
-.route-card__model {
-  font-size: 0.9rem;
-  font-weight: 550;
-  color: var(--text-primary);
-}
-
-.route-card__provider {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-}
-
-.route-card__provider .badge {
-  vertical-align: middle;
-}
-
 .route-chain {
   display: flex;
   flex-wrap: wrap;
@@ -1340,9 +977,11 @@ pre {
   box-shadow: var(--inner-highlight);
 }
 
+/* Hover responds via surface + shadow, not translateY — the lift-on-hover card
+   pattern reads as generic. Buttons keep their translateY (magnetic physics). */
 .route-step:hover {
   background: var(--bg-hover);
-  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm), var(--inner-highlight);
 }
 
 .route-step--primary {
@@ -1354,11 +993,9 @@ pre {
 }
 
 .route-step__label {
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   font-weight: 500;
   color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
 }
 
 .route-step__model {
@@ -1381,21 +1018,6 @@ pre {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
-}
-
-.route-card__depth {
-  font-size: 0.7rem;
-  color: var(--text-muted);
-  padding: var(--space-1) var(--space-2);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  line-height: 1.6;
-  font-weight: 500;
-}
-
-.route-card__meta {
-  font-size: 0.75rem;
-  color: var(--text-muted);
 }
 
 /* ── Status Badges ──────────────────────────────────────────────────────── */
@@ -1426,36 +1048,6 @@ pre {
 .badge--family {
   background: var(--accent-subtle);
   color: var(--accent);
-}
-
-.route-step--responder::before {
-  content: "";
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  margin-right: var(--space-2);
-  border-radius: 50%;
-  background: var(--color-success);
-  box-shadow: 0 0 8px rgba(34,197,94,0.4);
-  animation: responder-pulse 2.4s var(--ease-spring) infinite;
-}
-
-@keyframes responder-pulse {
-  0%, 100% {
-    opacity: 0.4;
-    transform: scale(0.85);
-  }
-  50% {
-    opacity: 1;
-    transform: scale(1.15);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .route-step--responder::before {
-    animation: none;
-    opacity: 1;
-  }
 }
 
 /* ── Toast region ───────────────────────────────────────────────────────── */
@@ -1492,8 +1084,9 @@ pre {
 .empty-state {
   text-align: center;
   padding: var(--space-12) var(--space-6);
-  background: var(--bg-card);
-  border: 1px dashed var(--border-default);
+  background:
+    radial-gradient(65% 90% at 100% 0%, var(--accent-glow) 0%, transparent 70%),
+    var(--bg-card);
   border-radius: var(--radius-2xl);
   color: var(--text-secondary);
   box-shadow: var(--inner-highlight);
@@ -1538,17 +1131,21 @@ pre {
   pointer-events: none;
 }
 
+/* Composed, not a monster number: the giant accent-coloured 404 is the single
+   most reproduced error-page cliché. Kept small and muted so the heading and
+   the recovery action carry the page; the -2deg tilt is the only flourish. */
 .not-found__code {
+  display: inline-block;
   font-family: var(--font-sans);
-  font-size: clamp(6rem, 18vw, 10rem);
+  font-size: clamp(2.5rem, 6vw, 4rem);
   font-weight: 800;
   line-height: 0.9;
   letter-spacing: -0.06em;
-  color: var(--accent);
+  color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
-  text-shadow: 0 0 40px var(--accent-glow);
   margin-bottom: var(--space-4);
   user-select: none;
+  transform: rotate(-2deg);
 }
 
 .not-found h1 {
@@ -1595,6 +1192,11 @@ pre {
 
 .htmx-indicator {
   display: none;
+  width: 14px;
+  height: 14px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
 }
 
 .htmx-request .htmx-indicator,
@@ -1613,20 +1215,6 @@ pre {
   .route-chain {
     flex-direction: column;
     align-items: stretch;
-  }
-
-  .route-card__header {
-    flex-direction: column;
-    gap: var(--space-3);
-  }
-
-  .route-card__actions {
-    align-self: flex-end;
-  }
-
-  .stats-strip {
-    flex-direction: column;
-    gap: var(--space-3);
   }
 }
 
@@ -1675,13 +1263,15 @@ body::before {
   flex: 1;
 }
 
-/* ── Status Badges (Phase 7 §1 — icon + text, never color-only) ────────── */
+/* ── Status Badges (icon + text, never color-only) ──────────────────────── */
+/* Square flags with a left-edge accent stripe rather than pills — the pill
+   status badge is the default look every dashboard ships with. The stripe
+   inherits the badge's own semantic colour via currentColor. */
 
 .badge--healthy,
 .badge--degraded,
 .badge--error,
 .badge--unknown,
-.badge--disabled,
 .badge--status-healthy,
 .badge--status-degraded,
 .badge--status-error,
@@ -1695,7 +1285,9 @@ body::before {
   letter-spacing: 0.02em;
   text-transform: uppercase;
   padding: var(--space-1) var(--space-2);
-  border-radius: var(--radius-sm);
+  padding-left: calc(var(--space-2) - 3px);
+  border-radius: 0;
+  border-left: 3px solid currentColor;
 }
 
 .badge--healthy,
@@ -1779,9 +1371,8 @@ body::before {
 }
 
 .health-strip__label {
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  font-size: 0.7rem;
+  font-size: 0.75rem;
+  font-weight: 500;
 }
 
 .health-strip__state--healthy { color: var(--color-success); }
@@ -1796,10 +1387,9 @@ body::before {
 }
 
 .health-strip__key {
-  font-size: 0.65rem;
+  font-size: 0.75rem;
+  font-weight: 500;
   color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
 }
 
 .health-strip__value {
@@ -1997,12 +1587,6 @@ body::before {
 .provider-badge--error .provider-badge__icon { color: var(--color-error); }
 .provider-badge--unknown,
 .provider-badge--unknown .provider-badge__icon { color: var(--text-secondary); }
-
-.providers-summary {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-}
 
 /* ── Mappings Table (Phase 4 §1) ─────────────────────────────────────────── */
 
@@ -2208,10 +1792,9 @@ body::before {
 }
 
 .drawer__label {
-  font-size: 0.7rem;
+  font-size: 0.75rem;
+  font-weight: 500;
   color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
 }
 
 .drawer__section {
@@ -2220,11 +1803,10 @@ body::before {
 }
 
 .drawer__section h3 {
-  font-size: 0.85rem;
-  font-weight: 550;
+  font-size: 0.9rem;
+  font-weight: 600;
   color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: -0.01em;
   margin: 0 0 var(--space-3) 0;
 }
 
@@ -2236,10 +1818,9 @@ body::before {
 }
 
 .drawer__stats dt {
-  font-size: 0.7rem;
+  font-size: 0.75rem;
+  font-weight: 500;
   color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
 }
 
 .drawer__stats dd {
@@ -2368,3 +1949,40 @@ body::before {
     transition: none;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Design decisions — deliberate exceptions
+   ═══════════════════════════════════════════════════════════════════════════
+
+   ALL-CAPS is retained only where scanning beats reading:
+     th, .routing-table th, .activity-table th, .mappings-table th
+       Column headers are landmarks, not prose. Caps + tracking keeps them
+       distinct from the cell text below at 0.7rem without adding weight.
+     .badge, .badge--status-*
+       Status flags are read as symbols at a glance. Caps holds the shape
+       constant regardless of label length ("OK" vs "Key Missing").
+   Everywhere else — drawer labels, health-strip keys, stats terms, route-step
+   labels — caps was decoration and has been dropped for sentence case (p2).
+
+   translateY on :hover is retained only on buttons (.btn--primary, .btn--danger)
+   and their icons. There it reads as magnetic physics on a thing you press,
+   paired with the translateY(1px) scale(0.97) on :active. Surfaces you merely
+   point at (.route-step) respond with a background + shadow shift instead; the
+   lift-on-hover card is the most reproduced pattern in dashboard UI.
+
+   Unreferenced-but-retained tokens: --bg-active, --bg-elevated, --border-glow,
+   --shadow-glow, --duration-slow, --ease-bounce. These complete their
+   respective scales (surface, effect, motion) rather than being orphans — they
+   lost their last consumer when the card/bento layer was removed in p3. Keep
+   them so the next component derives from the scale instead of inventing a
+   one-off value.
+
+   .visually-hidden has no current consumer but is the standard screen-reader
+   escape hatch; it stays as infrastructure, not layout.
+
+   Status-badge contrast in light mode is delivered through the --badge-*
+   tokens (--badge-warning-bg / --badge-error-bg at 0.14), which the status
+   badges actually consume, rather than the legacy --log-warn-bg /
+   --log-error-bg (left at 0.08). Error uses 0.14 rather than the plan's
+   literal 0.12 for a slightly stronger raise; no WCAG regression.
+   ═══════════════════════════════════════════════════════════════════════════ */

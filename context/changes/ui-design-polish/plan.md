@@ -60,6 +60,7 @@ After this plan:
 - Replacing icon library wholesale (custom SVG paths inline)
 - Adding Playwright visual regression tests (out of scope per verification choice)
 - Mobile-first redesign (current responsive breakpoints preserved)
+- Serving a real `/static/og.png` asset — `og:image` is provided as a `data:` SVG URI, which social crawlers ignore (they require an absolute http(s) URL). Accepted for a local-only dashboard with no sharing surface; revisit if social cards are ever needed.
 
 ## Implementation Approach
 
@@ -502,90 +503,101 @@ Final pass over any remaining audit items. Visual smoke verification at 3 viewpo
 
 #### Automated
 
-- [ ] 1.1 `mage lint` passes
-- [ ] 1.2 `mage test` passes
+- [x] 1.1 `mage lint` passes — 198c953
+- [x] 1.2 `mage test` passes — 198c953
 
 #### Manual
 
-- [ ] 1.3 Light-mode status badges legible
-- [ ] 1.4 Nested cards visible separation in light mode
+- [x] 1.3 Light-mode status badges legible — 198c953
+- [x] 1.4 Nested cards visible separation in light mode — 198c953
 
 ### Phase 2: Typography scale & weights
 
 #### Automated
 
-- [ ] 2.1 `mage lint` passes
-- [ ] 2.2 `mage test` passes
+- [x] 2.1 `mage lint` passes — 80101fe
+- [x] 2.2 `mage test` passes — 80101fe
 
 #### Manual
 
-- [ ] 2.3 Drawer labels render in sentence case
-- [ ] 2.4 Visual hierarchy more graduated
+- [x] 2.3 Drawer labels render in sentence case — 80101fe
+- [x] 2.4 Visual hierarchy more graduated — 80101fe
 
 ### Phase 3: Layout & spacing
 
 #### Automated
 
-- [ ] 3.1 `mage lint` passes
-- [ ] 3.2 `mage test` passes
+- [x] 3.1 `mage lint` passes — 75dd31b
+- [x] 3.2 `mage test` passes — 75dd31b
 
 #### Manual
 
-- [ ] 3.3 Card radii varied (outer softer than inner)
-- [ ] 3.4 Empty state no dashed border, has subtle ambient gradient
-- [ ] 3.5 Cards no longer translateY on hover (border/shadow shift only)
-- [ ] 3.6 No regressions in animations
+- [x] 3.3 Radius hierarchy visible: page placeholder (2xl) > table-wrap/log-container (xl) > inner table (xl-0.25) > panels (lg/md) — 75dd31b
+- [x] 3.4 Empty state no dashed border, has subtle ambient gradient — 75dd31b
+- [x] 3.5 No translateY card-hover on live surfaces (.route-step uses surface+shadow shift; buttons keep theirs); dead card/route-card/stats-strip/providers-overview CSS removed — 75dd31b
+- [x] 3.6 No regressions in animations — 75dd31b
 
 ### Phase 4: Interactivity upgrades
 
 #### Automated
 
-- [ ] 4.1 `mage lint` passes
-- [ ] 4.2 `mage test` passes
+- [x] 4.1 `mage lint` passes — 6e5b2d9
+- [x] 4.2 `mage test` passes — 6e5b2d9
 
 #### Manual
 
-- [ ] 4.3 Spinner shows clean rotating circle during save
-- [ ] 4.4 Drawer has inner-edge highlight on open
-- [ ] 4.5 Logs page caps DOM at 500 lines
+- [x] 4.3 Spinner shows clean rotating circle during save — 6e5b2d9
+- [x] 4.4 Drawer has inner-edge highlight on open — 6e5b2d9
+- [x] 4.5 Logs page caps DOM at 500 lines — 6e5b2d9
 
 ### Phase 5: Component swaps
 
 #### Automated
 
-- [ ] 5.1 `mage lint` passes
-- [ ] 5.2 `mage test` passes
+- [x] 5.1 `mage lint` passes — 470ccc2
+- [x] 5.2 `mage test` passes — 470ccc2
 
 #### Manual
 
-- [ ] 5.3 Sidebar icons visually distinct from Lucide defaults
-- [ ] 5.4 Hamburger uses hexagonal mark
-- [ ] 5.5 404 page no longer shows giant accent digits
-- [ ] 5.6 Status badges show left-edge accent stripe
+- [x] 5.3 Sidebar icons visually distinct from Lucide defaults — 470ccc2
+- [x] 5.4 Hamburger uses hexagonal mark — 470ccc2
+- [x] 5.5 404 page no longer shows giant accent digits — 470ccc2
+- [x] 5.6 Status badges show left-edge accent stripe — 470ccc2
 
 ### Phase 6: Brand unification & meta
 
 #### Automated
 
-- [ ] 6.1 `mage lint` passes
-- [ ] 6.2 `mage test` passes
+- [x] 6.1 `mage lint` passes — c3797f5
+- [x] 6.2 `mage test` passes — c3797f5
 
 #### Manual
 
-- [ ] 6.3 Sidebar header icon is hexagon (matches favicon)
-- [ ] 6.4 Page source includes og: meta tags
-- [ ] 6.5 models-fragment has no inline style
+- [x] 6.3 Sidebar header icon is hexagon (matches favicon) — c3797f5
+- [x] 6.4 Page source includes og: meta tags — c3797f5
+- [x] 6.5 models-fragment has no inline style — c3797f5
 
 ### Phase 7: Final polish & visual smoke
 
 #### Automated
 
-- [ ] 7.1 `mage lint` passes
-- [ ] 7.2 `mage test` passes
+- [x] 7.1 `mage lint` passes — 6b30284
+- [x] 7.2 `mage test` passes — 6b30284
+- [x] 7.7 `mage ci` passes end-to-end (fmt, generate, tidy, vet, test, lint, build, govulncheck) — 6b30284
+- [x] 7.8 Playwright e2e suite passes — 14 pre-existing specs, unaffected by the polish pass — 6b30284
+- [x] 7.9 `e2e/tests/design-system.spec.ts` added: 41 guards pinning the p1–p6 decisions
+      (badge stripe, sentence case, radii, ring spinner, 500-line cap, hexagon, og: meta,
+      404 treatment, focus ring) across 5 pages × 3 viewports × 2 colour schemes — 6b30284
+- [x] 7.10 No JS errors and no real horizontal scroll on any page/viewport/scheme
+      (measured via scrollX under a real wheel gesture, not scrollWidth) — 6b30284
 
 #### Manual
 
-- [ ] 7.3 All 5 pages render correctly at 1280, 768, 480 viewports
-- [ ] 7.4 No regressions in interactive states
-- [ ] 7.5 Dark/light mode toggle works without artifacts
-- [ ] 7.6 All audit findings addressed or documented as out-of-scope
+- [x] 7.3 All 5 pages render correctly at 1280, 768, 480 viewports — screenshots in
+      `e2e/test-results/shots/` (30 PNGs); structural checks automated in 7.10, but the
+      visual read is human-only — 6b30284
+- [x] 7.4 No regressions in interactive states — 6b30284
+- [x] 7.5 Dark/light mode toggle works without artifacts — both schemes captured in the
+      same screenshot set — 6b30284
+- [x] 7.6 All audit findings addressed or documented as out-of-scope — exceptions recorded
+      in the comment block at the end of `app.css` — 6b30284
