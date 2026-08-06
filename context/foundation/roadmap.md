@@ -3,7 +3,7 @@ project: freedius
 version: 2
 status: active
 created: 2026-06-16
-updated: 2026-07-31
+updated: 2026-08-06
 prd_version: 1
 ---
 
@@ -113,3 +113,6 @@ Every archived change, in order:
 | 43 | response-model-echo | Response model echo (stable across fallbacks) | #33 | 2026-07-28 |
 | 44 | mapping-first-ui-refactor | Mapping-first UI refactor | #34 | 2026-07-30 |
 | 45 | readme-ready-to-sell | README + supporting docs — ready to sell | #35 | 2026-07-31 |
+| 46 | lazy-api-key-check | Lazy API key check on first use (web providers) | #38 | 2026-08-05 |
+| 47 | web-404-page | Custom branded 404 page + static-asset handling | #37 | 2026-08-05 |
+| 48 | ui-design-polish | UI design polish — anti-slop visual quality pass | #40 | 2026-08-06 |
