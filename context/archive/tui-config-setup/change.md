@@ -1,7 +1,8 @@
 ---
 change_id: tui-config-setup
 title: "Extend TUI with mapping/model setup and plain error display"
-status: implementing
+status: archived
+archived_at: 2026-06-20T19:49:57Z
 created: 2026-06-18
 updated: 2026-06-18
 ---

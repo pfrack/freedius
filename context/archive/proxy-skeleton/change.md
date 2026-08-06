@@ -1,7 +1,8 @@
 ---
 id: proxy-skeleton
 title: Proxy skeleton — HTTP server + config loading + dispatch stub
-status: impl_reviewed
+status: archived
+archived_at: 2026-06-16T12:20:06Z
 created: 2026-06-16
 updated: 2026-06-16
 roadmap_id: F-01

@@ -1,7 +1,8 @@
 ---
 id: deepseek-reasoning-content
 title: Investigate DeepSeek reasoning_content requirement
-status: implemented
+status: archived
+archived_at: 2026-06-17T21:07:15Z
 created: 2026-06-17
 updated: 2026-06-17
 roadmap_id: S-05
