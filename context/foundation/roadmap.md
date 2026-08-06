@@ -116,3 +116,4 @@ Every archived change, in order:
 | 46 | lazy-api-key-check | Lazy API key check on first use (web providers) | #38 | 2026-08-05 |
 | 47 | web-404-page | Custom branded 404 page + static-asset handling | #37 | 2026-08-05 |
 | 48 | ui-design-polish | UI design polish — anti-slop visual quality pass | #40 | 2026-08-06 |
+| 49 | dashboard-redesign | Dashboard GUI redesign — operator monitoring | #38, #39 | 2026-08-05 |
