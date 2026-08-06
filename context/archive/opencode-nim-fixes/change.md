@@ -1,7 +1,8 @@
 ---
 id: opencode-nim-fixes
 title: OpenCode Go 401 + NVIDIA NIM SSE fixes
-status: impl_reviewed
+status: archived
+archived_at: 2026-06-17T20:28:07Z
 created: 2026-06-17
 updated: 2026-06-18
 roadmap_id: S-05
