@@ -278,6 +278,40 @@ main {
   animation: page-enter 600ms var(--ease-out-expo);
 }
 
+/* ── Footer ────────────────────────────────────────────────────────────────── */
+
+.footer {
+  border-top: 1px solid var(--border-subtle);
+  padding: var(--space-4) var(--space-6);
+  margin-top: var(--space-8);
+}
+
+.footer__content {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.footer__copyright {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.footer__nav {
+  font-size: 0.75rem;
+}
+
+.footer__nav a {
+  color: var(--text-muted);
+  text-decoration: none;
+}
+
+.footer__nav a:hover {
+  color: var(--text-secondary);
+}
+
 /* ── Hamburger (mobile) ─────────────────────────────────────────────────── */
 
 .hamburger {
