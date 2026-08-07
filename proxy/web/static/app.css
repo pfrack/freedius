@@ -179,7 +179,7 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Ambient background mesh gradient — subtle glowing orbs */
+/* Ambient background glow orb — subtle vignette */
 body::after {
   content: "";
   position: fixed;
@@ -191,20 +191,6 @@ body::after {
   background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%);
   pointer-events: none;
   z-index: -1;
-}
-
-body::before {
-  content: "";
-  position: fixed;
-  bottom: -15%;
-  left: -10%;
-  width: 40vw;
-  height: 40vw;
-  border-radius: 50%;
-  background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%);
-  pointer-events: none;
-  z-index: -1;
-  opacity: 0.5;
 }
 
 /* ── Sidebar — Glass Treatment ──────────────────────────────────────────── */
@@ -1008,18 +994,6 @@ pre {
   color: var(--text-muted);
 }
 
-.visually-hidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
-}
-
 /* ── Status Badges ──────────────────────────────────────────────────────── */
 
 .badge--status-ok {
@@ -1319,11 +1293,6 @@ body::before {
   color: var(--color-error);
 }
 
-.badge--disabled {
-  background: var(--bg-surface);
-  color: var(--text-muted);
-}
-
 .badge--muted {
   background: var(--bg-surface);
   color: var(--text-secondary);
@@ -1377,8 +1346,6 @@ body::before {
 
 .health-strip__state--healthy { color: var(--color-success); }
 .health-strip__state--degraded { color: var(--color-warning); }
-.health-strip__state--down,
-.health-strip__state--unknown { color: var(--color-error); }
 
 .health-strip__item {
   display: flex;
@@ -1587,6 +1554,31 @@ body::before {
 .provider-badge--error .provider-badge__icon { color: var(--color-error); }
 .provider-badge--unknown,
 .provider-badge--unknown .provider-badge__icon { color: var(--text-secondary); }
+
+/* ── Provider Details (disclosure widget in providers table) ──── */
+
+.provider-details {
+  margin-top: var(--space-2);
+}
+
+.provider-details__summary {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+}
+
+.provider-details__list {
+  margin: var(--space-2) 0 0 var(--space-4);
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.provider-error {
+  font-size: 0.8rem;
+  color: var(--color-error);
+  margin-top: var(--space-1);
+}
 
 /* ── Mappings Table (Phase 4 §1) ─────────────────────────────────────────── */
 
@@ -1975,12 +1967,9 @@ body::before {
    respective scales (surface, effect, motion) rather than being orphans — they
    lost their last consumer when the card/bento layer was removed in p3. Keep
    them so the next component derives from the scale instead of inventing a
-   one-off value.
+    one-off value.
 
-   .visually-hidden has no current consumer but is the standard screen-reader
-   escape hatch; it stays as infrastructure, not layout.
-
-   Status-badge contrast in light mode is delivered through the --badge-*
+    Status-badge contrast in light mode is delivered through the --badge-*
    tokens (--badge-warning-bg / --badge-error-bg at 0.14), which the status
    badges actually consume, rather than the legacy --log-warn-bg /
    --log-error-bg (left at 0.08). Error uses 0.14 rather than the plan's

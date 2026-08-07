@@ -1,4 +1,4 @@
-{{define "providers"}}{{template "layout" .}}{{end}}
+{{template "layout" .}}
 {{define "title"}}Providers{{end}}
 {{define "content"}}
   <h1>Providers</h1>
@@ -6,7 +6,7 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
     Add Provider
   </button>
-  <div id="provider-form-error" class="form-error"></div>
+  <div class="form-error"></div>
   {{template "providers-table" .}}
 
   <dialog id="provider-dialog">
@@ -60,7 +60,7 @@
   </dialog>
 
   <dialog id="test-dialog" class="dialog--test">
-    <h2 id="test-dialog-title">Test Connection</h2>
+    <h2>Test Connection</h2>
     <div id="test-dialog-body"></div>
     <div class="form-actions">
       <button type="button" class="btn-cancel" onclick="document.getElementById('test-dialog').close()">
