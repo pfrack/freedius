@@ -570,9 +570,9 @@ No data migration needed. All changes are CSS/template/JS-only.
 
 #### Automated
 
-- [x] 2.1 Footer CSS rules added (4 selectors)
-- [x] 2.2 `mage test` passes
-- [x] 2.3 `mage lint` passes
+- [x] 2.1 Footer CSS rules added (4 selectors) — 4fad3ca
+- [x] 2.2 `mage test` passes — 4fad3ca
+- [x] 2.3 `mage lint` passes — 4fad3ca
 
 #### Manual
 
