@@ -552,13 +552,13 @@ No data migration needed. All changes are CSS/template/JS-only.
 
 #### Automated
 
-- [x] 1.1 Dead CSS selectors removed (4 selectors)
-- [x] 1.2 `body::before` orb removed, grain overlay fixed
-- [x] 1.3 Dead element IDs removed (4 IDs)
-- [x] 1.4 Dead template `{{define}}` wrappers removed (5 wrappers)
-- [x] 1.5 Provider detail classes styled
-- [x] 1.6 `mage test` passes
-- [x] 1.7 `mage lint` passes
+- [x] 1.1 Dead CSS selectors removed (4 selectors) — 29491ec
+- [x] 1.2 `body::before` orb removed, grain overlay fixed — 29491ec
+- [x] 1.3 Dead element IDs removed (4 IDs) — 29491ec
+- [x] 1.4 Dead template `{{define}}` wrappers removed (5 wrappers) — 29491ec
+- [x] 1.5 Provider detail classes styled — 29491ec
+- [x] 1.6 `mage test` passes — 29491ec
+- [x] 1.7 `mage lint` passes — 29491ec
 
 #### Manual
 
