@@ -234,3 +234,37 @@ document.body.addEventListener('htmx:afterRequest', function(evt) {
   // Non-form request (delete, fetch, etc.): global toast.
   showToast(errMsg || ('Request failed (' + status + ')'), 'error');
 });
+
+/* ── Skeleton loader wiring ────────────────────────────────────────────────
+   Adds a .skeleton shimmer class to the HTMX swap target on every
+   configRequest event, and removes it afterSwap / on error. SSE event
+   streams do not fire configRequest, so the logs page SSE handler is
+   unaffected. Error events use evt.detail.target when present, falling
+   back to evt.target, so skeletons never get stuck on network or
+   response errors. ────────────────────────────────────────────────────── */
+
+function skeletonTarget(evt) {
+  if (evt.detail && evt.detail.target) return evt.detail.target;
+  if (evt.target && evt.target.classList) return evt.target;
+  return null;
+}
+
+document.body.addEventListener('htmx:configRequest', function(evt) {
+  var t = skeletonTarget(evt);
+  if (t) t.classList.add('skeleton');
+});
+
+document.body.addEventListener('htmx:afterSwap', function(evt) {
+  var t = skeletonTarget(evt);
+  if (t) t.classList.remove('skeleton');
+});
+
+document.body.addEventListener('htmx:sendError', function(evt) {
+  var t = skeletonTarget(evt);
+  if (t) t.classList.remove('skeleton');
+});
+
+document.body.addEventListener('htmx:responseError', function(evt) {
+  var t = skeletonTarget(evt);
+  if (t) t.classList.remove('skeleton');
+});
