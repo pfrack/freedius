@@ -1,11 +1,9 @@
 ---
 id: first-call-routed
 title: First call routed — NIM adapter + custom passthrough
-status: archived
-archived_at: 2026-06-16T15:19:19Z
+status: impl_reviewed
 created: 2026-06-16
 updated: 2026-06-17
-roadmap_id: S-01
 prd_refs:
   - US-01
   - FR-001

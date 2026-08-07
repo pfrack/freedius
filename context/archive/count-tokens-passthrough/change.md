@@ -1,8 +1,7 @@
 ---
 change_id: count-tokens-passthrough
 title: "Support /v1/messages/count_tokens passthrough and Anthropic-format error propagation"
-status: archived
-archived_at: 2026-06-18T15:59:00Z
+status: impl_reviewed
 created: 2026-06-18
 updated: 2026-06-18
 ---

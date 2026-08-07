@@ -1,8 +1,7 @@
 ---
 change_id: tui-dashboard
 title: "TUI Dashboard for freedius"
-status: archived
-archived_at: 2026-06-20T08:50:16Z
+status: implemented
 created: 2026-06-18
 updated: 2026-06-19
 ---

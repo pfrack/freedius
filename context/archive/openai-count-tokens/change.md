@@ -1,11 +1,9 @@
 ---
 change_id: openai-count-tokens
 title: "Local token counting for OpenAI-protocol upstreams (/v1/messages/count_tokens)"
-status: archived
-archived_at: 2026-06-18T15:59:00Z
+status: impl_reviewed
 created: 2026-06-18
 updated: 2026-06-18
-roadmap_id: S-08
 prereq: count-tokens-passthrough
 prd_refs:
   - FR-001

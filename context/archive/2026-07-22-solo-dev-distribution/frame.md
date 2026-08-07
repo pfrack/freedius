@@ -5,7 +5,7 @@ status: preparing
 created: 2026-07-22
 updated: 2026-07-22
 plan: null
-roadmap_id: null
+roadmap_id: V-03b
 prd_refs:
   - prd.md
   - frame.md

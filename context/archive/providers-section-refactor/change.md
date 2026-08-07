@@ -1,9 +1,11 @@
-# providers-section-refactor
+---
+id: providers-section-refactor
+title: "Providers section refactor (config split)"
+status: impl_reviewed
+created: 2026-06-19
+updated: 2026-06-20
+---
 
-- **created**: 2026-06-19
-- **updated**: 2026-06-20
-- **status**: archived
-- **archived_at**: 2026-06-20T18:49:57Z
 - **research_complete**: true
 - **plan_complete**: true
 - **tags**: [config, providers, mappings, refactor, tui, breaking-change]

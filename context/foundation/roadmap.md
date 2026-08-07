@@ -3,7 +3,7 @@ project: freedius
 version: 2
 status: active
 created: 2026-06-16
-updated: 2026-08-06
+updated: 2026-07-31
 prd_version: 1
 ---
 
@@ -62,62 +62,123 @@ These are potential directions. None are planned or in progress.
 - **Windows support** — currently Linux + macOS only
 - **More providers** — as new free-tier APIs emerge
 
-## Done (chronological)
+## Done (grouped by roadmap item)
 
-Every archived change, in order:
+Every archived change under its original v1 roadmap group. The base change carries the
+group's id (e.g. `V-02`); related follow-ups are lettered (`V-02a`, `V-02b`, ...). Each
+archived `change.md` carries the same value in its `roadmap_id` frontmatter key.
+`bootstrap-verification` and the `auto-review` CI spike are intentionally unnumbered.
 
-| # | Change ID | Title | PR | Date |
-|---|-----------|-------|----|------|
-| 1 | proxy-skeleton | Proxy skeleton — HTTP server + config + dispatch stub | #1 | 2026-06-16 |
-| 2 | first-call-routed | First call routed — NIM + custom passthrough | #2 | 2026-06-17 |
-| 3 | provider-and-mapping | Family routing + compat providers + in-binary defaults | #3, #4 | 2026-06-18 |
-| 4 | zen-go-adapters | Zen + Go multi-format adapters | #5 | 2026-06-18 |
-| 5 | error-hardening | Error hardening + env injection + config template | #6 | 2026-06-18 |
-| 6 | opencode-nim-fixes | OpenCode Go 401 + NIM SSE fixes | #7 | 2026-06-18 |
-| 7 | deepseek-reasoning-content | DeepSeek reasoning content passthrough | #8 | 2026-06-18 |
-| 8 | provider-codegen | Provider codegen — go:generate from providers.yaml | #9 | 2026-06-18 |
-| 9 | openai-count-tokens | Local token counting for OpenAI-protocol upstreams | #10 | 2026-06-18 |
-| 10 | count-tokens-passthrough | count_tokens passthrough + Anthropic error propagation | — | 2026-06-18 |
-| 11 | error-code-collapse | Error code collapse | #12 | 2026-06-18 |
-| 12 | bootstrap-verification | Bootstrap verification | — | 2026-06-18 |
-| 13 | tui-config-setup | TUI config setup — mapping/model forms | — | 2026-06-18 |
-| 14 | tui-error-detail-provider-defaults | TUI error detail + provider defaults | — | 2026-06-18 |
-| 15 | tui-dashboard | TUI dashboard — live terminal monitoring | #11, #13 | 2026-06-20 |
-| 16 | tui-all-logs-level-filter | TUI log tab: all slog lines + level filter | — | 2026-06-20 |
-| 17 | unified-server-logs-tab | Unified mode: server-log tab + single binary entry | #14 | 2026-06-20 |
-| 18 | tui-statusbar-modal | TUI statusbar modal | #15 | 2026-06-20 |
-| 19 | providers-section-refactor | Providers section refactor (config split) | — | 2026-06-20 |
-| 20 | magefile | Magefile build system | #16 | 2026-06-20 |
-| 21 | tui-themes | TUI themes | #17 | 2026-06-20 |
-| 22 | add-popular-providers | Add popular providers (NIM, Zen, Go defaults) | #18 | 2026-06-21 |
-| 23 | daemon-mode | Daemon mode | #19, #20 | 2026-06-21 |
-| 24 | go-package-layout | Move main package to cmd/freedius/ (Go convention) | — | 2026-06-21 |
-| 25 | hide-tab-bar | Compact TUI: merge tabs into topbar | — | 2026-06-21 |
-| 26 | mouse-support | Mouse support for TUI | — | 2026-06-21 |
-| 27 | tui-providers-mappings-split | Split TUI Config into Providers + Mappings tabs | — | 2026-06-22 |
-| 28 | mage-ci-integration | Mage CI integration | #21, #22, #23 | 2026-07-01 |
-| 29 | quality-gates-in-ci | Audit and harden quality gates in CI | — | 2026-07-02 |
-| 30 | testing-proxy-integration | Testing proxy integration | #24 | 2026-07-02 |
-| 31 | streaming-edge-cases | Streaming edge cases | #25 | 2026-07-02 |
-| 32 | web-ui | Web UI dashboard (replaces TUI) | #26 | 2026-07-02 |
-| 33 | test-plan-refresh-2026-07-05 | Test plan refresh | #27 | 2026-07-05 |
-| 34 | provider-model-discovery | Provider model discovery (fetch upstream models) | #28 | 2026-07-05 |
-| 35 | web-ui-redesign | Web UI redesign (zinc dark palette, responsive) | #29 | 2026-07-05 |
-| 36 | mapping-graph-visualization | Mapping graph visualization (breadcrumb chains) | #30 | 2026-07-06 |
-| 37 | provider-fallback-routing | Provider fallback routing (research) | — | 2026-07-06 |
-| 38 | routing-visibility | Routing visibility across the web UI | — | 2026-07-07 |
-| 39 | web-ui-friendliness | Web UI friendliness improvements | — | 2026-07-07 |
-| 40 | auto-review | Auto AI review workflow | #31, #39 | 2026-07-20 |
-| 41 | solo-dev-positioning | Solo-dev positioning — install + narrative + scope | — | 2026-07-21 |
-| 42 | solo-dev-distribution | Solo-dev distribution (goreleaser, brew, scoop) | #32 | 2026-07-22 |
-| 43 | response-model-echo | Response model echo (stable across fallbacks) | #33 | 2026-07-28 |
-| 44 | mapping-first-ui-refactor | Mapping-first UI refactor | #34 | 2026-07-30 |
-| 45 | readme-ready-to-sell | README + supporting docs — ready to sell | #35 | 2026-07-31 |
-| 46 | lazy-api-key-check | Lazy API key check on first use (web providers) | #38 | 2026-08-05 |
-| 47 | web-404-page | Custom branded 404 page + static-asset handling | #37 | 2026-08-05 |
-| 48 | ui-design-polish | UI design polish — anti-slop visual quality pass | #40 | 2026-08-06 |
-| 49 | dashboard-redesign | Dashboard GUI redesign — operator monitoring | #38, #39 | 2026-08-05 |
-| 50 | custom-to-mix-protocol | Custom provider → mix rewrite + protocol field | #9 | 2026-06-18 |
+### Foundation — proxy skeleton, tooling & quality
 
-> **Rows without archive folders** (CI/tooling-only changes, no `context/archive/<id>/` tree):
-> - `auto-review` (#40) — ships as `.github/workflows/ai-review.yml` (added as `code-review.yml` in #31, renamed/sync'd via #39). Plumbing change, no change record.
+| ID | Change ID | Title | PR | Date |
+|----|-----------|-------|----|------|
+| F-01 | proxy-skeleton | Proxy skeleton — HTTP server + config loading + dispatch stub | #1 | 2026-06-16 |
+| F-01a | go-package-layout | Move main package to cmd/freedius/ (Go convention) | — | 2026-06-21 |
+| F-01b | magefile | Replace Makefile with Mage (Go-based build tool) | #16 | 2026-06-17 |
+| F-01c | mage-ci-integration | Integrate Mage into GitHub Actions CI | #21, #22, #23 | 2026-07-01 |
+| F-01d | quality-gates-in-ci | Audit and harden quality gates in CI | — | 2026-07-02 |
+| F-01e | testing-proxy-integration | Testing proxy integration | #24 | 2026-07-02 |
+| F-01f | test-plan-refresh | Test plan refresh 2026-07-05 | #27 | 2026-07-05 |
+
+### S-01 — First call routed (routing/translation core)
+
+| ID | Change ID | Title | PR | Date |
+|----|-----------|-------|----|------|
+| S-01 | first-call-routed | First call routed — NIM adapter + custom passthrough | #2 | 2026-06-16 |
+| S-01a | error-code-collapse | Error code collapse | #12 | 2026-06-18 |
+| S-01b | streaming-edge-cases | Streaming Edge Cases Research | #25 | 2026-07-02 |
+
+### S-02 — Provider-and-mapping (family routing)
+
+| ID | Change ID | Title | PR | Date |
+|----|-----------|-------|----|------|
+| S-02 | provider-and-mapping | Provider-and-mapping — family-aware mapping + compat providers + in-binary defaults | #3, #4 | 2026-06-16 |
+| S-02a | providers-section-refactor | Providers section refactor (config split) | — | 2026-06-19 |
+
+### S-03 — Zen + Go adapters
+
+| ID | Change ID | Title | PR | Date |
+|----|-----------|-------|----|------|
+| S-03 | zen-go-adapters | Zen + Go adapters — Opencode Zen and Opencode Go provider support | #5 | 2026-06-16 |
+
+### S-04 — Error hardening
+
+| ID | Change ID | Title | PR | Date |
+|----|-----------|-------|----|------|
+| S-04 | error-hardening | Error hardening + env auto-injection + config template | #6 | 2026-06-17 |
+
+### S-05 — OpenCode Go 401 + NIM SSE fixes
+
+| ID | Change ID | Title | PR | Date |
+|----|-----------|-------|----|------|
+| S-05 | opencode-nim-fixes | OpenCode Go 401 + NVIDIA NIM SSE fixes | #7 | 2026-06-17 |
+| S-05a | deepseek-reasoning-content | Investigate DeepSeek reasoning_content requirement | #8 | 2026-06-17 |
+
+### S-06 — Custom → mix protocol
+
+| ID | Change ID | Title | PR | Date |
+|----|-----------|-------|----|------|
+| S-06 | custom-to-mix-protocol | Replace custom provider with mix rewrite + protocol field | — | 2026-06-17 |
+| S-06a | response-model-echo | Echo client's original model name in response (stable across fallbacks) | #33 | 2026-07-28 |
+| S-06b | lazy-api-key-check | Lazy API key check (web-only providers) | — | 2026-07-31 |
+
+### S-07 — Provider codegen
+
+| ID | Change ID | Title | PR | Date |
+|----|-----------|-------|----|------|
+| S-07 | provider-codegen | Provider codegen — go:generate provider boilerplate from providers.yaml | #9 | 2026-06-17 |
+
+### S-08 — Token counting
+
+| ID | Change ID | Title | PR | Date |
+|----|-----------|-------|----|------|
+| S-08 | openai-count-tokens | Local token counting for OpenAI-protocol upstreams (/v1/messages/count_tokens) | #10 | 2026-06-18 |
+| S-08a | count-tokens-passthrough | Support /v1/messages/count_tokens passthrough and Anthropic-format error propagation | — | 2026-06-18 |
+
+### S-09 — Add popular providers
+
+| ID | Change ID | Title | PR | Date |
+|----|-----------|-------|----|------|
+| S-09 | add-popular-providers | Add popular AI providers to providers.yaml | #18 | 2026-06-21 |
+
+### V-01 — TUI era
+
+| ID | Change ID | Title | PR | Date |
+|----|-----------|-------|----|------|
+| V-01 | tui-dashboard | TUI Dashboard for freedius | #11, #13 | 2026-06-18 |
+| V-01a | tui-config-setup | Extend TUI with mapping/model setup and plain error display | — | 2026-06-18 |
+| V-01b | tui-error-detail-provider-defaults | TUI error detail + provider defaults | — | 2026-06-18 |
+| V-01c | tui-all-logs-level-filter | TUI Log Tab: all slog lines + cycle-level filter | — | 2026-06-20 |
+| V-01d | unified-server-logs-tab | Unified mode: server-log tab + single binary entry point | #14 | 2026-06-20 |
+| V-01e | tui-statusbar-modal | Pin stats bar to top, show tabs below it, add `?` keyboard shortcuts modal | #15 | 2026-06-20 |
+| V-01f | tui-themes | Add user-selectable themes to the freedius TUI | #17 | 2026-06-20 |
+| V-01g | hide-tab-bar | Compact TUI: merge tabs into topbar, change shortcuts | — | 2026-06-21 |
+| V-01h | mouse-support | Mouse Support for TUI | — | 2026-06-21 |
+| V-01i | tui-providers-mappings-split | Split TUI Config tab into separate Providers and Mappings tabs | — | 2026-06-22 |
+
+### V-02 — Web UI
+
+| ID | Change ID | Title | PR | Date |
+|----|-----------|-------|----|------|
+| V-02 | web-ui | Replace Bubble Tea TUI with embedded web UI | #26 | 2026-07-02 |
+| V-02a | provider-model-discovery | Provider model discovery UI — fetch, cache, and refresh model lists | #28 | 2026-07-05 |
+| V-02b | web-ui-redesign | Web UI Modernization | #29 | 2026-07-05 |
+| V-02c | provider-fallback-routing | Provider fallback routing for model/provider failures | — | 2026-07-06 |
+| V-02d | mapping-graph-visualization | Graph-based mapping visualization for web UI | #30 | 2026-07-06 |
+| V-02e | routing-visibility | Routing visibility across the web UI | — | 2026-07-07 |
+| V-02f | web-ui-friendliness | Web UI friendliness improvements (breadcrumbs polish + global UX gaps) | — | 2026-07-07 |
+| V-02g | mapping-first-ui-refactor | Mapping-first UI refactor | #34 | 2026-07-30 |
+| V-02h | web-404-page | Custom 404 page for dashboard | #38 | 2026-07-31 |
+| V-02i | dashboard-redesign | Dashboard GUI Redesign — Operator-Friendly Monitoring | #38, #39 | 2026-07-31 |
+| V-02j | ui-design-polish | UI Design Polish — Anti-Slop Visual Quality Pass | #40 | 2026-08-01 |
+| V-02k | web-ui-polish | Web UI Polish — Remainder & Dead-Code Cleanup | | 2026-08-07 |
+
+### V-03 — Distribution & launch
+
+| ID | Change ID | Title | PR | Date |
+|----|-----------|-------|----|------|
+| V-03 | daemon-mode | Daemon mode with foreground attach | #19, #20 | 2026-06-21 |
+| V-03a | solo-dev-positioning | Solo-dev positioning — install + narrative + scope coherence | — | 2026-07-21 |
+| V-03b | solo-dev-distribution | Solo-dev distribution — brew/npx/goreleaser packaging | #32 | 2026-07-22 |
+| V-03c | readme-ready-to-sell | README + supporting docs — ready to sell, ready to use | #35 | 2026-07-31 |

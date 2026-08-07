@@ -6,7 +6,6 @@ created: 2026-07-31
 updated: 2026-07-31
 archived_at: 2026-07-31T18:44:52Z
 plan: context/changes/readme-ready-to-sell/plan.md
-roadmap_id: null
 prd_refs:
   - prd.md
 tags:
