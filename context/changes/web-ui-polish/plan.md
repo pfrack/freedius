@@ -584,10 +584,10 @@ No data migration needed. All changes are CSS/template/JS-only.
 
 #### Automated
 
-- [x] 3.1 `.skeleton` CSS class with shimmer animation added
-- [x] 3.2 HTMX event wiring added to app.js
-- [x] 3.3 `mage test` passes
-- [x] 3.4 `mage lint` passes
+- [x] 3.1 `.skeleton` CSS class with shimmer animation added — 197c752
+- [x] 3.2 HTMX event wiring added to app.js — 197c752
+- [x] 3.3 `mage test` passes — 197c752
+- [x] 3.4 `mage lint` passes — 197c752
 
 #### Manual
 
