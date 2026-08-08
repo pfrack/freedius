@@ -240,8 +240,8 @@ lines, keeping the inner `{{template "layout" .}}` invocation intact.
   `cursor: pointer`, `user-select: none`.
 - `.provider-details__list` — `margin: var(--space-2) 0 0 var(--space-4)`,
   `font-size: 0.8rem`, `color: var(--text-muted)`.
-- `.provider-error` — `font-size: 0.8rem`, `color: var(--badge-error-text)`,
-  `margin-top: var(--space-1)`.
+- `.provider-error` — `font-size: 0.8rem`, `color: var(--color-error)`,
+   `margin-top: var(--space-1)`.
 
 ### Success Criteria:
 

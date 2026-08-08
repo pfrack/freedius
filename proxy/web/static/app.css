@@ -77,6 +77,7 @@
   --z-hamburger: 150;
   --z-dialog: 200;
   --z-toast: 300;
+  --z-back-to-top: 290;
   --z-grain: 400;
   --z-skip-link: 500;
 
@@ -284,6 +285,7 @@ main {
   border-top: 1px solid var(--border-subtle);
   padding: var(--space-4) var(--space-6);
   margin-top: var(--space-8);
+  margin-left: var(--sidebar-width);
 }
 
 .footer__content {
@@ -318,7 +320,7 @@ main {
   position: fixed;
   bottom: var(--space-6);
   right: var(--space-6);
-  z-index: var(--z-toast);
+  z-index: var(--z-back-to-top);
   width: 2.75rem;
   height: 2.75rem;
   display: inline-flex;
@@ -335,10 +337,12 @@ main {
   opacity: 0;
   transform: translateY(8px);
   pointer-events: none;
+  visibility: hidden;
   transition: opacity var(--duration-fast) var(--ease-spring),
               transform var(--duration-fast) var(--ease-spring),
               background var(--duration-fast) var(--ease-spring),
-              color var(--duration-fast) var(--ease-spring);
+              color var(--duration-fast) var(--ease-spring),
+              visibility var(--duration-fast) var(--ease-spring);
 }
 
 .back-to-top:hover {
@@ -350,6 +354,7 @@ main {
   opacity: 1;
   transform: translateY(0);
   pointer-events: auto;
+  visibility: visible;
 }
 
 @media (max-width: 480px) {
@@ -419,6 +424,10 @@ main {
     margin-left: 0;
     padding: var(--space-8) var(--space-4);
     padding-top: 5rem;
+  }
+
+  .footer {
+    margin-left: 0;
   }
 }
 
@@ -1274,26 +1283,25 @@ pre {
 
 .skeleton {
   position: relative;
-  overflow: hidden;
-  background: var(--bg-surface);
+  contain: paint;
 }
 
 .skeleton::after {
   content: "";
   position: absolute;
   inset: 0;
+  transform: translateX(-100%);
   background: linear-gradient(90deg,
     transparent 0%,
     var(--bg-hover) 50%,
     transparent 100%
   );
-  background-size: 200% 100%;
   animation: skeleton-shimmer 1.5s ease-in-out infinite;
 }
 
 @keyframes skeleton-shimmer {
-  0% { background-position: -100% 0; }
-  100% { background-position: 100% 0; }
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
 }
 
 @media (max-width: 768px) {

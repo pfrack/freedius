@@ -179,6 +179,12 @@ document.addEventListener('click', function(evt) {
 });
 
 document.body.addEventListener('htmx:afterRequest', function(evt) {
+  // Clear any skeleton shimmer on the swap target — this fires on every
+  // terminal outcome (success, error, timeout, abort), so skeletons can
+  // never get stuck regardless of which htmx event ends the request.
+  var sk = skeletonTarget(evt);
+  if (sk) sk.classList.remove('skeleton');
+
   var xhr = evt.detail && evt.detail.xhr;
   if (!xhr) return;
   var successful = evt.detail.successful;
@@ -237,11 +243,11 @@ document.body.addEventListener('htmx:afterRequest', function(evt) {
 
 /* ── Skeleton loader wiring ────────────────────────────────────────────────
    Adds a .skeleton shimmer class to the HTMX swap target on every
-   configRequest event, and removes it afterSwap / on error. SSE event
+   configRequest event. Removal is handled centrally in the shared
+   htmx:afterRequest handler (which fires on every terminal outcome), so
+   skeletons can never get stuck on error, timeout, or abort. SSE event
    streams do not fire configRequest, so the logs page SSE handler is
-   unaffected. Error events use evt.detail.target when present, falling
-   back to evt.target, so skeletons never get stuck on network or
-   response errors. ────────────────────────────────────────────────────── */
+   unaffected. ────────────────────────────────────────────────────────── */
 
 function skeletonTarget(evt) {
   if (evt.detail && evt.detail.target) return evt.detail.target;
@@ -254,34 +260,15 @@ document.body.addEventListener('htmx:configRequest', function(evt) {
   if (t) t.classList.add('skeleton');
 });
 
-document.body.addEventListener('htmx:afterSwap', function(evt) {
-  var t = skeletonTarget(evt);
-  if (t) t.classList.remove('skeleton');
-});
-
-document.body.addEventListener('htmx:sendError', function(evt) {
-  var t = skeletonTarget(evt);
-  if (t) t.classList.remove('skeleton');
-});
-
-document.body.addEventListener('htmx:responseError', function(evt) {
-  var t = skeletonTarget(evt);
-  if (t) t.classList.remove('skeleton');
-});
-
 /* ── Back-to-top button ────────────────────────────────────────────────────
-   Floating button that appears after scrolling past 300px and scrolls
-   smoothly to the top on click. Created dynamically so no template change
-   is needed. The scroll handler is throttled with requestAnimationFrame to
-   avoid layout thrash on rapid scroll events. ───────────────────────────── */
+   Floating button (rendered in layout.html) that appears after scrolling
+   past 300px and scrolls smoothly to the top on click. The scroll handler
+   is throttled with requestAnimationFrame to avoid layout thrash on rapid
+   scroll events. ────────────────────────────────────────────────────────── */
 
 (function () {
-  var btn = document.createElement('button');
-  btn.className = 'back-to-top';
-  btn.type = 'button';
-  btn.setAttribute('aria-label', 'Back to top');
-  btn.innerHTML = '<span aria-hidden="true">↑</span>';
-  document.body.appendChild(btn);
+  var btn = document.querySelector('.back-to-top');
+  if (!btn) return;
 
   var ticking = false;
   function update() {
@@ -299,6 +286,7 @@ document.body.addEventListener('htmx:responseError', function(evt) {
     }
   });
   btn.addEventListener('click', function () {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    window.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' });
   });
 })();

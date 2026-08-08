@@ -2,7 +2,7 @@
 id: web-ui-polish
 roadmap_id: V-02k
 title: Web UI Polish — Remainder & Dead-Code Cleanup
-status: implemented
+status: impl_reviewed
 created: 2026-08-04
 updated: 2026-08-08
 ---
