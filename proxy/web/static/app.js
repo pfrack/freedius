@@ -268,3 +268,37 @@ document.body.addEventListener('htmx:responseError', function(evt) {
   var t = skeletonTarget(evt);
   if (t) t.classList.remove('skeleton');
 });
+
+/* ── Back-to-top button ────────────────────────────────────────────────────
+   Floating button that appears after scrolling past 300px and scrolls
+   smoothly to the top on click. Created dynamically so no template change
+   is needed. The scroll handler is throttled with requestAnimationFrame to
+   avoid layout thrash on rapid scroll events. ───────────────────────────── */
+
+(function () {
+  var btn = document.createElement('button');
+  btn.className = 'back-to-top';
+  btn.type = 'button';
+  btn.setAttribute('aria-label', 'Back to top');
+  btn.innerHTML = '<span aria-hidden="true">↑</span>';
+  document.body.appendChild(btn);
+
+  var ticking = false;
+  function update() {
+    if (window.scrollY > 300) {
+      btn.classList.add('back-to-top--visible');
+    } else {
+      btn.classList.remove('back-to-top--visible');
+    }
+    ticking = false;
+  }
+  window.addEventListener('scroll', function () {
+    if (!ticking) {
+      ticking = true;
+      window.requestAnimationFrame(update);
+    }
+  });
+  btn.addEventListener('click', function () {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+})();

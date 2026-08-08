@@ -600,10 +600,10 @@ No data migration needed. All changes are CSS/template/JS-only.
 
 #### Automated
 
-- [ ] 4.1 Back-to-top CSS added
-- [ ] 4.2 Back-to-top JS scroll listener added
-- [ ] 4.3 `mage test` passes
-- [ ] 4.4 `mage lint` passes
+- [x] 4.1 Back-to-top CSS added
+- [x] 4.2 Back-to-top JS scroll listener added
+- [x] 4.3 `mage test` passes
+- [x] 4.4 `mage lint` passes
 
 #### Manual
 

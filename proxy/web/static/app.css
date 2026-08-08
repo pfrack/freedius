@@ -312,6 +312,53 @@ main {
   color: var(--text-secondary);
 }
 
+/* ── Back-to-Top Button ──────────────────────────────────────────────────── */
+
+.back-to-top {
+  position: fixed;
+  bottom: var(--space-6);
+  right: var(--space-6);
+  z-index: var(--z-toast);
+  width: 2.75rem;
+  height: 2.75rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-default);
+  border-radius: 50%;
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  box-shadow: var(--shadow-md), var(--inner-highlight);
+  cursor: pointer;
+  font-size: 1.1rem;
+  line-height: 1;
+  opacity: 0;
+  transform: translateY(8px);
+  pointer-events: none;
+  transition: opacity var(--duration-fast) var(--ease-spring),
+              transform var(--duration-fast) var(--ease-spring),
+              background var(--duration-fast) var(--ease-spring),
+              color var(--duration-fast) var(--ease-spring);
+}
+
+.back-to-top:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.back-to-top--visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+@media (max-width: 480px) {
+  .back-to-top {
+    bottom: var(--space-4);
+    right: var(--space-4);
+  }
+}
+
 /* ── Hamburger (mobile) ─────────────────────────────────────────────────── */
 
 .hamburger {
