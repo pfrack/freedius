@@ -615,9 +615,9 @@ No data migration needed. All changes are CSS/template/JS-only.
 
 #### Automated
 
-- [x] 5.1 `p { max-width: 65ch }` rule added
-- [x] 5.2 `mage test` passes
-- [x] 5.3 `mage lint` passes
+- [x] 5.1 `p { max-width: 65ch }` rule added — 622a59a
+- [x] 5.2 `mage test` passes — 622a59a
+- [x] 5.3 `mage lint` passes — 622a59a
 
 #### Manual
 
@@ -629,10 +629,10 @@ No data migration needed. All changes are CSS/template/JS-only.
 
 #### Automated
 
-- [ ] 6.1 All dead-code grep checks pass
-- [ ] 6.2 All new-code grep checks pass
-- [ ] 6.3 `mage test` passes
-- [ ] 6.4 `mage lint` passes
+- [x] 6.1 All dead-code grep checks pass
+- [x] 6.2 All new-code grep checks pass
+- [x] 6.3 `mage test` passes
+- [x] 6.4 `mage lint` passes
 
 #### Manual
 
