@@ -629,10 +629,10 @@ No data migration needed. All changes are CSS/template/JS-only.
 
 #### Automated
 
-- [x] 6.1 All dead-code grep checks pass
-- [x] 6.2 All new-code grep checks pass
-- [x] 6.3 `mage test` passes
-- [x] 6.4 `mage lint` passes
+- [x] 6.1 All dead-code grep checks pass — 71b5f55
+- [x] 6.2 All new-code grep checks pass — 71b5f55
+- [x] 6.3 `mage test` passes — 71b5f55
+- [x] 6.4 `mage lint` passes — 71b5f55
 
 #### Manual
 
