@@ -600,10 +600,10 @@ No data migration needed. All changes are CSS/template/JS-only.
 
 #### Automated
 
-- [x] 4.1 Back-to-top CSS added
-- [x] 4.2 Back-to-top JS scroll listener added
-- [x] 4.3 `mage test` passes
-- [x] 4.4 `mage lint` passes
+- [x] 4.1 Back-to-top CSS added — 3296dc8
+- [x] 4.2 Back-to-top JS scroll listener added — 3296dc8
+- [x] 4.3 `mage test` passes — 3296dc8
+- [x] 4.4 `mage lint` passes — 3296dc8
 
 #### Manual
 
@@ -615,9 +615,9 @@ No data migration needed. All changes are CSS/template/JS-only.
 
 #### Automated
 
-- [ ] 5.1 `p { max-width: 65ch }` rule added
-- [ ] 5.2 `mage test` passes
-- [ ] 5.3 `mage lint` passes
+- [x] 5.1 `p { max-width: 65ch }` rule added
+- [x] 5.2 `mage test` passes
+- [x] 5.3 `mage lint` passes
 
 #### Manual
 

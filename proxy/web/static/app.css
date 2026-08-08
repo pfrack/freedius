@@ -462,6 +462,10 @@ h3 {
   letter-spacing: -0.015em;
 }
 
+p {
+  max-width: 65ch;
+}
+
 /* ── Page Sections ───────────────────────────────────────────────────────── */
 
 .page-section {
