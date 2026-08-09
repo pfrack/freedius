@@ -55,6 +55,7 @@ func Help() {
 	fmt.Println("  test            - Run unit tests with race detection")
 	fmt.Println("  benchmark       - Run performance benchmarks")
 	fmt.Println("  coverage        - Generate HTML coverage report")
+	fmt.Println("  e2e             - Run Playwright end-to-end suite (e2e/)")
 	fmt.Println("  manualTest      - Run manual test script")
 	fmt.Println()
 
@@ -110,6 +111,17 @@ func Test() error {
 func Benchmark() error {
 	fmt.Println("→ Running benchmarks...")
 	return sh.RunV("go", "test", "-bench=.", "-benchmem", "./...")
+}
+
+// E2E runs the Playwright end-to-end suite under e2e/.
+// Requires Node/npm and the Playwright browsers; install once with
+// `cd e2e && npm ci && npx playwright install chromium`.
+func E2E() error {
+	if _, err := sh.Output("which", "npm"); err != nil {
+		return fmt.Errorf("npm not found: install Node.js to run the e2e suite (see e2e/)")
+	}
+	fmt.Println("→ Running Playwright e2e suite...")
+	return sh.RunV("npm", "test", "--prefix", "e2e")
 }
 
 // Coverage generates an HTML coverage report and opens it in the browser.
@@ -607,6 +619,7 @@ func Help2() {
 				{"test", "Run unit tests with race detection and coverage"},
 				{"benchmark", "Run performance benchmarks"},
 				{"coverage", "Generate and open HTML coverage report"},
+				{"e2e", "Run the Playwright end-to-end suite (e2e/)"},
 				{"manualTest", "Run the manual test script"},
 			},
 		},
