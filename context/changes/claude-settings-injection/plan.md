@@ -339,19 +339,19 @@ running `configure`.
 
 #### Automated
 
-- [x] 1.1 `BackupSettingsJSON` copies existing file to `settings.json.bak.<ts>` and returns the path
-- [x] 1.2 `BackupSettingsJSON` returns `("", nil)` when `settings.json` is absent
-- [x] 1.3 `RestoreSettingsJSON` restores the newest of multiple backups
-- [x] 1.4 `RestoreSettingsJSON` errors clearly when no backup exists
-- [x] 1.5 `go test ./internal/envinject` passes
+- [x] 1.1 `BackupSettingsJSON` copies existing file to `settings.json.bak.<ts>` and returns the path — 42e5893
+- [x] 1.2 `BackupSettingsJSON` returns `("", nil)` when `settings.json` is absent — 42e5893
+- [x] 1.3 `RestoreSettingsJSON` restores the newest of multiple backups — 42e5893
+- [x] 1.4 `RestoreSettingsJSON` errors clearly when no backup exists — 42e5893
+- [x] 1.5 `go test ./internal/envinject` passes — 42e5893
 
 ### Phase 2: Overwrite-only `WriteSettingsJSON`
 
 #### Automated
 
-- [ ] 2.1 `WriteSettingsJSON` writes only the `env` block (no other keys)
-- [ ] 2.2 `dryRun` prints JSON and writes no file
-- [ ] 2.3 Merge/malformed tests removed; overwrite-discards-keys test added; `go test ./internal/envinject` passes
+- [x] 2.1 `WriteSettingsJSON` writes only the `env` block (no other keys)
+- [x] 2.2 `dryRun` prints JSON and writes no file
+- [x] 2.3 Merge/malformed tests removed; overwrite-discards-keys test added; `go test ./internal/envinject` passes
 
 ### Phase 3: `freedius configure` subcommand
 

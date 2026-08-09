@@ -3,7 +3,6 @@ package envinject
 import (
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"slices"
@@ -125,39 +124,20 @@ func envBlock(host string, port int) map[string]string {
 	}
 }
 
-// WriteSettingsJSON writes the env block into Claude Code's settings.json
-// (at $HOME/.claude/settings.json when configDir is empty). It preserves any
-// existing keys and only sets/updates the "env" object.
+// WriteSettingsJSON writes Claude Code's settings.json (at
+// $HOME/.claude/settings.json when configDir is empty) as a fresh document
+// containing only freedius's env block. Any pre-existing keys are discarded —
+// back the file up with BackupSettingsJSON first (see RestoreSettingsJSON).
 func WriteSettingsJSON(configDir string, host string, port int, dryRun bool) error {
-	if configDir == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return fmt.Errorf("envinject: cannot determine home directory: %w", err)
-		}
-		configDir = filepath.Join(home, ".claude")
+	dir, err := resolveConfigDir(configDir)
+	if err != nil {
+		return err
 	}
-	path := filepath.Join(configDir, "settings.json")
+	path := filepath.Join(dir, settingsFile)
 
-	env := envBlock(host, port)
+	settings := map[string]any{"env": envBlock(host, port)}
 
-	existing := make(map[string]any)
-	// #nosec G304 -- path is operator-supplied via $HOME/.claude
-	if data, err := os.ReadFile(path); err == nil {
-		if err := json.Unmarshal(data, &existing); err != nil {
-			slog.Warn(
-				"envinject: malformed existing settings.json, replacing",
-				"path",
-				path,
-				"err",
-				err,
-			)
-			existing = make(map[string]any)
-		}
-	}
-
-	existing["env"] = env
-
-	output, err := json.MarshalIndent(existing, "", "  ")
+	output, err := json.MarshalIndent(settings, "", "  ")
 	if err != nil {
 		return fmt.Errorf("envinject: marshal settings.json: %w", err)
 	}
@@ -168,13 +148,12 @@ func WriteSettingsJSON(configDir string, host string, port int, dryRun bool) err
 		return nil
 	}
 
-	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return fmt.Errorf("envinject: create directory %s: %w", dir, err)
 	}
 
 	tmpPath := path + ".tmp"
-	// #nosec G306 -- settings.json needs to be readable by external tooling (Claude Code)
+	// #nosec G306,G703 -- operator-supplied config dir; settings.json must stay tool-readable
 	if err := os.WriteFile(tmpPath, output, 0o644); err != nil {
 		return fmt.Errorf("envinject: write %s: %w", tmpPath, err)
 	}
