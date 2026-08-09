@@ -107,6 +107,121 @@ func TestWriteSettingsJSON_MalformedEnvReplaced(t *testing.T) {
 	}
 }
 
+func TestBackupSettingsJSON_CopiesExisting(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "settings.json")
+	content := `{"project":"my-app"}` + "\n"
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	backup, err := BackupSettingsJSON(dir)
+	if err != nil {
+		t.Fatalf("BackupSettingsJSON: %v", err)
+	}
+	if backup == "" {
+		t.Fatal("expected a backup path, got empty string")
+	}
+	if !strings.HasPrefix(filepath.Base(backup), "settings.json.bak.") {
+		t.Errorf("backup name should be settings.json.bak.<ts>, got %s", filepath.Base(backup))
+	}
+	data, err := os.ReadFile(backup)
+	if err != nil {
+		t.Fatalf("backup not readable: %v", err)
+	}
+	if string(data) != content {
+		t.Errorf("backup content = %q, want %q", string(data), content)
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Errorf("original settings.json should still exist: %v", err)
+	}
+}
+
+func TestBackupSettingsJSON_NoSourceIsNoOp(t *testing.T) {
+	dir := t.TempDir()
+
+	backup, err := BackupSettingsJSON(dir)
+	if err != nil {
+		t.Fatalf("BackupSettingsJSON: %v", err)
+	}
+	if backup != "" {
+		t.Errorf("expected empty backup path when settings.json is absent, got %s", backup)
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 0 {
+		t.Errorf("no-op backup should write nothing, found %d entries", len(entries))
+	}
+}
+
+func TestBackupSettingsJSON_SecondBackupSameSecond(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "settings.json")
+	if err := os.WriteFile(path, []byte(`{"n":1}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	first, err := BackupSettingsJSON(dir)
+	if err != nil {
+		t.Fatalf("first BackupSettingsJSON: %v", err)
+	}
+	second, err := BackupSettingsJSON(dir)
+	if err != nil {
+		t.Fatalf("second BackupSettingsJSON: %v", err)
+	}
+	if first == second {
+		t.Errorf("two backups should not share a path, both were %s", first)
+	}
+	if second <= first {
+		t.Errorf("second backup %s should sort after first %s", second, first)
+	}
+}
+
+func TestRestoreSettingsJSON_RestoresNewest(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "settings.json")
+	if err := os.WriteFile(path, []byte(`{"current":true}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	older := filepath.Join(dir, "settings.json.bak.20260101-101010")
+	newer := filepath.Join(dir, "settings.json.bak.20260101-101011")
+	if err := os.WriteFile(older, []byte(`{"gen":"older"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(newer, []byte(`{"gen":"newer"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	restored, err := RestoreSettingsJSON(dir)
+	if err != nil {
+		t.Fatalf("RestoreSettingsJSON: %v", err)
+	}
+	if restored != newer {
+		t.Errorf("restored from %s, want %s", restored, newer)
+	}
+	data, _ := os.ReadFile(path)
+	if string(data) != `{"gen":"newer"}` {
+		t.Errorf("settings.json = %q, want the newest backup content", string(data))
+	}
+}
+
+func TestRestoreSettingsJSON_NoBackupErrors(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "settings.json"), []byte(`{}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := RestoreSettingsJSON(dir)
+	if err == nil {
+		t.Fatal("expected an error when no backup exists")
+	}
+	if !strings.Contains(err.Error(), "no settings.json.bak") {
+		t.Errorf("error should name the missing backup pattern, got: %v", err)
+	}
+}
+
 func TestWriteShellRC_AppendsBlock(t *testing.T) {
 	dir := t.TempDir()
 	rcPath := filepath.Join(dir, ".zshrc")
