@@ -1,6 +1,7 @@
 package envinject
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -111,6 +112,46 @@ func RestoreSettingsJSON(configDir string) (string, error) {
 		return "", fmt.Errorf("envinject: restore %s: %w", dst, err)
 	}
 	return newest, nil
+}
+
+// IsFreediusSettings reports whether the existing settings.json at configDir is
+// exactly the freedius-authored env block (no extra keys). The CLI uses this to
+// avoid re-backing-up an already-configured file: a second `configure` run would
+// otherwise back up the freedius block itself, making the newest backup a copy of
+// freedius's content rather than the user's original — which would make
+// `--restore` return the wrong file.
+func IsFreediusSettings(configDir string, host string, port int) (bool, error) {
+	dir, err := resolveConfigDir(configDir)
+	if err != nil {
+		return false, err
+	}
+	path := filepath.Join(dir, settingsFile)
+
+	// #nosec G304 -- path is operator-supplied via $HOME/.claude
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, fmt.Errorf("envinject: read %s: %w", path, err)
+	}
+
+	var current map[string]any
+	if err := json.Unmarshal(data, &current); err != nil {
+		// A malformed file is not the freedius block.
+		return false, nil
+	}
+
+	want := map[string]any{"env": envBlock(host, port)}
+	curBytes, err := json.Marshal(current)
+	if err != nil {
+		return false, nil
+	}
+	wantBytes, err := json.Marshal(want)
+	if err != nil {
+		return false, nil
+	}
+	return bytes.Equal(curBytes, wantBytes), nil
 }
 
 func envBlock(host string, port int) map[string]string {

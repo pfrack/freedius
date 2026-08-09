@@ -70,7 +70,7 @@ func TestRunConfigure_FirstRunWritesNoBackup(t *testing.T) {
 	}
 }
 
-func TestRunConfigure_SecondRunBacksUpAndOverwrites(t *testing.T) {
+func TestRunConfigure_SecondRunDoesNotRebackup(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "settings.json")
 	if err := os.WriteFile(path, []byte(`{"project":"mine"}`), 0o644); err != nil {
@@ -83,15 +83,51 @@ func TestRunConfigure_SecondRunBacksUpAndOverwrites(t *testing.T) {
 	if n := countBackups(t, dir); n != 1 {
 		t.Fatalf("expected 1 backup after the first run, found %d", n)
 	}
+	// The second run finds settings.json already equals the freedius block, so
+	// it must NOT back up the freedius block itself (otherwise --restore would
+	// return the wrong file). It still overwrites with the freedius block.
 	if code := runConfigure([]string{"--config-dir", dir, "--yes"}); code != 0 {
 		t.Fatalf("second run exit code = %d, want 0", code)
 	}
-	if n := countBackups(t, dir); n != 2 {
-		t.Errorf("expected 2 backups after the second run, found %d", n)
+	if n := countBackups(t, dir); n != 1 {
+		t.Errorf("second run must not create a new backup (already configured), found %d", n)
 	}
 	got := readSettings(t, dir)
 	if _, ok := got["project"]; ok {
 		t.Errorf("overwrite should discard the pre-existing 'project' key")
+	}
+}
+
+// TestRunConfigure_RestoreAfterSecondRunReturnsOriginal is the regression guard
+// for the F1 bug: a second `configure` run must not shadow the user's original
+// backup, so --restore still returns exactly the original settings.json.
+func TestRunConfigure_RestoreAfterSecondRunReturnsOriginal(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "settings.json")
+	original := `{"project":"mine"}`
+	if err := os.WriteFile(path, []byte(original), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if code := runConfigure([]string{"--config-dir", dir, "--yes"}); code != 0 {
+		t.Fatalf("first run exit code = %d, want 0", code)
+	}
+	// A second run while already configured must not create a freedius-block backup.
+	if code := runConfigure([]string{"--config-dir", dir, "--yes"}); code != 0 {
+		t.Fatalf("second run exit code = %d, want 0", code)
+	}
+	if n := countBackups(t, dir); n != 1 {
+		t.Fatalf("expected exactly 1 backup (the original) before restore, found %d", n)
+	}
+	if code := runConfigure([]string{"--restore", "--config-dir", dir}); code != 0 {
+		t.Fatalf("restore exit code = %d, want 0", code)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != original {
+		t.Errorf("restore after a second configure run = %q, want original %q", string(data), original)
 	}
 }
 

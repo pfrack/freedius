@@ -45,6 +45,14 @@ func runConfigure(args []string) int {
 	}
 	settingsPath := filepath.Join(configDir, "settings.json")
 
+	// Skip the backup when the file is already the freedius env block, so a
+	// second `configure` run never backs up the freedius block itself — keeping
+	// the user's original as the newest (and thus --restore's) backup.
+	already, err := envinject.IsFreediusSettings(configDir, defaultHost, defaultPort)
+	if err != nil {
+		return failf("freedius configure: %v", err)
+	}
+
 	if *flagRestore {
 		restored, err := envinject.RestoreSettingsJSON(configDir)
 		if err != nil {
@@ -55,7 +63,11 @@ func runConfigure(args []string) int {
 	}
 
 	if *flagDryRun {
-		fmt.Printf("would back up %s to %s.bak.<timestamp>\n", settingsPath, settingsPath)
+		if already {
+			fmt.Printf("%s is already configured for freedius — no backup needed\n", settingsPath)
+		} else {
+			fmt.Printf("would back up %s to %s.bak.<timestamp>\n", settingsPath, settingsPath)
+		}
 		fmt.Printf("would write %s:\n", settingsPath)
 		if err := envinject.WriteSettingsJSON(configDir, defaultHost, defaultPort, true); err != nil {
 			return failf("freedius configure: %v", err)
@@ -63,14 +75,23 @@ func runConfigure(args []string) int {
 		return 0
 	}
 
-	backup, err := envinject.BackupSettingsJSON(configDir)
-	if err != nil {
-		return failf("freedius configure: %v", err)
-	}
-	if backup == "" {
-		fmt.Printf("no existing %s — nothing to back up\n", settingsPath)
+	// backup is referenced by the undo hint below; it stays empty when the file
+	// is already configured, so the hint is suppressed (an earlier run already
+	// made the backup).
+	var backup string
+	if already {
+		fmt.Printf("%s is already configured for freedius — nothing to back up\n", settingsPath)
 	} else {
-		fmt.Printf("backed up %s -> %s\n", settingsPath, backup)
+		b, err := envinject.BackupSettingsJSON(configDir)
+		if err != nil {
+			return failf("freedius configure: %v", err)
+		}
+		backup = b
+		if backup == "" {
+			fmt.Printf("no existing %s — nothing to back up\n", settingsPath)
+		} else {
+			fmt.Printf("backed up %s -> %s\n", settingsPath, backup)
+		}
 	}
 
 	fmt.Printf("about to overwrite %s with:\n", settingsPath)
