@@ -86,6 +86,7 @@
         <option value="false" {{if eq .Fallback "false"}}selected{{end}}>No</option>
       </select>
     </div>
+    <span class="log-live-dot" data-state="connecting" title="Live tail connection"></span>
   </div>
   <div
     id="log"
@@ -117,14 +118,39 @@
 
   // Order matters: append -> scroll -> trim. Scrolling before the trim keeps
   // the view pinned to the newest line during bursts.
+  var tailPaused = false;
+  var SCROLL_PAUSE_THRESHOLD = 40; // px from bottom before we stop following
+
+  function isNearBottom(logEl) {
+    return logEl.scrollTop + logEl.clientHeight >= logEl.scrollHeight - SCROLL_PAUSE_THRESHOLD;
+  }
+
   function appendLogLine(pre) {
     var logEl = document.getElementById('log');
     logEl.appendChild(pre);
-    logEl.scrollTop = logEl.scrollHeight;
+    if (!tailPaused) {
+      logEl.scrollTop = logEl.scrollHeight;
+    }
     while (logEl.children.length > MAX_LOG_LINES) {
       logEl.removeChild(logEl.firstElementChild);
     }
   }
+
+  // Pause auto-follow when the operator scrolls up to read; resume once they
+  // return to the bottom.
+  document.getElementById('log').addEventListener('scroll', function(e) {
+    var logEl = e.target;
+    tailPaused = !isNearBottom(logEl);
+  });
+
+  // Connection-state dot: reflect the live SSE tail's status.
+  function setLiveState(state) {
+    var dot = document.querySelector('.log-live-dot');
+    if (dot) dot.setAttribute('data-state', state);
+  }
+  document.addEventListener('htmx:sseOpen', function() { setLiveState('live'); });
+  document.addEventListener('htmx:sseClose', function() { setLiveState('down'); });
+  document.addEventListener('htmx:sseError', function() { setLiveState('down'); });
 
   document.addEventListener('htmx:sseMessage', function(e) {
     if (!e.detail || e.detail.eventName !== 'log' || typeof e.detail.data !== 'string') return;

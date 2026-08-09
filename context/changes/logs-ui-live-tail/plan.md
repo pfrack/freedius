@@ -270,12 +270,12 @@ None. Purely additive asset + template change; no config or data migration.
 
 #### Automated
 
-- [x] 1.1 Vendor `htmx-ext-sse@2.2.2/sse.min.js` into `proxy/web/static/htmx-sse.min.js`
-- [x] 1.2 Add `proxy/web/static/htmx-sse.min.js.sha256` checksum
-- [x] 1.3 Insert `<script src="/static/htmx-sse.min.js">` in `layout.html` between htmx core and app.js
-- [x] 1.4 `mage lint` passes
-- [x] 1.5 `mage build` + `mage test` pass
-- [x] 1.6 `sha256sum -c htmx-sse.min.js.sha256` succeeds
+- [x] 1.1 Vendor `htmx-ext-sse@2.2.2/sse.min.js` into `proxy/web/static/htmx-sse.min.js` — 1a33be8
+- [x] 1.2 Add `proxy/web/static/htmx-sse.min.js.sha256` checksum — 1a33be8
+- [x] 1.3 Insert `<script src="/static/htmx-sse.min.js">` in `layout.html` between htmx core and app.js — 1a33be8
+- [x] 1.4 `mage lint` passes — 1a33be8
+- [x] 1.5 `mage build` + `mage test` pass — 1a33be8
+- [x] 1.6 `sha256sum -c htmx-sse.min.js.sha256` succeeds — 1a33be8
 
 #### Manual
 
@@ -285,8 +285,8 @@ None. Purely additive asset + template change; no config or data migration.
 
 #### Automated
 
-- [ ] 2.1 `mage lint` + `mage test` pass
-- [ ] 2.2 `mage build` succeeds with updated templates
+- [x] 2.1 `mage lint` + `mage test` pass
+- [x] 2.2 `mage build` succeeds with updated templates
 
 #### Manual
 

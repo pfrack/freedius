@@ -889,6 +889,31 @@ pre {
   font-style: italic;
 }
 
+/* Live-tail connection dot: shows the SSE stream state (connecting/live/down).
+   data-state is toggled by the logs.html script on htmx:sseOpen/Close/Error. */
+.log-live-dot {
+  display: inline-block;
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  margin-left: auto;
+  align-self: center;
+  background: var(--text-muted);
+  transition: background 0.2s ease;
+}
+
+.log-live-dot[data-state="connecting"] {
+  background: var(--color-warning);
+}
+
+.log-live-dot[data-state="live"] {
+  background: var(--color-success, #22c55e);
+}
+
+.log-live-dot[data-state="down"] {
+  background: var(--color-error);
+}
+
 /* ── Model List ─────────────────────────────────────────────────────────── */
 
 .model-filter-input {
