@@ -139,7 +139,10 @@ func E2ESetup() error {
 		return fmt.Errorf("npm ci failed (retry: npm ci --prefix e2e): %w", err)
 	}
 	if err := sh.RunV("npx", "--prefix", "e2e", "playwright", "install", "chromium"); err != nil {
-		return fmt.Errorf("playwright browser install failed (retry: npx --prefix e2e playwright install chromium): %w", err)
+		return fmt.Errorf(
+			"playwright browser install failed (retry: npx --prefix e2e playwright install chromium): %w",
+			err,
+		)
 	}
 	return nil
 }
