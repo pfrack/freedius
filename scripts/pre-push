@@ -41,7 +41,7 @@ echo "$PACKAGES" | sed 's|/\.\.\.||' | sed 's|^\./||' | sed 's/^/  /'
 # PACKAGES empty. Guard against it: `go test` with no package argument would
 # default to the module root and fail spuriously.
 if [ -z "$PACKAGES" ]; then
-  echo "No testable Go packages changed, skipping tests."
+  echo "No testable Go packages changed; skipping go test."
   exit 0
 fi
 
