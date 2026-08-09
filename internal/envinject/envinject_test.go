@@ -120,6 +120,55 @@ func TestWriteSettingsJSON_MalformedFileReplaced(t *testing.T) {
 	}
 }
 
+func TestBackupSettingsJSON_PreservesSourcePerms(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "settings.json")
+	content := `{"project":"my-app"}` + "\n"
+	// A private settings.json that may hold a real API key.
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	backup, err := BackupSettingsJSON(dir)
+	if err != nil {
+		t.Fatalf("BackupSettingsJSON: %v", err)
+	}
+	fi, err := os.Stat(backup)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := fi.Mode().Perm(), os.FileMode(0o600); got != want {
+		t.Errorf("backup perms = %v, want %v (source perms must be preserved, not widened to 0644)", got, want)
+	}
+}
+
+func TestRestoreSettingsJSON_PreservesSourcePerms(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "settings.json")
+	original := `{"project":"my-app"}`
+	if err := os.WriteFile(path, []byte(original), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := BackupSettingsJSON(dir); err != nil {
+		t.Fatalf("BackupSettingsJSON: %v", err)
+	}
+	// Overwrite the live file at a different mode to prove restore restores perms.
+	if err := os.WriteFile(path, []byte(`{"env":{}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := RestoreSettingsJSON(dir); err != nil {
+		t.Fatalf("RestoreSettingsJSON: %v", err)
+	}
+	fi, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := fi.Mode().Perm(), os.FileMode(0o600); got != want {
+		t.Errorf("restored settings.json perms = %v, want %v", got, want)
+	}
+}
+
 func TestIsFreediusSettings(t *testing.T) {
 	dir := t.TempDir()
 

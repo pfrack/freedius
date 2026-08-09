@@ -51,7 +51,7 @@
   - Tradeoff: Minor — a few lines; needs a test for the permission path.
   - Confidence: HIGH — identical pattern used elsewhere in the repo.
   - Blind spot: None significant.
-- **Decision**: PENDING
+- **Decision**: FIXED (commit on feat/claude-settings-injection)
 
 ### F3 — `RestoreSettingsJSON` is destructive with no undo
 

@@ -47,9 +47,16 @@ func BackupSettingsJSON(configDir string) (string, error) {
 		return "", fmt.Errorf("envinject: read %s: %w", src, err)
 	}
 
+	// Preserve the source file's permission bits so a 0600 settings.json (which
+	// may hold a real API key) is not widened to world-readable in its backup.
+	perm := os.FileMode(0o600)
+	if fi, err := os.Stat(src); err == nil {
+		perm = fi.Mode().Perm()
+	}
+
 	dst := uniqueBackupPath(dir, time.Now().Format(backupTimeForm))
-	// #nosec G306,G703 -- operator-supplied config dir; backup mirrors settings.json's permissions
-	if err := os.WriteFile(dst, data, 0o644); err != nil {
+	// #nosec G306,G703 -- operator-supplied config dir; backup preserves source perms (falls back to 0600)
+	if err := os.WriteFile(dst, data, perm); err != nil {
 		return "", fmt.Errorf("envinject: write backup %s: %w", dst, err)
 	}
 	return dst, nil
@@ -106,9 +113,16 @@ func RestoreSettingsJSON(configDir string) (string, error) {
 		return "", fmt.Errorf("envinject: read backup %s: %w", newest, err)
 	}
 
+	// Preserve the backup's permission bits so the restored settings.json keeps
+	// the original file's mode (e.g. 0600) rather than being widened.
+	perm := os.FileMode(0o600)
+	if fi, err := os.Stat(newest); err == nil {
+		perm = fi.Mode().Perm()
+	}
+
 	dst := filepath.Join(dir, settingsFile)
-	// #nosec G306,G703 -- operator-supplied config dir; settings.json must stay tool-readable
-	if err := os.WriteFile(dst, data, 0o644); err != nil {
+	// #nosec G306,G703 -- operator-supplied config dir; restore preserves backup perms (falls back to 0600)
+	if err := os.WriteFile(dst, data, perm); err != nil {
 		return "", fmt.Errorf("envinject: restore %s: %w", dst, err)
 	}
 	return newest, nil
