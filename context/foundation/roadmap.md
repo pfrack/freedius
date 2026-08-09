@@ -3,7 +3,7 @@ project: freedius
 version: 2
 status: active
 created: 2026-06-16
-updated: 2026-07-31
+updated: 2026-08-08
 prd_version: 1
 ---
 

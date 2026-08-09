@@ -1,4 +1,4 @@
-{{define "mappings"}}{{template "layout" .}}{{end}}
+{{template "layout" .}}
 {{define "title"}}Mappings{{end}}
 {{define "content"}}
   <h1>Mappings</h1>
@@ -6,7 +6,7 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
     Add Mapping
   </button>
-  <div id="mapping-form-error" class="form-error"></div>
+  <div class="form-error"></div>
   {{template "mappings-routing-table" .}}
 
   <template id="fallback-provider-options">
@@ -69,7 +69,7 @@
       </div>
       <div id="model-suggestions"></div>
 
-      <fieldset id="fallback-fieldset" class="fallback-fieldset">
+      <fieldset class="fallback-fieldset">
         <legend>Fallback Chain</legend>
         <div id="fallback-rows"></div>
         <button type="button" class="btn btn--ghost btn--sm" onclick="addFallbackRow()">

@@ -240,8 +240,8 @@ lines, keeping the inner `{{template "layout" .}}` invocation intact.
   `cursor: pointer`, `user-select: none`.
 - `.provider-details__list` — `margin: var(--space-2) 0 0 var(--space-4)`,
   `font-size: 0.8rem`, `color: var(--text-muted)`.
-- `.provider-error` — `font-size: 0.8rem`, `color: var(--badge-error-text)`,
-  `margin-top: var(--space-1)`.
+- `.provider-error` — `font-size: 0.8rem`, `color: var(--color-error)`,
+   `margin-top: var(--space-1)`.
 
 ### Success Criteria:
 
@@ -552,13 +552,13 @@ No data migration needed. All changes are CSS/template/JS-only.
 
 #### Automated
 
-- [ ] 1.1 Dead CSS selectors removed (4 selectors)
-- [ ] 1.2 `body::before` orb removed, grain overlay fixed
-- [ ] 1.3 Dead element IDs removed (4 IDs)
-- [ ] 1.4 Dead template `{{define}}` wrappers removed (5 wrappers)
-- [ ] 1.5 Provider detail classes styled
-- [ ] 1.6 `mage test` passes
-- [ ] 1.7 `mage lint` passes
+- [x] 1.1 Dead CSS selectors removed (4 selectors) — 29491ec
+- [x] 1.2 `body::before` orb removed, grain overlay fixed — 29491ec
+- [x] 1.3 Dead element IDs removed (4 IDs) — 29491ec
+- [x] 1.4 Dead template `{{define}}` wrappers removed (5 wrappers) — 29491ec
+- [x] 1.5 Provider detail classes styled — 29491ec
+- [x] 1.6 `mage test` passes — 29491ec
+- [x] 1.7 `mage lint` passes — 29491ec
 
 #### Manual
 
@@ -570,9 +570,9 @@ No data migration needed. All changes are CSS/template/JS-only.
 
 #### Automated
 
-- [ ] 2.1 Footer CSS rules added (4 selectors)
-- [ ] 2.2 `mage test` passes
-- [ ] 2.3 `mage lint` passes
+- [x] 2.1 Footer CSS rules added (4 selectors) — 4fad3ca
+- [x] 2.2 `mage test` passes — 4fad3ca
+- [x] 2.3 `mage lint` passes — 4fad3ca
 
 #### Manual
 
@@ -584,10 +584,10 @@ No data migration needed. All changes are CSS/template/JS-only.
 
 #### Automated
 
-- [ ] 3.1 `.skeleton` CSS class with shimmer animation added
-- [ ] 3.2 HTMX event wiring added to app.js
-- [ ] 3.3 `mage test` passes
-- [ ] 3.4 `mage lint` passes
+- [x] 3.1 `.skeleton` CSS class with shimmer animation added — 197c752
+- [x] 3.2 HTMX event wiring added to app.js — 197c752
+- [x] 3.3 `mage test` passes — 197c752
+- [x] 3.4 `mage lint` passes — 197c752
 
 #### Manual
 
@@ -600,10 +600,10 @@ No data migration needed. All changes are CSS/template/JS-only.
 
 #### Automated
 
-- [ ] 4.1 Back-to-top CSS added
-- [ ] 4.2 Back-to-top JS scroll listener added
-- [ ] 4.3 `mage test` passes
-- [ ] 4.4 `mage lint` passes
+- [x] 4.1 Back-to-top CSS added — 3296dc8
+- [x] 4.2 Back-to-top JS scroll listener added — 3296dc8
+- [x] 4.3 `mage test` passes — 3296dc8
+- [x] 4.4 `mage lint` passes — 3296dc8
 
 #### Manual
 
@@ -615,9 +615,9 @@ No data migration needed. All changes are CSS/template/JS-only.
 
 #### Automated
 
-- [ ] 5.1 `p { max-width: 65ch }` rule added
-- [ ] 5.2 `mage test` passes
-- [ ] 5.3 `mage lint` passes
+- [x] 5.1 `p { max-width: 65ch }` rule added — 622a59a
+- [x] 5.2 `mage test` passes — 622a59a
+- [x] 5.3 `mage lint` passes — 622a59a
 
 #### Manual
 
@@ -629,10 +629,10 @@ No data migration needed. All changes are CSS/template/JS-only.
 
 #### Automated
 
-- [ ] 6.1 All dead-code grep checks pass
-- [ ] 6.2 All new-code grep checks pass
-- [ ] 6.3 `mage test` passes
-- [ ] 6.4 `mage lint` passes
+- [x] 6.1 All dead-code grep checks pass — 71b5f55
+- [x] 6.2 All new-code grep checks pass — 71b5f55
+- [x] 6.3 `mage test` passes — 71b5f55
+- [x] 6.4 `mage lint` passes — 71b5f55
 
 #### Manual
 

@@ -1,4 +1,4 @@
-{{define "index"}}{{template "layout" .}}{{end}}
+{{template "layout" .}}
 {{define "title"}}Dashboard{{end}}
 {{define "content"}}
   <h1>Dashboard</h1>
@@ -7,7 +7,7 @@
   <div class="health-strip">
     <div class="health-strip__state health-strip__state--{{.Health.State | lower}}">
       <span class="health-strip__icon" aria-hidden="true">
-        {{if eq .Health.State "Healthy"}}✓{{else if eq .Health.State "Degraded"}}⚠{{else}}✕{{end}}
+        {{if eq .Health.State "Healthy"}}✓{{else if eq .Health.State "Degraded"}}⚠{{end}}
       </span>
       <span class="health-strip__label">{{.Health.State}}</span>
     </div>

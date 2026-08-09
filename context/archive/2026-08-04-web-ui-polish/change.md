@@ -2,9 +2,10 @@
 id: web-ui-polish
 roadmap_id: V-02k
 title: Web UI Polish — Remainder & Dead-Code Cleanup
-status: implementing
+status: archived
 created: 2026-08-04
-updated: 2026-08-07
+updated: 2026-08-08
+archived_at: 2026-08-08T19:49:32Z
 ---
 
 Complete the 3 features left over from the superseded web-ui-polish audit

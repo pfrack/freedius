@@ -77,6 +77,7 @@
   --z-hamburger: 150;
   --z-dialog: 200;
   --z-toast: 300;
+  --z-back-to-top: 290;
   --z-grain: 400;
   --z-skip-link: 500;
 
@@ -179,7 +180,7 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Ambient background mesh gradient — subtle glowing orbs */
+/* Ambient background glow orb — subtle vignette */
 body::after {
   content: "";
   position: fixed;
@@ -191,20 +192,6 @@ body::after {
   background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%);
   pointer-events: none;
   z-index: -1;
-}
-
-body::before {
-  content: "";
-  position: fixed;
-  bottom: -15%;
-  left: -10%;
-  width: 40vw;
-  height: 40vw;
-  border-radius: 50%;
-  background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%);
-  pointer-events: none;
-  z-index: -1;
-  opacity: 0.5;
 }
 
 /* ── Sidebar — Glass Treatment ──────────────────────────────────────────── */
@@ -292,6 +279,91 @@ main {
   animation: page-enter 600ms var(--ease-out-expo);
 }
 
+/* ── Footer ────────────────────────────────────────────────────────────────── */
+
+.footer {
+  border-top: 1px solid var(--border-subtle);
+  padding: var(--space-4) var(--space-6);
+  margin-top: var(--space-8);
+  margin-left: var(--sidebar-width);
+}
+
+.footer__content {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.footer__copyright {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.footer__nav {
+  font-size: 0.75rem;
+}
+
+.footer__nav a {
+  color: var(--text-muted);
+  text-decoration: none;
+}
+
+.footer__nav a:hover {
+  color: var(--text-secondary);
+}
+
+/* ── Back-to-Top Button ──────────────────────────────────────────────────── */
+
+.back-to-top {
+  position: fixed;
+  bottom: var(--space-6);
+  right: var(--space-6);
+  z-index: var(--z-back-to-top);
+  width: 2.75rem;
+  height: 2.75rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-default);
+  border-radius: 50%;
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  box-shadow: var(--shadow-md), var(--inner-highlight);
+  cursor: pointer;
+  font-size: 1.1rem;
+  line-height: 1;
+  opacity: 0;
+  transform: translateY(8px);
+  pointer-events: none;
+  visibility: hidden;
+  transition: opacity var(--duration-fast) var(--ease-spring),
+              transform var(--duration-fast) var(--ease-spring),
+              background var(--duration-fast) var(--ease-spring),
+              color var(--duration-fast) var(--ease-spring),
+              visibility var(--duration-fast) var(--ease-spring);
+}
+
+.back-to-top:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.back-to-top--visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+  visibility: visible;
+}
+
+@media (max-width: 480px) {
+  .back-to-top {
+    bottom: var(--space-4);
+    right: var(--space-4);
+  }
+}
+
 /* ── Hamburger (mobile) ─────────────────────────────────────────────────── */
 
 .hamburger {
@@ -353,6 +425,10 @@ main {
     padding: var(--space-8) var(--space-4);
     padding-top: 5rem;
   }
+
+  .footer {
+    margin-left: 0;
+  }
 }
 
 /* ── Typography ─────────────────────────────────────────────────────────── */
@@ -393,6 +469,10 @@ h3 {
   font-size: 1.1rem;
   font-weight: 600;
   letter-spacing: -0.015em;
+}
+
+p {
+  max-width: 65ch;
 }
 
 /* ── Page Sections ───────────────────────────────────────────────────────── */
@@ -1008,18 +1088,6 @@ pre {
   color: var(--text-muted);
 }
 
-.visually-hidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
-}
-
 /* ── Status Badges ──────────────────────────────────────────────────────── */
 
 .badge--status-ok {
@@ -1211,6 +1279,31 @@ pre {
   }
 }
 
+/* ── Skeleton Loaders ─────────────────────────────────────────────────────── */
+
+.skeleton {
+  position: relative;
+  contain: paint;
+}
+
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg,
+    transparent 0%,
+    var(--bg-hover) 50%,
+    transparent 100%
+  );
+  animation: skeleton-shimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes skeleton-shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
 @media (max-width: 768px) {
   .route-chain {
     flex-direction: column;
@@ -1319,11 +1412,6 @@ body::before {
   color: var(--color-error);
 }
 
-.badge--disabled {
-  background: var(--bg-surface);
-  color: var(--text-muted);
-}
-
 .badge--muted {
   background: var(--bg-surface);
   color: var(--text-secondary);
@@ -1377,8 +1465,6 @@ body::before {
 
 .health-strip__state--healthy { color: var(--color-success); }
 .health-strip__state--degraded { color: var(--color-warning); }
-.health-strip__state--down,
-.health-strip__state--unknown { color: var(--color-error); }
 
 .health-strip__item {
   display: flex;
@@ -1587,6 +1673,31 @@ body::before {
 .provider-badge--error .provider-badge__icon { color: var(--color-error); }
 .provider-badge--unknown,
 .provider-badge--unknown .provider-badge__icon { color: var(--text-secondary); }
+
+/* ── Provider Details (disclosure widget in providers table) ──── */
+
+.provider-details {
+  margin-top: var(--space-2);
+}
+
+.provider-details__summary {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+}
+
+.provider-details__list {
+  margin: var(--space-2) 0 0 var(--space-4);
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.provider-error {
+  font-size: 0.8rem;
+  color: var(--color-error);
+  margin-top: var(--space-1);
+}
 
 /* ── Mappings Table (Phase 4 §1) ─────────────────────────────────────────── */
 
@@ -1975,12 +2086,9 @@ body::before {
    respective scales (surface, effect, motion) rather than being orphans — they
    lost their last consumer when the card/bento layer was removed in p3. Keep
    them so the next component derives from the scale instead of inventing a
-   one-off value.
+    one-off value.
 
-   .visually-hidden has no current consumer but is the standard screen-reader
-   escape hatch; it stays as infrastructure, not layout.
-
-   Status-badge contrast in light mode is delivered through the --badge-*
+    Status-badge contrast in light mode is delivered through the --badge-*
    tokens (--badge-warning-bg / --badge-error-bg at 0.14), which the status
    badges actually consume, rather than the legacy --log-warn-bg /
    --log-error-bg (left at 0.08). Error uses 0.14 rather than the plan's

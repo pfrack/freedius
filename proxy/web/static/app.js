@@ -179,6 +179,12 @@ document.addEventListener('click', function(evt) {
 });
 
 document.body.addEventListener('htmx:afterRequest', function(evt) {
+  // Clear any skeleton shimmer on the swap target — this fires on every
+  // terminal outcome (success, error, timeout, abort), so skeletons can
+  // never get stuck regardless of which htmx event ends the request.
+  var sk = skeletonTarget(evt);
+  if (sk) sk.classList.remove('skeleton');
+
   var xhr = evt.detail && evt.detail.xhr;
   if (!xhr) return;
   var successful = evt.detail.successful;
@@ -234,3 +240,53 @@ document.body.addEventListener('htmx:afterRequest', function(evt) {
   // Non-form request (delete, fetch, etc.): global toast.
   showToast(errMsg || ('Request failed (' + status + ')'), 'error');
 });
+
+/* ── Skeleton loader wiring ────────────────────────────────────────────────
+   Adds a .skeleton shimmer class to the HTMX swap target on every
+   configRequest event. Removal is handled centrally in the shared
+   htmx:afterRequest handler (which fires on every terminal outcome), so
+   skeletons can never get stuck on error, timeout, or abort. SSE event
+   streams do not fire configRequest, so the logs page SSE handler is
+   unaffected. ────────────────────────────────────────────────────────── */
+
+function skeletonTarget(evt) {
+  if (evt.detail && evt.detail.target) return evt.detail.target;
+  if (evt.target && evt.target.classList) return evt.target;
+  return null;
+}
+
+document.body.addEventListener('htmx:configRequest', function(evt) {
+  var t = skeletonTarget(evt);
+  if (t) t.classList.add('skeleton');
+});
+
+/* ── Back-to-top button ────────────────────────────────────────────────────
+   Floating button (rendered in layout.html) that appears after scrolling
+   past 300px and scrolls smoothly to the top on click. The scroll handler
+   is throttled with requestAnimationFrame to avoid layout thrash on rapid
+   scroll events. ────────────────────────────────────────────────────────── */
+
+(function () {
+  var btn = document.querySelector('.back-to-top');
+  if (!btn) return;
+
+  var ticking = false;
+  function update() {
+    if (window.scrollY > 300) {
+      btn.classList.add('back-to-top--visible');
+    } else {
+      btn.classList.remove('back-to-top--visible');
+    }
+    ticking = false;
+  }
+  window.addEventListener('scroll', function () {
+    if (!ticking) {
+      ticking = true;
+      window.requestAnimationFrame(update);
+    }
+  });
+  btn.addEventListener('click', function () {
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    window.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' });
+  });
+})();

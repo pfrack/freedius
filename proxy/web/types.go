@@ -25,7 +25,7 @@ type dashboardData struct {
 
 // healthStrip displays the router's high-level operational state.
 type healthStrip struct {
-	State            string // Healthy, Degraded, Down
+	State            string // Healthy, Degraded
 	Uptime           string
 	Endpoint         string
 	LastRequest      string // formatted timestamp or "No traffic"
