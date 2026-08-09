@@ -105,7 +105,7 @@
 - **Location**: cmd/freedius/configure.go:58, internal/envinject/settings.go:49
 - **Detail**: Dry-run unconditionally prints "would back up …" even when there is nothing to back up (the real path at :70-74 distinguishes the no-file case). Backup timestamps use `time.Now().Format(...)` without `.UTC()` — a backward DST shift or clock correction breaks the lexicographic-equals-chronological invariant that `slices.Max` (settings.go:101) depends on.
 - **Fix**: Mirror the no-file conditional in the dry-run message; use `time.Now().UTC().Format(...)`.
-- **Decision**: PENDING
+- **Decision**: FIXED (commit on feat/claude-settings-injection)
 
 ### F8 — Duplicated flag declarations + resolver
 

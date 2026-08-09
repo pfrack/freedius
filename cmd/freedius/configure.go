@@ -65,6 +65,8 @@ func runConfigure(args []string) int {
 	if *flagDryRun {
 		if already {
 			fmt.Printf("%s is already configured for freedius — no backup needed\n", settingsPath)
+		} else if _, statErr := os.Stat(settingsPath); os.IsNotExist(statErr) {
+			fmt.Printf("no existing %s — nothing to back up\n", settingsPath)
 		} else {
 			fmt.Printf("would back up %s to %s.bak.<timestamp>\n", settingsPath, settingsPath)
 		}

@@ -55,7 +55,7 @@ func BackupSettingsJSON(configDir string) (string, error) {
 		perm = fi.Mode().Perm()
 	}
 
-	dst, err := uniquePath(dir, backupPrefix, time.Now().Format(backupTimeForm))
+	dst, err := uniquePath(dir, backupPrefix, time.Now().UTC().Format(backupTimeForm))
 	if err != nil {
 		return "", err
 	}
@@ -181,7 +181,7 @@ func snapshotPreRestore(dir string) error {
 		perm = fi.Mode().Perm()
 	}
 
-	dst, err := uniquePath(dir, prerestorePrefix, time.Now().Format(backupTimeForm))
+	dst, err := uniquePath(dir, prerestorePrefix, time.Now().UTC().Format(backupTimeForm))
 	if err != nil {
 		return err
 	}
