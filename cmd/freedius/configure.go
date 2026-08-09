@@ -17,21 +17,34 @@ import (
 // variable so tests can drive the prompt without a terminal.
 var configureStdin io.Reader = os.Stdin
 
+// configureFlags holds the parsed configure subcommand flags.
+type configureFlags struct {
+	configDir *string
+	restore   *bool
+	dryRun    *bool
+	yes       *bool
+	yesShort  *bool
+}
+
+// newConfigureFlags declares the configure subcommand's flags on fs. Declaring
+// them in exactly one place keeps runConfigure and printConfigureUsage in sync.
+func newConfigureFlags(fs *flag.FlagSet) configureFlags {
+	return configureFlags{
+		configDir: fs.String("config-dir", "", "Claude Code config directory (default $HOME/.claude)"),
+		restore:   fs.Bool("restore", false, "restore the newest settings.json backup"),
+		dryRun:    fs.Bool("dry-run", false, "print what would be written and exit"),
+		yes:       fs.Bool("yes", false, "skip the confirmation prompt"),
+		yesShort:  fs.Bool("y", false, "shorthand for --yes"),
+	}
+}
+
 // runConfigure implements the `freedius configure` subcommand: it backs up
 // Claude Code's settings.json and overwrites it with freedius's env block, or
 // restores the newest backup with --restore.
 func runConfigure(args []string) int {
 	fs := flag.NewFlagSet("freedius configure", flag.ContinueOnError)
-	flagConfigDir := fs.String(
-		"config-dir",
-		"",
-		"Claude Code config directory (default $HOME/.claude)",
-	)
-	flagRestore := fs.Bool("restore", false, "restore the newest settings.json backup")
-	flagDryRun := fs.Bool("dry-run", false, "print what would be written and exit")
-	flagYes := fs.Bool("yes", false, "skip the confirmation prompt")
-	flagYesShorthand := fs.Bool("y", false, "shorthand for --yes")
 	fs.Usage = func() { printConfigureUsage(os.Stderr) }
+	f := newConfigureFlags(fs)
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return 0
@@ -39,7 +52,7 @@ func runConfigure(args []string) int {
 		return 2
 	}
 
-	configDir, err := configureDir(*flagConfigDir)
+	configDir, err := envinject.ResolveConfigDir(*f.configDir)
 	if err != nil {
 		return failf("freedius configure: %v", err)
 	}
@@ -53,7 +66,7 @@ func runConfigure(args []string) int {
 		return failf("freedius configure: %v", err)
 	}
 
-	if *flagRestore {
+	if *f.restore {
 		restored, err := envinject.RestoreSettingsJSON(configDir)
 		if err != nil {
 			return failf("freedius configure: %v", err)
@@ -62,7 +75,7 @@ func runConfigure(args []string) int {
 		return 0
 	}
 
-	if *flagDryRun {
+	if *f.dryRun {
 		if already {
 			fmt.Printf("%s is already configured for freedius — no backup needed\n", settingsPath)
 		} else if _, statErr := os.Stat(settingsPath); os.IsNotExist(statErr) {
@@ -101,7 +114,7 @@ func runConfigure(args []string) int {
 		return failf("freedius configure: %v", err)
 	}
 
-	if !*flagYes && !*flagYesShorthand && !confirm(configureStdin, os.Stdout, settingsPath) {
+	if !*f.yes && !*f.yesShort && !confirm(configureStdin, os.Stdout, settingsPath) {
 		fmt.Println("aborted — settings.json left unchanged")
 		return 0
 	}
@@ -114,19 +127,6 @@ func runConfigure(args []string) int {
 		fmt.Println("undo with: freedius configure --restore")
 	}
 	return 0
-}
-
-// configureDir resolves the Claude Code config directory, defaulting to
-// $HOME/.claude when the flag is empty.
-func configureDir(flagVal string) (string, error) {
-	if flagVal != "" {
-		return flagVal, nil
-	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("cannot determine home directory: %w", err)
-	}
-	return filepath.Join(home, ".claude"), nil
 }
 
 // confirm asks for y/N on r. Anything other than y/yes (case-insensitive),
@@ -160,10 +160,6 @@ Flags:
 	}
 	fs := flag.NewFlagSet("freedius configure", flag.ContinueOnError)
 	fs.SetOutput(w)
-	fs.String("config-dir", "", "Claude Code config directory (default $HOME/.claude)")
-	fs.Bool("restore", false, "restore the newest settings.json backup")
-	fs.Bool("dry-run", false, "print what would be written and exit")
-	fs.Bool("yes", false, "skip the confirmation prompt")
-	fs.Bool("y", false, "shorthand for --yes")
+	newConfigureFlags(fs)
 	fs.PrintDefaults()
 }

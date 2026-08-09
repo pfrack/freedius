@@ -115,7 +115,7 @@
 - **Location**: cmd/freedius/configure.go:98-107, configure.go:125-146
 - **Detail**: `configureDir` re-implements the `$HOME/.claude` default that `envinject.resolveConfigDir` already owns (unexported, so unreachable from `configure`). `printConfigureUsage` builds a *second* FlagSet re-declaring all five flags just for `PrintDefaults()` — a drift hazard (flag defs must be kept in sync by hand).
 - **Fix**: Export `envinject.ResolveConfigDir` and reuse it; have `printConfigureUsage` reuse the primary FlagSet's `PrintDefaults()` instead of re-declaring.
-- **Decision**: PENDING
+- **Decision**: FIXED (commit on feat/claude-settings-injection) — flags now declared once in newConfigureFlags(); configureDir replaced by envinject.ResolveConfigDir.
 
 ## Notes
 

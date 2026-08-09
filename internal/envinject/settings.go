@@ -17,8 +17,8 @@ const (
 	backupTimeForm   = "20060102-150405"
 )
 
-// resolveConfigDir returns configDir, defaulting to $HOME/.claude when empty.
-func resolveConfigDir(configDir string) (string, error) {
+// ResolveConfigDir returns configDir, defaulting to $HOME/.claude when empty.
+func ResolveConfigDir(configDir string) (string, error) {
 	if configDir != "" {
 		return configDir, nil
 	}
@@ -33,7 +33,7 @@ func resolveConfigDir(configDir string) (string, error) {
 // timestamped settings.json.bak.<ts> in the same dir. Returns ("", nil) when
 // there is no source file to back up.
 func BackupSettingsJSON(configDir string) (string, error) {
-	dir, err := resolveConfigDir(configDir)
+	dir, err := ResolveConfigDir(configDir)
 	if err != nil {
 		return "", err
 	}
@@ -101,7 +101,7 @@ func claimPath(path string) (string, bool) {
 // RestoreSettingsJSON restores the newest settings.json.bak.* back to
 // settings.json. Returns an error when no backup exists.
 func RestoreSettingsJSON(configDir string) (string, error) {
-	dir, err := resolveConfigDir(configDir)
+	dir, err := ResolveConfigDir(configDir)
 	if err != nil {
 		return "", err
 	}
@@ -199,7 +199,7 @@ func snapshotPreRestore(dir string) error {
 // freedius's content rather than the user's original — which would make
 // `--restore` return the wrong file.
 func IsFreediusSettings(configDir string, host string, port int) (bool, error) {
-	dir, err := resolveConfigDir(configDir)
+	dir, err := ResolveConfigDir(configDir)
 	if err != nil {
 		return false, err
 	}
@@ -248,7 +248,7 @@ func envBlock(host string, port int) map[string]string {
 // containing only freedius's env block. Any pre-existing keys are discarded —
 // back the file up with BackupSettingsJSON first (see RestoreSettingsJSON).
 func WriteSettingsJSON(configDir string, host string, port int, dryRun bool) error {
-	dir, err := resolveConfigDir(configDir)
+	dir, err := ResolveConfigDir(configDir)
 	if err != nil {
 		return err
 	}
