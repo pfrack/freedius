@@ -59,6 +59,12 @@ func run(args []string) int {
 		return code
 	}
 
+	// Subcommands must be intercepted before the flat flag parse below,
+	// otherwise their flags are read as server flags.
+	if len(args) > 0 && args[0] == "configure" {
+		return runConfigure(args[1:])
+	}
+
 	fs := flag.NewFlagSet("freedius", flag.ContinueOnError)
 	flagConfig := fs.String("config", "", "path to config file (auto-resolved if empty)")
 	flagConfigShorthand := fs.String("c", "", "shorthand for --config")
@@ -291,6 +297,7 @@ func printUsage(w io.Writer) {
 	usage := `freedius — local Claude Code proxy
 
 Usage: freedius [flags]
+       freedius configure [--config-dir DIR] [--restore] [--dry-run] [--yes]
 
 Flags:
 `
