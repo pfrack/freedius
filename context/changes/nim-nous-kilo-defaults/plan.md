@@ -79,6 +79,14 @@ chain.
   `NOUS_API_KEY` (confirmed by user). The Nous fallback model is **`hy3:free`**
   (user-specified, sonnet-equivalent) — use it for the `nous` entry in every
   tier's fallback chain.
+- **Colon ban must be lifted from `model_string` validation.** Vendor free-tier
+  ids carry a colon (`tencent/hy3:free`, `llama3:8b`), but
+  `validateMapping` (`config/config.go:311,351`) and the dashboard's
+  `validateMappingModel` (`proxy/web/forms.go:216`) rejected `\r\n:`. Only CR/LF
+  are unsafe — they break header framing when the value is echoed into
+  `X-Freedius-Matched-Model` (`proxy/proxy.go:279`); a colon is legal in an HTTP
+  field-value. Relax both to `\r\n`. Provider and mapping **names** keep the
+  stricter `\r\n:%` ban because they are interpolated into URL paths.
 - **Ordering matters**: `nous` must come before `kilo` in every fallback chain
   (Kilo is the final last-resort), and NIM models must descend in capability
   within each tier's chain.
@@ -186,12 +194,12 @@ so a single `NVIDIA_NIM_API_KEY` still drives normal traffic.
 mappings:
   opus:
     provider_name: nim
-    model_string: <CONFIRM: current NIM flagship reasoning model>
+    model_string: nvidia/nemotron-3-ultra-550b-a55b
     fallback:
       - provider_name: nim
-        model_string: <CONFIRM: current NIM strong-mid model>
+        model_string: nvidia/llama-3.3-nemotron-super-49b-v1
       - provider_name: nim
-        model_string: <CONFIRM: current NIM fast model>
+        model_string: nvidia/nemotron-3-nano-30b-a3b
       - provider_name: nous
         model_string: hy3:free
       - provider_name: kilo
@@ -199,10 +207,10 @@ mappings:
 
   sonnet:
     provider_name: nim
-    model_string: <CONFIRM: current NIM strong-mid model>
+    model_string: nvidia/llama-3.3-nemotron-super-49b-v1
     fallback:
       - provider_name: nim
-        model_string: <CONFIRM: current NIM fast model>
+        model_string: nvidia/nemotron-3-nano-30b-a3b
       - provider_name: nous
         model_string: hy3:free
       - provider_name: kilo
@@ -210,7 +218,7 @@ mappings:
 
   haiku:
     provider_name: nim
-    model_string: <CONFIRM: current NIM fast model>
+    model_string: nvidia/nemotron-3-nano-30b-a3b
     fallback:
       - provider_name: nous
         model_string: hy3:free
@@ -219,7 +227,7 @@ mappings:
 
   default:
     provider_name: nim
-    model_string: <CONFIRM: current NIM fast model>
+    model_string: nvidia/nemotron-3-nano-30b-a3b
     fallback:
       - provider_name: nous
         model_string: hy3:free
@@ -228,7 +236,7 @@ mappings:
 
   auto:
     provider_name: nim
-    model_string: <CONFIRM: current NIM fast model>
+    model_string: nvidia/nemotron-3-nano-30b-a3b
     fallback:
       - provider_name: nous
         model_string: hy3:free
@@ -241,11 +249,26 @@ live NIM catalog and the confirmed Nous/Kilo specs (see Critical Implementation
 Details). `opus` has the longest chain (flagship → mid → fast → nous → kilo);
 `sonnet`/`haiku`/`default`/`auto` have shorter, sensible chains.
 
+#### 3. Allow colons in `model_string` (addendum, added during impl review)
+
+**File**: `config/config.go`, `proxy/web/forms.go`
+
+**Intent**: The starter's Nous fallback id `tencent/hy3:free` is rejected by the
+`model_string` validators, which ban `\r\n:`. Narrow both bans to `\r\n` — the
+colon is only unsafe in provider/mapping **names** (URL path segments), not in a
+header value. See Critical Implementation Details.
+
+**Contract**: `validateMapping` (`config/config.go:311` primary, `:351` fallback)
+and `validateMappingModel` (`proxy/web/forms.go:216`) use
+`strings.ContainsAny(v, "\r\n")`; error strings updated to "must not contain CR
+or LF". Name validators (`forms.go:151,204`) are unchanged.
+
 ### Success Criteria:
 
 #### Automated Verification:
 
 - `mage test` passes, including `TestStarterTemplate_ValidConfig` (main_test.go:501)
+- Colon-bearing `model_string` accepted, CRLF still rejected (config_test.go, forms_test.go)
 - `go run ./cmd/freedius --help` (or `mage build` + a dry config load) confirms the starter parses
 - `mage lint` passes
 
@@ -348,9 +371,9 @@ the config + generated-code change.
 
 #### Automated
 
-- [ ] 1.1 `go generate ./...` clean; `providers_gen.go` adds `nous` + `kilo`
-- [ ] 1.2 `go build ./...` succeeds
-- [ ] 1.3 `mage lint` passes
+- [x] 1.1 `go generate ./...` clean; `providers_gen.go` adds `nous` + `kilo` — e715c54
+- [x] 1.2 `go build ./...` succeeds — e715c54
+- [x] 1.3 `mage lint` passes — e715c54
 
 #### Manual
 
@@ -360,9 +383,9 @@ the config + generated-code change.
 
 #### Automated
 
-- [ ] 2.1 `mage test` passes (incl. `TestStarterTemplate_ValidConfig`)
-- [ ] 2.2 Starter parses via dry config load
-- [ ] 2.3 `mage lint` passes
+- [x] 2.1 `mage test` passes (incl. `TestStarterTemplate_ValidConfig`)
+- [x] 2.2 Starter parses via dry config load
+- [x] 2.3 `mage lint` passes
 
 #### Manual
 

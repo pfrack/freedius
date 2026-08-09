@@ -99,11 +99,12 @@ freedius reads a YAML config file. Resolution order:
 3. `~/.config/freedius/config.yaml` on Linux; `~/Library/Application Support/freedius/config.yaml` on macOS; `%AppData%\freedius\config.yaml` on Windows
 
 When no config file is found, freedius loads the embedded starter at
-`cmd/freedius/templates/starter.yaml` (the canonical NIM-only default — one
-provider, one key, four model tiers — and the file this README's
-Configuration example is abridged from). For cross-provider fallback, set
-additional keys and add the corresponding `providers:` entries; the
-`fallback:` lists under each mapping support any provider in scope.
+`cmd/freedius/templates/starter.yaml` — NIM-primary for every tier, with a
+per-tier `fallback:` chain that steps down through cheaper NIM models, then
+Nous Research, then Kilo as the last resort. Only `NVIDIA_NIM_API_KEY` is
+required; `NOUS_API_KEY` and `KILO_API_KEY` are optional and only log a
+startup warning when unset. The `fallback:` lists under each mapping support
+any provider in scope.
 
 ### Example config
 
@@ -112,11 +113,11 @@ providers:
   nim: { behavior: openai, default_api_key_env: NVIDIA_NIM_API_KEY }
 
 mappings:
-  default: { provider_name: nim, model_string: deepseek-ai/deepseek-v4-flash }
+  default: { provider_name: nim, model_string: nvidia/nemotron-3-nano-30b-a3b }
   opus:    { provider_name: nim, model_string: nvidia/nemotron-3-ultra-550b-a55b }
-  sonnet:  { provider_name: nim, model_string: deepseek-ai/deepseek-v4-pro }
-  haiku:   { provider_name: nim, model_string: deepseek-ai/deepseek-v4-flash }
-  auto:    { provider_name: nim, model_string: deepseek-ai/deepseek-v4-flash }
+  sonnet:  { provider_name: nim, model_string: nvidia/llama-3.3-nemotron-super-49b-v1 }
+  haiku:   { provider_name: nim, model_string: nvidia/nemotron-3-nano-30b-a3b }
+  auto:    { provider_name: nim, model_string: nvidia/nemotron-3-nano-30b-a3b }
 ```
 
 ### Mapping resolution
@@ -136,9 +137,11 @@ mappings:
     model_string: nvidia/nemotron-3-ultra-550b-a55b
     fallback:
       - provider_name: nim
-        model_string: deepseek-ai/deepseek-v4-pro
-      - provider_name: groq
-        model_string: openai/gpt-oss-120b
+        model_string: nvidia/nemotron-3-super-120b-a12b
+      - provider_name: nous
+        model_string: tencent/hy3:free
+      - provider_name: kilo
+        model_string: kilo-auto/free
 ```
 
 ### Provenance annotation
@@ -172,6 +175,8 @@ that file and running `go generate ./...`.
 | Together | openai | `TOGETHER_API_KEY` |
 | Fireworks | openai | `FIREWORKS_API_KEY` |
 | Cohere | openai | `COHERE_API_KEY` |
+| Nous Research | openai | `NOUS_API_KEY` |
+| Kilo | openai | `KILO_API_KEY` |
 | Ollama (local) | openai | _(no key — local server)_ |
 | LM Studio (local) | openai | _(no key — local server)_ |
 | Anthropic | anthropic | `ANTHROPIC_API_KEY` |

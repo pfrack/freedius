@@ -301,7 +301,7 @@ func TestLoadSpec_RealFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadSpec: %v", err)
 	}
-	if got, want := len(spec.Providers), 16; got != want {
+	if got, want := len(spec.Providers), 18; got != want {
 		t.Errorf("providers count: got %d, want %d", got, want)
 	}
 }

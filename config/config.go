@@ -305,9 +305,12 @@ func validateMapping(path, name string, m Mapping, providers map[string]Provider
 			name,
 		)
 	}
-	if strings.ContainsAny(m.ModelString, "\r\n:") {
+	// Only CR/LF are rejected: they enable header injection when the value is
+	// echoed into X-Freedius-Matched-Model. Colons are legal in header values
+	// and are common in vendor model IDs (e.g. "hy3:free", "llama3:8b").
+	if strings.ContainsAny(m.ModelString, "\r\n") {
 		return fmt.Errorf(
-			"config: config file at %s: mapping %q has unsafe \"model_string\" value (must not contain CR, LF, or colon)",
+			"config: config file at %s: mapping %q has unsafe \"model_string\" value (must not contain CR or LF)",
 			path,
 			name,
 		)
@@ -345,9 +348,9 @@ func validateMapping(path, name string, m Mapping, providers map[string]Provider
 				i,
 			)
 		}
-		if strings.ContainsAny(fb.ModelString, "\r\n:") {
+		if strings.ContainsAny(fb.ModelString, "\r\n") {
 			return fmt.Errorf(
-				"config: config file at %s: mapping %q fallback[%d] has unsafe \"model_string\" value (must not contain CR, LF, or colon)",
+				"config: config file at %s: mapping %q fallback[%d] has unsafe \"model_string\" value (must not contain CR or LF)",
 				path,
 				name,
 				i,

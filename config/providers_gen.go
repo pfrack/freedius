@@ -97,8 +97,8 @@ var providerDefaults = map[string]Provider{
 	},
 	"nous": {
 		Behavior:            "openai",
-		DefaultBaseURL:      "https://api.nousresearch.com/v1/chat/completions", // #nosec G101 -- URL, not a credential
-		DefaultAPIKeyEnv:    "NOUS_API_KEY",                                     // #nosec G101 -- env var name, not a credential
+		DefaultBaseURL:      "https://inference-api.nousresearch.com/v1/chat/completions", // #nosec G101 -- URL, not a credential
+		DefaultAPIKeyEnv:    "NOUS_API_KEY",                                               // #nosec G101 -- env var name, not a credential
 		RequireBaseURL:      false,
 		SupportsCountTokens: false,
 	},

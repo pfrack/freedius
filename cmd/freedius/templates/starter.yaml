@@ -1,6 +1,7 @@
 # freedius starter config — works out of the box with one free NVIDIA NIM key
 #
-# The default starter uses NIM exclusively. Set one env var and start:
+# The default starter uses NIM as the primary provider for every tier. Set one
+# env var and start:
 #   export NVIDIA_NIM_API_KEY=nvapi-...   # build.nvidia.com → Generate API Key
 #   freedius
 #
@@ -8,20 +9,21 @@
 # plenty for solo-dev traffic. Sign up at https://build.nvidia.com if
 # you don't have a key yet.
 #
-# Want cross-provider fallback? Set more env vars (GROQ_API_KEY,
-# GEMINI_API_KEY, MISTRAL_API_KEY) and add the corresponding providers to
-# the `providers:` block below. The starter stays NIM-only so the
-# three-step Quickstart works with one key; multi-provider setups are an
-# opt-in extension.
+# Resilience via fallback: each tier lists an ordered `fallback:` chain. Within
+# a tier, NIM failures first fall back to other current NIM models (descending
+# capability), then to Nous Research (NOUS_API_KEY), and finally to Kilo
+# (KILO_API_KEY) as the last resort. Only NVIDIA_NIM_API_KEY is required for
+# normal operation; missing Nous/Kilo keys only log a startup warning and are
+# only hit if NIM itself fails.
 #
-# Note: missing API keys now log a startup warning (checkRequiredEnvVars in
+# Note: missing API keys now log a startup warning (warnMissingEnvVars in
 # cmd/freedius/main.go) instead of failing startup. A request to a provider
 # with a missing key fails at request time with authentication_error.
-# Because this starter only references NIM, only NVIDIA_NIM_API_KEY is needed
-# for NIM calls.
 
 providers:
   nim: { behavior: openai, default_api_key_env: NVIDIA_NIM_API_KEY }
+  nous: { behavior: openai, default_api_key_env: NOUS_API_KEY }
+  kilo: { behavior: openai, default_api_key_env: KILO_API_KEY }
 
 mappings:
   # ─── Flagship reasoning ("opus" tier) ───────────────────────────────
@@ -30,23 +32,63 @@ mappings:
     model_string: nvidia/nemotron-3-ultra-550b-a55b
     fallback:
       - provider_name: nim
-        model_string: deepseek-ai/deepseek-v4-pro
+        model_string: nvidia/nemotron-3-super-120b-a12b
+      - provider_name: nim
+        model_string: nvidia/llama-3.3-nemotron-super-49b-v1
+      - provider_name: nous
+        model_string: tencent/hy3:free
+      - provider_name: kilo
+        model_string: kilo-auto/free
 
   # ─── Strong mid-tier ("sonnet" tier) ────────────────────────────────
   sonnet:
     provider_name: nim
-    model_string: deepseek-ai/deepseek-v4-pro
+    model_string: nvidia/llama-3.3-nemotron-super-49b-v1
+    fallback:
+      - provider_name: nim
+        model_string: nvidia/nemotron-3-nano-30b-a3b
+      - provider_name: nous
+        model_string: tencent/hy3:free
+      - provider_name: kilo
+        model_string: kilo-auto/free
 
   # ─── Fast & cheap ("haiku" tier) ────────────────────────────────────
   haiku:
     provider_name: nim
-    model_string: deepseek-ai/deepseek-v4-flash
+    model_string: nvidia/nemotron-3-nano-30b-a3b
+    fallback:
+      - provider_name: nim
+        model_string: meta/llama-3.1-8b-instruct
+      - provider_name: nous
+        model_string: tencent/hy3:free
+      - provider_name: kilo
+        model_string: kilo-auto/free
 
   # ─── Default / auto routing ─────────────────────────────────────────
+  # `default` is the catch-all for model names matching no other keyword.
+  # `auto` looks redundant but is NOT: ExtractFamily (proxy/families.go) returns
+  # the FIRST matching family and resolveMapping (proxy/proxy.go:139) does a
+  # single lookup with no fallthrough — so an "auto"-named request resolves to
+  # family "auto" and 404s if that mapping is absent. It never reaches
+  # `default`. Keep both entries even when they point at the same model.
   default:
     provider_name: nim
-    model_string: deepseek-ai/deepseek-v4-flash
+    model_string: nvidia/nemotron-3-nano-30b-a3b
+    fallback:
+      - provider_name: nim
+        model_string: meta/llama-3.1-8b-instruct
+      - provider_name: nous
+        model_string: tencent/hy3:free
+      - provider_name: kilo
+        model_string: kilo-auto/free
 
   auto:
     provider_name: nim
-    model_string: deepseek-ai/deepseek-v4-flash
+    model_string: nvidia/nemotron-3-nano-30b-a3b
+    fallback:
+      - provider_name: nim
+        model_string: meta/llama-3.1-8b-instruct
+      - provider_name: nous
+        model_string: tencent/hy3:free
+      - provider_name: kilo
+        model_string: kilo-auto/free
