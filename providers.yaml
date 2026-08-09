@@ -115,3 +115,19 @@ providers:
     require_base_url: false
     openai:
       no_stream_usage: true
+
+  nous:
+    behavior: openai
+    default_base_url: https://api.nousresearch.com/v1/chat/completions
+    default_api_key_env: NOUS_API_KEY
+    require_base_url: false
+    openai:
+      no_stream_usage: true
+
+  kilo:
+    behavior: openai
+    default_base_url: https://api.kilo.ai/api/gateway/chat/completions
+    default_api_key_env: KILO_API_KEY
+    require_base_url: false
+    openai:
+      no_stream_usage: true

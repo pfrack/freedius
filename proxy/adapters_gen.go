@@ -35,6 +35,30 @@ func (a *GoogleAdapter) Handle(
 	return a.inner.Handle(w, r, provider, mapping, body)
 }
 
+// KiloAdapter wraps OpenAICompatibleAdapter with provider-specific
+// options (no_stream_usage and pre_send_hook).
+type KiloAdapter struct {
+	inner *OpenAICompatibleAdapter
+}
+
+// NewKiloAdapter returns a "kilo" provider adapter.
+func NewKiloAdapter(logger *slog.Logger, streamTimeout time.Duration) *KiloAdapter {
+	inner := NewOpenAICompatibleAdapterWithTimeout(logger, streamTimeout)
+	inner.translateOpts = translate.Opts{NoStreamUsage: true}
+	return &KiloAdapter{inner: inner}
+}
+
+// Handle delegates to the embedded OpenAICompatibleAdapter.
+func (a *KiloAdapter) Handle(
+	w http.ResponseWriter,
+	r *http.Request,
+	provider config.Provider,
+	mapping config.Mapping,
+	body []byte,
+) error {
+	return a.inner.Handle(w, r, provider, mapping, body)
+}
+
 // LmstudioAdapter wraps OpenAICompatibleAdapter with provider-specific
 // options (no_stream_usage and pre_send_hook).
 type LmstudioAdapter struct {
@@ -75,6 +99,30 @@ func NewNIMAdapter(logger *slog.Logger, streamTimeout time.Duration) *NIMAdapter
 
 // Handle delegates to the embedded OpenAICompatibleAdapter.
 func (a *NIMAdapter) Handle(
+	w http.ResponseWriter,
+	r *http.Request,
+	provider config.Provider,
+	mapping config.Mapping,
+	body []byte,
+) error {
+	return a.inner.Handle(w, r, provider, mapping, body)
+}
+
+// NousAdapter wraps OpenAICompatibleAdapter with provider-specific
+// options (no_stream_usage and pre_send_hook).
+type NousAdapter struct {
+	inner *OpenAICompatibleAdapter
+}
+
+// NewNousAdapter returns a "nous" provider adapter.
+func NewNousAdapter(logger *slog.Logger, streamTimeout time.Duration) *NousAdapter {
+	inner := NewOpenAICompatibleAdapterWithTimeout(logger, streamTimeout)
+	inner.translateOpts = translate.Opts{NoStreamUsage: true}
+	return &NousAdapter{inner: inner}
+}
+
+// Handle delegates to the embedded OpenAICompatibleAdapter.
+func (a *NousAdapter) Handle(
 	w http.ResponseWriter,
 	r *http.Request,
 	provider config.Provider,

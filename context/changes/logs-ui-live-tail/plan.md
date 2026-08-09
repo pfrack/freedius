@@ -285,8 +285,8 @@ None. Purely additive asset + template change; no config or data migration.
 
 #### Automated
 
-- [x] 2.1 `mage lint` + `mage test` pass
-- [x] 2.2 `mage build` succeeds with updated templates
+- [x] 2.1 `mage lint` + `mage test` pass — e1e9ca3
+- [x] 2.2 `mage build` succeeds with updated templates — e1e9ca3
 
 #### Manual
 
@@ -297,11 +297,11 @@ None. Purely additive asset + template change; no config or data migration.
 
 #### Automated
 
-- [ ] 3.1 Add `e2e/tests/logs-tail.spec.ts` asserting streamed lines in `#log`
-- [ ] 3.2 `mage lint` passes
-- [ ] 3.3 `mage test` passes
-- [ ] 3.4 `mage govulncheck` clean
-- [ ] 3.5 `logs-tail` e2e spec passes
+- [x] 3.1 Add `e2e/tests/logs-tail.spec.ts` asserting streamed lines in `#log`
+- [x] 3.2 `mage lint` passes
+- [x] 3.3 `mage test` passes
+- [x] 3.4 `mage govulncheck` clean
+- [x] 3.5 `logs-tail` e2e spec passes
 
 #### Manual
 

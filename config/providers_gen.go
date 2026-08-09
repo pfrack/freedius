@@ -63,6 +63,13 @@ var providerDefaults = map[string]Provider{
 		RequireBaseURL:      false,
 		SupportsCountTokens: false,
 	},
+	"kilo": {
+		Behavior:            "openai",
+		DefaultBaseURL:      "https://api.kilo.ai/api/gateway/chat/completions", // #nosec G101 -- URL, not a credential
+		DefaultAPIKeyEnv:    "KILO_API_KEY",                                     // #nosec G101 -- env var name, not a credential
+		RequireBaseURL:      false,
+		SupportsCountTokens: false,
+	},
 	"lmstudio": {
 		Behavior:            "openai",
 		DefaultBaseURL:      "http://localhost:1234/v1/chat/completions", // #nosec G101 -- URL, not a credential
@@ -85,6 +92,13 @@ var providerDefaults = map[string]Provider{
 		Behavior:            "openai",
 		DefaultBaseURL:      "https://integrate.api.nvidia.com/v1/chat/completions", // #nosec G101 -- URL, not a credential
 		DefaultAPIKeyEnv:    "NVIDIA_NIM_API_KEY",                                   // #nosec G101 -- env var name, not a credential
+		RequireBaseURL:      false,
+		SupportsCountTokens: false,
+	},
+	"nous": {
+		Behavior:            "openai",
+		DefaultBaseURL:      "https://api.nousresearch.com/v1/chat/completions", // #nosec G101 -- URL, not a credential
+		DefaultAPIKeyEnv:    "NOUS_API_KEY",                                     // #nosec G101 -- env var name, not a credential
 		RequireBaseURL:      false,
 		SupportsCountTokens: false,
 	},
