@@ -3,6 +3,7 @@
 package envinject
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -49,7 +50,7 @@ func TestWriteSettingsJSON_CreatesNew(t *testing.T) {
 	}
 }
 
-func TestWriteSettingsJSON_MergePreservesKeys(t *testing.T) {
+func TestWriteSettingsJSON_OverwriteDiscardsOtherKeys(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "settings.json")
 	existing := `{"project":"my-app","other":{"nested":true}}` + "\n"
@@ -60,15 +61,30 @@ func TestWriteSettingsJSON_MergePreservesKeys(t *testing.T) {
 	if err != nil {
 		t.Fatalf("WriteSettingsJSON: %v", err)
 	}
+
 	data, _ := os.ReadFile(path)
-	if !strings.Contains(string(data), `"project": "my-app"`) {
-		t.Errorf("existing key 'project' should be preserved")
+	var got map[string]any
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("settings.json is not valid JSON: %v", err)
 	}
-	if !strings.Contains(string(data), `"other"`) {
-		t.Errorf("existing key 'other' should be preserved")
+	if len(got) != 1 {
+		t.Errorf("settings.json should contain only the env key, got %d keys: %v", len(got), got)
 	}
-	if !strings.Contains(string(data), "0.0.0.0:9090") {
-		t.Errorf("settings.json should contain the provided host:port")
+	if _, ok := got["project"]; ok {
+		t.Errorf("pre-existing key 'project' should be discarded by the overwrite")
+	}
+	if _, ok := got["other"]; ok {
+		t.Errorf("pre-existing key 'other' should be discarded by the overwrite")
+	}
+	env, ok := got["env"].(map[string]any)
+	if !ok {
+		t.Fatalf("env block missing or not an object: %v", got["env"])
+	}
+	if env["ANTHROPIC_BASE_URL"] != "http://0.0.0.0:9090" {
+		t.Errorf("ANTHROPIC_BASE_URL = %v, want http://0.0.0.0:9090", env["ANTHROPIC_BASE_URL"])
+	}
+	if env["ANTHROPIC_API_KEY"] != "freedius-dummy" {
+		t.Errorf("ANTHROPIC_API_KEY = %v, want freedius-dummy", env["ANTHROPIC_API_KEY"])
 	}
 }
 
@@ -84,11 +100,10 @@ func TestWriteSettingsJSON_DryRunNoWrite(t *testing.T) {
 	}
 }
 
-func TestWriteSettingsJSON_MalformedEnvReplaced(t *testing.T) {
+func TestWriteSettingsJSON_MalformedFileReplaced(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "settings.json")
-	existing := `{"env": "not_a_map", "other": true}` + "\n"
-	if err := os.WriteFile(path, []byte(existing), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte("not json at all"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	err := WriteSettingsJSON(dir, "127.0.0.1", 8080, false)
@@ -96,14 +111,12 @@ func TestWriteSettingsJSON_MalformedEnvReplaced(t *testing.T) {
 		t.Fatalf("WriteSettingsJSON: %v", err)
 	}
 	data, _ := os.ReadFile(path)
-	if !strings.Contains(string(data), `"other": true`) {
-		t.Errorf("existing key 'other' should survive malformed env replacement")
+	var got map[string]any
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("a malformed file should be replaced by valid JSON: %v", err)
 	}
-	if !strings.Contains(string(data), `"env"`) {
-		t.Errorf("env key should still exist")
-	}
-	if strings.Contains(string(data), `"not_a_map"`) {
-		t.Errorf("malformed env value should be replaced, not kept")
+	if _, ok := got["env"]; !ok {
+		t.Errorf("env key should exist after replacing a malformed file")
 	}
 }
 
