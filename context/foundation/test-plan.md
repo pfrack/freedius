@@ -87,7 +87,7 @@ of assuming access.
 | lint | `staticcheck` + `golangci-lint` | v0.7.0 / v2.12.2 | Enforced in CI via `mage lint` (vet → staticcheck → golangci-lint) |
 | formatters | `goimports` + `golines` + `gci` | v0.47.0 / v0.12.2 / v0.13.5 | Enforced in CI via `mage ci` format check step |
 | vulnerability scan | `govulncheck` | v1.3.0 | `mage govulncheck` |
-| e2e (browser) | Playwright | ^1.49.0 | `e2e/` suite (`tests/*.spec.ts`); run via `mage e2e` or `cd e2e && npm test`. `playwright.config.ts` auto-starts the server on :8083 (`go run ./cmd/freedius --config e2e/fixtures/test-config.yaml`); dedicated `e2e` job runs it in CI. Covers Web UI smoke (dark/light, mobile/desktop) + design-system regression guards (status badges, htmx indicator, drawer, a11y focus ring). |
+| e2e (browser) | Playwright | ^1.49.0 | `e2e/` suite (`tests/*.spec.ts`); install deps with `mage e2eSetup`, run with `mage e2e` (or `cd e2e && npm test`). `playwright.config.ts` auto-starts the server on :8083 (`go run ./cmd/freedius --config e2e/fixtures/test-config.yaml`); dedicated `e2e` job runs it in CI. Covers Web UI smoke (dark/light, mobile/desktop) + design-system regression guards (status badges, htmx indicator, drawer, a11y focus ring). |
 | (optional) AI-native | none | — | Not needed — deterministic integration + e2e tests cover all identified risks |
 
 If a row reads "none yet — see Phase <N>", that gap is addressed by the
@@ -186,7 +186,8 @@ the relevant rollout phase ships; before that, the sub-section reads
 - **Base URL**: use `page.goto('/mappings')` etc. — `baseURL` is `http://localhost:8083`.
 - **Fixtures/config**: the running server uses `e2e/fixtures/test-config.yaml` (a `test-chat` mapping to `test-primary` with `TEST_PRIMARY_API_KEY` unset, which exercises the "No API key" status path). Add fixtures there if a test needs a different mapping shape.
 - **What to assert**: prefer real user-facing signals (badge text, tooltip `title`, visible/hidden state, computed `text-transform`) over pixel values. e.g. assert the status filter `<option>` and the unset-key badge both read the expected label, and the badge carries `title="No API key set in the environment"`.
-- **Run locally**: `mage e2e` (or `cd e2e && npm ci && npx playwright test`); `npm test:headed` for headed mode. Requires Node + `npx playwright install chromium` once.
+- **Install deps**: `mage e2eSetup` (runs `npm ci` + `npx playwright install --with-deps chromium` under `e2e/`). Requires Node.
+- **Run locally**: `mage e2e` (or `cd e2e && npm test`); `npm test:headed` for headed mode. `mage e2eSetup` must have run once first.
 - **Run in CI**: the `e2e` GitHub Actions job (`actions/setup-node` + `npm ci` + `npx playwright install --with-deps chromium` + `npx playwright test`).
 - **Reference tests**: `e2e/tests/design-system.spec.ts` (status-badge square-flag stripes, htmx indicator, drawer/drawer labels, a11y focus ring, 404 code), `e2e/tests/drawer.spec.ts`, `e2e/tests/test-connection.spec.ts`.
 

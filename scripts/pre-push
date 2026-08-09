@@ -37,6 +37,14 @@ PACKAGES=$(echo "$CHANGED" | xargs -I{} dirname {} | sort -u | grep -v '^magefil
 echo "Testing changed packages:"
 echo "$PACKAGES" | sed 's|/\.\.\.||' | sed 's|^\./||' | sed 's/^/  /'
 
+# Every changed Go file may live in an excluded dir (e.g. magefiles), leaving
+# PACKAGES empty. Guard against it: `go test` with no package argument would
+# default to the module root and fail spuriously.
+if [ -z "$PACKAGES" ]; then
+  echo "No testable Go packages changed, skipping tests."
+  exit 0
+fi
+
 # Run tests with race detection on changed packages only
 if ! go test -race $PACKAGES; then
   echo ""
