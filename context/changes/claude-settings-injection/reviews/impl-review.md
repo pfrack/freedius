@@ -95,7 +95,7 @@
 - **Location**: internal/envinject/settings.go:155
 - **Detail**: `path + ".tmp"` is constant, so concurrent runs interleave, and a failed rename at :160 leaves an orphan `settings.json.tmp` in `~/.claude/`.
 - **Fix**: Use `os.CreateTemp(dir, "settings.json.*.tmp")` + cleanup on error. (The atomic write-then-rename here is a genuine improvement over `shellrc.go:119` — consider propagating that direction.)
-- **Decision**: PENDING
+- **Decision**: FIXED (commit on feat/claude-settings-injection)
 
 ### F7 — Dry-run misleading + local-time timestamps
 

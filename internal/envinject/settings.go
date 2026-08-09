@@ -271,13 +271,31 @@ func WriteSettingsJSON(configDir string, host string, port int, dryRun bool) err
 		return fmt.Errorf("envinject: create directory %s: %w", dir, err)
 	}
 
-	tmpPath := path + ".tmp"
+	// Stage through a unique temp file so concurrent runs cannot clobber each
+	// other, and clean it up on any failure (a failed rename would otherwise
+	// leave an orphan settings.json.*.tmp behind).
+	tmp, err := os.CreateTemp(dir, "settings.json.*.tmp")
+	if err != nil {
+		return fmt.Errorf("envinject: create temp file: %w", err)
+	}
+	tmpPath := tmp.Name()
+	cleanup := true
+	defer func() {
+		if cleanup {
+			_ = os.Remove(tmpPath)
+		}
+	}()
 	// #nosec G306,G703 -- operator-supplied config dir; settings.json must stay tool-readable
-	if err := os.WriteFile(tmpPath, output, 0o644); err != nil {
+	if _, err := tmp.Write(output); err != nil {
+		_ = tmp.Close()
 		return fmt.Errorf("envinject: write %s: %w", tmpPath, err)
+	}
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("envinject: close %s: %w", tmpPath, err)
 	}
 	if err := os.Rename(tmpPath, path); err != nil {
 		return fmt.Errorf("envinject: rename %s -> %s: %w", tmpPath, path, err)
 	}
+	cleanup = false
 	return nil
 }
