@@ -15,7 +15,7 @@
             aria-label="Filter by status">
       <option value="">All status</option>
       <option value="active" {{if eq .StatusFilter "active"}}selected{{end}}>Active</option>
-      <option value="inactive" {{if eq .StatusFilter "inactive"}}selected{{end}}>Inactive</option>
+      <option value="inactive" {{if eq .StatusFilter "inactive"}}selected{{end}}>No API key</option>
     </select>
     <label class="mappings-filters__has-fallback">
       <input type="checkbox" name="has_fallback" value="true" {{if eq .HasFallbackFilter "true"}}checked{{end}}>
@@ -69,7 +69,7 @@
         </td>
         <td>
           {{if .EnvPresent}}<span class="badge badge--status-ok">Active</span>
-          {{else}}<span class="badge badge--status-warn">Key Missing</span>{{end}}
+          {{else}}<span class="badge badge--status-warn" title="No API key set in the environment">No API key</span>{{end}}
         </td>
         <td class="mappings-table__actions">
           <button

@@ -2071,7 +2071,7 @@ body::before {
        distinct from the cell text below at 0.7rem without adding weight.
      .badge, .badge--status-*
        Status flags are read as symbols at a glance. Caps holds the shape
-       constant regardless of label length ("OK" vs "Key Missing").
+        constant regardless of label length ("Active" vs "No API key").
    Everywhere else — drawer labels, health-strip keys, stats terms, route-step
    labels — caps was decoration and has been dropped for sentence case (p2).
 
