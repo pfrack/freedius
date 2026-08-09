@@ -349,21 +349,21 @@ running `configure`.
 
 #### Automated
 
-- [x] 2.1 `WriteSettingsJSON` writes only the `env` block (no other keys)
-- [x] 2.2 `dryRun` prints JSON and writes no file
-- [x] 2.3 Merge/malformed tests removed; overwrite-discards-keys test added; `go test ./internal/envinject` passes
+- [x] 2.1 `WriteSettingsJSON` writes only the `env` block (no other keys) — fbd432a
+- [x] 2.2 `dryRun` prints JSON and writes no file — fbd432a
+- [x] 2.3 Merge/malformed tests removed; overwrite-discards-keys test added; `go test ./internal/envinject` passes — fbd432a
 
 ### Phase 3: `freedius configure` subcommand
 
 #### Automated
 
-- [ ] 3.1 `configure` dispatch intercepted before flat flag parse; `printUsage` mentions it
-- [ ] 3.2 `--dry-run --config-dir <tmp>` writes nothing, exits 0, valid JSON
-- [ ] 3.3 first run writes `settings.json`, no backup when absent
-- [ ] 3.4 second run creates a new timestamped `.bak` and overwrites
-- [ ] 3.5 `--restore` restores newest backup
-- [ ] 3.6 `--yes` skips stdin prompt
-- [ ] 3.7 `go build ./...`, `go vet ./...`, `mage lint` pass
+- [x] 3.1 `configure` dispatch intercepted before flat flag parse; `printUsage` mentions it
+- [x] 3.2 `--dry-run --config-dir <tmp>` writes nothing, exits 0, valid JSON
+- [x] 3.3 first run writes `settings.json`, no backup when absent
+- [x] 3.4 second run creates a new timestamped `.bak` and overwrites
+- [x] 3.5 `--restore` restores newest backup
+- [x] 3.6 `--yes` skips stdin prompt
+- [x] 3.7 `go build ./...`, `go vet ./...`, `mage lint` pass
 
 #### Manual
 
