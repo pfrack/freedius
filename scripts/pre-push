@@ -31,8 +31,10 @@ if [ -z "$CHANGED" ]; then
   exit 0
 fi
 
-# Extract unique package directories, excluding non-standard dirs (e.g. magefiles)
-PACKAGES=$(echo "$CHANGED" | xargs -I{} dirname {} | sort -u | grep -v '^magefiles$' | sed 's|^|./|' | sed 's|$|/...|')
+# Extract unique package directories, excluding non-standard dirs (e.g. magefiles).
+# The trailing `|| true` keeps the pipeline green when grep -v filters out every
+# line (i.e. all changed Go files live in excluded dirs) under `set -o pipefail`.
+PACKAGES=$(echo "$CHANGED" | xargs -I{} dirname {} | sort -u | grep -v '^magefiles$' | sed 's|^|./|' | sed 's|$|/...|' || true)
 
 echo "Testing changed packages:"
 echo "$PACKAGES" | sed 's|/\.\.\.||' | sed 's|^\./||' | sed 's/^/  /'
