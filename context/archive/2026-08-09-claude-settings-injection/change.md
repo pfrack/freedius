@@ -1,7 +1,8 @@
 ---
 id: claude-settings-injection
 title: Safe Claude Code settings injection (backup + freedius env)
-status: impl_reviewed
+status: archived
+archived_at: 2026-08-09T20:06:54Z
 created: 2026-08-09
 updated: 2026-08-09
 phase: 4
