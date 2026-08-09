@@ -383,9 +383,9 @@ the config + generated-code change.
 
 #### Automated
 
-- [x] 2.1 `mage test` passes (incl. `TestStarterTemplate_ValidConfig`)
-- [x] 2.2 Starter parses via dry config load
-- [x] 2.3 `mage lint` passes
+- [x] 2.1 `mage test` passes (incl. `TestStarterTemplate_ValidConfig`) — ae6318f
+- [x] 2.2 Starter parses via dry config load — ae6318f
+- [x] 2.3 `mage lint` passes — ae6318f
 
 #### Manual
 
@@ -397,10 +397,10 @@ the config + generated-code change.
 
 #### Automated
 
-- [ ] 3.1 `mage ci` passes
-- [ ] 3.2 `go generate ./...` is a no-op after regen
+- [x] 3.1 `mage ci` passes — ae6318f (test 716 pass, lint 0 issues, govulncheck clean)
+- [x] 3.2 `go generate ./...` is a no-op after regen — ae6318f (md5 stable across reruns)
 
 #### Manual
 
-- [ ] 3.3 README Quickstart still accurate
+- [x] 3.3 README Quickstart still accurate — ae6318f (provider table + example configs refreshed)
 - [ ] 3.4 Fresh boot shows only benign missing-key warnings

@@ -2,21 +2,35 @@
 # Implementation Review: Modernize Default Config: NIM Tiers + Nous + Kilo
 
 - **Plan**: context/changes/nim-nous-kilo-defaults/plan.md
-- **Scope**: Phases 1–2 of 3 (Phase 3 pending)
+- **Scope**: Phases 1–3 of 3
 - **Date**: 2026-08-09
-- **Verdict**: REJECTED
-- **Findings**: 2 critical, 4 warnings, 2 observations
+- **Verdict**: REJECTED → **APPROVED after triage** (all 8 findings fixed, 2026-08-09)
+- **Findings**: 2 critical, 4 warnings, 2 observations — all FIXED
 
 ## Verdicts
 
-| Dimension | Verdict |
-|-----------|---------|
-| Plan Adherence | FAIL |
-| Scope Discipline | WARNING |
-| Safety & Quality | WARNING |
-| Architecture | PASS |
-| Pattern Consistency | WARNING |
-| Success Criteria | PASS |
+| Dimension | Verdict (at review) | Post-triage |
+|-----------|---------------------|-------------|
+| Plan Adherence | FAIL | PASS |
+| Scope Discipline | WARNING | PASS |
+| Safety & Quality | WARNING | PASS |
+| Architecture | PASS | PASS |
+| Pattern Consistency | WARNING | PASS |
+| Success Criteria | PASS | PASS |
+
+## Post-triage state
+
+All fixes landed in commit `ae6318f` (Phase 2 + review fixes). Gates verified
+after the last edit: `go build ./...` clean, `go test ./...` 716 passed,
+`mage lint` 0 issues, `mage govulncheck` no vulnerabilities, `go generate ./...`
+md5-stable across reruns. Plan Progress rows 2.1–2.3 and 3.1–3.3 are checked
+with the SHA; only the human-in-the-loop manual rows (1.4, 2.4–2.6, 3.4) remain.
+
+**Follow-up worth filing (out of scope here)**: `NewDefaultRegistry` keys the
+adapter registry by *behavior*, so the generated per-provider wrappers
+`GoogleAdapter`, `OllamaAdapter`, `LmstudioAdapter` are dead code — their
+`no_stream_usage` never reaches the request path. Either wire the registry by
+provider name or stop generating the wrappers.
 
 ## Findings
 
@@ -113,7 +127,7 @@
 - **Location**: context/changes/nim-nous-kilo-defaults/plan.md:363-365
 - **Detail**: Progress rows 2.1–2.3 are `[x]` with no commit ref, while rows 1.1–1.3 carry `e715c54`. All Phase 2 work (starter.yaml, config.go, forms.go, the new ordering test) is still in the working tree alongside unrelated changes from `logs-ui-live-tail`. The gates themselves do verify green in this tree: `go build ./...` clean, `go test ./...` 716 passed, `mage lint` 0 issues, `mage govulncheck` no vulnerabilities, and `go generate ./...` is a no-op — so Phase 3's automated criteria (3.1, 3.2) already hold. The risk is bookkeeping, not correctness: a shared dirty tree makes per-phase attribution impossible.
 - **Fix**: Commit Phase 2 separately and backfill the commit SHA onto rows 2.1–2.3.
-- **Decision**: PENDING
+- **Decision**: FIXED — committed as `ae6318f`; Progress rows 2.1–2.3 carry the SHA, and 3.1/3.2/3.3 are now checked (mage ci green, `go generate` md5-stable across reruns, README refreshed). The pre-commit hook forced an unrelated `internal/envinject/snippet.go` doc-comment edit into the same commit (user-approved) because it runs `git diff --exit-code -- *.go` over the whole tree.
 
 ### F8 — Stray file with an embedded newline in the repo root
 
@@ -123,4 +137,4 @@
 - **Location**: repo root — untracked file literally named `fail\nsafety is kept: the snapshot only happens once a real .bak is found.\n\nResolves impl-review F3 (warning).`
 - **Detail**: A 147-byte junk file created by a mis-quoted `git commit -m` during the earlier `claude-settings-injection` work. Not produced by this change, but it sits untracked in the working tree and will trip up glob-based tooling. `.gitignore` does not cover it.
 - **Fix**: Delete it (`rm -- "$(printf 'fail\\nsafety...')"` or via a `find -inum` delete).
-- **Decision**: PENDING
+- **Decision**: FIXED — removed; `git status` no longer lists it.
