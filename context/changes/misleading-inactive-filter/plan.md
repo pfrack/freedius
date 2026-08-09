@@ -163,9 +163,9 @@ is preserved, so bookmarked `?status=inactive` URLs keep working.
 
 #### Automated
 
-- [ ] 1.1 Lint passes (`mage lint`)
-- [ ] 1.2 Build compiles (`mage build`)
-- [ ] 1.3 Existing tests pass (`mage test`)
+- [x] 1.1 Lint passes (`mage lint`) — f5b5f1c
+- [x] 1.2 Build compiles (`mage build`) — f5b5f1c
+- [x] 1.3 Existing tests pass (`mage test`) — f5b5f1c
 
 #### Manual
 
