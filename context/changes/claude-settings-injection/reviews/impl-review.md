@@ -85,7 +85,7 @@
 - **Location**: internal/envinject/settings.go:60-72
 - **Detail**: stat-then-write between `uniqueBackupPath` and `os.WriteFile`. Concurrent runs in the same second can pick the same path, losing a backup. The `i < 100` loop falls through to `return base` (settings.go:71), silently clobbering an existing backup. Unlikely for an interactive CLI but the fallback should error instead.
 - **Fix**: Use `os.OpenFile(dst, os.O_CREATE|os.O_EXCL|os.O_WRONLY, perm)`; loop until success or return a real error. Removes the race.
-- **Decision**: PENDING
+- **Decision**: FIXED (commit on feat/claude-settings-injection) — uniquePath now claims candidates with O_EXCL (no TOCTOU) and returns an error after 100 collisions instead of clobbering.
 
 ### F6 — Fixed `.tmp` name and no fsync; orphan tmp on failed rename
 

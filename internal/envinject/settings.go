@@ -55,7 +55,10 @@ func BackupSettingsJSON(configDir string) (string, error) {
 		perm = fi.Mode().Perm()
 	}
 
-	dst := uniquePath(dir, backupPrefix, time.Now().Format(backupTimeForm))
+	dst, err := uniquePath(dir, backupPrefix, time.Now().Format(backupTimeForm))
+	if err != nil {
+		return "", err
+	}
 	// #nosec G306,G703 -- operator-supplied config dir; backup preserves source perms (falls back to 0600)
 	if err := os.WriteFile(dst, data, perm); err != nil {
 		return "", fmt.Errorf("envinject: write backup %s: %w", dst, err)
@@ -66,19 +69,33 @@ func BackupSettingsJSON(configDir string) (string, error) {
 // uniquePath returns a path for the given prefix and timestamp that does not yet
 // exist. The timestamp has second granularity, so two files within the same
 // second get a zero-padded suffix that keeps the lexicographic (= chronological)
-// order within a prefix.
-func uniquePath(dir, prefix, ts string) string {
+// order within a prefix. The candidate is claimed with O_CREATE|O_EXCL so two
+// concurrent callers cannot land on the same path (no TOCTOU), and after 100
+// collisions it returns an error rather than clobbering an existing file.
+func uniquePath(dir, prefix, ts string) (string, error) {
 	base := filepath.Join(dir, prefix+ts)
-	if _, err := os.Stat(base); os.IsNotExist(err) {
-		return base
+	if p, ok := claimPath(base); ok {
+		return p, nil
 	}
 	for i := 1; i < 100; i++ {
 		candidate := fmt.Sprintf("%s-%02d", base, i)
-		if _, err := os.Stat(candidate); os.IsNotExist(err) {
-			return candidate
+		if p, ok := claimPath(candidate); ok {
+			return p, nil
 		}
 	}
-	return base
+	return "", fmt.Errorf("envinject: could not allocate a unique path for %s (too many collisions)", base)
+}
+
+// claimPath attempts to create path exclusively. It returns the path on success,
+// or false if the path already exists (or another error occurred).
+func claimPath(path string) (string, bool) {
+	// #nosec G304 -- path is operator-supplied via $HOME/.claude
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+	if err != nil {
+		return "", false
+	}
+	_ = f.Close()
+	return path, true
 }
 
 // RestoreSettingsJSON restores the newest settings.json.bak.* back to
@@ -164,7 +181,10 @@ func snapshotPreRestore(dir string) error {
 		perm = fi.Mode().Perm()
 	}
 
-	dst := uniquePath(dir, prerestorePrefix, time.Now().Format(backupTimeForm))
+	dst, err := uniquePath(dir, prerestorePrefix, time.Now().Format(backupTimeForm))
+	if err != nil {
+		return err
+	}
 	// #nosec G306,G703 -- operator-supplied config dir; snapshot preserves source perms (falls back to 0600)
 	if err := os.WriteFile(dst, data, perm); err != nil {
 		return fmt.Errorf("envinject: write prerestore snapshot %s: %w", dst, err)
