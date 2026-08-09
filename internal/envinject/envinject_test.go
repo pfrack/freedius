@@ -3,6 +3,7 @@
 package envinject
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -49,7 +50,7 @@ func TestWriteSettingsJSON_CreatesNew(t *testing.T) {
 	}
 }
 
-func TestWriteSettingsJSON_MergePreservesKeys(t *testing.T) {
+func TestWriteSettingsJSON_OverwriteDiscardsOtherKeys(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "settings.json")
 	existing := `{"project":"my-app","other":{"nested":true}}` + "\n"
@@ -60,15 +61,30 @@ func TestWriteSettingsJSON_MergePreservesKeys(t *testing.T) {
 	if err != nil {
 		t.Fatalf("WriteSettingsJSON: %v", err)
 	}
+
 	data, _ := os.ReadFile(path)
-	if !strings.Contains(string(data), `"project": "my-app"`) {
-		t.Errorf("existing key 'project' should be preserved")
+	var got map[string]any
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("settings.json is not valid JSON: %v", err)
 	}
-	if !strings.Contains(string(data), `"other"`) {
-		t.Errorf("existing key 'other' should be preserved")
+	if len(got) != 1 {
+		t.Errorf("settings.json should contain only the env key, got %d keys: %v", len(got), got)
 	}
-	if !strings.Contains(string(data), "0.0.0.0:9090") {
-		t.Errorf("settings.json should contain the provided host:port")
+	if _, ok := got["project"]; ok {
+		t.Errorf("pre-existing key 'project' should be discarded by the overwrite")
+	}
+	if _, ok := got["other"]; ok {
+		t.Errorf("pre-existing key 'other' should be discarded by the overwrite")
+	}
+	env, ok := got["env"].(map[string]any)
+	if !ok {
+		t.Fatalf("env block missing or not an object: %v", got["env"])
+	}
+	if env["ANTHROPIC_BASE_URL"] != "http://0.0.0.0:9090" {
+		t.Errorf("ANTHROPIC_BASE_URL = %v, want http://0.0.0.0:9090", env["ANTHROPIC_BASE_URL"])
+	}
+	if env["ANTHROPIC_API_KEY"] != "freedius-dummy" {
+		t.Errorf("ANTHROPIC_API_KEY = %v, want freedius-dummy", env["ANTHROPIC_API_KEY"])
 	}
 }
 
@@ -84,11 +100,10 @@ func TestWriteSettingsJSON_DryRunNoWrite(t *testing.T) {
 	}
 }
 
-func TestWriteSettingsJSON_MalformedEnvReplaced(t *testing.T) {
+func TestWriteSettingsJSON_MalformedFileReplaced(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "settings.json")
-	existing := `{"env": "not_a_map", "other": true}` + "\n"
-	if err := os.WriteFile(path, []byte(existing), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte("not json at all"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	err := WriteSettingsJSON(dir, "127.0.0.1", 8080, false)
@@ -96,14 +111,208 @@ func TestWriteSettingsJSON_MalformedEnvReplaced(t *testing.T) {
 		t.Fatalf("WriteSettingsJSON: %v", err)
 	}
 	data, _ := os.ReadFile(path)
-	if !strings.Contains(string(data), `"other": true`) {
-		t.Errorf("existing key 'other' should survive malformed env replacement")
+	var got map[string]any
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("a malformed file should be replaced by valid JSON: %v", err)
 	}
-	if !strings.Contains(string(data), `"env"`) {
-		t.Errorf("env key should still exist")
+	if _, ok := got["env"]; !ok {
+		t.Errorf("env key should exist after replacing a malformed file")
 	}
-	if strings.Contains(string(data), `"not_a_map"`) {
-		t.Errorf("malformed env value should be replaced, not kept")
+}
+
+func TestBackupSettingsJSON_PreservesSourcePerms(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "settings.json")
+	content := `{"project":"my-app"}` + "\n"
+	// A private settings.json that may hold a real API key.
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	backup, err := BackupSettingsJSON(dir)
+	if err != nil {
+		t.Fatalf("BackupSettingsJSON: %v", err)
+	}
+	fi, err := os.Stat(backup)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := fi.Mode().Perm(), os.FileMode(0o600); got != want {
+		t.Errorf("backup perms = %v, want %v (source perms must be preserved, not widened to 0644)", got, want)
+	}
+}
+
+func TestRestoreSettingsJSON_PreservesSourcePerms(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "settings.json")
+	original := `{"project":"my-app"}`
+	if err := os.WriteFile(path, []byte(original), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := BackupSettingsJSON(dir); err != nil {
+		t.Fatalf("BackupSettingsJSON: %v", err)
+	}
+	// Overwrite the live file at a different mode to prove restore restores perms.
+	if err := os.WriteFile(path, []byte(`{"env":{}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := RestoreSettingsJSON(dir); err != nil {
+		t.Fatalf("RestoreSettingsJSON: %v", err)
+	}
+	fi, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := fi.Mode().Perm(), os.FileMode(0o600); got != want {
+		t.Errorf("restored settings.json perms = %v, want %v", got, want)
+	}
+}
+
+func TestIsFreediusSettings(t *testing.T) {
+	dir := t.TempDir()
+
+	// No file at all is not the freedius block.
+	if ok, err := IsFreediusSettings(dir, "127.0.0.1", 8080); err != nil || ok {
+		t.Errorf("empty dir: ok=%v err=%v, want ok=false err=nil", ok, err)
+	}
+
+	// A freedius-authored file (matching what WriteSettingsJSON produces) is.
+	if err := WriteSettingsJSON(dir, "127.0.0.1", 8080, false); err != nil {
+		t.Fatalf("WriteSettingsJSON: %v", err)
+	}
+	if ok, err := IsFreediusSettings(dir, "127.0.0.1", 8080); err != nil || !ok {
+		t.Errorf("freedius-authored file: ok=%v err=%v, want ok=true err=nil", ok, err)
+	}
+
+	// A different host/port is not the same block.
+	if ok, _ := IsFreediusSettings(dir, "0.0.0.0", 9999); ok {
+		t.Errorf("different host/port should not match, got ok=true")
+	}
+
+	// A user file with extra keys is not the bare freedius block.
+	path := filepath.Join(dir, "settings.json")
+	withExtra := `{"env":{"ANTHROPIC_BASE_URL":"http://127.0.0.1:8080"},"project":"mine"}`
+	if err := os.WriteFile(path, []byte(withExtra), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if ok, _ := IsFreediusSettings(dir, "127.0.0.1", 8080); ok {
+		t.Errorf("file with extra keys should not match the bare block, got ok=true")
+	}
+}
+
+func TestBackupSettingsJSON_CopiesExisting(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "settings.json")
+	content := `{"project":"my-app"}` + "\n"
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	backup, err := BackupSettingsJSON(dir)
+	if err != nil {
+		t.Fatalf("BackupSettingsJSON: %v", err)
+	}
+	if backup == "" {
+		t.Fatal("expected a backup path, got empty string")
+	}
+	if !strings.HasPrefix(filepath.Base(backup), "settings.json.bak.") {
+		t.Errorf("backup name should be settings.json.bak.<ts>, got %s", filepath.Base(backup))
+	}
+	data, err := os.ReadFile(backup)
+	if err != nil {
+		t.Fatalf("backup not readable: %v", err)
+	}
+	if string(data) != content {
+		t.Errorf("backup content = %q, want %q", string(data), content)
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Errorf("original settings.json should still exist: %v", err)
+	}
+}
+
+func TestBackupSettingsJSON_NoSourceIsNoOp(t *testing.T) {
+	dir := t.TempDir()
+
+	backup, err := BackupSettingsJSON(dir)
+	if err != nil {
+		t.Fatalf("BackupSettingsJSON: %v", err)
+	}
+	if backup != "" {
+		t.Errorf("expected empty backup path when settings.json is absent, got %s", backup)
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 0 {
+		t.Errorf("no-op backup should write nothing, found %d entries", len(entries))
+	}
+}
+
+func TestBackupSettingsJSON_SecondBackupSameSecond(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "settings.json")
+	if err := os.WriteFile(path, []byte(`{"n":1}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	first, err := BackupSettingsJSON(dir)
+	if err != nil {
+		t.Fatalf("first BackupSettingsJSON: %v", err)
+	}
+	second, err := BackupSettingsJSON(dir)
+	if err != nil {
+		t.Fatalf("second BackupSettingsJSON: %v", err)
+	}
+	if first == second {
+		t.Errorf("two backups should not share a path, both were %s", first)
+	}
+	if second <= first {
+		t.Errorf("second backup %s should sort after first %s", second, first)
+	}
+}
+
+func TestRestoreSettingsJSON_RestoresNewest(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "settings.json")
+	if err := os.WriteFile(path, []byte(`{"current":true}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	older := filepath.Join(dir, "settings.json.bak.20260101-101010")
+	newer := filepath.Join(dir, "settings.json.bak.20260101-101011")
+	if err := os.WriteFile(older, []byte(`{"gen":"older"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(newer, []byte(`{"gen":"newer"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	restored, err := RestoreSettingsJSON(dir)
+	if err != nil {
+		t.Fatalf("RestoreSettingsJSON: %v", err)
+	}
+	if restored != newer {
+		t.Errorf("restored from %s, want %s", restored, newer)
+	}
+	data, _ := os.ReadFile(path)
+	if string(data) != `{"gen":"newer"}` {
+		t.Errorf("settings.json = %q, want the newest backup content", string(data))
+	}
+}
+
+func TestRestoreSettingsJSON_NoBackupErrors(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "settings.json"), []byte(`{}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := RestoreSettingsJSON(dir)
+	if err == nil {
+		t.Fatal("expected an error when no backup exists")
+	}
+	if !strings.Contains(err.Error(), "no settings.json.bak") {
+		t.Errorf("error should name the missing backup pattern, got: %v", err)
 	}
 }
 
