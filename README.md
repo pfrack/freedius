@@ -68,6 +68,24 @@ Claude-Code-specific variables); OpenCode can consume it as well when it
 honors Anthropic-compatible env-var overrides. Silence it with
 `--no-export-hint`.
 
+### Point Claude Code at freedius
+
+Instead of pasting the snippet, one command wires it up permanently:
+
+```bash
+freedius configure          # backs up, then writes ~/.claude/settings.json
+freedius configure --restore   # undo: put the newest backup back
+```
+
+`configure` first copies `~/.claude/settings.json` to a timestamped
+`settings.json.bak.<timestamp>` next to it, shows what it will write, and
+asks for confirmation. It then **overwrites** the file with freedius's env
+block only — any custom keys you had live on in the backup, and
+`freedius configure --restore` brings them back. Use `--dry-run` to preview
+without touching anything, `--yes` to skip the prompt in scripts, and
+`--config-dir DIR` to target a directory other than `~/.claude`. The
+startup snippet remains the manual, shell-only alternative.
+
 freedius accepts Anthropic-format requests on `/v1/messages` and translates to
 the upstream provider's protocol (the `MixAdapter` detects from the base URL
 suffix). See `Development` for build-from-source instructions.
