@@ -373,9 +373,9 @@ running `configure`.
 
 #### Automated
 
-- [x] 4.1 README contains `freedius configure` + backup/`--restore` note
-- [x] 4.2 `roadmap.md` has the `claude-settings-injection` / `S-04a` row
-- [x] 4.3 `mage lint` passes
+- [x] 4.1 README contains `freedius configure` + backup/`--restore` note — aa13485
+- [x] 4.2 `roadmap.md` has the `claude-settings-injection` / `S-04a` row — aa13485
+- [x] 4.3 `mage lint` passes — aa13485
 
 #### Manual
 
