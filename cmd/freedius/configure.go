@@ -63,13 +63,13 @@ func runConfigure(args []string) int {
 	// the user's original as the newest (and thus --restore's) backup.
 	already, err := envinject.IsFreediusSettings(configDir, defaultHost, defaultPort)
 	if err != nil {
-		return failf("freedius configure: %v", err)
+		return failf("freedius configure: check whether settings are already configured: %w", err)
 	}
 
 	if *f.restore {
 		restored, err := envinject.RestoreSettingsJSON(configDir)
 		if err != nil {
-			return failf("freedius configure: %v", err)
+			return failf("freedius configure: restore settings.json backup: %w", err)
 		}
 		fmt.Printf("restored %s -> %s\n", restored, settingsPath)
 		return 0
@@ -85,7 +85,7 @@ func runConfigure(args []string) int {
 		}
 		fmt.Printf("would write %s:\n", settingsPath)
 		if err := envinject.WriteSettingsJSON(configDir, defaultHost, defaultPort, true); err != nil {
-			return failf("freedius configure: %v", err)
+			return failf("freedius configure: simulate settings.json write (dry-run): %w", err)
 		}
 		return 0
 	}
@@ -99,7 +99,7 @@ func runConfigure(args []string) int {
 	} else {
 		b, err := envinject.BackupSettingsJSON(configDir)
 		if err != nil {
-			return failf("freedius configure: %v", err)
+			return failf("freedius configure: back up settings.json: %w", err)
 		}
 		backup = b
 		if backup == "" {
@@ -111,7 +111,7 @@ func runConfigure(args []string) int {
 
 	fmt.Printf("about to overwrite %s with:\n", settingsPath)
 	if err := envinject.WriteSettingsJSON(configDir, defaultHost, defaultPort, true); err != nil {
-		return failf("freedius configure: %v", err)
+		return failf("freedius configure: preview settings.json write: %w", err)
 	}
 
 	if !*f.yes && !*f.yesShort && !confirm(configureStdin, os.Stdout, settingsPath) {
@@ -120,7 +120,7 @@ func runConfigure(args []string) int {
 	}
 
 	if err := envinject.WriteSettingsJSON(configDir, defaultHost, defaultPort, false); err != nil {
-		return failf("freedius configure: %v", err)
+		return failf("freedius configure: write settings.json: %w", err)
 	}
 	fmt.Printf("wrote %s\n", settingsPath)
 	if backup != "" {

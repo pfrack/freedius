@@ -143,6 +143,13 @@ func RestoreSettingsJSON(configDir string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("envinject: read backup %s: %w", newest, err)
 	}
+	// Validate the backup is well-formed JSON before clobbering the live file, so
+	// a corrupted backup surfaces an error instead of overwriting settings.json
+	// with invalid data.
+	var probe any
+	if err := json.Unmarshal(data, &probe); err != nil {
+		return "", fmt.Errorf("envinject: backup %s is not valid JSON: %w", newest, err)
+	}
 
 	// Preserve the backup's permission bits so the restored settings.json keeps
 	// the original file's mode (e.g. 0600) rather than being widened.
