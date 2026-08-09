@@ -122,6 +122,9 @@ func E2E() error {
 	if _, err := exec.LookPath("npm"); err != nil {
 		return fmt.Errorf("npm not found: install Node.js to run the e2e suite (see e2e/)")
 	}
+	if _, err := os.Stat("e2e/node_modules"); err != nil {
+		return fmt.Errorf("e2e dependencies not installed — run 'mage e2eSetup' first: %w", err)
+	}
 	fmt.Println("→ Running Playwright e2e suite...")
 	return sh.RunV("npm", "test", "--prefix", "e2e")
 }

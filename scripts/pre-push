@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -e
+set -euo pipefail
 
 # Determine the base branch (try origin/main, fall back to origin/master).
 REMOTE=""

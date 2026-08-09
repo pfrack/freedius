@@ -34,5 +34,5 @@ test('filtering by "No API key" returns the same rows (semantics unchanged)', as
   // The unset-key mapping is still surfaced.
   const rows = page.locator('.mappings-table tbody tr');
   await expect(rows).toHaveCount(1);
-  await expect(rows.filter({ hasText: 'test-chat' })).toBeVisible();
+  await expect(rows.first()).toContainText('test-chat');
 });
