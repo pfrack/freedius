@@ -65,7 +65,7 @@
   - Tradeoff: One extra `.bak` written on restore.
   - Confidence: HIGH.
   - Blind spot: None significant.
-- **Decision**: PENDING
+- **Decision**: FIXED (commit on feat/claude-settings-injection) — restore now snapshots the live file to a separate `settings.json.prerestore.<ts>` (distinct prefix, so it does not shadow the user's real `.bak` and break F1's "newest = original" invariant).
 
 ### F4 — `configure --help` prints server usage; `printConfigureUsage` is near-dead
 
@@ -75,7 +75,7 @@
 - **Location**: cmd/freedius/main.go:58, cmd/freedius/configure.go:34, configure.go:125-146
 - **Detail**: `handleEarlyArgs` scans all args for `--help`/`-h` and returns before the `configure` dispatch, so `freedius configure --help` prints the top-level server flag list. The 22-line `printConfigureUsage` (which re-declares all five flags just for `PrintDefaults()`) is only reachable on a subcommand parse error.
 - **Fix**: Move the subcommand dispatch above `handleEarlyArgs` (or skip early-args when `args[0]` is a known subcommand) and route `--help` to `printConfigureUsage`. Add `TestRunConfigure_HelpPrintsConfigureUsage`.
-- **Decision**: PENDING
+- **Decision**: FIXED (commit on feat/claude-settings-injection) — configure dispatch now runs before handleEarlyArgs; added TestRunConfigure_HelpReturnsZero + TestPrintConfigureUsage_WritesFlags.
 
 ### F5 — Backup path selection is TOCTOU; silent clobber after 100 collisions
 

@@ -11,9 +11,10 @@ import (
 )
 
 const (
-	settingsFile   = "settings.json"
-	backupPrefix   = settingsFile + ".bak."
-	backupTimeForm = "20060102-150405"
+	settingsFile     = "settings.json"
+	backupPrefix     = settingsFile + ".bak."
+	prerestorePrefix = settingsFile + ".prerestore."
+	backupTimeForm   = "20060102-150405"
 )
 
 // resolveConfigDir returns configDir, defaulting to $HOME/.claude when empty.
@@ -54,7 +55,7 @@ func BackupSettingsJSON(configDir string) (string, error) {
 		perm = fi.Mode().Perm()
 	}
 
-	dst := uniqueBackupPath(dir, time.Now().Format(backupTimeForm))
+	dst := uniquePath(dir, backupPrefix, time.Now().Format(backupTimeForm))
 	// #nosec G306,G703 -- operator-supplied config dir; backup preserves source perms (falls back to 0600)
 	if err := os.WriteFile(dst, data, perm); err != nil {
 		return "", fmt.Errorf("envinject: write backup %s: %w", dst, err)
@@ -62,11 +63,12 @@ func BackupSettingsJSON(configDir string) (string, error) {
 	return dst, nil
 }
 
-// uniqueBackupPath returns a backup path for ts that does not yet exist. The
-// timestamp has second granularity, so two backups within the same second get
-// a zero-padded suffix that keeps the lexicographic (= chronological) order.
-func uniqueBackupPath(dir, ts string) string {
-	base := filepath.Join(dir, backupPrefix+ts)
+// uniquePath returns a path for the given prefix and timestamp that does not yet
+// exist. The timestamp has second granularity, so two files within the same
+// second get a zero-padded suffix that keeps the lexicographic (= chronological)
+// order within a prefix.
+func uniquePath(dir, prefix, ts string) string {
+	base := filepath.Join(dir, prefix+ts)
 	if _, err := os.Stat(base); os.IsNotExist(err) {
 		return base
 	}
@@ -87,6 +89,10 @@ func RestoreSettingsJSON(configDir string) (string, error) {
 		return "", err
 	}
 
+	// Back up the current settings.json before overwriting it, so a mistaken
+	// --restore is itself reversible (mirrors the care taken in runConfigure).
+	// We only do this once we know a real backup exists to restore, so that
+	// `--restore` with nothing to restore still fails fast (see below).
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return "", fmt.Errorf("envinject: read directory %s: %w", dir, err)
@@ -103,6 +109,14 @@ func RestoreSettingsJSON(configDir string) (string, error) {
 	}
 	if len(backups) == 0 {
 		return "", fmt.Errorf("envinject: no %s* backup found in %s", backupPrefix, dir)
+	}
+
+	// Safety net: snapshot the current settings.json under a separate prefix so a
+	// mistaken --restore is recoverable. A distinct prefix keeps it out of the
+	// .bak.* selection, so it never shadows the user's real backup (which must
+	// remain the newest restore target).
+	if err := snapshotPreRestore(dir); err != nil {
+		return "", fmt.Errorf("envinject: snapshot before restore: %w", err)
 	}
 
 	// Timestamps sort lexicographically, so the max name is the newest backup.
@@ -126,6 +140,36 @@ func RestoreSettingsJSON(configDir string) (string, error) {
 		return "", fmt.Errorf("envinject: restore %s: %w", dst, err)
 	}
 	return newest, nil
+}
+
+// snapshotPreRestore copies the live settings.json (if present) to a
+// timestamped settings.json.prerestore.<ts>, preserving its permission bits, so
+// that a mistaken --restore can be undone. It is a no-op when there is no live
+// settings.json to snapshot. The distinct prefix keeps the snapshot out of the
+// .bak.* selection used for the actual restore.
+func snapshotPreRestore(dir string) error {
+	live := filepath.Join(dir, settingsFile)
+
+	// #nosec G304 -- path is operator-supplied via $HOME/.claude
+	data, err := os.ReadFile(live)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("envinject: read %s: %w", live, err)
+	}
+
+	perm := os.FileMode(0o600)
+	if fi, err := os.Stat(live); err == nil {
+		perm = fi.Mode().Perm()
+	}
+
+	dst := uniquePath(dir, prerestorePrefix, time.Now().Format(backupTimeForm))
+	// #nosec G306,G703 -- operator-supplied config dir; snapshot preserves source perms (falls back to 0600)
+	if err := os.WriteFile(dst, data, perm); err != nil {
+		return fmt.Errorf("envinject: write prerestore snapshot %s: %w", dst, err)
+	}
+	return nil
 }
 
 // IsFreediusSettings reports whether the existing settings.json at configDir is

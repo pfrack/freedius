@@ -154,6 +154,71 @@ func TestRunConfigure_RestoreReturnsNewestBackup(t *testing.T) {
 	}
 }
 
+// TestRunConfigure_RestoreSnapshotsPrerestore verifies F3: --restore snapshots
+// the current settings.json under a separate .prerestore prefix (recoverable)
+// without shadowing the user's real .bak (the newest restore target stays the
+// original).
+func TestRunConfigure_RestoreSnapshotsPrerestore(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "settings.json")
+	original := `{"project":"mine"}`
+	if err := os.WriteFile(path, []byte(original), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if code := runConfigure([]string{"--config-dir", dir, "--yes"}); code != 0 {
+		t.Fatalf("configure exit code = %d, want 0", code)
+	}
+	if code := runConfigure([]string{"--restore", "--config-dir", dir}); code != 0 {
+		t.Fatalf("restore exit code = %d, want 0", code)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != original {
+		t.Errorf("restored settings.json = %q, want original %q", string(data), original)
+	}
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	prerestore := 0
+	for _, e := range entries {
+		if strings.HasPrefix(e.Name(), "settings.json.prerestore.") {
+			prerestore++
+		}
+	}
+	if prerestore != 1 {
+		t.Errorf("expected exactly 1 .prerestore snapshot, found %d", prerestore)
+	}
+	// The real .bak set must still hold only the original (the prerestore must
+	// not leak into the .bak.* selection).
+	if n := countBackups(t, dir); n != 1 {
+		t.Errorf("expected 1 .bak (the original) after restore, found %d", n)
+	}
+}
+
+func TestRunConfigure_HelpReturnsZero(t *testing.T) {
+	// --help must be handled by the subcommand's own flag set (printing
+	// configure usage), not the top-level server usage. It returns 0.
+	if code := runConfigure([]string{"--help"}); code != 0 {
+		t.Fatalf("runConfigure(--help) exit code = %d, want 0", code)
+	}
+}
+
+func TestPrintConfigureUsage_WritesFlags(t *testing.T) {
+	var sb strings.Builder
+	printConfigureUsage(&sb)
+	out := sb.String()
+	for _, want := range []string{"--config-dir", "--restore", "--dry-run", "--yes"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("configure usage should list %s:\n%s", want, out)
+		}
+	}
+}
+
 func TestRunConfigure_RestoreWithoutBackupFails(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "settings.json"), []byte(`{}`), 0o644); err != nil {

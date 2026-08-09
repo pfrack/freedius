@@ -55,14 +55,15 @@ func main() {
 // run is the entry point: starts the proxy and web dashboard, then blocks
 // until shutdown. --version and --help are handled before flag parsing.
 func run(args []string) int {
-	if code, done := handleEarlyArgs(args); done {
-		return code
-	}
-
-	// Subcommands must be intercepted before the flat flag parse below,
-	// otherwise their flags are read as server flags.
+	// Subcommands must be intercepted before the flat flag parse and before the
+	// top-level --help handling below, otherwise `configure --help` prints
+	// server usage instead of the configure usage.
 	if len(args) > 0 && args[0] == "configure" {
 		return runConfigure(args[1:])
+	}
+
+	if code, done := handleEarlyArgs(args); done {
+		return code
 	}
 
 	fs := flag.NewFlagSet("freedius", flag.ContinueOnError)
