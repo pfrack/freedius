@@ -3,7 +3,7 @@ project: freedius
 version: 2
 status: active
 created: 2026-06-16
-updated: 2026-08-08
+updated: 2026-08-09
 prd_version: 1
 ---
 
@@ -107,6 +107,7 @@ archived `change.md` carries the same value in its `roadmap_id` frontmatter key.
 | ID | Change ID | Title | PR | Date |
 |----|-----------|-------|----|------|
 | S-04 | error-hardening | Error hardening + env auto-injection + config template | #6 | 2026-06-17 |
+| S-04a | claude-settings-injection | Safe Claude Code settings injection (backup + freedius env) | — | 2026-08-09 |
 
 ### S-05 — OpenCode Go 401 + NIM SSE fixes
 

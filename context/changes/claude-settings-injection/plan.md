@@ -357,13 +357,13 @@ running `configure`.
 
 #### Automated
 
-- [x] 3.1 `configure` dispatch intercepted before flat flag parse; `printUsage` mentions it
-- [x] 3.2 `--dry-run --config-dir <tmp>` writes nothing, exits 0, valid JSON
-- [x] 3.3 first run writes `settings.json`, no backup when absent
-- [x] 3.4 second run creates a new timestamped `.bak` and overwrites
-- [x] 3.5 `--restore` restores newest backup
-- [x] 3.6 `--yes` skips stdin prompt
-- [x] 3.7 `go build ./...`, `go vet ./...`, `mage lint` pass
+- [x] 3.1 `configure` dispatch intercepted before flat flag parse; `printUsage` mentions it — ff72057
+- [x] 3.2 `--dry-run --config-dir <tmp>` writes nothing, exits 0, valid JSON — ff72057
+- [x] 3.3 first run writes `settings.json`, no backup when absent — ff72057
+- [x] 3.4 second run creates a new timestamped `.bak` and overwrites — ff72057
+- [x] 3.5 `--restore` restores newest backup — ff72057
+- [x] 3.6 `--yes` skips stdin prompt — ff72057
+- [x] 3.7 `go build ./...`, `go vet ./...`, `mage lint` pass — ff72057
 
 #### Manual
 
@@ -373,9 +373,9 @@ running `configure`.
 
 #### Automated
 
-- [ ] 4.1 README contains `freedius configure` + backup/`--restore` note
-- [ ] 4.2 `roadmap.md` has the `claude-settings-injection` / `S-04a` row
-- [ ] 4.3 `mage lint` passes
+- [x] 4.1 README contains `freedius configure` + backup/`--restore` note
+- [x] 4.2 `roadmap.md` has the `claude-settings-injection` / `S-04a` row
+- [x] 4.3 `mage lint` passes
 
 #### Manual
 
