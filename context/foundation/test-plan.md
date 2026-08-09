@@ -6,7 +6,7 @@
 >
 > Refresh: re-run `/10x-test-plan --refresh` when stale (see §8).
 >
-> Last updated: 2026-07-05
+> Last updated: 2026-08-09
 
 ## 1. Strategy
 
@@ -69,6 +69,7 @@ orchestrator updates Status as artifacts appear on disk.
 | 2 | Streaming edge cases | Prove streaming delivers complete, correctly ordered content including partial chunks and mid-stream errors | #2 | integration | done | streaming-edge-cases |
 | 3 | Quality gates in CI | Lock the floor — every PR must pass proxy integration + streaming tests | cross-cutting | CI gates | done | 2026-07-02-quality-gates-in-ci |
 | 4 | Web UI CRUD + handlers | Prove the Web UI correctly serves pages, handles CRUD mutations, validates forms, and persists config | new surface area | unit + integration | done | web-ui |
+| 5 | Web UI e2e (Playwright) | Cover Web UI smoke (dark/light × mobile/desktop) + design-system regression guards (badges, htmx, drawer, a11y) via the `e2e/` suite | new surface area (UI) | e2e | done | e2e/ (standalone suite, not a tracked change) |
 
 ## 4. Stack
 
@@ -86,7 +87,8 @@ of assuming access.
 | lint | `staticcheck` + `golangci-lint` | v0.7.0 / v2.12.2 | Enforced in CI via `mage lint` (vet → staticcheck → golangci-lint) |
 | formatters | `goimports` + `golines` + `gci` | v0.47.0 / v0.12.2 / v0.13.5 | Enforced in CI via `mage ci` format check step |
 | vulnerability scan | `govulncheck` | v1.3.0 | `mage govulncheck` |
-| (optional) AI-native | none | — | Not needed — deterministic integration tests cover all identified risks |
+| e2e (browser) | Playwright | ^1.49.0 | `e2e/` suite (`tests/*.spec.ts`); install deps with `mage e2eSetup`, run with `mage e2e` (or `cd e2e && npm test`). `playwright.config.ts` auto-starts the server on :8083 (`go run ./cmd/freedius --config e2e/fixtures/test-config.yaml`); dedicated `e2e` job runs it in CI. Covers Web UI smoke (dark/light, mobile/desktop) + design-system regression guards (status badges, htmx indicator, drawer, a11y focus ring). |
+| (optional) AI-native | none | — | Not needed — deterministic integration + e2e tests cover all identified risks |
 
 If a row reads "none yet — see Phase <N>", that gap is addressed by the
 named rollout phase.
@@ -94,7 +96,7 @@ named rollout phase.
 **Stack grounding tools (current session):**
 - Docs: Context7 — available for Go stdlib; checked: 2026-07-05
 - Search: none — not available in current session
-- Runtime/browser: none — not used (CLI proxy, Web UI is a management surface)
+- Runtime/browser: Playwright + headless Chromium — used for the `e2e/` Web UI suite (see above)
 - Provider/platform: none — not used
 
 ## 5. Quality Gates
@@ -109,7 +111,13 @@ phase lands; before that, the gate is `planned`.
 | unit + integration | local + CI | required (enforced in CI regardless of §3 Phase 1 rollout-tracking status) | logic regressions in proxy core |
 | streaming edge-case suite | CI on PR | required (enforced in CI regardless of §3 Phase 1 rollout-tracking status) | streaming regressions (partial chunks, mid-stream errors, SSE quirks) |
 | race detection | CI | required (already enabled via `mage test`) | concurrent-session state leak |
+| e2e (browser) | local (`mage e2e`) + CI `e2e` job | required (CI e2e job on push/PR) | Web UI smoke + design-system regression (status badges, htmx indicator, drawer, a11y focus ring) |
 | CI pipeline (`mage ci`) | CI on every push/PR | required | 9-step pipeline: vet → mod verify → tidy check → generate check → format check → test → lint → build → govulncheck |
+
+> Note: `mage ci` stays Go-only by design (it does not run the browser suite).
+> e2e runs as a **separate CI job** (`e2e` in `.github/workflows/ci.yml`) so the
+> Go pipeline stays fast and does not require browsers locally. Run `mage e2e`
+> locally to reproduce the e2e job.
 
 ## 6. Cookbook Patterns
 
@@ -171,6 +179,18 @@ the relevant rollout phase ships; before that, the sub-section reads
 - **Reference tests**: `proxy/web/handlers_test.go` (page handlers, static, health), `proxy/web/handlers_write_test.go` (CRUD), `proxy/web/forms_test.go` (validation), `proxy/web/log_filter_test.go` (log level filtering).
 - **Run locally**: `mage test`.
 
+### 6.9 Adding an e2e (Playwright) test
+
+- **Location**: `e2e/tests/<feature>.spec.ts` (TypeScript, `@playwright/test`).
+- **Server**: do NOT start freedius yourself — `playwright.config.ts` auto-starts it (`webServer` runs `go run ../cmd/freedius --config ../e2e/fixtures/test-config.yaml`, waits for `http://localhost:8083/health`). `reuseExistingServer: false`, so a stray server on :8083 will fail the run.
+- **Base URL**: use `page.goto('/mappings')` etc. — `baseURL` is `http://localhost:8083`.
+- **Fixtures/config**: the running server uses `e2e/fixtures/test-config.yaml` (a `test-chat` mapping to `test-primary` with `TEST_PRIMARY_API_KEY` unset, which exercises the "No API key" status path). Add fixtures there if a test needs a different mapping shape.
+- **What to assert**: prefer real user-facing signals (badge text, tooltip `title`, visible/hidden state, computed `text-transform`) over pixel values. e.g. assert the status filter `<option>` and the unset-key badge both read the expected label, and the badge carries `title="No API key set in the environment"`.
+- **Install deps**: `mage e2eSetup` (runs `npm ci` + `npx playwright install --with-deps chromium` under `e2e/`). Requires Node.
+- **Run locally**: `mage e2e` (or `cd e2e && npm test`); `npm test:headed` for headed mode. `mage e2eSetup` must have run once first.
+- **Run in CI**: the `e2e` GitHub Actions job (`actions/setup-node` + `npm ci` + `npx playwright install --with-deps chromium` + `npx playwright test`).
+- **Reference tests**: `e2e/tests/design-system.spec.ts` (status-badge square-flag stripes, htmx indicator, drawer/drawer labels, a11y focus ring, 404 code), `e2e/tests/drawer.spec.ts`, `e2e/tests/test-connection.spec.ts`.
+
 ### 6.8 Per-rollout-phase notes
 
 (Optional. After each phase lands, `/10x-implement` appends a 2-3 line note
@@ -183,12 +203,13 @@ contributors should respect these unless the underlying assumption changes.
 
 - **Generated code (`providers_gen.go`, `adapters_gen.go`)** — the generator is the test; regressions are caught by testing the generator input/output. Re-evaluate if `go generate` output changes shape. (Source: Phase 2 interview Q5.)
 - **Magefile build scripts** — low blast radius, rarely touched, no user-facing behavior. Re-evaluate if CI pipeline changes significantly. (Source: Phase 2 interview Q5.)
-- **Web UI visual layout and responsiveness** — the Web UI is a management surface, not the product core. Break it and fix it, but don't slow the pipeline for pixel-perfect layout testing. Re-evaluate if Web UI becomes a primary user interaction surface. (Source: web-ui change, 2026-07-05.)
+- **Web UI pixel-perfect layout** — the Web UI is a management surface, not the product core, so we don't slow the pipeline for pixel-diff layout testing. Re-evaluate if Web UI becomes a primary user interaction surface. (Source: web-ui change, 2026-07-05.)
+  - *Reconciled 2026-08-09:* this exclusion is **narrowed, not removed**. The `e2e/` Playwright suite now covers Web UI **smoke** (dark/light × mobile/desktop) and **design-system regression guards** (status-badge square-flag stripes, htmx indicator, drawer/drawer label casing, a11y focus ring, 404 code). Those catch real breakage cheaply and are required in CI. What remains excluded is *pixel-perfect visual diffing* of every element. The e2e suite complements, rather than replaces, the Go unit/integration tests for handlers.
 
 ## 8. Freshness Ledger
 
 - Strategy (§1–§5) last reviewed: 2026-07-05
-- Stack versions last verified: 2026-07-05
+- Stack versions last verified: 2026-08-09 (added Playwright e2e layer — see §4/§5/§6.9)
 - AI-native tool references last verified: N/A (no AI-native tools in use)
 
 Refresh (`/10x-test-plan --refresh`) when:

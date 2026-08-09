@@ -59,7 +59,9 @@ jobs:
           node-version: '22'
           cache: 'npm'
           cache-dependency-path: e2e/package-lock.json
-      - name: Install Playwright dependencies
-        run: cd e2e && npm ci && npx playwright install --with-deps chromium
+      - name: Install Mage
+        run: go install github.com/magefile/mage@v1.17.2
+      - name: Install E2E dependencies
+        run: mage e2eSetup
       - name: Run E2E tests
-        run: cd e2e && npx playwright test
+        run: mage e2e

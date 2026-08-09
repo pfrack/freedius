@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -55,6 +56,8 @@ func Help() {
 	fmt.Println("  test            - Run unit tests with race detection")
 	fmt.Println("  benchmark       - Run performance benchmarks")
 	fmt.Println("  coverage        - Generate HTML coverage report")
+	fmt.Println("  e2e             - Run Playwright end-to-end suite (e2e/)")
+	fmt.Println("  e2eSetup        - Install Playwright e2e deps (npm + chromium)")
 	fmt.Println("  manualTest      - Run manual test script")
 	fmt.Println()
 
@@ -110,6 +113,41 @@ func Test() error {
 func Benchmark() error {
 	fmt.Println("→ Running benchmarks...")
 	return sh.RunV("go", "test", "-bench=.", "-benchmem", "./...")
+}
+
+// E2E runs the Playwright end-to-end suite under e2e/.
+// Requires Node/npm and the Playwright browsers; install them first with
+// `mage e2eSetup`.
+func E2E() error {
+	if _, err := exec.LookPath("npm"); err != nil {
+		return fmt.Errorf("npm not found: install Node.js to run the e2e suite (see e2e/)")
+	}
+	if _, err := os.Stat("e2e/node_modules"); err != nil {
+		return fmt.Errorf("e2e dependencies not installed — run 'mage e2eSetup' first: %w", err)
+	}
+	fmt.Println("→ Running Playwright e2e suite...")
+	return sh.RunV("npm", "test", "--prefix", "e2e")
+}
+
+// E2ESetup installs the Playwright e2e dependencies under e2e/
+// (npm packages + Chromium browser binaries). Run once before `mage e2e`.
+// OS-level library deps (apt) are CI-specific and not installed here; on
+// GitHub ubuntu-latest the runner image already provides them.
+func E2ESetup() error {
+	if _, err := exec.LookPath("npm"); err != nil {
+		return fmt.Errorf("npm not found: install Node.js to run the e2e suite (see e2e/)")
+	}
+	fmt.Println("→ Installing Playwright e2e dependencies...")
+	if err := sh.RunV("npm", "ci", "--prefix", "e2e"); err != nil {
+		return fmt.Errorf("npm ci failed (retry: npm ci --prefix e2e): %w", err)
+	}
+	if err := sh.RunV("npx", "--prefix", "e2e", "playwright", "install", "chromium"); err != nil {
+		return fmt.Errorf(
+			"playwright browser install failed (retry: npx --prefix e2e playwright install chromium): %w",
+			err,
+		)
+	}
+	return nil
 }
 
 // Coverage generates an HTML coverage report and opens it in the browser.
@@ -607,6 +645,8 @@ func Help2() {
 				{"test", "Run unit tests with race detection and coverage"},
 				{"benchmark", "Run performance benchmarks"},
 				{"coverage", "Generate and open HTML coverage report"},
+				{"e2e", "Run the Playwright end-to-end suite (e2e/)"},
+				{"e2eSetup", "Install Playwright e2e deps (npm + chromium) in e2e/"},
 				{"manualTest", "Run the manual test script"},
 			},
 		},
