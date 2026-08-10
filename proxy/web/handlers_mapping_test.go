@@ -98,3 +98,27 @@ func TestBuildMappingRows_EmptyConfig(t *testing.T) {
 		t.Errorf("got %d rows, want 0", len(rows))
 	}
 }
+
+func TestBuildMappingRows_DefaultProtected(t *testing.T) {
+	cfg := &config.Config{
+		Providers: map[string]config.Provider{"nim": {Behavior: "openai"}},
+		Mappings: map[string]config.Mapping{
+			"default": {ProviderName: "nim", ModelString: "catch-all"},
+			"opus":    {ProviderName: "nim", ModelString: "from-opus"},
+		},
+	}
+	rows := buildMappingRows(cfg, cfg.Providers, nil, mappingFilters{})
+	if len(rows) != 2 {
+		t.Fatalf("got %d rows, want 2", len(rows))
+	}
+	byName := make(map[string]bool)
+	for _, r := range rows {
+		byName[r.Name] = r.Protected
+	}
+	if !byName["default"] {
+		t.Errorf("default row should be flagged Protected")
+	}
+	if byName["opus"] {
+		t.Errorf("non-default row should not be flagged Protected")
+	}
+}

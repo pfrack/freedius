@@ -156,6 +156,9 @@ type mappingRow struct {
 	Fallbacks    []fallbackEntry
 	AddedAt      string
 	EnvPresent   bool
+	// Protected marks the always-present default catch-all, which cannot be
+	// deleted via the UI or API.
+	Protected bool
 }
 
 // drawerData is the data for the mapping details drawer fragment, loaded

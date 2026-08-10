@@ -751,6 +751,7 @@ func buildMappingRows(
 			Fallbacks:    fallbacks,
 			AddedAt:      m.AddedAt,
 			EnvPresent:   envPresent,
+			Protected:    name == "default",
 		}
 		rows = append(rows, row)
 	}
