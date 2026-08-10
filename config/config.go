@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -31,6 +32,27 @@ type Config struct {
 	Providers map[string]Provider `yaml:"providers"`
 	Mappings  map[string]Mapping  `yaml:"mappings,omitempty"`
 	Theme     string              `yaml:"theme,omitempty"`
+	// matchers is the compiled, most-specific-first matcher list used by the
+	// dispatcher to resolve a model name to a mapping key. It is rebuilt under
+	// Lock by buildMatchers and only ever swapped as a whole, so Matchers()
+	// may be read without its own lock while a read lock is held.
+	matchers []MappingMatcher
+}
+
+// MappingMatcher pairs a mapping key with its compiled, case-insensitive
+// substring pattern. The list is sorted most-specific-first (longest key, then
+// ascending name) and always ends with a "default" catch-all when a default
+// mapping exists.
+type MappingMatcher struct {
+	Name string
+	Re   *regexp.Regexp
+}
+
+// Matchers returns the compiled matcher list. Read it only while holding the
+// config read lock (the dispatcher does); the slice header is swapped whole
+// under Lock inside buildMatchers, so reading it under RLock is race-safe.
+func (c *Config) Matchers() []MappingMatcher {
+	return c.matchers
 }
 
 // Provider describes a single upstream LLM endpoint. Its settings are
@@ -96,6 +118,8 @@ func Load(path string) (*Config, error) {
 	if err := cfg.validate(path); err != nil {
 		return nil, err
 	}
+	cfg.ensureDefaultMapping()
+	cfg.BuildMatchers()
 	return cfg, nil
 }
 
@@ -113,6 +137,8 @@ func LoadFromBytes(data []byte) (*Config, error) {
 	if err := cfg.validate("<bytes>"); err != nil {
 		return nil, err
 	}
+	cfg.ensureDefaultMapping()
+	cfg.BuildMatchers()
 	return cfg, nil
 }
 
@@ -147,6 +173,70 @@ func (c *Config) RLock() { c.mu.RLock() }
 
 // RUnlock releases the reader mutex.
 func (c *Config) RUnlock() { c.mu.RUnlock() }
+
+// ensureDefaultMapping injects a missing "default" mapping so the catch-all is
+// always available at runtime. It mirrors the ProviderName/ModelString/AddedAt
+// of the first mapping by ascending key and is called only in the load pipeline
+// (Load/LoadFromBytes), keeping hand-built test Configs free of an injected
+// default. No fallback chain is added.
+func (c *Config) ensureDefaultMapping() {
+	if c.Mappings == nil {
+		return
+	}
+	if _, ok := c.Mappings["default"]; ok {
+		return
+	}
+	if len(c.Mappings) == 0 {
+		return
+	}
+	keys := make([]string, 0, len(c.Mappings))
+	for k := range c.Mappings {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	first := c.Mappings[keys[0]]
+	c.Mappings["default"] = Mapping{
+		ProviderName: first.ProviderName,
+		ModelString:  first.ModelString,
+		AddedAt:      first.AddedAt,
+	}
+}
+
+// BuildMatchers compiles one case-insensitive `(?i).*key.*` matcher per
+// non-"default" mapping key, sorts them most-specific-first (longest key, then
+// ascending name), and appends a "default" catch-all matcher when a "default"
+// mapping is present. User mapping names are QuoteMeta'd, so they can never
+// inject a catastrophic or unexpected regex pattern. The catch-all is omitted
+// when no default mapping exists, so a config without one keeps returning
+// no_match rather than 500-ing on a nonexistent mapping.
+func (c *Config) BuildMatchers() {
+	c.Lock()
+	defer c.Unlock()
+	matchers := make([]MappingMatcher, 0, len(c.Mappings))
+	for name := range c.Mappings {
+		if name == "default" {
+			continue
+		}
+		matchers = append(matchers, MappingMatcher{
+			Name: name,
+			Re:   regexp.MustCompile(`(?i).*` + regexp.QuoteMeta(name) + `.*`),
+		})
+	}
+	sort.Slice(matchers, func(i, j int) bool {
+		li, lj := len(matchers[i].Name), len(matchers[j].Name)
+		if li != lj {
+			return li > lj
+		}
+		return matchers[i].Name < matchers[j].Name
+	})
+	if _, ok := c.Mappings["default"]; ok {
+		matchers = append(matchers, MappingMatcher{
+			Name: "default",
+			Re:   regexp.MustCompile(""),
+		})
+	}
+	c.matchers = matchers
+}
 
 // ProvidersSnapshot returns a copy of the providers map safe for the caller
 // to iterate without holding the lock. Useful for rendering loops.

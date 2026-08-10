@@ -132,14 +132,16 @@ func (d *Dispatcher) SetVerboseErrors(v bool) { d.verboseErrors.Store(v) }
 func (d *Dispatcher) resolveMapping(model string) (string, config.Mapping, config.Provider, bool, bool) {
 	d.Cfg.RLock()
 	defer d.Cfg.RUnlock()
-	if mapping, ok := d.Cfg.Mappings[model]; ok {
-		provider, pok := d.Cfg.Providers[mapping.ProviderName]
-		return model, mapping, provider, true, pok
+	if m, ok := d.Cfg.Mappings[model]; ok { // exact match always wins
+		p, pok := d.Cfg.Providers[m.ProviderName]
+		return model, m, p, true, pok
 	}
-	if family, found := ExtractFamily(model); found {
-		if mapping, ok := d.Cfg.Mappings[family]; ok {
-			provider, pok := d.Cfg.Providers[mapping.ProviderName]
-			return family, mapping, provider, true, pok
+	for _, mm := range d.Cfg.Matchers() { // most-specific first, default last
+		if mm.Re.MatchString(model) {
+			name := mm.Name
+			m := d.Cfg.Mappings[name]
+			p, pok := d.Cfg.Providers[m.ProviderName]
+			return name, m, p, true, pok
 		}
 	}
 	return "", config.Mapping{}, config.Provider{}, false, false

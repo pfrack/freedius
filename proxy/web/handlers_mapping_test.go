@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/pfrack/freedius/config"
-	"github.com/pfrack/freedius/proxy"
 )
 
 func TestBuildMappingRows_ProvenanceFields(t *testing.T) {
@@ -17,7 +16,6 @@ func TestBuildMappingRows_ProvenanceFields(t *testing.T) {
 		provider    config.Provider
 		wantAddedAt string
 		wantEnv     bool
-		wantFamily  string
 	}{
 		{
 			name:        "all three signals present",
@@ -30,7 +28,6 @@ func TestBuildMappingRows_ProvenanceFields(t *testing.T) {
 			provider:    config.Provider{Behavior: "mix", DefaultAPIKeyEnv: "TEST_API_KEY"},
 			wantAddedAt: "2026-07-06",
 			wantEnv:     true,
-			wantFamily:  "opus",
 		},
 		{
 			name:        "added_at blank shows empty",
@@ -42,7 +39,6 @@ func TestBuildMappingRows_ProvenanceFields(t *testing.T) {
 			provider:    config.Provider{Behavior: "mix", DefaultAPIKeyEnv: "TEST_API_KEY"},
 			wantAddedAt: "",
 			wantEnv:     true,
-			wantFamily:  "",
 		},
 		{
 			name:        "env var missing",
@@ -55,7 +51,6 @@ func TestBuildMappingRows_ProvenanceFields(t *testing.T) {
 			provider:    config.Provider{Behavior: "mix", DefaultAPIKeyEnv: "UNSET_ENV_VAR_XYZ"},
 			wantAddedAt: "2026-07-10",
 			wantEnv:     false,
-			wantFamily:  "haiku",
 		},
 		{
 			name:        "keyless provider env stays false",
@@ -68,7 +63,6 @@ func TestBuildMappingRows_ProvenanceFields(t *testing.T) {
 			provider:    config.Provider{Behavior: "openai"},
 			wantAddedAt: "2026-07-12",
 			wantEnv:     false,
-			wantFamily:  "",
 		},
 	}
 
@@ -90,28 +84,7 @@ func TestBuildMappingRows_ProvenanceFields(t *testing.T) {
 			if row.EnvPresent != tt.wantEnv {
 				t.Errorf("EnvPresent = %v, want %v", row.EnvPresent, tt.wantEnv)
 			}
-			if row.Family != tt.wantFamily {
-				t.Errorf("Family = %q, want %q", row.Family, tt.wantFamily)
-			}
 		})
-	}
-}
-
-func TestBuildMappingRows_ExtractFamilyNoDefault(t *testing.T) {
-	// A mapping name with no family keyword must produce an empty Family,
-	// not the "default" catch-all.
-	cfg := &config.Config{
-		Providers: map[string]config.Provider{"nim": {Behavior: "openai"}},
-		Mappings: map[string]config.Mapping{
-			"xyz": {ProviderName: "nim", ModelString: "step-3.5"},
-		},
-	}
-	rows := buildMappingRows(cfg, cfg.Providers, nil, mappingFilters{})
-	if len(rows) != 1 {
-		t.Fatalf("got %d rows, want 1", len(rows))
-	}
-	if rows[0].Family != "" {
-		t.Errorf("Family = %q, want empty (no default catch-all leaked)", rows[0].Family)
 	}
 }
 
@@ -126,10 +99,26 @@ func TestBuildMappingRows_EmptyConfig(t *testing.T) {
 	}
 }
 
-func TestExtractFamily_Exported(t *testing.T) {
-	// Sanity: the exported function still behaves as the proxy package expects.
-	family, found := proxy.ExtractFamily("opus-4-5")
-	if !found || family != "opus" {
-		t.Errorf("ExtractFamily(opus-4-5) = %q, %v — want opus, true", family, found)
+func TestBuildMappingRows_DefaultProtected(t *testing.T) {
+	cfg := &config.Config{
+		Providers: map[string]config.Provider{"nim": {Behavior: "openai"}},
+		Mappings: map[string]config.Mapping{
+			"default": {ProviderName: "nim", ModelString: "catch-all"},
+			"opus":    {ProviderName: "nim", ModelString: "from-opus"},
+		},
+	}
+	rows := buildMappingRows(cfg, cfg.Providers, nil, mappingFilters{})
+	if len(rows) != 2 {
+		t.Fatalf("got %d rows, want 2", len(rows))
+	}
+	byName := make(map[string]bool)
+	for _, r := range rows {
+		byName[r.Name] = r.Protected
+	}
+	if !byName["default"] {
+		t.Errorf("default row should be flagged Protected")
+	}
+	if byName["opus"] {
+		t.Errorf("non-default row should not be flagged Protected")
 	}
 }

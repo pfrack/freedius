@@ -74,14 +74,17 @@ mappings:
 				if _, ok := cfg.Providers["custom"]; !ok {
 					t.Error("missing custom provider")
 				}
-				if len(cfg.Mappings) != 2 {
-					t.Fatalf("expected 2 mappings, got %d", len(cfg.Mappings))
+				if len(cfg.Mappings) != 3 {
+					t.Fatalf("expected 2 mappings + injected default, got %d", len(cfg.Mappings))
 				}
 				if _, ok := cfg.Mappings["opus"]; !ok {
 					t.Error("missing opus mapping")
 				}
 				if _, ok := cfg.Mappings["sonnet"]; !ok {
 					t.Error("missing sonnet mapping")
+				}
+				if _, ok := cfg.Mappings["default"]; !ok {
+					t.Error("missing injected default mapping")
 				}
 				sonnet, ok := cfg.Mappings["sonnet"]
 				if !ok {
@@ -303,11 +306,14 @@ mappings:
     model_string: meta/llama-3.1-70b-instruct
 `,
 			check: func(t *testing.T, cfg *Config) {
-				if len(cfg.Mappings) != 1 {
-					t.Fatalf("expected 1 mapping, got %d", len(cfg.Mappings))
+				if len(cfg.Mappings) != 2 {
+					t.Fatalf("expected 1 mapping + injected default, got %d", len(cfg.Mappings))
 				}
 				if _, ok := cfg.Mappings["opus"]; !ok {
 					t.Fatal("missing opus mapping")
+				}
+				if _, ok := cfg.Mappings["default"]; !ok {
+					t.Fatal("missing injected default mapping")
 				}
 			},
 		},
@@ -370,8 +376,11 @@ mappings:
 				if len(cfg.Providers) < 1 {
 					t.Errorf("expected at least 1 provider, got %d", len(cfg.Providers))
 				}
-				if len(cfg.Mappings) != 1 {
-					t.Errorf("expected 1 mapping, got %d", len(cfg.Mappings))
+				if len(cfg.Mappings) != 2 {
+					t.Errorf("expected 1 mapping + injected default, got %d", len(cfg.Mappings))
+				}
+				if _, ok := cfg.Mappings["default"]; !ok {
+					t.Error("missing injected default mapping")
 				}
 			},
 		},
@@ -887,6 +896,37 @@ mappings:
 				want.ModelString,
 			)
 		}
+	}
+}
+
+func TestLoad_InjectsDefaultMappingKeepsDiskUnchanged(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "freedius.yaml")
+	input := "providers:\n  nim: {behavior: openai}\nmappings:\n  opus:\n    provider_name: nim\n    model_string: m-opus\n"
+	if err := os.WriteFile(path, []byte(input), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	def, ok := cfg.Mappings["default"]
+	if !ok {
+		t.Fatal("default mapping was not injected")
+	}
+	if def.ProviderName != "nim" || def.ModelString != "m-opus" {
+		t.Errorf("injected default = %+v, want provider nim / model m-opus", def)
+	}
+
+	// The on-disk YAML must be left untouched; injection is in-memory only.
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), "default:") {
+		t.Errorf("Load mutated the on-disk YAML: %s", string(raw))
 	}
 }
 

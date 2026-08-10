@@ -150,6 +150,13 @@
     function confirmDeleteMapping(btn) {
       var name = btn.dataset.mappingName;
       if (!name) return;
+      if (name === "default") {
+        // The catch-all mapping is always present; refuse deletion and explain.
+        var dlg = document.getElementById('delete-confirm-dialog');
+        document.getElementById('delete-mapping-name').textContent = name + " (protected — cannot be deleted)";
+        dlg.showModal();
+        return;
+      }
       document.getElementById('delete-mapping-name').textContent = name;
       var form = document.getElementById('delete-confirm-form');
       form.setAttribute('hx-delete', '/v1/mappings/' + encodeURIComponent(name));

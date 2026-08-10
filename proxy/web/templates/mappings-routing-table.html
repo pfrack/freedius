@@ -56,7 +56,7 @@
       {{range .Mappings}}
       {{$mapName := .Name}}
       <tr>
-        <td><strong>{{.Name}}</strong>{{if .Family}} <span class="badge badge--family">{{.Family}}</span>{{end}}</td>
+         <td><strong>{{.Name}}</strong>{{if .Protected}} <span class="badge badge--protected">protected</span>{{end}}</td>
         <td><span class="model-id" title="{{.ProviderName}} / {{.Model}}">{{.ProviderName}} / {{.Model}}</span></td>
         <td>
           {{if .Fallbacks}}
@@ -85,6 +85,7 @@
             class="btn btn--ghost btn--sm btn--danger-subtle"
             data-mapping-name="{{.Name | js}}"
             onclick="confirmDeleteMapping(this)"
+            {{if .Protected}}disabled title="The default mapping cannot be deleted"{{end}}
           >Delete</button>
         </td>
       </tr>

@@ -64,25 +64,8 @@ mappings:
       - provider_name: kilo
         model_string: kilo-auto/free
 
-  # ─── Default / auto routing ─────────────────────────────────────────
-  # `default` is the catch-all for model names matching no other keyword.
-  # `auto` looks redundant but is NOT: ExtractFamily (proxy/families.go) returns
-  # the FIRST matching family and resolveMapping (proxy/proxy.go:139) does a
-  # single lookup with no fallthrough — so an "auto"-named request resolves to
-  # family "auto" and 404s if that mapping is absent. It never reaches
-  # `default`. Keep both entries even when they point at the same model.
+  # `default` is the always-present catch-all for any unmatched model.
   default:
-    provider_name: nim
-    model_string: nvidia/nemotron-3-nano-30b-a3b
-    fallback:
-      - provider_name: nim
-        model_string: meta/llama-3.1-8b-instruct
-      - provider_name: nous
-        model_string: tencent/hy3:free
-      - provider_name: kilo
-        model_string: kilo-auto/free
-
-  auto:
     provider_name: nim
     model_string: nvidia/nemotron-3-nano-30b-a3b
     fallback:

@@ -23,7 +23,7 @@ Freedius is **feature-complete for solo-dev use**. Everything in the original PR
 - Multi-provider routing (NIM, Zen, Go, OpenRouter, Google, Mistral, Groq, any OpenAI/Anthropic-compatible endpoint)
 - Streaming translation (Anthropic ↔ OpenAI SSE)
 - Fallback chains (primary fails → try alternatives automatically)
-- Model family mapping (opus/sonnet/haiku → concrete models)
+- Model→mapping matching: compiled case-insensitive regex over every mapping key (most-specific wins), with an always-present, undeletable `default` catch-all
 - Provider codegen (`providers.yaml` + `go generate`)
 - Local token counting for OpenAI-protocol upstreams
 - Error hardening with clear user-facing messages
@@ -101,6 +101,7 @@ archived `change.md` carries the same value in its `roadmap_id` frontmatter key.
 |----|-----------|-------|----|------|
 | S-02 | provider-and-mapping | Provider-and-mapping — family-aware mapping + compat providers + in-binary defaults | #3, #4 | 2026-06-16 |
 | S-02a | providers-section-refactor | Providers section refactor (config split) | — | 2026-06-19 |
+| S-02b | regex-mapping-matching | Loose regex-based model→mapping matching with a protected default catch-all | — | 2026-08-10 |
 
 ### S-03 — Zen + Go adapters
 

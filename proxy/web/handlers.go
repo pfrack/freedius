@@ -736,10 +736,6 @@ func buildMappingRows(
 			proto = p.Protocol
 			url = p.DefaultBaseURL
 		}
-		family, _ := proxy.ExtractFamily(name)
-		if family == "default" {
-			family = ""
-		}
 		responder, hasResp := 0, false
 		if lastResponder != nil {
 			responder, hasResp = lastResponder.Lookup(name)
@@ -755,7 +751,7 @@ func buildMappingRows(
 			Fallbacks:    fallbacks,
 			AddedAt:      m.AddedAt,
 			EnvPresent:   envPresent,
-			Family:       family,
+			Protected:    name == "default",
 		}
 		rows = append(rows, row)
 	}
@@ -1192,6 +1188,7 @@ func handleCreateMapping(w http.ResponseWriter, r *http.Request, h *eventstream.
 		}
 	}
 	cfg.Unlock()
+	cfg.BuildMatchers()
 	// HTMX request: render the updated table fragment.
 	if r.Header.Get("HX-Request") == "true" {
 		renderMappingsTable(w, r, h)
@@ -1243,6 +1240,7 @@ func handleUpdateMapping(w http.ResponseWriter, r *http.Request, h *eventstream.
 		}
 	}
 	cfg.Unlock()
+	cfg.BuildMatchers()
 	// HTMX request: render the updated table fragment.
 	if r.Header.Get("HX-Request") == "true" {
 		renderMappingsTable(w, r, h)
@@ -1257,6 +1255,13 @@ func handleDeleteMapping(w http.ResponseWriter, r *http.Request, h *eventstream.
 	name, err := pathName(r, "/v1/mappings/")
 	if err != nil {
 		writeJSONError(w, http.StatusBadRequest, "bad_path", err.Error())
+		return
+	}
+
+	// The default catch-all is always required, so refuse to delete it.
+	if name == "default" {
+		writeJSONError(w, http.StatusConflict, "protected_mapping",
+			"the default mapping cannot be deleted")
 		return
 	}
 
@@ -1285,6 +1290,7 @@ func handleDeleteMapping(w http.ResponseWriter, r *http.Request, h *eventstream.
 		}
 	}
 	cfg.Unlock()
+	cfg.BuildMatchers()
 	// HTMX request: render the updated table fragment.
 	if r.Header.Get("HX-Request") == "true" {
 		renderMappingsTable(w, r, h)

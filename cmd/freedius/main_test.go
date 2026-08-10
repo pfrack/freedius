@@ -519,10 +519,10 @@ func TestStarterTemplate_FallbackChainOrdering(t *testing.T) {
 		t.Fatalf("starter template should be valid config: %v", err)
 	}
 
-	// `auto` is NOT redundant with `default`: ExtractFamily returns the first
-	// matching family and resolveMapping does a single lookup with no
-	// fallthrough, so an "auto"-named request 404s if this mapping is absent.
-	for _, name := range []string{"opus", "sonnet", "haiku", "default", "auto"} {
+	// `default` is the injected catch-all; the starter no longer ships a
+	// redundant `auto` mapping since matching is now a compiled scan over every
+	// mapping key, with `default` always evaluated last.
+	for _, name := range []string{"opus", "sonnet", "haiku", "default"} {
 		m, ok := cfg.Mappings[name]
 		if !ok {
 			t.Errorf("starter missing mapping %q", name)
