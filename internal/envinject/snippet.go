@@ -6,7 +6,11 @@ import "fmt"
 // route Claude Code through the local freedius proxy in the current shell.
 func Snippet(host string, port int) string {
 	addr := fmt.Sprintf("%s:%d", host, port)
-	return fmt.Sprintf(`# Paste these into your shell to route Claude Code through freedius:
+	return fmt.Sprintf(`# Point Claude Code at this freedius proxy:
+#
+#   freedius configure    # backup-safe one-liner (backs up settings.json)
+#
+# Or paste these into your shell manually:
 export ANTHROPIC_BASE_URL="http://%s"
 export ANTHROPIC_API_KEY="freedius-dummy"
 export ENABLE_TOOL_SEARCH="true"

@@ -34,15 +34,21 @@ providers:
     behavior: mix
     default_api_key_env: OPENCODE_API_KEY
     require_base_url: true
+    openai:
+      no_stream_usage: true
 
   go:
     behavior: mix
     default_api_key_env: OPENCODE_API_KEY
     require_base_url: true
+    openai:
+      no_stream_usage: true
 
   custom:
     behavior: mix
     require_base_url: true
+    openai:
+      no_stream_usage: true
 
   openai:
     behavior: openai
@@ -57,6 +63,8 @@ providers:
   mix:
     behavior: mix
     require_base_url: true
+    openai:
+      no_stream_usage: true
 
   google:
     behavior: openai
@@ -115,3 +123,15 @@ providers:
     require_base_url: false
     openai:
       no_stream_usage: true
+
+  nous:
+    behavior: openai
+    default_base_url: https://inference-api.nousresearch.com/v1/chat/completions
+    default_api_key_env: NOUS_API_KEY
+    require_base_url: false
+
+  kilo:
+    behavior: openai
+    default_base_url: https://api.kilo.ai/api/gateway/chat/completions
+    default_api_key_env: KILO_API_KEY
+    require_base_url: false

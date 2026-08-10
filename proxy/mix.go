@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/pfrack/freedius/config"
-	"github.com/pfrack/freedius/proxy/translate"
 )
 
 // MixAdapter routes each request to either the Anthropic or OpenAI code path
@@ -25,15 +24,15 @@ type MixAdapter struct {
 }
 
 // NewMixAdapter returns a mix adapter wired to fresh Anthropic and OpenAI
-// sub-adapters, with OpenAI's stream-usage suppressed because mix providers
-// (zen, go) cannot return usage on the last chunk.
+// sub-adapters. The OpenAI sub-path honors the provider's OpenAI.NoStreamUsage
+// config (carried by the zen/go/custom/mix providers via providerDefaults), so
+// mix upstreams that reject stream_options no longer receive them.
 func NewMixAdapter(
 	logger *slog.Logger,
 	verboseErrors bool,
 	streamTimeout time.Duration,
 ) *MixAdapter {
 	openai := NewOpenAICompatibleAdapterWithTimeout(logger, streamTimeout)
-	openai.translateOpts = translate.Opts{NoStreamUsage: true}
 	return &MixAdapter{
 		anthropic: NewAnthropicCompatibleAdapter(logger, verboseErrors),
 		openai:    openai,
@@ -62,6 +61,8 @@ func (a *MixAdapter) Handle(
 		provider.DefaultBaseURL = a.normalizeBaseURL(provider.DefaultBaseURL, "/chat/completions", "/messages")
 		a.logger.Debug("mix routing", "protocol", provider.Protocol, "url", provider.DefaultBaseURL)
 		return a.openai.Handle(w, r, provider, mapping, body)
+	default:
+		// Unknown protocol falls through to URL-path sniffing below.
 	}
 	parsedURL, err := url.Parse(provider.DefaultBaseURL)
 	if err != nil {
