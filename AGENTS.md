@@ -7,6 +7,9 @@ freedius is a local HTTP proxy built with Go's standard library (`net/http`, `ht
 - **Run**: `mage run` — starts the proxy server locally.
 - **Build**: `mage build` — produces a static binary.
 - **Test**: `mage test` — runs all tests with race detection.
+- **E2E**: `mage e2e` — Playwright browser tests (run `mage e2eSetup` once first).
+- **Coverage**: `mage coverage` — generates and opens an HTML coverage report.
+- **Format**: `mage format` — apply gofmt, goimports, gci, golines.
 - **Lint**: `mage lint` — runs vet, staticcheck, and golangci-lint.
 - **Audit**: `mage govulncheck` — checks for known vulnerabilities in the module graph.
 
@@ -15,8 +18,12 @@ freedius is a local HTTP proxy built with Go's standard library (`net/http`, `ht
 - `cmd/freedius/` — entry point (single binary), HTTP server setup, proxy routing (@go.dev/doc/net/http for `http.Handler` patterns).
 - `proxy/` — reverse proxy logic using `httputil.ReverseProxy`.
 - `proxy/mix.go` — `MixAdapter`: routes to Anthropic or OpenAI sub-adapter based on `Provider.Protocol` field (if set) or URL path sniffing. `normalizeBaseURL` appends `/v1/messages` or `/v1/chat/completions` automatically when `protocol` is set.
+- `proxy/web/` — embedded htmx dashboard (handlers, forms, embed, CSRF guard).
+- `proxy/translate/` — Anthropic↔OpenAI protocol translation.
 - `config/` — configuration loading, validation, and persistence. `Provider.Protocol` field (`""`, `"openai"`, `"anthropic"`) controls mix adapter routing.
+- `internal/` — private packages: `envinject` (env-var hint + Claude settings injection), `eventstream` (SSE handlers), `genproviders` (provider codegen).
 - `providers.yaml` — single source of truth for provider metadata; run `go generate ./...` after changes.
+- `e2e/` — Playwright browser tests, fixtures, and helpers.
 - `context/foundation/` — product requirements, tech-stack decisions, and plans (do not edit manually unless you are sure).
 - `context/changes/` — change-by-change implementation plans and verification logs.
 
@@ -34,9 +41,15 @@ freedius is a local HTTP proxy built with Go's standard library (`net/http`, `ht
 - Use `testing` stdlib + `httptest` for HTTP tests (`httptest.NewServer`, `httptest.NewRequest`, `httptest.ResponseRecorder`).
 - Table-driven tests preferred for handler logic.
 - Run `mage test` before committing to check coverage.
+- E2E: `e2e/` holds Playwright browser tests; run `mage e2eSetup` once, then `mage e2e`.
 
 ## CI & Commits
 
 - CI runs on GitHub Actions (`@.github/workflows/ci.yml`): `mage ci`.
-- Commits use conventional-commit prefixes observed in `git log`: `feat:`, `fix:`, `chore:`, `docs:`, `refactor:`.
+- Commits use conventional-commit prefixes observed in `git log`: `feat:`, `fix:`, `chore:`, `docs:`, `refactor:`, `test:`.
 - Keep the module path `github.com/pfrack/freedius` in imports.
+
+## Release
+
+- Tags matching `v*` trigger `@.github/workflows/release.yml`, which runs GoReleaser to publish static binaries.
+- `@goreleaser.yaml` defines the build matrix (Linux/macOS/Windows, amd64/arm64).

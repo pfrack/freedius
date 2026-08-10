@@ -253,6 +253,9 @@ mage test      # tests with race detection and coverage
 mage lint      # staticcheck + golangci-lint
 mage ci        # full CI check
 mage format    # gofmt, goimports, golines, gci
+mage e2eSetup  # install Playwright deps (once)
+mage e2e       # run Playwright browser tests
+mage coverage  # HTML coverage report
 ```
 
 ### Build from source
@@ -269,6 +272,12 @@ mage installHooks  # install pre-commit / pre-push hooks
 every commit. `scripts/pre-push` runs `go test -race` on the packages
 you changed versus `origin/main`. To skip the push hook in an
 emergency, use `git push --no-verify`.
+
+### Release
+
+Push a `v*` tag to trigger the release workflow (`@goreleaser.yaml`).
+GoReleaser publishes static binaries for Linux, macOS, and Windows
+(amd64/arm64) to the Releases page.
 
 For the full contributor guide — commit conventions, hook details, and
 release process — see [AGENTS.md](AGENTS.md).
