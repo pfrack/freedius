@@ -222,8 +222,8 @@ None — additive provider entries; existing configs are unaffected.
 
 #### Automated
 
-- [x] 2.1 `go test ./cmd/freedius/...` and `mage test` pass
+- [x] 2.1 `go test ./cmd/freedius/...` and `mage test` pass — 2954e93
 
 #### Manual
 
-- [ ] 2.2 Zero-mapping config returns clean `no_match` (no 500)
+- [x] 2.2 Zero-mapping config returns clean `no_match` (no 500) — 2954e93
