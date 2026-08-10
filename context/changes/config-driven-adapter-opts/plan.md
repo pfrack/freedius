@@ -505,10 +505,10 @@ providers, which is required to preserve current behavior (Phase 1, step 4).
 
 #### Automated
 
-- [ ] 1.1 `go build ./...` succeeds after config model + generation changes
-- [ ] 1.2 `go test ./config/...` passes (providerDefaults comparisons updated)
-- [ ] 1.3 `go generate ./...` md5-stable across two consecutive reruns
-- [ ] 1.4 `config/providers_gen.go` contains `OpenAI` blocks for nim/google/ollama/lmstudio/zen/go/custom/mix
+- [x] 1.1 `go build ./...` succeeds after config model + generation changes — 76ce3cc
+- [x] 1.2 `go test ./config/...` passes (providerDefaults comparisons updated) — 76ce3cc
+- [x] 1.3 `go generate ./...` md5-stable across two consecutive reruns — 76ce3cc
+- [x] 1.4 `config/providers_gen.go` contains `OpenAI` blocks for nim/google/ollama/lmstudio/zen/go/custom/mix — 76ce3cc
 
 #### Manual
 
@@ -518,8 +518,8 @@ providers, which is required to preserve current behavior (Phase 1, step 4).
 
 #### Automated
 
-- [ ] 2.1 `go build ./...` succeeds (removed fields unreferenced)
-- [ ] 2.2 `go vet ./proxy/...` clean
+- [x] 2.1 `go build ./...` succeeds (removed fields unreferenced)
+- [x] 2.2 `go vet ./proxy/...` clean
 - [ ] 2.3 `go test ./proxy/...` passes (after Phase 4 test updates)
 
 #### Manual
@@ -530,9 +530,9 @@ providers, which is required to preserve current behavior (Phase 1, step 4).
 
 #### Automated
 
-- [ ] 3.1 `go build ./...` succeeds
-- [ ] 3.2 No source references GoogleAdapter/LmstudioAdapter/OllamaAdapter/NIMAdapter outside regenerated adapters_gen.go
-- [ ] 3.3 `go generate ./...` md5-stable
+- [x] 3.1 `go build ./...` succeeds
+- [x] 3.2 No source references GoogleAdapter/LmstudioAdapter/OllamaAdapter/NIMAdapter outside regenerated adapters_gen.go
+- [x] 3.3 `go generate ./...` md5-stable
 
 #### Manual
 

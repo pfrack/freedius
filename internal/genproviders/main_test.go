@@ -28,15 +28,18 @@ func fullSpec() Spec {
 				Behavior:         "mix",
 				DefaultAPIKeyEnv: "OPENCODE_API_KEY",
 				RequireBaseURL:   true,
+				OpenAI:           &OpenAIOptions{NoStreamUsage: true},
 			},
 			"go": {
 				Behavior:         "mix",
 				DefaultAPIKeyEnv: "OPENCODE_API_KEY",
 				RequireBaseURL:   true,
+				OpenAI:           &OpenAIOptions{NoStreamUsage: true},
 			},
 			"custom": {
 				Behavior:       "mix",
 				RequireBaseURL: true,
+				OpenAI:         &OpenAIOptions{NoStreamUsage: true},
 			},
 			"openai": {
 				Behavior:       "openai",
@@ -51,6 +54,7 @@ func fullSpec() Spec {
 			"mix": {
 				Behavior:       "mix",
 				RequireBaseURL: true,
+				OpenAI:         &OpenAIOptions{NoStreamUsage: true},
 			},
 			"google": {
 				Behavior:         "openai",
@@ -221,6 +225,81 @@ scanNim:
 	}
 }
 
+func TestGenerateConfig_NIMCarriesOpenAIOptions(t *testing.T) {
+	out, err := GenerateConfig(fullSpec())
+	if err != nil {
+		t.Fatalf("GenerateConfig: %v", err)
+	}
+	src := string(out)
+	nimIdx := strings.Index(src, `"nim": {`)
+	if nimIdx == -1 {
+		t.Fatal("nim block not found")
+	}
+	depth := 0
+	end := nimIdx
+scanNim:
+	for i := nimIdx; i < len(src); i++ {
+		switch src[i] {
+		case '{':
+			depth++
+		case '}':
+			depth--
+			if depth == 0 {
+				end = i
+				break scanNim
+			}
+		}
+	}
+	nimBlock := src[nimIdx : end+1]
+	for _, want := range []string{
+		"OpenAI: &OpenAIOptions{",
+		"NoStreamUsage: true",
+		`PreSendHook:`,
+		`"sanitizeNIMBody"`,
+	} {
+		if !strings.Contains(nimBlock, want) {
+			t.Errorf("nim OpenAI options missing %q; block:\n%s", want, nimBlock)
+		}
+	}
+}
+
+func TestGenerateConfig_MixProvidersCarryNoStreamUsage(t *testing.T) {
+	out, err := GenerateConfig(fullSpec())
+	if err != nil {
+		t.Fatalf("GenerateConfig: %v", err)
+	}
+	src := string(out)
+	for _, name := range []string{"zen", "go", "custom", "mix"} {
+		key := `"` + name + `": {`
+		idx := strings.Index(src, key)
+		if idx == -1 {
+			t.Fatalf("%s block not found", name)
+		}
+		depth := 0
+		end := idx
+	scan:
+		for i := idx; i < len(src); i++ {
+			switch src[i] {
+			case '{':
+				depth++
+			case '}':
+				depth--
+				if depth == 0 {
+					end = i
+					break scan
+				}
+			}
+		}
+		block := src[idx : end+1]
+		if !strings.Contains(block, "OpenAI: &OpenAIOptions{") {
+			t.Errorf("%s should carry OpenAI options; block:\n%s", name, block)
+		}
+		if !strings.Contains(block, "NoStreamUsage: true") {
+			t.Errorf("%s should set NoStreamUsage: true; block:\n%s", name, block)
+		}
+	}
+}
+
 func TestGenerateProxy_CompilesAsGo(t *testing.T) {
 	out, err := GenerateProxy(fullSpec())
 	if err != nil {
@@ -231,26 +310,21 @@ func TestGenerateProxy_CompilesAsGo(t *testing.T) {
 	}
 }
 
-func TestGenerateProxy_EmitsNIMAdapter(t *testing.T) {
+func TestGenerateProxy_OmitsPerProviderWrappers(t *testing.T) {
 	out, err := GenerateProxy(fullSpec())
 	if err != nil {
 		t.Fatalf("GenerateProxy: %v", err)
 	}
 	src := string(out)
-	if !strings.Contains(src, "type NIMAdapter struct") {
-		t.Errorf("NIMAdapter type missing; output:\n%s", src)
-	}
-	if !strings.Contains(
-		src,
-		"func NewNIMAdapter(logger *slog.Logger, streamTimeout time.Duration) *NIMAdapter",
-	) {
-		t.Errorf("NewNIMAdapter signature wrong; output:\n%s", src)
-	}
-	if !strings.Contains(src, "inner.translateOpts = translate.Opts{NoStreamUsage: true}") {
-		t.Errorf("NIM NoStreamUsage=true not wired; output:\n%s", src)
-	}
-	if !strings.Contains(src, "inner.preSendHook = sanitizeNIMBody") {
-		t.Errorf("NIM preSendHook not wired; output:\n%s", src)
+	for _, typ := range []string{
+		"type GoogleAdapter struct",
+		"type LmstudioAdapter struct",
+		"type OllamaAdapter struct",
+		"type NIMAdapter struct",
+	} {
+		if strings.Contains(src, typ) {
+			t.Errorf("per-provider wrapper %q must not be generated; output:\n%s", typ, src)
+		}
 	}
 }
 
@@ -266,7 +340,7 @@ func TestGenerateProxy_NewDefaultRegistry(t *testing.T) {
 	// All 4 runtime adapters wired with aligned formatting.
 	compact := stripWhitespace(src)
 	for _, want := range []string{
-		`"nim":NewNIMAdapter(logger,streamTimeout)`,
+		`"nim":NewOpenAICompatibleAdapterWithTimeout(logger,streamTimeout)`,
 		`"openai":NewOpenAICompatibleAdapterWithTimeout(logger,streamTimeout)`,
 		`"anthropic":NewAnthropicCompatibleAdapterWithTimeout(logger,verboseErrors,streamTimeout)`,
 		`"mix":NewMixAdapter(logger,verboseErrors,streamTimeout)`,
@@ -277,22 +351,19 @@ func TestGenerateProxy_NewDefaultRegistry(t *testing.T) {
 	}
 }
 
-func TestGenerateProxy_HandleSignatureMatchesNewSchema(t *testing.T) {
+func TestGenerateProxy_NoPerProviderHandleWrappers(t *testing.T) {
 	out, err := GenerateProxy(fullSpec())
 	if err != nil {
 		t.Fatalf("GenerateProxy: %v", err)
 	}
 	src := string(out)
-	// The new Handle signature accepts (provider config.Provider, mapping config.Mapping).
-	if !strings.Contains(src, "provider config.Provider,") {
-		t.Errorf("Handle signature should accept config.Provider; output:\n%s", src)
+	// The wrappers (and their embedded Handle methods) are no longer
+	// generated; per-request behavior is driven by config at Handle time.
+	if strings.Contains(src, ") Handle(") {
+		t.Errorf("generated proxy should not contain per-provider Handle wrappers; output:\n%s", src)
 	}
-	if !strings.Contains(src, "mapping config.Mapping,") {
-		t.Errorf("Handle signature should accept config.Mapping; output:\n%s", src)
-	}
-	// No legacy config.Model parameter.
-	if strings.Contains(src, "m config.Model") {
-		t.Errorf("Handle signature must not reference config.Model; output:\n%s", src)
+	if !strings.Contains(src, "func NewDefaultRegistry") {
+		t.Errorf("generated proxy must contain NewDefaultRegistry; output:\n%s", src)
 	}
 }
 
