@@ -167,7 +167,11 @@ func (a *OpenAICompatibleAdapter) Handle(
 		// contract change across both paths.
 		return fmt.Errorf("%s adapter (openai-compat): do request: %w", mapping.ProviderName, err)
 	}
-	defer func() { _ = resp.Body.Close() }()
+	defer func() {
+		if resp != nil {
+			_ = resp.Body.Close()
+		}
+	}()
 
 	if resp.StatusCode >= 400 {
 		return classifyUpstreamError(resp)

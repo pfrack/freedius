@@ -149,7 +149,11 @@ func (a *AnthropicCompatibleAdapter) Handle(
 			retryAfter: 15,
 		}
 	}
-	defer func() { _ = resp.Body.Close() }()
+	defer func() {
+		if resp != nil {
+			_ = resp.Body.Close()
+		}
+	}()
 
 	if resp.StatusCode >= 400 {
 		return classifyUpstreamError(resp)
