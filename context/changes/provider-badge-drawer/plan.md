@@ -459,10 +459,10 @@ link.
 
 #### Automated
 
-- [x] 4.1 Provider detail handler table tests pass
-- [x] 4.2 Logs filter parity test added
-- [x] 4.3 Dashboard badge trigger assertion added
-- [x] 4.4 Full `mage test` (race) + `mage lint` + `mage vet` + `mage build` clean
+- [x] 4.1 Provider detail handler table tests pass — 55bd2ce
+- [x] 4.2 Logs filter parity test added — 55bd2ce
+- [x] 4.3 Dashboard badge trigger assertion added — 55bd2ce
+- [x] 4.4 Full `mage test` (race) + `mage lint` + `mage vet` + `mage build` clean — 55bd2ce
 
 #### Manual
 
