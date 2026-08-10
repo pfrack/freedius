@@ -394,11 +394,11 @@ rewritten. `auto` removal only affects the starter template, not user configs.
 
 #### Automated
 
-- [x] 2.1 Add `default` delete guard (409) in `handleDeleteMapping` — 
-- [x] 2.2 Call `buildMatchers()` after add/delete mutations — 
-- [x] 2.3 Test: `DELETE /v1/mappings/default` → 409, mapping persists — 
-- [x] 2.4 Test: add mapping then route by its key — 
-- [x] 2.5 `mage test` passes — 
+- [x] 2.1 Add `default` delete guard (409) in `handleDeleteMapping` — 2c3ab77
+- [x] 2.2 Call `buildMatchers()` after add/delete mutations — 2c3ab77
+- [x] 2.3 Test: `DELETE /v1/mappings/default` → 409, mapping persists — 2c3ab77
+- [x] 2.4 Test: add mapping then route by its key — 2c3ab77
+- [x] 2.5 `mage test` passes — 2c3ab77
 
 #### Manual
 
