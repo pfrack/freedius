@@ -145,7 +145,7 @@ func (a *AnthropicCompatibleAdapter) Handle(
 		return &upstreamError{
 			status:     529,
 			errType:    "overloaded_error",
-			message:    "upstream not reachable",
+			message:    "upstream temporarily unreachable",
 			retryAfter: 15,
 		}
 	}

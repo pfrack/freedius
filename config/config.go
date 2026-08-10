@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"unicode"
 
 	"github.com/goccy/go-yaml"
 )
@@ -315,12 +316,12 @@ func validateMapping(path, name string, m Mapping, providers map[string]Provider
 			name,
 		)
 	}
-	// Only CR/LF are rejected: they enable header injection when the value is
+	// Reject control characters: they enable header injection when the value is
 	// echoed into X-Freedius-Matched-Model. Colons are legal in header values
 	// and are common in vendor model IDs (e.g. "hy3:free", "llama3:8b").
-	if strings.ContainsAny(m.ModelString, "\r\n") {
+	if strings.ContainsFunc(m.ModelString, unicode.IsControl) {
 		return fmt.Errorf(
-			"config: config file at %s: mapping %q has unsafe \"model_string\" value (must not contain CR or LF)",
+			"config: config file at %s: mapping %q has unsafe \"model_string\" value (must not contain control characters)",
 			path,
 			name,
 		)
