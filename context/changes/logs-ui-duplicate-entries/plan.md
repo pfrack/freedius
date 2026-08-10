@@ -123,6 +123,12 @@ The `Entries` field on `logsData` (set in `web/handlers.go:471-479`) is left
 untouched — it is still required by the `log-entries.html` filter fragment.
 No change to `handleLogs`, `renderLogEntries`, or `log-entries.html`.
 
+> **Implementation addendum**: `proxy/web/log_filter_test.go`'s
+> `TestHandleLogs_OutcomeFilter` and `TestHandleLogs_FallbackFilter` were updated
+> to send `HX-Request: true` so they exercise the `log-entries` fragment (the
+> full page no longer server-renders entries). This was an approved scope
+> adaptation surfaced during implementation, preserving filter-logic coverage.
+
 ### Success Criteria:
 
 #### Automated Verification:
