@@ -48,11 +48,9 @@ Freedius is **feature-complete for solo-dev use**. Everything in the original PR
 
 ## Active Work
 
-- **V-02l — logs-ui-live-tail**: Restore the `/logs` live SSE tail (htmx SSE
-  extension include is missing from `layout.html`, so `sse-connect` is dead)
-  and run a scoped UX pass over only the verified gaps (message search,
-  result count/total, live stream honoring the active filter, footer pin).
-  Framed 2026-08-09; not yet planned.
+None. V-02l (logs-ui-live-tail) shipped and archived 2026-08-10, along with its
+follow-ups V-02n (duplicate log entries) and V-02o (provider drawer + live-tail
+filter). PR #48 carries S-09a, V-02n and V-02o and is open but unmerged.
 
 ## What's Next (ideas, not committed)
 
@@ -73,8 +71,6 @@ group's id (e.g. `V-02`); related follow-ups are lettered (`V-02a`, `V-02b`, ...
 archived `change.md` carries the same value in its `roadmap_id` frontmatter key.
 `bootstrap-verification` and the `auto-review` CI spike are intentionally unnumbered.
 
-- **V-02l: Logs UI live-tail fix (restore dead SSE) + scoped UX pass** — Archived 2026-08-10 → `context/archive/2026-08-09-logs-ui-live-tail/`. Lesson: —.
-
 ### Foundation — proxy skeleton, tooling & quality
 
 | ID | Change ID | Title | PR | Date |
@@ -85,7 +81,7 @@ archived `change.md` carries the same value in its `roadmap_id` frontmatter key.
 | F-01c | mage-ci-integration | Integrate Mage into GitHub Actions CI | #21, #22, #23 | 2026-07-01 |
 | F-01d | quality-gates-in-ci | Audit and harden quality gates in CI | — | 2026-07-02 |
 | F-01e | testing-proxy-integration | Testing proxy integration | #24 | 2026-07-02 |
-| F-01f | test-plan-refresh | Test plan refresh 2026-07-05 | #27 | 2026-07-05 |
+| F-01f | test-plan-refresh-2026-07-05 | Test plan refresh 2026-07-05 | #27 | 2026-07-05 |
 
 ### S-01 — First call routed (routing/translation core)
 
@@ -149,6 +145,7 @@ archived `change.md` carries the same value in its `roadmap_id` frontmatter key.
 | ID | Change ID | Title | PR | Date |
 |----|-----------|-------|----|------|
 | S-09 | add-popular-providers | Add popular AI providers to providers.yaml | #18 | 2026-06-21 |
+| S-09a | swe-starter-models | Register minimax + xiaomi providers; confirm starter model scope | #48 | 2026-08-10 |
 
 ### V-01 — TUI era
 
@@ -183,6 +180,8 @@ archived `change.md` carries the same value in its `roadmap_id` frontmatter key.
 | V-02k | web-ui-polish | Web UI Polish — Remainder & Dead-Code Cleanup | | 2026-08-07 |
 | V-02l | logs-ui-live-tail | Logs UI live-tail fix (restore dead SSE) + scoped UX pass | — | 2026-08-09 |
 | V-02m | misleading-inactive-filter | Fix misleading "Inactive" status filter on mappings page | — | 2026-08-09 |
+| V-02n | logs-ui-duplicate-entries | Fix dashboard log view showing each historical entry twice | #48 | 2026-08-10 |
+| V-02o | provider-badge-drawer | Provider badge opens a right-side drawer + logs live-tail filter fix | #48 | 2026-08-10 |
 
 ### V-03 — Distribution & launch
 
