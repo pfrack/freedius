@@ -194,10 +194,10 @@ state is affected.
 
 #### Automated
 
-- [x] 1.1 `mage build` succeeds with edited `logs.html`
-- [x] 1.2 `mage test` passes (incl. `log_filter_test.go`)
-- [x] 1.3 `mage lint` passes
+- [x] 1.1 `mage build` succeeds with edited `logs.html` — 75d925b
+- [x] 1.2 `mage test` passes (incl. `log_filter_test.go`) — 75d925b
+- [x] 1.3 `mage lint` passes — 75d925b
 
 #### Manual
 
-- [ ] 1.4 `/logs` shows each historical line exactly once; live tail duplicates none
+- [x] 1.4 `/logs` shows each historical line exactly once; live tail duplicates none — 75d925b
