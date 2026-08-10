@@ -95,7 +95,8 @@ depends on, and registering it in the page.
 
 **Contract**: Vendor `htmx-ext-sse@2.2.2` (matching the pin in
 `proxy/web/static/htmx.min.js`'s header, compatible with htmx core 2.0.4).
-Source from `https://unpkg.com/htmx-ext-sse@2.2.2/sse.min.js`. Must define
+Source from `https://unpkg.com/htmx-ext-sse@2.2.2/sse.js` (the `sse.min.js`
+path 404s for this package; the local filename stays `htmx-sse.min.js`). Must define
 `htmx.defineExtension('sse', …)` so `hx-ext="sse"` resolves. Placed in
 `proxy/web/static/` it is auto-embedded by the existing `//go:embed`.
 
@@ -270,7 +271,7 @@ None. Purely additive asset + template change; no config or data migration.
 
 #### Automated
 
-- [x] 1.1 Vendor `htmx-ext-sse@2.2.2/sse.min.js` into `proxy/web/static/htmx-sse.min.js` — 1a33be8
+- [x] 1.1 Vendor `htmx-ext-sse@2.2.2/sse.js` into `proxy/web/static/htmx-sse.min.js` — 1a33be8
 - [x] 1.2 Add `proxy/web/static/htmx-sse.min.js.sha256` checksum — 1a33be8
 - [x] 1.3 Insert `<script src="/static/htmx-sse.min.js">` in `layout.html` between htmx core and app.js — 1a33be8
 - [x] 1.4 `mage lint` passes — 1a33be8
