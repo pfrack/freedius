@@ -31,8 +31,11 @@ test('filtering by "No API key" returns the same rows (semantics unchanged)', as
   await page.goto('/mappings?status=inactive');
   // The internal value="inactive" still drives filtering.
   await expect(page.locator('select[name="status"]')).toHaveValue('inactive');
-  // The unset-key mapping is still surfaced.
+  // The unset-key mapping is still surfaced. The injected `default` catch-all is
+  // always present (and mirrors the only fixture mapping's keyless provider), so
+  // the filter now surfaces both it and the original mapping — semantics unchanged.
   const rows = page.locator('.mappings-table tbody tr');
-  await expect(rows).toHaveCount(1);
-  await expect(rows.first()).toContainText('test-chat');
+  await expect(rows).toHaveCount(2);
+  await expect(rows.filter({ hasText: 'test-chat' })).toHaveCount(1);
+  await expect(rows.filter({ hasText: 'default' })).toHaveCount(1);
 });
