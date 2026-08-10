@@ -844,11 +844,13 @@ func renderProvidersTable(w http.ResponseWriter, _ *http.Request, h *eventstream
 		writeJSONError(w, http.StatusInternalServerError, "template_failed", err.Error())
 		return
 	}
-	err = tmpl.ExecuteTemplate(w, "providers-table", providersData{
+	// ExecuteTemplate has already written the 200 and part of the body, so an
+	// error here cannot be turned into an HTTP error response — doing so
+	// triggers "superfluous response.WriteHeader". Log only.
+	if err := tmpl.ExecuteTemplate(w, "providers-table", providersData{
 		Providers: rows,
-	})
-	if err != nil {
-		writeJSONError(w, http.StatusInternalServerError, "template_failed", err.Error())
+	}); err != nil {
+		slog.Error("execute providers table template", "err", err)
 	}
 }
 
@@ -859,11 +861,12 @@ func renderLogEntries(w http.ResponseWriter, entries []logEntry) {
 		writeJSONError(w, http.StatusInternalServerError, "template_failed", err.Error())
 		return
 	}
-	err = tmpl.ExecuteTemplate(w, "log-entries", logsData{
+	// Response already committed by ExecuteTemplate — log only (see
+	// renderProvidersTable).
+	if err := tmpl.ExecuteTemplate(w, "log-entries", logsData{
 		Entries: entries,
-	})
-	if err != nil {
-		writeJSONError(w, http.StatusInternalServerError, "template_failed", err.Error())
+	}); err != nil {
+		slog.Error("execute log entries template", "err", err)
 	}
 }
 
@@ -900,7 +903,9 @@ func renderMappingsTable(w http.ResponseWriter, r *http.Request, h *eventstream.
 		writeJSONError(w, http.StatusInternalServerError, "template_failed", err.Error())
 		return
 	}
-	err = tmpl.ExecuteTemplate(w, "mappings-routing-table", mappingsData{
+	// Response already committed by ExecuteTemplate — log only (see
+	// renderProvidersTable).
+	if err := tmpl.ExecuteTemplate(w, "mappings-routing-table", mappingsData{
 		Mappings:          rows,
 		Providers:         providerRows,
 		TotalMappings:     len(cfg.MappingsSnapshot()),
@@ -908,9 +913,8 @@ func renderMappingsTable(w http.ResponseWriter, r *http.Request, h *eventstream.
 		ProviderFilter:    filters.ProviderFilter,
 		StatusFilter:      filters.StatusFilter,
 		HasFallbackFilter: filters.HasFallback,
-	})
-	if err != nil {
-		writeJSONError(w, http.StatusInternalServerError, "template_failed", err.Error())
+	}); err != nil {
+		slog.Error("execute mappings table template", "err", err)
 	}
 }
 
