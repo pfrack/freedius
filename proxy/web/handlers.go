@@ -377,6 +377,11 @@ func SetupMux(h *eventstream.Handlers, logger *slog.Logger) *http.ServeMux {
 		handleMappingDetail(w, r, h, logger)
 	})
 
+	// Drawer endpoint: HTMX-loaded fragment for the provider details drawer.
+	mux.HandleFunc("GET /v1/providers/{name}/detail", func(w http.ResponseWriter, r *http.Request) {
+		handleProviderDetail(w, r, h, logger)
+	})
+
 	// Models endpoint: explicit refresh only.
 	mux.HandleFunc("POST /v1/providers/{name}/models/refresh", func(w http.ResponseWriter, r *http.Request) {
 		handleRefreshModels(w, r, h, logger)
@@ -504,8 +509,12 @@ func parseFallbackFilter(s string) string {
 }
 
 // handleProviders renders the providers page with a read-only table.
+// Filter: ?provider=<name> — optional, case-insensitive substring match on the
+// provider name (mirrors handleLogs). The dashboard provider drawer's edit link
+// uses it to open the page pre-filtered to a single provider.
 func handleProviders(w http.ResponseWriter, r *http.Request, h *eventstream.Handlers, logger *slog.Logger) {
 	cfg := h.Cfg
+	providerFilter := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("provider")))
 	providers := cfg.ProvidersSnapshot()
 	mappings := cfg.MappingsSnapshot()
 
@@ -523,6 +532,9 @@ func handleProviders(w http.ResponseWriter, r *http.Request, h *eventstream.Hand
 
 	var rows []providerRow
 	for name, p := range providers {
+		if providerFilter != "" && !strings.Contains(strings.ToLower(name), providerFilter) {
+			continue
+		}
 		row := providerRow{
 			Name:         name,
 			Behavior:     p.Behavior,
@@ -832,11 +844,13 @@ func renderProvidersTable(w http.ResponseWriter, _ *http.Request, h *eventstream
 		writeJSONError(w, http.StatusInternalServerError, "template_failed", err.Error())
 		return
 	}
-	err = tmpl.ExecuteTemplate(w, "providers-table", providersData{
+	// ExecuteTemplate has already written the 200 and part of the body, so an
+	// error here cannot be turned into an HTTP error response — doing so
+	// triggers "superfluous response.WriteHeader". Log only.
+	if err := tmpl.ExecuteTemplate(w, "providers-table", providersData{
 		Providers: rows,
-	})
-	if err != nil {
-		writeJSONError(w, http.StatusInternalServerError, "template_failed", err.Error())
+	}); err != nil {
+		slog.Error("execute providers table template", "err", err)
 	}
 }
 
@@ -847,11 +861,12 @@ func renderLogEntries(w http.ResponseWriter, entries []logEntry) {
 		writeJSONError(w, http.StatusInternalServerError, "template_failed", err.Error())
 		return
 	}
-	err = tmpl.ExecuteTemplate(w, "log-entries", logsData{
+	// Response already committed by ExecuteTemplate — log only (see
+	// renderProvidersTable).
+	if err := tmpl.ExecuteTemplate(w, "log-entries", logsData{
 		Entries: entries,
-	})
-	if err != nil {
-		writeJSONError(w, http.StatusInternalServerError, "template_failed", err.Error())
+	}); err != nil {
+		slog.Error("execute log entries template", "err", err)
 	}
 }
 
@@ -888,7 +903,9 @@ func renderMappingsTable(w http.ResponseWriter, r *http.Request, h *eventstream.
 		writeJSONError(w, http.StatusInternalServerError, "template_failed", err.Error())
 		return
 	}
-	err = tmpl.ExecuteTemplate(w, "mappings-routing-table", mappingsData{
+	// Response already committed by ExecuteTemplate — log only (see
+	// renderProvidersTable).
+	if err := tmpl.ExecuteTemplate(w, "mappings-routing-table", mappingsData{
 		Mappings:          rows,
 		Providers:         providerRows,
 		TotalMappings:     len(cfg.MappingsSnapshot()),
@@ -896,9 +913,8 @@ func renderMappingsTable(w http.ResponseWriter, r *http.Request, h *eventstream.
 		ProviderFilter:    filters.ProviderFilter,
 		StatusFilter:      filters.StatusFilter,
 		HasFallbackFilter: filters.HasFallback,
-	})
-	if err != nil {
-		writeJSONError(w, http.StatusInternalServerError, "template_failed", err.Error())
+	}); err != nil {
+		slog.Error("execute mappings table template", "err", err)
 	}
 }
 
@@ -978,6 +994,77 @@ func handleMappingDetail(w http.ResponseWriter, r *http.Request, h *eventstream.
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := tmpl.ExecuteTemplate(w, "mapping-drawer", data); err != nil {
 		logger.Error("execute drawer template", "err", err)
+	}
+}
+
+// handleProviderDetail renders the provider details drawer fragment for a
+// named provider. HTMX-only endpoint — never returns a full page. Returns
+// 404 JSON when the provider is unknown so callers (the dashboard badge
+// handler) get a structured error rather than an empty HTML shell. Mirrors
+// handleMappingDetail's not-found contract.
+func handleProviderDetail(w http.ResponseWriter, r *http.Request, h *eventstream.Handlers, logger *slog.Logger) {
+	name := r.PathValue("name")
+	if name == "" {
+		writeJSONError(w, http.StatusBadRequest, "bad_path", "missing provider name")
+		return
+	}
+
+	providers := h.Cfg.ProvidersSnapshot()
+	p, ok := providers[name]
+	if !ok {
+		writeJSONError(w, http.StatusNotFound, "not_found", "provider not found")
+		return
+	}
+
+	// Gather provider stats (nil-safe, matching the sibling handlers).
+	var ps proxy.ProviderStats
+	if h.Stats != nil {
+		ps = h.Stats.ProviderSnapshot()[name]
+	}
+	statusSlug := deriveProviderStatus(ps)
+	statusLabel := statusSlugToLabel(statusSlug)
+
+	envDeclared := p.DefaultAPIKeyEnv != ""
+	envPresent := false
+	if envDeclared {
+		envPresent = os.Getenv(p.DefaultAPIKeyEnv) != ""
+	}
+
+	data := providerDrawerData{
+		Name:        name,
+		StatusLabel: statusLabel,
+		StatusSlug:  statusSlug,
+		Protocol:    p.Protocol,
+		BaseURL:     p.DefaultBaseURL,
+		EnvDeclared: envDeclared,
+		EnvPresent:  envPresent,
+		EditLink:    "/providers?provider=" + url.QueryEscape(name),
+	}
+
+	tmpl, err := loadFragmentTemplate("provider-drawer.html")
+	if err != nil {
+		logger.Error("load provider drawer template", "err", err)
+		writeJSONError(w, http.StatusInternalServerError, "template_failed", err.Error())
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := tmpl.ExecuteTemplate(w, "provider-drawer", data); err != nil {
+		logger.Error("execute provider drawer template", "err", err)
+	}
+}
+
+// statusSlugToLabel maps a deriveProviderStatus slug to the human label used
+// in drawer/health badges (Healthy/Degraded/Error/Unknown).
+func statusSlugToLabel(slug string) string {
+	switch slug {
+	case "healthy":
+		return "Healthy"
+	case "degraded":
+		return "Degraded"
+	case "error":
+		return "Error"
+	default:
+		return "Unknown"
 	}
 }
 

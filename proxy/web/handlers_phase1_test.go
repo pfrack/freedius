@@ -19,9 +19,12 @@ import (
 // newRenderHandlers wraps a config in a minimal eventstream.Handlers so the
 // signature change of renderMappingsTable/handleMappings in Phase 2 can be
 // satisfied by the Phase 1 tests without dragging in a full web server.
+// It carries a LogSink so the same fixture also works for tests that go
+// through SetupMux (which mounts the log routes).
 func newRenderHandlers(cfg *config.Config) *eventstream.Handlers {
 	return &eventstream.Handlers{
 		Bus:           proxy.NewEventBus(1),
+		LogSink:       proxy.NewLogSink(1),
 		Cfg:           cfg,
 		LastResponder: proxy.NewLastResponder(),
 	}

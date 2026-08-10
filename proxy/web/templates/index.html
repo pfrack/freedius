@@ -120,13 +120,13 @@
     </div>
     <div class="providers-summary">
       {{range .ProviderHealth.Badges}}
-      <a href="/logs?provider={{.Name}}" class="provider-badge provider-badge--{{.Status}}" title="{{.Name}} — {{.Status}} — {{.MappingCount}} mapping(s) — last: {{.LastChecked}}">
+      <button type="button" class="provider-badge provider-badge--{{.Status}}" title="{{.Name}} — {{.Status}} — {{.MappingCount}} mapping(s) — last: {{.LastChecked}}" hx-get="/v1/providers/{{.Name | urlPath}}/detail" hx-target="#provider-drawer" hx-swap="innerHTML">
         <span class="provider-badge__icon" aria-hidden="true">
           {{if eq .Status "healthy"}}✓{{else if eq .Status "degraded"}}⚠{{else if eq .Status "error"}}✕{{else}}?{{end}}
         </span>
         <span class="provider-badge__name">{{.Name}}</span>
         <span class="provider-badge__count">{{.MappingCount}}</span>
-      </a>
+      </button>
       {{end}}
     </div>
   </section>
@@ -175,6 +175,7 @@
   {{/* Drawer container (loaded via HTMX) */}}
   <div class="drawer-overlay" id="drawer-overlay"></div>
   <aside id="mapping-drawer" class="drawer" aria-label="Mapping details"></aside>
+  <aside id="provider-drawer" class="drawer" aria-label="Provider details"></aside>
 {{end}}
 {{define "scripts"}}
 <script>

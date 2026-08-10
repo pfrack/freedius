@@ -96,10 +96,7 @@
     sse-swap="log"
     hx-swap="none"
   >
-    {{if not .Entries}}
-    <small class="text-muted">Waiting for log events…</small>
-    {{end}}
-    {{range .Entries}}<pre class="log-{{.Level}}">{{.Line}}</pre>{{end}}
+    <small class="text-muted" id="log-empty">Waiting for log events…</small>
   </div>
 {{end}}
 {{define "scripts"}}
@@ -128,6 +125,8 @@
   }
 
   function appendLogLine(pre) {
+    var ph = document.getElementById('log-empty');
+    if (ph) ph.remove();
     var logEl = document.getElementById('log');
     logEl.appendChild(pre);
     if (!tailPaused) {
@@ -154,6 +153,45 @@
   document.addEventListener('htmx:sseClose', function() { setLiveState('down'); });
   document.addEventListener('htmx:sseError', function() { setLiveState('down'); });
 
+  // logLevelRank maps a level label to a comparable severity rank so the
+  // client can apply the same min-level filter the server uses in
+  // handleLogs. Labels come from eventstream.LevelLabel (lowercase).
+  function logLevelRank(label) {
+    switch ((label || '').toLowerCase()) {
+      case 'debug': return 0;
+      case 'info': return 1;
+      case 'warn': return 2;
+      case 'error': return 3;
+      default: return 1;
+    }
+  }
+
+  // logLinePassesFilters mirrors the server-side predicate in handleLogs so
+  // the live SSE tail drops streamed lines that don't match the active
+  // .log-filters inputs (provider / mapping / level / outcome / fallback).
+  function filterValue(id) {
+    var el = document.getElementById(id);
+    return el ? (el.value || '').trim().toLowerCase() : '';
+  }
+
+  function logLinePassesFilters(data) {
+    var provider = filterValue('provider-filter');
+    var mapping = filterValue('mapping-filter');
+    var levelMin = filterValue('level-filter');
+    var outcome = filterValue('outcome-filter');
+    var fallback = filterValue('fallback-filter');
+
+    var line = (data.line || '').toLowerCase();
+    if (provider && line.indexOf(provider) === -1) return false;
+    if (mapping && line.indexOf(mapping) === -1) return false;
+    if (levelMin && logLevelRank(data.level) < logLevelRank(levelMin)) return false;
+    if (outcome === 'error' && logLevelRank(data.level) < 3) return false;
+    if (outcome === 'success' && logLevelRank(data.level) >= 3) return false;
+    if (fallback === 'true' && line.indexOf('fallback') === -1) return false;
+    if (fallback === 'false' && line.indexOf('fallback') !== -1) return false;
+    return true;
+  }
+
   // sse-swap="log" is what makes the extension register a listener for the
   // "log" event at all (sse-connect alone registers none). We do our own
   // rendering below, so hx-swap="none" keeps the extension from also
@@ -164,21 +202,30 @@
     if (!e.detail || typeof e.detail.data !== 'string') return;
     var sseEventName = e.detail.type || e.detail.eventName;
     if (sseEventName !== 'log') return;
-    var pre = document.createElement('pre');
+
+    // Parse first; an unparseable payload falls back to a raw info line. Only
+    // JSON.parse is guarded, so a throw from the filter or the render below is
+    // never misread as a parse failure.
+    var data;
+    var parsed = true;
     try {
-      var data = JSON.parse(e.detail.data);
-      pre.className = 'log-' + data.level;
-      if (isSystemLog(data.line)) {
-        pre.className += ' log-system';
-      }
-      pre.textContent = data.line;
-      appendLogLine(pre);
+      data = JSON.parse(e.detail.data);
     } catch (err) {
-      // Fallback: render raw data as info
-      pre.className = 'log-info';
-      pre.textContent = e.detail.data;
-      appendLogLine(pre);
+      parsed = false;
+      data = {level: 'info', line: e.detail.data};
     }
+
+    // Drop streamed lines that don't match the active filters so the live
+    // tail honors ?provider= / ?mapping= / level / outcome / fallback.
+    if (!logLinePassesFilters(data)) return;
+
+    var pre = document.createElement('pre');
+    pre.className = 'log-' + data.level;
+    if (parsed && isSystemLog(data.line)) {
+      pre.className += ' log-system';
+    }
+    pre.textContent = data.line;
+    appendLogLine(pre);
   });
 </script>
 {{end}}

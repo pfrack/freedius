@@ -35,11 +35,32 @@ function escapeHTML(s) {
 // open so closeDrawer() can return focus to it.
 var drawerOpener = null;
 
+// DRAWER_IDS lists every drawer container the JS manages. Adding a drawer
+// (e.g. provider-drawer alongside mapping-drawer) means appending its id
+// here rather than forking the open/close/focus-trap machinery.
+var DRAWER_IDS = ['mapping-drawer', 'provider-drawer'];
+
+// openDrawerEl returns the currently open drawer (the one carrying
+// .drawer--open), or null when no drawer is open.
+function openDrawerEl() {
+  return document.querySelector('.drawer.drawer--open');
+}
+
 // openDrawer marks the drawer container as open and moves focus into it.
 // Called automatically by the htmx:afterSwap handler below; not invoked
 // directly so the swap and open are atomic from the user's perspective.
 function openDrawer(drawer) {
   if (!drawer) return;
+  // Only one drawer may be open at a time: openDrawerEl(), closeDrawer(), and
+  // the focus trap all resolve a single .drawer--open element, so a second
+  // open drawer would be left visible with no overlay and no key handling.
+  var others = document.querySelectorAll('.drawer.drawer--open');
+  for (var i = 0; i < others.length; i++) {
+    if (others[i] !== drawer) {
+      others[i].classList.remove('drawer--open');
+      others[i].innerHTML = '';
+    }
+  }
   drawer.classList.add('drawer--open');
   var overlay = document.getElementById('drawer-overlay');
   if (overlay) overlay.classList.add('drawer-overlay--visible');
@@ -51,11 +72,11 @@ function openDrawer(drawer) {
 
 // closeDrawer hides the drawer, clears its content, and returns focus to
 // the element that opened it. Invoked by the close button (inline onclick
-// in mapping-drawer.html) and the Escape key handler.
+// in mapping-drawer.html / provider-drawer.html) and the Escape key handler.
 function closeDrawer() {
   var overlay = document.getElementById('drawer-overlay');
   if (overlay) overlay.classList.remove('drawer-overlay--visible');
-  var drawer = document.getElementById('mapping-drawer');
+  var drawer = openDrawerEl();
   if (drawer) {
     drawer.classList.remove('drawer--open');
     // Clear content so stale fragments don't linger for screen readers or
@@ -74,13 +95,13 @@ function closeDrawer() {
 // events.
 document.body.addEventListener('htmx:beforeRequest', function(evt) {
   var target = evt.detail && evt.detail.target;
-  if (target && target.id === 'mapping-drawer') {
+  if (target && DRAWER_IDS.indexOf(target.id) !== -1) {
     drawerOpener = document.activeElement;
   }
 });
 
 document.body.addEventListener('htmx:afterSwap', function(evt) {
-  if (evt.target && evt.target.id === 'mapping-drawer') {
+  if (evt.target && DRAWER_IDS.indexOf(evt.target.id) !== -1) {
     openDrawer(evt.target);
   }
 });
@@ -90,8 +111,8 @@ document.body.addEventListener('htmx:afterSwap', function(evt) {
 // the page underneath. Both handlers are document-level so they work
 // regardless of which element currently has focus.
 document.addEventListener('keydown', function(evt) {
-  var drawer = document.getElementById('mapping-drawer');
-  var isOpen = drawer && drawer.classList.contains('drawer--open');
+  var drawer = openDrawerEl();
+  var isOpen = !!drawer;
 
   if (evt.key === 'Escape' && isOpen) {
     closeDrawer();

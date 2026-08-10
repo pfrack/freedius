@@ -588,7 +588,7 @@ func TestProviderDefaults(t *testing.T) {
 	expected := []string{
 		"nim", "zen", "go", "custom", "openai", "anthropic", "mix",
 		"google", "mistral", "deepseek", "groq", "together", "fireworks", "cohere",
-		"ollama", "lmstudio", "nous", "kilo",
+		"ollama", "lmstudio", "nous", "kilo", "minimax", "xiaomi",
 	}
 	if len(providerDefaults) != len(expected) {
 		t.Errorf("providerDefaults has %d entries, want %d", len(providerDefaults), len(expected))

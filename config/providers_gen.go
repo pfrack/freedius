@@ -88,6 +88,13 @@ var providerDefaults = map[string]Provider{
 		RequireBaseURL:      false,
 		SupportsCountTokens: false,
 	},
+	"minimax": {
+		Behavior:            "openai",
+		DefaultBaseURL:      "https://api.minimax.com/v1/chat/completions", // #nosec G101 -- URL, not a credential
+		DefaultAPIKeyEnv:    "MINIMAX_API_KEY",                             // #nosec G101 -- env var name, not a credential
+		RequireBaseURL:      false,
+		SupportsCountTokens: false,
+	},
 	"mistral": {
 		Behavior:            "openai",
 		DefaultBaseURL:      "https://api.mistral.ai/v1/chat/completions", // #nosec G101 -- URL, not a credential
@@ -139,6 +146,13 @@ var providerDefaults = map[string]Provider{
 		Behavior:            "openai",
 		DefaultBaseURL:      "https://api.together.xyz/v1/chat/completions", // #nosec G101 -- URL, not a credential
 		DefaultAPIKeyEnv:    "TOGETHER_API_KEY",                             // #nosec G101 -- env var name, not a credential
+		RequireBaseURL:      false,
+		SupportsCountTokens: false,
+	},
+	"xiaomi": {
+		Behavior:            "openai",
+		DefaultBaseURL:      "https://token-plan-sgp.xiaomimimo.com/v1/chat/completions", // #nosec G101 -- URL, not a credential
+		DefaultAPIKeyEnv:    "XIAOMI_API_KEY",                                            // #nosec G101 -- env var name, not a credential
 		RequireBaseURL:      false,
 		SupportsCountTokens: false,
 	},
