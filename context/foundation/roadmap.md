@@ -73,6 +73,8 @@ group's id (e.g. `V-02`); related follow-ups are lettered (`V-02a`, `V-02b`, ...
 archived `change.md` carries the same value in its `roadmap_id` frontmatter key.
 `bootstrap-verification` and the `auto-review` CI spike are intentionally unnumbered.
 
+- **V-02l: Logs UI live-tail fix (restore dead SSE) + scoped UX pass** — Archived 2026-08-10 → `context/archive/2026-08-09-logs-ui-live-tail/`. Lesson: —.
+
 ### Foundation — proxy skeleton, tooling & quality
 
 | ID | Change ID | Title | PR | Date |
