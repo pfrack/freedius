@@ -135,3 +135,15 @@ providers:
     default_base_url: https://api.kilo.ai/api/gateway/chat/completions
     default_api_key_env: KILO_API_KEY
     require_base_url: false
+
+  minimax:
+    behavior: openai
+    default_base_url: https://api.minimax.com/v1/chat/completions
+    default_api_key_env: MINIMAX_API_KEY
+    require_base_url: false
+
+  xiaomi:
+    behavior: openai
+    default_base_url: https://token-plan-sgp.xiaomimimo.com/v1/chat/completions
+    default_api_key_env: XIAOMI_API_KEY
+    require_base_url: false
