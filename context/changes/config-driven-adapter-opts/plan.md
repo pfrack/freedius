@@ -518,9 +518,9 @@ providers, which is required to preserve current behavior (Phase 1, step 4).
 
 #### Automated
 
-- [x] 2.1 `go build ./...` succeeds (removed fields unreferenced)
-- [x] 2.2 `go vet ./proxy/...` clean
-- [ ] 2.3 `go test ./proxy/...` passes (after Phase 4 test updates)
+- [x] 2.1 `go build ./...` succeeds (removed fields unreferenced) — 5485559
+- [x] 2.2 `go vet ./proxy/...` clean — 5485559
+- [x] 2.3 `go test ./proxy/...` passes (after Phase 4 test updates) — 5485559
 
 #### Manual
 
@@ -530,9 +530,9 @@ providers, which is required to preserve current behavior (Phase 1, step 4).
 
 #### Automated
 
-- [x] 3.1 `go build ./...` succeeds
-- [x] 3.2 No source references GoogleAdapter/LmstudioAdapter/OllamaAdapter/NIMAdapter outside regenerated adapters_gen.go
-- [x] 3.3 `go generate ./...` md5-stable
+- [x] 3.1 `go build ./...` succeeds — 5485559
+- [x] 3.2 No source references GoogleAdapter/LmstudioAdapter/OllamaAdapter/NIMAdapter outside regenerated adapters_gen.go — 5485559
+- [x] 3.3 `go generate ./...` md5-stable — 5485559
 
 #### Manual
 
@@ -542,11 +542,11 @@ providers, which is required to preserve current behavior (Phase 1, step 4).
 
 #### Automated
 
-- [ ] 4.1 `go test ./...` passes (full suite, config_test comparisons updated)
-- [ ] 4.2 `mage lint` 0 issues
-- [ ] 4.3 `mage govulncheck` no vulnerabilities
-- [ ] 4.4 `go generate ./...` md5-stable
-- [ ] 4.5 New tests present: config NoStreamUsage on/off + unknown hook errors + codegen omits wrappers
+- [x] 4.1 `go test ./...` passes (full suite, config_test comparisons updated) — 5485559
+- [x] 4.2 `mage lint` 0 issues — 5485559
+- [x] 4.3 `mage govulncheck` no vulnerabilities — 5485559
+- [x] 4.4 `go generate ./...` md5-stable — 5485559
+- [x] 4.5 New tests present: config NoStreamUsage on/off + unknown hook errors + codegen omits wrappers — 5485559
 
 #### Manual
 
