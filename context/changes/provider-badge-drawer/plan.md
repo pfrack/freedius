@@ -435,11 +435,11 @@ link.
 
 #### Automated
 
-- [x] 2.1 Dashboard badge is an hx-get trigger to `#provider-drawer`; logs `href` removed
-- [x] 2.2 `provider-drawer.html` fragment renders status/protocol/base URL/env/edit link
-- [x] 2.3 `#provider-drawer` aside added to index.html
-- [x] 2.4 Drawer JS generalized for both container ids
-- [x] 2.5 `mage test` + `mage lint` pass
+- [x] 2.1 Dashboard badge is an hx-get trigger to `#provider-drawer`; logs `href` removed — de16776
+- [x] 2.2 `provider-drawer.html` fragment renders status/protocol/base URL/env/edit link — de16776
+- [x] 2.3 `#provider-drawer` aside added to index.html — de16776
+- [x] 2.4 Drawer JS generalized for both container ids — de16776
+- [x] 2.5 `mage test` + `mage lint` pass — de16776
 
 #### Manual
 
@@ -449,7 +449,7 @@ link.
 
 #### Automated
 
-- [ ] 3.1 `mage test` passes (logs filter parity covered)
+- [x] 3.1 `mage test` passes (logs filter parity covered)
 
 #### Manual
 
