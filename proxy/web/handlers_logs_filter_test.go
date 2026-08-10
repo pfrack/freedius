@@ -24,9 +24,11 @@ func pushLogs(t *testing.T, messages ...string) *proxy.LogSink {
 	return logSink
 }
 
-// TestHandleLogs_FilterParity asserts the server-side predicate honors all
-// five filter dimensions (provider / mapping / level-min / outcome /
-// fallback), guarding against the regression the SSE live tail used to leak.
+// TestHandleLogs_FilterParity pins the server-side predicate across all five
+// filter dimensions (provider / mapping / level-min / outcome / fallback).
+// This is the contract logLinePassesFilters in logs.html mirrors client-side;
+// it anchors the two against drift but does NOT cover the SSE tail itself —
+// that regression is guarded by e2e/tests/logs-filter-tail.spec.ts.
 func TestHandleLogs_FilterParity(t *testing.T) {
 	logSink := pushLogs(t,
 		"dispatch openai via model gpt-4",

@@ -509,8 +509,12 @@ func parseFallbackFilter(s string) string {
 }
 
 // handleProviders renders the providers page with a read-only table.
+// Filter: ?provider=<name> — optional, case-insensitive substring match on the
+// provider name (mirrors handleLogs). The dashboard provider drawer's edit link
+// uses it to open the page pre-filtered to a single provider.
 func handleProviders(w http.ResponseWriter, r *http.Request, h *eventstream.Handlers, logger *slog.Logger) {
 	cfg := h.Cfg
+	providerFilter := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("provider")))
 	providers := cfg.ProvidersSnapshot()
 	mappings := cfg.MappingsSnapshot()
 
@@ -528,6 +532,9 @@ func handleProviders(w http.ResponseWriter, r *http.Request, h *eventstream.Hand
 
 	var rows []providerRow
 	for name, p := range providers {
+		if providerFilter != "" && !strings.Contains(strings.ToLower(name), providerFilter) {
+			continue
+		}
 		row := providerRow{
 			Name:         name,
 			Behavior:     p.Behavior,
@@ -1005,7 +1012,12 @@ func handleProviderDetail(w http.ResponseWriter, r *http.Request, h *eventstream
 		return
 	}
 
-	statusSlug := deriveProviderStatus(h.Stats.ProviderSnapshot()[name])
+	// Gather provider stats (nil-safe, matching the sibling handlers).
+	var ps proxy.ProviderStats
+	if h.Stats != nil {
+		ps = h.Stats.ProviderSnapshot()[name]
+	}
+	statusSlug := deriveProviderStatus(ps)
 	statusLabel := statusSlugToLabel(statusSlug)
 
 	envDeclared := p.DefaultAPIKeyEnv != ""

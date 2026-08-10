@@ -1653,8 +1653,11 @@ body::before {
   background: var(--bg-card);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-md);
+  /* Rendered as a <button> (drawer trigger), which does not inherit the page
+     font or show a pointer cursor by default. */
+  font-family: inherit;
   font-size: 0.8rem;
-  text-decoration: none;
+  cursor: pointer;
   color: var(--text-primary);
   transition: background var(--duration-fast) var(--ease-spring),
               border-color var(--duration-fast) var(--ease-spring);

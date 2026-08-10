@@ -290,6 +290,9 @@ func TestMappingDrawer(t *testing.T) {
 			"route-step--primary",
 			"route-step--fallback",
 			"Edit on Mappings page",
+			// The edit link pre-filters the mappings table by name via the
+			// page's existing ?search= filter.
+			"/mappings?search=haiku",
 		} {
 			if !strings.Contains(body, want) {
 				t.Errorf("expected %q in drawer fragment; body: %s", want, body)
@@ -384,13 +387,7 @@ func TestDashboard_ProviderBadgeDrawerTrigger(t *testing.T) {
 			"q": {ProviderName: "nim", ModelString: "m1"},
 		},
 	}
-	h := &eventstream.Handlers{
-		Bus:           proxy.NewEventBus(1),
-		LogSink:       proxy.NewLogSink(1),
-		Cfg:           cfg,
-		LastResponder: proxy.NewLastResponder(),
-	}
-	mux := SetupMux(h, slog.New(slog.NewTextHandler(sink{}, nil)))
+	mux := SetupMux(newRenderHandlers(cfg), slog.New(slog.NewTextHandler(sink{}, nil)))
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()

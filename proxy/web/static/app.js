@@ -51,6 +51,16 @@ function openDrawerEl() {
 // directly so the swap and open are atomic from the user's perspective.
 function openDrawer(drawer) {
   if (!drawer) return;
+  // Only one drawer may be open at a time: openDrawerEl(), closeDrawer(), and
+  // the focus trap all resolve a single .drawer--open element, so a second
+  // open drawer would be left visible with no overlay and no key handling.
+  var others = document.querySelectorAll('.drawer.drawer--open');
+  for (var i = 0; i < others.length; i++) {
+    if (others[i] !== drawer) {
+      others[i].classList.remove('drawer--open');
+      others[i].innerHTML = '';
+    }
+  }
   drawer.classList.add('drawer--open');
   var overlay = document.getElementById('drawer-overlay');
   if (overlay) overlay.classList.add('drawer-overlay--visible');

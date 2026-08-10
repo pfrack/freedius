@@ -4,13 +4,10 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"testing"
 
 	"github.com/pfrack/freedius/config"
-	"github.com/pfrack/freedius/internal/eventstream"
-	"github.com/pfrack/freedius/proxy"
 )
 
 // TestProviderDetail_Drawer covers GET /v1/providers/{name}/detail:
@@ -30,19 +27,27 @@ func TestProviderDetail_Drawer(t *testing.T) {
 		Mappings: map[string]config.Mapping{},
 	}
 
-	t.Run("known provider returns drawer fragment with identity + config", func(t *testing.T) {
-		h := &eventstream.Handlers{
-			Bus:           proxy.NewEventBus(1),
-			LogSink:       proxy.NewLogSink(1),
-			Cfg:           cfg,
-			LastResponder: proxy.NewLastResponder(),
-		}
-		mux := SetupMux(h, slog.New(slog.NewTextHandler(sink{}, nil)))
+	// noEnvCfg declares no DefaultAPIKeyEnv, so the drawer reports the key as
+	// not required rather than missing.
+	noEnvCfg := &config.Config{
+		Providers: map[string]config.Provider{
+			"ollama": {Behavior: "openai", Protocol: "openai", DefaultBaseURL: "http://localhost:11434"},
+		},
+		Mappings: map[string]config.Mapping{},
+	}
 
-		req := httptest.NewRequest(http.MethodGet, "/v1/providers/nim/detail", nil)
+	get := func(t *testing.T, c *config.Config, path string) *httptest.ResponseRecorder {
+		t.Helper()
+		mux := SetupMux(newRenderHandlers(c), slog.New(slog.NewTextHandler(sink{}, nil)))
+		req := httptest.NewRequest(http.MethodGet, path, nil)
 		req.Header.Set("HX-Request", "true")
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
+		return rec
+	}
+
+	t.Run("known provider returns drawer fragment with identity + config", func(t *testing.T) {
+		rec := get(t, cfg, "/v1/providers/nim/detail")
 
 		if rec.Code != http.StatusOK {
 			t.Fatalf("status = %d; body: %s", rec.Code, rec.Body.String())
@@ -67,73 +72,55 @@ func TestProviderDetail_Drawer(t *testing.T) {
 		}
 	})
 
-	t.Run("env declared + set shows Declared · Set", func(t *testing.T) {
-		t.Setenv("NIM_API_KEY_FOR_TEST", "secret")
-		h := &eventstream.Handlers{
-			Bus:           proxy.NewEventBus(1),
-			LogSink:       proxy.NewLogSink(1),
-			Cfg:           cfg,
-			LastResponder: proxy.NewLastResponder(),
-		}
-		mux := SetupMux(h, slog.New(slog.NewTextHandler(sink{}, nil)))
-		req := httptest.NewRequest(http.MethodGet, "/v1/providers/nim/detail", nil)
-		rec := httptest.NewRecorder()
-		mux.ServeHTTP(rec, req)
-		if !strings.Contains(rec.Body.String(), "Declared · Set") {
-			t.Errorf("expected 'Declared · Set'; body: %s", rec.Body.String())
-		}
-	})
+	// The API-key env line has three states driven by DefaultAPIKeyEnv and the
+	// process environment. t.Setenv("", …) is used for the missing case so the
+	// value is restored automatically instead of leaking into sibling tests.
+	envCases := []struct {
+		name     string
+		cfg      *config.Config
+		path     string
+		envKey   string
+		envValue string
+		want     string
+	}{
+		{
+			name:     "declared + set",
+			cfg:      cfg,
+			path:     "/v1/providers/nim/detail",
+			envKey:   "NIM_API_KEY_FOR_TEST",
+			envValue: "secret",
+			want:     "Declared · Set",
+		},
+		{
+			name:     "declared + missing",
+			cfg:      cfg,
+			path:     "/v1/providers/nim/detail",
+			envKey:   "NIM_API_KEY_FOR_TEST",
+			envValue: "",
+			want:     "Declared · Missing",
+		},
+		{
+			name: "not declared",
+			cfg:  noEnvCfg,
+			path: "/v1/providers/ollama/detail",
+			want: "Not required",
+		},
+	}
 
-	t.Run("env declared + missing shows Declared · Missing", func(t *testing.T) {
-		os.Unsetenv("NIM_API_KEY_FOR_TEST")
-		h := &eventstream.Handlers{
-			Bus:           proxy.NewEventBus(1),
-			LogSink:       proxy.NewLogSink(1),
-			Cfg:           cfg,
-			LastResponder: proxy.NewLastResponder(),
-		}
-		mux := SetupMux(h, slog.New(slog.NewTextHandler(sink{}, nil)))
-		req := httptest.NewRequest(http.MethodGet, "/v1/providers/nim/detail", nil)
-		rec := httptest.NewRecorder()
-		mux.ServeHTTP(rec, req)
-		if !strings.Contains(rec.Body.String(), "Declared · Missing") {
-			t.Errorf("expected 'Declared · Missing'; body: %s", rec.Body.String())
-		}
-	})
-
-	t.Run("provider without env shows Not required", func(t *testing.T) {
-		cfg2 := &config.Config{
-			Providers: map[string]config.Provider{
-				"ollama": {Behavior: "openai", Protocol: "openai", DefaultBaseURL: "http://localhost:11434"},
-			},
-			Mappings: map[string]config.Mapping{},
-		}
-		h := &eventstream.Handlers{
-			Bus:           proxy.NewEventBus(1),
-			LogSink:       proxy.NewLogSink(1),
-			Cfg:           cfg2,
-			LastResponder: proxy.NewLastResponder(),
-		}
-		mux := SetupMux(h, slog.New(slog.NewTextHandler(sink{}, nil)))
-		req := httptest.NewRequest(http.MethodGet, "/v1/providers/ollama/detail", nil)
-		rec := httptest.NewRecorder()
-		mux.ServeHTTP(rec, req)
-		if !strings.Contains(rec.Body.String(), "Not required") {
-			t.Errorf("expected 'Not required'; body: %s", rec.Body.String())
-		}
-	})
+	for _, tc := range envCases {
+		t.Run("api key env "+tc.name, func(t *testing.T) {
+			if tc.envKey != "" {
+				t.Setenv(tc.envKey, tc.envValue)
+			}
+			body := get(t, tc.cfg, tc.path).Body.String()
+			if !strings.Contains(body, tc.want) {
+				t.Errorf("expected %q; body: %s", tc.want, body)
+			}
+		})
+	}
 
 	t.Run("unknown provider returns 404 JSON and no fragment", func(t *testing.T) {
-		h := &eventstream.Handlers{
-			Bus:           proxy.NewEventBus(1),
-			LogSink:       proxy.NewLogSink(1),
-			Cfg:           cfg,
-			LastResponder: proxy.NewLastResponder(),
-		}
-		mux := SetupMux(h, slog.New(slog.NewTextHandler(sink{}, nil)))
-		req := httptest.NewRequest(http.MethodGet, "/v1/providers/does-not-exist/detail", nil)
-		rec := httptest.NewRecorder()
-		mux.ServeHTTP(rec, req)
+		rec := get(t, cfg, "/v1/providers/does-not-exist/detail")
 
 		if rec.Code != http.StatusNotFound {
 			t.Fatalf("status = %d, want 404; body: %s", rec.Code, rec.Body.String())
@@ -145,7 +132,10 @@ func TestProviderDetail_Drawer(t *testing.T) {
 		if !strings.Contains(body, "not_found") {
 			t.Errorf("expected not_found code; body: %s", body)
 		}
-		if strings.Contains(body, "provider-drawer") {
+		// drawer__content is what the rendered fragment actually emits;
+		// "provider-drawer" is only the {{define}} name and never appears
+		// in output, so asserting on it would be tautological.
+		if strings.Contains(body, "drawer__content") {
 			t.Errorf("unknown provider must not render drawer fragment; body: %s", body)
 		}
 	})
