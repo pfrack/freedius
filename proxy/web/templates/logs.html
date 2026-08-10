@@ -93,6 +93,8 @@
     class="log-container"
     hx-ext="sse"
     sse-connect="/v1/logs"
+    sse-swap="log"
+    hx-swap="none"
   >
     {{if not .Entries}}
     <small class="text-muted">Waiting for log events…</small>
@@ -152,8 +154,16 @@
   document.addEventListener('htmx:sseClose', function() { setLiveState('down'); });
   document.addEventListener('htmx:sseError', function() { setLiveState('down'); });
 
+  // sse-swap="log" is what makes the extension register a listener for the
+  // "log" event at all (sse-connect alone registers none). We do our own
+  // rendering below, so hx-swap="none" keeps the extension from also
+  // injecting the raw JSON payload into #log.
   document.addEventListener('htmx:sseMessage', function(e) {
-    if (!e.detail || e.detail.eventName !== 'log' || typeof e.detail.data !== 'string') return;
+    // The extension forwards the raw MessageEvent as detail, so the SSE event
+    // name is detail.type ("log"); older builds exposed detail.eventName.
+    if (!e.detail || typeof e.detail.data !== 'string') return;
+    var sseEventName = e.detail.type || e.detail.eventName;
+    if (sseEventName !== 'log') return;
     var pre = document.createElement('pre');
     try {
       var data = JSON.parse(e.detail.data);
