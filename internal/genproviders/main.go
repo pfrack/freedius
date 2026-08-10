@@ -111,6 +111,7 @@ type providerDefaultEntry struct {
 	AnthropicVersion    string
 	RequireBaseURL      bool
 	SupportsCountTokens bool
+	OpenAI              *OpenAIOptions
 }
 
 type proxyTmplData struct {
@@ -147,6 +148,7 @@ func GenerateConfig(spec Spec) ([]byte, error) {
 			DefaultAPIKeyEnv:    p.DefaultAPIKeyEnv,
 			RequireBaseURL:      p.RequireBaseURL,
 			SupportsCountTokens: supportsCountTokens(p),
+			OpenAI:              p.OpenAI,
 		})
 	}
 
@@ -321,6 +323,14 @@ var providerDefaults = map[string]Provider{
 <% end -%>
 <% if .DefaultAPIKeyEnv -%>
 		DefaultAPIKeyEnv:    "<% .DefaultAPIKeyEnv %>", // #nosec G101 -- env var name, not a credential
+<% end -%>
+<% if .OpenAI -%>
+		OpenAI: &OpenAIOptions{
+			NoStreamUsage: <% .OpenAI.NoStreamUsage %>,
+<% if .OpenAI.PreSendHook -%>
+			PreSendHook:   "<% .OpenAI.PreSendHook %>",
+<% end -%>
+		},
 <% end -%>
 		RequireBaseURL:      <% .RequireBaseURL %>,
 		SupportsCountTokens: <% .SupportsCountTokens %>,

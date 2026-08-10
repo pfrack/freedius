@@ -33,6 +33,9 @@ func (c *Config) applyDefaults() {
 		if p.DefaultAPIKeyEnv == "" {
 			p.DefaultAPIKeyEnv = defaults.DefaultAPIKeyEnv
 		}
+		if p.OpenAI == nil {
+			p.OpenAI = defaults.OpenAI
+		}
 		p.RequireBaseURL = defaults.RequireBaseURL
 		// Static flag set at code-generation time. If a user overrides DefaultBaseURL
 		// to a /v1/messages-suffixed URL on a mix provider whose generated

@@ -25,7 +25,10 @@ var providerDefaults = map[string]Provider{
 		SupportsCountTokens: false,
 	},
 	"custom": {
-		Behavior:            "mix",
+		Behavior: "mix",
+		OpenAI: &OpenAIOptions{
+			NoStreamUsage: true,
+		},
 		RequireBaseURL:      true,
 		SupportsCountTokens: false,
 	},
@@ -44,15 +47,21 @@ var providerDefaults = map[string]Provider{
 		SupportsCountTokens: false,
 	},
 	"go": {
-		Behavior:            "mix",
-		DefaultAPIKeyEnv:    "OPENCODE_API_KEY", // #nosec G101 -- env var name, not a credential
+		Behavior:         "mix",
+		DefaultAPIKeyEnv: "OPENCODE_API_KEY", // #nosec G101 -- env var name, not a credential
+		OpenAI: &OpenAIOptions{
+			NoStreamUsage: true,
+		},
 		RequireBaseURL:      true,
 		SupportsCountTokens: false,
 	},
 	"google": {
-		Behavior:            "openai",
-		DefaultBaseURL:      "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", // #nosec G101 -- URL, not a credential
-		DefaultAPIKeyEnv:    "GEMINI_API_KEY",                                                           // #nosec G101 -- env var name, not a credential
+		Behavior:         "openai",
+		DefaultBaseURL:   "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", // #nosec G101 -- URL, not a credential
+		DefaultAPIKeyEnv: "GEMINI_API_KEY",                                                           // #nosec G101 -- env var name, not a credential
+		OpenAI: &OpenAIOptions{
+			NoStreamUsage: true,
+		},
 		RequireBaseURL:      false,
 		SupportsCountTokens: false,
 	},
@@ -71,8 +80,11 @@ var providerDefaults = map[string]Provider{
 		SupportsCountTokens: false,
 	},
 	"lmstudio": {
-		Behavior:            "openai",
-		DefaultBaseURL:      "http://localhost:1234/v1/chat/completions", // #nosec G101 -- URL, not a credential
+		Behavior:       "openai",
+		DefaultBaseURL: "http://localhost:1234/v1/chat/completions", // #nosec G101 -- URL, not a credential
+		OpenAI: &OpenAIOptions{
+			NoStreamUsage: true,
+		},
 		RequireBaseURL:      false,
 		SupportsCountTokens: false,
 	},
@@ -84,14 +96,21 @@ var providerDefaults = map[string]Provider{
 		SupportsCountTokens: false,
 	},
 	"mix": {
-		Behavior:            "mix",
+		Behavior: "mix",
+		OpenAI: &OpenAIOptions{
+			NoStreamUsage: true,
+		},
 		RequireBaseURL:      true,
 		SupportsCountTokens: false,
 	},
 	"nim": {
-		Behavior:            "openai",
-		DefaultBaseURL:      "https://integrate.api.nvidia.com/v1/chat/completions", // #nosec G101 -- URL, not a credential
-		DefaultAPIKeyEnv:    "NVIDIA_NIM_API_KEY",                                   // #nosec G101 -- env var name, not a credential
+		Behavior:         "openai",
+		DefaultBaseURL:   "https://integrate.api.nvidia.com/v1/chat/completions", // #nosec G101 -- URL, not a credential
+		DefaultAPIKeyEnv: "NVIDIA_NIM_API_KEY",                                   // #nosec G101 -- env var name, not a credential
+		OpenAI: &OpenAIOptions{
+			NoStreamUsage: true,
+			PreSendHook:   "sanitizeNIMBody",
+		},
 		RequireBaseURL:      false,
 		SupportsCountTokens: false,
 	},
@@ -103,8 +122,11 @@ var providerDefaults = map[string]Provider{
 		SupportsCountTokens: false,
 	},
 	"ollama": {
-		Behavior:            "openai",
-		DefaultBaseURL:      "http://localhost:11434/v1/chat/completions", // #nosec G101 -- URL, not a credential
+		Behavior:       "openai",
+		DefaultBaseURL: "http://localhost:11434/v1/chat/completions", // #nosec G101 -- URL, not a credential
+		OpenAI: &OpenAIOptions{
+			NoStreamUsage: true,
+		},
 		RequireBaseURL:      false,
 		SupportsCountTokens: false,
 	},
@@ -121,8 +143,11 @@ var providerDefaults = map[string]Provider{
 		SupportsCountTokens: false,
 	},
 	"zen": {
-		Behavior:            "mix",
-		DefaultAPIKeyEnv:    "OPENCODE_API_KEY", // #nosec G101 -- env var name, not a credential
+		Behavior:         "mix",
+		DefaultAPIKeyEnv: "OPENCODE_API_KEY", // #nosec G101 -- env var name, not a credential
+		OpenAI: &OpenAIOptions{
+			NoStreamUsage: true,
+		},
 		RequireBaseURL:      true,
 		SupportsCountTokens: false,
 	},
