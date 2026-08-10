@@ -166,6 +166,7 @@ func TestHandleLogs_OutcomeFilter(t *testing.T) {
 	logger.Error("request failed: upstream 500")
 
 	req := httptest.NewRequest(http.MethodGet, "/logs?outcome=error", nil)
+	req.Header.Set("HX-Request", "true")
 	rec := httptest.NewRecorder()
 	handleLogs(rec, req, logSink, logger)
 
@@ -179,6 +180,7 @@ func TestHandleLogs_OutcomeFilter(t *testing.T) {
 
 	// Now filter for success — error line should NOT appear.
 	req2 := httptest.NewRequest(http.MethodGet, "/logs?outcome=success", nil)
+	req2.Header.Set("HX-Request", "true")
 	rec2 := httptest.NewRecorder()
 	handleLogs(rec2, req2, logSink, logger)
 	body2 := rec2.Body.String()
@@ -198,6 +200,7 @@ func TestHandleLogs_FallbackFilter(t *testing.T) {
 	logger.Info("fallback succeeded: using secondary provider")
 
 	req := httptest.NewRequest(http.MethodGet, "/logs?fallback=true", nil)
+	req.Header.Set("HX-Request", "true")
 	rec := httptest.NewRecorder()
 	handleLogs(rec, req, logSink, logger)
 
@@ -211,6 +214,7 @@ func TestHandleLogs_FallbackFilter(t *testing.T) {
 
 	// Now filter for fallback=false — fallback line should NOT appear.
 	req2 := httptest.NewRequest(http.MethodGet, "/logs?fallback=false", nil)
+	req2.Header.Set("HX-Request", "true")
 	rec2 := httptest.NewRecorder()
 	handleLogs(rec2, req2, logSink, logger)
 	body2 := rec2.Body.String()

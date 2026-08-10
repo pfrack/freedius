@@ -96,10 +96,7 @@
     sse-swap="log"
     hx-swap="none"
   >
-    {{if not .Entries}}
-    <small class="text-muted">Waiting for log events…</small>
-    {{end}}
-    {{range .Entries}}<pre class="log-{{.Level}}">{{.Line}}</pre>{{end}}
+    <small class="text-muted" id="log-empty">Waiting for log events…</small>
   </div>
 {{end}}
 {{define "scripts"}}
@@ -164,6 +161,8 @@
     if (!e.detail || typeof e.detail.data !== 'string') return;
     var sseEventName = e.detail.type || e.detail.eventName;
     if (sseEventName !== 'log') return;
+    var ph = document.getElementById('log-empty');
+    if (ph) ph.remove();
     var pre = document.createElement('pre');
     try {
       var data = JSON.parse(e.detail.data);
