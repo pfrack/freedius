@@ -160,6 +160,11 @@ func (a *OpenAICompatibleAdapter) Handle(
 
 	resp, err := a.client.Do(req)
 	if err != nil {
+		// Note: returning a plain error here makes the dispatcher classify
+		// this as a 529 overloaded_error (fallback-eligible). The anthropic
+		// adapter uses writeTransportError + returns nil instead. The two
+		// adapters intentionally differ; align them only as a deliberate
+		// contract change across both paths.
 		return fmt.Errorf("%s adapter (openai-compat): do request: %w", mapping.ProviderName, err)
 	}
 	defer func() { _ = resp.Body.Close() }()

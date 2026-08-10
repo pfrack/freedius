@@ -34,6 +34,9 @@ func (c *Config) applyDefaults() {
 			p.DefaultAPIKeyEnv = defaults.DefaultAPIKeyEnv
 		}
 		if p.OpenAI == nil {
+			// Shared pointer from providerDefaults; safe because OpenAIOptions
+			// is read-only after load. If ever made mutable per-request, this
+			// must become a deep copy.
 			p.OpenAI = defaults.OpenAI
 		}
 		p.RequireBaseURL = defaults.RequireBaseURL

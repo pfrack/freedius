@@ -61,6 +61,8 @@ func (a *MixAdapter) Handle(
 		provider.DefaultBaseURL = a.normalizeBaseURL(provider.DefaultBaseURL, "/chat/completions", "/messages")
 		a.logger.Debug("mix routing", "protocol", provider.Protocol, "url", provider.DefaultBaseURL)
 		return a.openai.Handle(w, r, provider, mapping, body)
+	default:
+		// Unknown protocol falls through to URL-path sniffing below.
 	}
 	parsedURL, err := url.Parse(provider.DefaultBaseURL)
 	if err != nil {

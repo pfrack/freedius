@@ -136,14 +136,14 @@ func GenerateConfig(spec Spec) ([]byte, error) {
 
 // GenerateProxy returns the Go source for proxy/adapters_gen.go derived from
 // spec. The output is go/format-clean.
-func GenerateProxy(_ Spec) ([]byte, error) {
+func GenerateProxy() ([]byte, error) {
 	var data proxyTmplData
 
-	// Registry entries wire the runtime adapters by behavior class. Under
-	// the providers/mappings schema there are no alias rewrites at load
-	// time; all 4 behaviors are wired unconditionally. nim collapses into
-	// the generic openai ctor — its NoStreamUsage + sanitizeNIMBody hook now
-	// come from the nim provider's OpenAI config at request time.
+	// Registry entries wire the runtime adapters by behavior class. The 4
+	// behavior keys are stable and wired unconditionally here. Adding a new
+	// behavior class requires editing this list. nim collapses into the
+	// generic openai ctor — its NoStreamUsage + sanitizeNIMBody hook now come
+	// from the nim provider's OpenAI config at request time.
 	data.RegistryEntries = []registryEntry{
 		{Name: "nim", CtorCall: "NewOpenAICompatibleAdapterWithTimeout(logger, streamTimeout)"},
 		{Name: "openai", CtorCall: "NewOpenAICompatibleAdapterWithTimeout(logger, streamTimeout)"},
@@ -209,7 +209,7 @@ func main() {
 	case "config":
 		output, err = GenerateConfig(*spec)
 	case "proxy":
-		output, err = GenerateProxy(*spec)
+		output, err = GenerateProxy()
 	default:
 		log.Fatalf("unknown -pkg: %s", *pkg)
 	}
@@ -230,6 +230,9 @@ func main() {
 
 	outPath := *out
 	if outPath == "" {
+		// Defaults assume invocation from the package directory (as
+		// go:generate does). Running from repo root writes to the wrong path
+		// — pass -out explicitly in that case.
 		if *pkg == "config" {
 			outPath = "providers_gen.go"
 		} else {

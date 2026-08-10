@@ -301,7 +301,7 @@ func TestGenerateConfig_MixProvidersCarryNoStreamUsage(t *testing.T) {
 }
 
 func TestGenerateProxy_CompilesAsGo(t *testing.T) {
-	out, err := GenerateProxy(fullSpec())
+	out, err := GenerateProxy()
 	if err != nil {
 		t.Fatalf("GenerateProxy: %v", err)
 	}
@@ -311,7 +311,7 @@ func TestGenerateProxy_CompilesAsGo(t *testing.T) {
 }
 
 func TestGenerateProxy_OmitsPerProviderWrappers(t *testing.T) {
-	out, err := GenerateProxy(fullSpec())
+	out, err := GenerateProxy()
 	if err != nil {
 		t.Fatalf("GenerateProxy: %v", err)
 	}
@@ -329,7 +329,7 @@ func TestGenerateProxy_OmitsPerProviderWrappers(t *testing.T) {
 }
 
 func TestGenerateProxy_NewDefaultRegistry(t *testing.T) {
-	out, err := GenerateProxy(fullSpec())
+	out, err := GenerateProxy()
 	if err != nil {
 		t.Fatalf("GenerateProxy: %v", err)
 	}
@@ -352,7 +352,7 @@ func TestGenerateProxy_NewDefaultRegistry(t *testing.T) {
 }
 
 func TestGenerateProxy_NoPerProviderHandleWrappers(t *testing.T) {
-	out, err := GenerateProxy(fullSpec())
+	out, err := GenerateProxy()
 	if err != nil {
 		t.Fatalf("GenerateProxy: %v", err)
 	}
@@ -402,11 +402,7 @@ func TestGenerateConfig_FromRealFile_CompilesAndMatches(t *testing.T) {
 }
 
 func TestGenerateProxy_FromRealFile_CompilesAndMatches(t *testing.T) {
-	spec, err := loadSpec("../../providers.yaml")
-	if err != nil {
-		t.Fatalf("loadSpec: %v", err)
-	}
-	out, err := GenerateProxy(*spec)
+	out, err := GenerateProxy()
 	if err != nil {
 		t.Fatalf("GenerateProxy: %v", err)
 	}
