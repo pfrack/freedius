@@ -190,6 +190,20 @@ type drawerFallback struct {
 	ProviderName string
 }
 
+// providerDrawerData is the data for the provider details drawer fragment,
+// loaded via HTMX when a dashboard health badge is clicked. Read-only view of
+// one provider enriched with live status + API-key env presence.
+type providerDrawerData struct {
+	Name        string // provider name
+	StatusLabel string // "Healthy"/"Degraded"/"Error"/"Unknown" (badge text)
+	StatusSlug  string // deriveProviderStatus output → badge--status-<slug>
+	Protocol    string
+	BaseURL     string
+	EnvDeclared bool   // provider declares DefaultAPIKeyEnv
+	EnvPresent  bool   // that env var is set in the process
+	EditLink    string // "/providers?provider=" + url.QueryEscape(Name)
+}
+
 // mappingsData is the data for the mappings page.
 type mappingsData struct {
 	pageData

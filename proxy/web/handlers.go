@@ -377,6 +377,11 @@ func SetupMux(h *eventstream.Handlers, logger *slog.Logger) *http.ServeMux {
 		handleMappingDetail(w, r, h, logger)
 	})
 
+	// Drawer endpoint: HTMX-loaded fragment for the provider details drawer.
+	mux.HandleFunc("GET /v1/providers/{name}/detail", func(w http.ResponseWriter, r *http.Request) {
+		handleProviderDetail(w, r, h, logger)
+	})
+
 	// Models endpoint: explicit refresh only.
 	mux.HandleFunc("POST /v1/providers/{name}/models/refresh", func(w http.ResponseWriter, r *http.Request) {
 		handleRefreshModels(w, r, h, logger)
@@ -978,6 +983,72 @@ func handleMappingDetail(w http.ResponseWriter, r *http.Request, h *eventstream.
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := tmpl.ExecuteTemplate(w, "mapping-drawer", data); err != nil {
 		logger.Error("execute drawer template", "err", err)
+	}
+}
+
+// handleProviderDetail renders the provider details drawer fragment for a
+// named provider. HTMX-only endpoint — never returns a full page. Returns
+// 404 JSON when the provider is unknown so callers (the dashboard badge
+// handler) get a structured error rather than an empty HTML shell. Mirrors
+// handleMappingDetail's not-found contract.
+func handleProviderDetail(w http.ResponseWriter, r *http.Request, h *eventstream.Handlers, logger *slog.Logger) {
+	name := r.PathValue("name")
+	if name == "" {
+		writeJSONError(w, http.StatusBadRequest, "bad_path", "missing provider name")
+		return
+	}
+
+	providers := h.Cfg.ProvidersSnapshot()
+	p, ok := providers[name]
+	if !ok {
+		writeJSONError(w, http.StatusNotFound, "not_found", "provider not found")
+		return
+	}
+
+	statusSlug := deriveProviderStatus(h.Stats.ProviderSnapshot()[name])
+	statusLabel := statusSlugToLabel(statusSlug)
+
+	envDeclared := p.DefaultAPIKeyEnv != ""
+	envPresent := false
+	if envDeclared {
+		envPresent = os.Getenv(p.DefaultAPIKeyEnv) != ""
+	}
+
+	data := providerDrawerData{
+		Name:        name,
+		StatusLabel: statusLabel,
+		StatusSlug:  statusSlug,
+		Protocol:    p.Protocol,
+		BaseURL:     p.DefaultBaseURL,
+		EnvDeclared: envDeclared,
+		EnvPresent:  envPresent,
+		EditLink:    "/providers?provider=" + url.QueryEscape(name),
+	}
+
+	tmpl, err := loadFragmentTemplate("provider-drawer.html")
+	if err != nil {
+		logger.Error("load provider drawer template", "err", err)
+		writeJSONError(w, http.StatusInternalServerError, "template_failed", err.Error())
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := tmpl.ExecuteTemplate(w, "provider-drawer", data); err != nil {
+		logger.Error("execute provider drawer template", "err", err)
+	}
+}
+
+// statusSlugToLabel maps a deriveProviderStatus slug to the human label used
+// in drawer/health badges (Healthy/Degraded/Error/Unknown).
+func statusSlugToLabel(slug string) string {
+	switch slug {
+	case "healthy":
+		return "Healthy"
+	case "degraded":
+		return "Degraded"
+	case "error":
+		return "Error"
+	default:
+		return "Unknown"
 	}
 }
 
