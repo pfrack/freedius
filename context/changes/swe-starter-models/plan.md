@@ -209,20 +209,20 @@ None — additive provider entries; existing configs are unaffected.
 
 #### Automated
 
-- [x] 1.1 Add minimax + xiaomi entries to `providers.yaml`
-- [x] 1.2 Run `go generate ./...` and confirm regenerated tables
-- [x] 1.3 Update `TestProviderDefaults` expected slice (config_test.go:588)
-- [x] 1.4 `go test ./config/...` and `go build ./...` pass
+- [x] 1.1 Add minimax + xiaomi entries to `providers.yaml` — fefc9de
+- [x] 1.2 Run `go generate ./...` and confirm regenerated tables — fefc9de
+- [x] 1.3 Update `TestProviderDefaults` expected slice (config_test.go:588) — fefc9de
+- [x] 1.4 `go test ./config/...` and `go build ./...` pass — fefc9de
 
 #### Manual
 
-- [ ] 1.5 Config referencing minimax/xiaomi loads without `provider_not_registered`
+- [x] 1.5 Config referencing minimax/xiaomi loads without `provider_not_registered` — fefc9de
 
 ### Phase 2: Confirm starter scope + guard behavior
 
 #### Automated
 
-- [ ] 2.1 `go test ./cmd/freedius/...` and `mage test` pass
+- [x] 2.1 `go test ./cmd/freedius/...` and `mage test` pass
 
 #### Manual
 
