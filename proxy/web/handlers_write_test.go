@@ -330,6 +330,58 @@ func TestDeleteMapping_NotFound(t *testing.T) {
 	}
 }
 
+func TestDeleteMapping_DefaultProtected(t *testing.T) {
+	mux, cfg, _ := newWriteMux(t)
+
+	// The default catch-all must refuse deletion and remain present.
+	req := httptest.NewRequest(http.MethodDelete, "/v1/mappings/default", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("status = %d, want 409; body: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "protected_mapping") {
+		t.Errorf("body missing protected_mapping error code: %s", rec.Body.String())
+	}
+	cfg.RLock()
+	_, stillPresent := cfg.Mappings["default"]
+	cfg.RUnlock()
+	if !stillPresent {
+		t.Error("default mapping should still be present after refused delete")
+	}
+}
+
+func TestCreateMapping_RebuildsMatchers(t *testing.T) {
+	mux, cfg, _ := newWriteMux(t)
+
+	body := "name=mynewmap&provider_name=nim&model_string=claude-3-sonnet"
+	req := httptest.NewRequest(http.MethodPost, "/v1/mappings", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != 201 {
+		t.Fatalf("status = %d, want 201; body: %s", rec.Code, rec.Body.String())
+	}
+
+	// The runtime matcher list must include the newly added key so a model
+	// can route to it without a restart.
+	cfg.RLock()
+	matchers := cfg.Matchers()
+	cfg.RUnlock()
+	found := false
+	for _, mm := range matchers {
+		if mm.Name == "mynewmap" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("matchers not rebuilt after create; got %d matchers", len(matchers))
+	}
+}
+
 func TestCreateProvider_PersistsToDisk(t *testing.T) {
 	mux, _, cfgPath := newWriteMux(t)
 

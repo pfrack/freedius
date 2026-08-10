@@ -380,11 +380,11 @@ rewritten. `auto` removal only affects the starter template, not user configs.
 
 #### Automated
 
-- [x] 1.1 Add `matchers`/`mappingMatcher` + `ensureDefaultMapping`/`buildMatchers` to `config/config.go`
-- [x] 1.2 Wire `ensureDefaultMapping`+`buildMatchers` into the load pipeline
-- [x] 1.3 Rewrite `resolveMapping` to exact + compiled scan; add `Matchers()` accessor
-- [x] 1.4 Retire `ExtractFamily` (delete families.go, `mappingRow.Family`, badge, 2 tests)
-- [x] 1.5 `mage test`, `mage lint`, `go vet` pass
+- [x] 1.1 Add `matchers`/`mappingMatcher` + `ensureDefaultMapping`/`buildMatchers` to `config/config.go` — 8c5b620
+- [x] 1.2 Wire `ensureDefaultMapping`+`buildMatchers` into the load pipeline — 8c5b620
+- [x] 1.3 Rewrite `resolveMapping` to exact + compiled scan; add `Matchers()` accessor — 8c5b620
+- [x] 1.4 Retire `ExtractFamily` (delete families.go, `mappingRow.Family`, badge, 2 tests) — 8c5b620
+- [x] 1.5 `mage test`, `mage lint`, `go vet` pass — 8c5b620
 
 #### Manual
 
@@ -394,11 +394,11 @@ rewritten. `auto` removal only affects the starter template, not user configs.
 
 #### Automated
 
-- [ ] 2.1 Add `default` delete guard (409) in `handleDeleteMapping`
-- [ ] 2.2 Call `buildMatchers()` after add/delete mutations
-- [ ] 2.3 Test: `DELETE /v1/mappings/default` → 409, mapping persists
-- [ ] 2.4 Test: add mapping then route by its key
-- [ ] 2.5 `mage test` passes
+- [x] 2.1 Add `default` delete guard (409) in `handleDeleteMapping` — 
+- [x] 2.2 Call `buildMatchers()` after add/delete mutations — 
+- [x] 2.3 Test: `DELETE /v1/mappings/default` → 409, mapping persists — 
+- [x] 2.4 Test: add mapping then route by its key — 
+- [x] 2.5 `mage test` passes — 
 
 #### Manual
 
