@@ -211,8 +211,10 @@ func validateMappingModel(model string) error {
 	if model == "" {
 		return fmt.Errorf("required")
 	}
-	if strings.ContainsAny(model, "\r\n:") {
-		return fmt.Errorf("must not contain CR, LF, or colon")
+	// Mirrors config.validateMapping: only CR/LF are unsafe (header injection).
+	// Colons are valid in vendor model IDs, so they are permitted here.
+	if strings.ContainsAny(model, "\r\n") {
+		return fmt.Errorf("must not contain CR or LF")
 	}
 	return nil
 }

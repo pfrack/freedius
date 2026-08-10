@@ -70,7 +70,7 @@ func TestRunConfigure_FirstRunWritesNoBackup(t *testing.T) {
 	}
 }
 
-func TestRunConfigure_SecondRunBacksUpAndOverwrites(t *testing.T) {
+func TestRunConfigure_SecondRunDoesNotRebackup(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "settings.json")
 	if err := os.WriteFile(path, []byte(`{"project":"mine"}`), 0o644); err != nil {
@@ -83,15 +83,51 @@ func TestRunConfigure_SecondRunBacksUpAndOverwrites(t *testing.T) {
 	if n := countBackups(t, dir); n != 1 {
 		t.Fatalf("expected 1 backup after the first run, found %d", n)
 	}
+	// The second run finds settings.json already equals the freedius block, so
+	// it must NOT back up the freedius block itself (otherwise --restore would
+	// return the wrong file). It still overwrites with the freedius block.
 	if code := runConfigure([]string{"--config-dir", dir, "--yes"}); code != 0 {
 		t.Fatalf("second run exit code = %d, want 0", code)
 	}
-	if n := countBackups(t, dir); n != 2 {
-		t.Errorf("expected 2 backups after the second run, found %d", n)
+	if n := countBackups(t, dir); n != 1 {
+		t.Errorf("second run must not create a new backup (already configured), found %d", n)
 	}
 	got := readSettings(t, dir)
 	if _, ok := got["project"]; ok {
 		t.Errorf("overwrite should discard the pre-existing 'project' key")
+	}
+}
+
+// TestRunConfigure_RestoreAfterSecondRunReturnsOriginal is the regression guard
+// for the F1 bug: a second `configure` run must not shadow the user's original
+// backup, so --restore still returns exactly the original settings.json.
+func TestRunConfigure_RestoreAfterSecondRunReturnsOriginal(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "settings.json")
+	original := `{"project":"mine"}`
+	if err := os.WriteFile(path, []byte(original), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if code := runConfigure([]string{"--config-dir", dir, "--yes"}); code != 0 {
+		t.Fatalf("first run exit code = %d, want 0", code)
+	}
+	// A second run while already configured must not create a freedius-block backup.
+	if code := runConfigure([]string{"--config-dir", dir, "--yes"}); code != 0 {
+		t.Fatalf("second run exit code = %d, want 0", code)
+	}
+	if n := countBackups(t, dir); n != 1 {
+		t.Fatalf("expected exactly 1 backup (the original) before restore, found %d", n)
+	}
+	if code := runConfigure([]string{"--restore", "--config-dir", dir}); code != 0 {
+		t.Fatalf("restore exit code = %d, want 0", code)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != original {
+		t.Errorf("restore after a second configure run = %q, want original %q", string(data), original)
 	}
 }
 
@@ -115,6 +151,71 @@ func TestRunConfigure_RestoreReturnsNewestBackup(t *testing.T) {
 	}
 	if string(data) != original {
 		t.Errorf("restored settings.json = %q, want %q", string(data), original)
+	}
+}
+
+// TestRunConfigure_RestoreSnapshotsPrerestore verifies F3: --restore snapshots
+// the current settings.json under a separate .prerestore prefix (recoverable)
+// without shadowing the user's real .bak (the newest restore target stays the
+// original).
+func TestRunConfigure_RestoreSnapshotsPrerestore(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "settings.json")
+	original := `{"project":"mine"}`
+	if err := os.WriteFile(path, []byte(original), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if code := runConfigure([]string{"--config-dir", dir, "--yes"}); code != 0 {
+		t.Fatalf("configure exit code = %d, want 0", code)
+	}
+	if code := runConfigure([]string{"--restore", "--config-dir", dir}); code != 0 {
+		t.Fatalf("restore exit code = %d, want 0", code)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != original {
+		t.Errorf("restored settings.json = %q, want original %q", string(data), original)
+	}
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	prerestore := 0
+	for _, e := range entries {
+		if strings.HasPrefix(e.Name(), "settings.json.prerestore.") {
+			prerestore++
+		}
+	}
+	if prerestore != 1 {
+		t.Errorf("expected exactly 1 .prerestore snapshot, found %d", prerestore)
+	}
+	// The real .bak set must still hold only the original (the prerestore must
+	// not leak into the .bak.* selection).
+	if n := countBackups(t, dir); n != 1 {
+		t.Errorf("expected 1 .bak (the original) after restore, found %d", n)
+	}
+}
+
+func TestRunConfigure_HelpReturnsZero(t *testing.T) {
+	// --help must be handled by the subcommand's own flag set (printing
+	// configure usage), not the top-level server usage. It returns 0.
+	if code := runConfigure([]string{"--help"}); code != 0 {
+		t.Fatalf("runConfigure(--help) exit code = %d, want 0", code)
+	}
+}
+
+func TestPrintConfigureUsage_WritesFlags(t *testing.T) {
+	var sb strings.Builder
+	printConfigureUsage(&sb)
+	out := sb.String()
+	for _, want := range []string{"--config-dir", "--restore", "--dry-run", "--yes"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("configure usage should list %s:\n%s", want, out)
+		}
 	}
 }
 

@@ -86,12 +86,15 @@
         <option value="false" {{if eq .Fallback "false"}}selected{{end}}>No</option>
       </select>
     </div>
+    <span class="log-live-dot" data-state="connecting" title="Live tail connection"></span>
   </div>
   <div
     id="log"
     class="log-container"
     hx-ext="sse"
     sse-connect="/v1/logs"
+    sse-swap="log"
+    hx-swap="none"
   >
     {{if not .Entries}}
     <small class="text-muted">Waiting for log events…</small>
@@ -117,17 +120,50 @@
 
   // Order matters: append -> scroll -> trim. Scrolling before the trim keeps
   // the view pinned to the newest line during bursts.
+  var tailPaused = false;
+  var SCROLL_PAUSE_THRESHOLD = 40; // px from bottom before we stop following
+
+  function isNearBottom(logEl) {
+    return logEl.scrollTop + logEl.clientHeight >= logEl.scrollHeight - SCROLL_PAUSE_THRESHOLD;
+  }
+
   function appendLogLine(pre) {
     var logEl = document.getElementById('log');
     logEl.appendChild(pre);
-    logEl.scrollTop = logEl.scrollHeight;
+    if (!tailPaused) {
+      logEl.scrollTop = logEl.scrollHeight;
+    }
     while (logEl.children.length > MAX_LOG_LINES) {
       logEl.removeChild(logEl.firstElementChild);
     }
   }
 
+  // Pause auto-follow when the operator scrolls up to read; resume once they
+  // return to the bottom.
+  document.getElementById('log').addEventListener('scroll', function(e) {
+    var logEl = e.target;
+    tailPaused = !isNearBottom(logEl);
+  });
+
+  // Connection-state dot: reflect the live SSE tail's status.
+  function setLiveState(state) {
+    var dot = document.querySelector('.log-live-dot');
+    if (dot) dot.setAttribute('data-state', state);
+  }
+  document.addEventListener('htmx:sseOpen', function() { setLiveState('live'); });
+  document.addEventListener('htmx:sseClose', function() { setLiveState('down'); });
+  document.addEventListener('htmx:sseError', function() { setLiveState('down'); });
+
+  // sse-swap="log" is what makes the extension register a listener for the
+  // "log" event at all (sse-connect alone registers none). We do our own
+  // rendering below, so hx-swap="none" keeps the extension from also
+  // injecting the raw JSON payload into #log.
   document.addEventListener('htmx:sseMessage', function(e) {
-    if (!e.detail || e.detail.eventName !== 'log' || typeof e.detail.data !== 'string') return;
+    // The extension forwards the raw MessageEvent as detail, so the SSE event
+    // name is detail.type ("log"); older builds exposed detail.eventName.
+    if (!e.detail || typeof e.detail.data !== 'string') return;
+    var sseEventName = e.detail.type || e.detail.eventName;
+    if (sseEventName !== 'log') return;
     var pre = document.createElement('pre');
     try {
       var data = JSON.parse(e.detail.data);

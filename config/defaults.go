@@ -33,6 +33,12 @@ func (c *Config) applyDefaults() {
 		if p.DefaultAPIKeyEnv == "" {
 			p.DefaultAPIKeyEnv = defaults.DefaultAPIKeyEnv
 		}
+		if p.OpenAI == nil {
+			// Shared pointer from providerDefaults; safe because OpenAIOptions
+			// is read-only after load. If ever made mutable per-request, this
+			// must become a deep copy.
+			p.OpenAI = defaults.OpenAI
+		}
 		p.RequireBaseURL = defaults.RequireBaseURL
 		// Static flag set at code-generation time. If a user overrides DefaultBaseURL
 		// to a /v1/messages-suffixed URL on a mix provider whose generated

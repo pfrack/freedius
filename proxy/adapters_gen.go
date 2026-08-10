@@ -4,109 +4,8 @@ package proxy
 
 import (
 	"log/slog"
-	"net/http"
 	"time"
-
-	"github.com/pfrack/freedius/config"
-	"github.com/pfrack/freedius/proxy/translate"
 )
-
-// GoogleAdapter wraps OpenAICompatibleAdapter with provider-specific
-// options (no_stream_usage and pre_send_hook).
-type GoogleAdapter struct {
-	inner *OpenAICompatibleAdapter
-}
-
-// NewGoogleAdapter returns a "google" provider adapter.
-func NewGoogleAdapter(logger *slog.Logger, streamTimeout time.Duration) *GoogleAdapter {
-	inner := NewOpenAICompatibleAdapterWithTimeout(logger, streamTimeout)
-	inner.translateOpts = translate.Opts{NoStreamUsage: true}
-	return &GoogleAdapter{inner: inner}
-}
-
-// Handle delegates to the embedded OpenAICompatibleAdapter.
-func (a *GoogleAdapter) Handle(
-	w http.ResponseWriter,
-	r *http.Request,
-	provider config.Provider,
-	mapping config.Mapping,
-	body []byte,
-) error {
-	return a.inner.Handle(w, r, provider, mapping, body)
-}
-
-// LmstudioAdapter wraps OpenAICompatibleAdapter with provider-specific
-// options (no_stream_usage and pre_send_hook).
-type LmstudioAdapter struct {
-	inner *OpenAICompatibleAdapter
-}
-
-// NewLmstudioAdapter returns a "lmstudio" provider adapter.
-func NewLmstudioAdapter(logger *slog.Logger, streamTimeout time.Duration) *LmstudioAdapter {
-	inner := NewOpenAICompatibleAdapterWithTimeout(logger, streamTimeout)
-	inner.translateOpts = translate.Opts{NoStreamUsage: true}
-	return &LmstudioAdapter{inner: inner}
-}
-
-// Handle delegates to the embedded OpenAICompatibleAdapter.
-func (a *LmstudioAdapter) Handle(
-	w http.ResponseWriter,
-	r *http.Request,
-	provider config.Provider,
-	mapping config.Mapping,
-	body []byte,
-) error {
-	return a.inner.Handle(w, r, provider, mapping, body)
-}
-
-// NIMAdapter wraps OpenAICompatibleAdapter with provider-specific
-// options (no_stream_usage and pre_send_hook).
-type NIMAdapter struct {
-	inner *OpenAICompatibleAdapter
-}
-
-// NewNIMAdapter returns a "nim" provider adapter.
-func NewNIMAdapter(logger *slog.Logger, streamTimeout time.Duration) *NIMAdapter {
-	inner := NewOpenAICompatibleAdapterWithTimeout(logger, streamTimeout)
-	inner.translateOpts = translate.Opts{NoStreamUsage: true}
-	inner.preSendHook = sanitizeNIMBody
-	return &NIMAdapter{inner: inner}
-}
-
-// Handle delegates to the embedded OpenAICompatibleAdapter.
-func (a *NIMAdapter) Handle(
-	w http.ResponseWriter,
-	r *http.Request,
-	provider config.Provider,
-	mapping config.Mapping,
-	body []byte,
-) error {
-	return a.inner.Handle(w, r, provider, mapping, body)
-}
-
-// OllamaAdapter wraps OpenAICompatibleAdapter with provider-specific
-// options (no_stream_usage and pre_send_hook).
-type OllamaAdapter struct {
-	inner *OpenAICompatibleAdapter
-}
-
-// NewOllamaAdapter returns a "ollama" provider adapter.
-func NewOllamaAdapter(logger *slog.Logger, streamTimeout time.Duration) *OllamaAdapter {
-	inner := NewOpenAICompatibleAdapterWithTimeout(logger, streamTimeout)
-	inner.translateOpts = translate.Opts{NoStreamUsage: true}
-	return &OllamaAdapter{inner: inner}
-}
-
-// Handle delegates to the embedded OpenAICompatibleAdapter.
-func (a *OllamaAdapter) Handle(
-	w http.ResponseWriter,
-	r *http.Request,
-	provider config.Provider,
-	mapping config.Mapping,
-	body []byte,
-) error {
-	return a.inner.Handle(w, r, provider, mapping, body)
-}
 
 // NewDefaultRegistry returns a Registry wired with the default adapter set.
 // streamTimeout and verboseErrors configure the underlying core adapters
@@ -120,7 +19,7 @@ func NewDefaultRegistry(
 	overrides map[string]Provider,
 ) *Registry {
 	providers := map[string]Provider{
-		"nim":       NewNIMAdapter(logger, streamTimeout),
+		"nim":       NewOpenAICompatibleAdapterWithTimeout(logger, streamTimeout),
 		"openai":    NewOpenAICompatibleAdapterWithTimeout(logger, streamTimeout),
 		"anthropic": NewAnthropicCompatibleAdapterWithTimeout(logger, verboseErrors, streamTimeout),
 		"mix":       NewMixAdapter(logger, verboseErrors, streamTimeout),

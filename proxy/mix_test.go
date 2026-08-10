@@ -190,6 +190,7 @@ func TestMixAdapter_OpenAIPathOmitsStreamOptions(t *testing.T) {
 			Behavior:         "mix",
 			DefaultBaseURL:   upstream.URL + "/v1/chat/completions",
 			DefaultAPIKeyEnv: "MIX_API_KEY",
+			OpenAI:           &config.OpenAIOptions{NoStreamUsage: true},
 		},
 		config.Mapping{ProviderName: "mix", ModelString: "my-model"},
 		body,

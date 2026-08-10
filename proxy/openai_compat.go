@@ -21,8 +21,11 @@ type OpenAICompatibleAdapter struct {
 	client        *http.Client
 	logger        *slog.Logger
 	streamTimeout time.Duration
-	translateOpts translate.Opts
-	preSendHook   func([]byte) ([]byte, error)
+}
+
+// preSendHooks maps provider-declared pre_send_hook names to functions.
+var preSendHooks = map[string]func([]byte) ([]byte, error){
+	"sanitizeNIMBody": sanitizeNIMBody,
 }
 
 // NewOpenAICompatibleAdapter returns an adapter with the default stream
@@ -87,7 +90,25 @@ func (a *OpenAICompatibleAdapter) Handle(
 			}
 		}
 	}
-	upstreamBody, err := translate.Request(body, mapping.ModelString, a.translateOpts)
+	opts := translate.Opts{}
+	var hook func([]byte) ([]byte, error)
+	if provider.OpenAI != nil {
+		opts.NoStreamUsage = provider.OpenAI.NoStreamUsage
+		if provider.OpenAI.PreSendHook != "" {
+			h, ok := preSendHooks[provider.OpenAI.PreSendHook]
+			if !ok {
+				return &configError{
+					err: fmt.Errorf(
+						"%s adapter (openai-compat): unknown pre_send_hook %q",
+						mapping.ProviderName, provider.OpenAI.PreSendHook,
+					),
+					errType: "invalid_request_error",
+				}
+			}
+			hook = h
+		}
+	}
+	upstreamBody, err := translate.Request(body, mapping.ModelString, opts)
 	if err != nil {
 		return &configError{
 			err: fmt.Errorf(
@@ -98,8 +119,8 @@ func (a *OpenAICompatibleAdapter) Handle(
 			errType: "invalid_request_error",
 		}
 	}
-	if a.preSendHook != nil {
-		upstreamBody, err = a.preSendHook(upstreamBody)
+	if hook != nil {
+		upstreamBody, err = hook(upstreamBody)
 		if err != nil {
 			return &configError{
 				err: fmt.Errorf(
@@ -139,6 +160,11 @@ func (a *OpenAICompatibleAdapter) Handle(
 
 	resp, err := a.client.Do(req)
 	if err != nil {
+		// Note: returning a plain error here makes the dispatcher classify
+		// this as a 529 overloaded_error (fallback-eligible). The anthropic
+		// adapter uses writeTransportError + returns nil instead. The two
+		// adapters intentionally differ; align them only as a deliberate
+		// contract change across both paths.
 		return fmt.Errorf("%s adapter (openai-compat): do request: %w", mapping.ProviderName, err)
 	}
 	defer func() { _ = resp.Body.Close() }()

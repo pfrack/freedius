@@ -15,7 +15,7 @@
             aria-label="Filter by status">
       <option value="">All status</option>
       <option value="active" {{if eq .StatusFilter "active"}}selected{{end}}>Active</option>
-      <option value="inactive" {{if eq .StatusFilter "inactive"}}selected{{end}}>No API key</option>
+      <option value="inactive" {{if eq .StatusFilter "inactive"}}selected{{end}} title="Internal filter value: inactive">No API key</option>
     </select>
     <label class="mappings-filters__has-fallback">
       <input type="checkbox" name="has_fallback" value="true" {{if eq .HasFallbackFilter "true"}}checked{{end}}>

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -118,8 +119,11 @@ func Benchmark() error {
 // Requires Node/npm and the Playwright browsers; install them first with
 // `mage e2eSetup`.
 func E2E() error {
-	if _, err := sh.Output("which", "npm"); err != nil {
+	if _, err := exec.LookPath("npm"); err != nil {
 		return fmt.Errorf("npm not found: install Node.js to run the e2e suite (see e2e/)")
+	}
+	if _, err := os.Stat("e2e/node_modules"); err != nil {
+		return fmt.Errorf("e2e dependencies not installed — run 'mage e2eSetup' first: %w", err)
 	}
 	fmt.Println("→ Running Playwright e2e suite...")
 	return sh.RunV("npm", "test", "--prefix", "e2e")
@@ -130,14 +134,20 @@ func E2E() error {
 // OS-level library deps (apt) are CI-specific and not installed here; on
 // GitHub ubuntu-latest the runner image already provides them.
 func E2ESetup() error {
-	if _, err := sh.Output("which", "npm"); err != nil {
+	if _, err := exec.LookPath("npm"); err != nil {
 		return fmt.Errorf("npm not found: install Node.js to run the e2e suite (see e2e/)")
 	}
 	fmt.Println("→ Installing Playwright e2e dependencies...")
 	if err := sh.RunV("npm", "ci", "--prefix", "e2e"); err != nil {
-		return err
+		return fmt.Errorf("npm ci failed (retry: npm ci --prefix e2e): %w", err)
 	}
-	return sh.RunV("npx", "--prefix", "e2e", "playwright", "install", "chromium")
+	if err := sh.RunV("npx", "--prefix", "e2e", "playwright", "install", "chromium"); err != nil {
+		return fmt.Errorf(
+			"playwright browser install failed (retry: npx --prefix e2e playwright install chromium): %w",
+			err,
+		)
+	}
+	return nil
 }
 
 // Coverage generates an HTML coverage report and opens it in the browser.

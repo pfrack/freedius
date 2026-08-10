@@ -120,6 +120,87 @@ func TestWriteSettingsJSON_MalformedFileReplaced(t *testing.T) {
 	}
 }
 
+func TestBackupSettingsJSON_PreservesSourcePerms(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "settings.json")
+	content := `{"project":"my-app"}` + "\n"
+	// A private settings.json that may hold a real API key.
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	backup, err := BackupSettingsJSON(dir)
+	if err != nil {
+		t.Fatalf("BackupSettingsJSON: %v", err)
+	}
+	fi, err := os.Stat(backup)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := fi.Mode().Perm(), os.FileMode(0o600); got != want {
+		t.Errorf("backup perms = %v, want %v (source perms must be preserved, not widened to 0644)", got, want)
+	}
+}
+
+func TestRestoreSettingsJSON_PreservesSourcePerms(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "settings.json")
+	original := `{"project":"my-app"}`
+	if err := os.WriteFile(path, []byte(original), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := BackupSettingsJSON(dir); err != nil {
+		t.Fatalf("BackupSettingsJSON: %v", err)
+	}
+	// Overwrite the live file at a different mode to prove restore restores perms.
+	if err := os.WriteFile(path, []byte(`{"env":{}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := RestoreSettingsJSON(dir); err != nil {
+		t.Fatalf("RestoreSettingsJSON: %v", err)
+	}
+	fi, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := fi.Mode().Perm(), os.FileMode(0o600); got != want {
+		t.Errorf("restored settings.json perms = %v, want %v", got, want)
+	}
+}
+
+func TestIsFreediusSettings(t *testing.T) {
+	dir := t.TempDir()
+
+	// No file at all is not the freedius block.
+	if ok, err := IsFreediusSettings(dir, "127.0.0.1", 8080); err != nil || ok {
+		t.Errorf("empty dir: ok=%v err=%v, want ok=false err=nil", ok, err)
+	}
+
+	// A freedius-authored file (matching what WriteSettingsJSON produces) is.
+	if err := WriteSettingsJSON(dir, "127.0.0.1", 8080, false); err != nil {
+		t.Fatalf("WriteSettingsJSON: %v", err)
+	}
+	if ok, err := IsFreediusSettings(dir, "127.0.0.1", 8080); err != nil || !ok {
+		t.Errorf("freedius-authored file: ok=%v err=%v, want ok=true err=nil", ok, err)
+	}
+
+	// A different host/port is not the same block.
+	if ok, _ := IsFreediusSettings(dir, "0.0.0.0", 9999); ok {
+		t.Errorf("different host/port should not match, got ok=true")
+	}
+
+	// A user file with extra keys is not the bare freedius block.
+	path := filepath.Join(dir, "settings.json")
+	withExtra := `{"env":{"ANTHROPIC_BASE_URL":"http://127.0.0.1:8080"},"project":"mine"}`
+	if err := os.WriteFile(path, []byte(withExtra), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if ok, _ := IsFreediusSettings(dir, "127.0.0.1", 8080); ok {
+		t.Errorf("file with extra keys should not match the bare block, got ok=true")
+	}
+}
+
 func TestBackupSettingsJSON_CopiesExisting(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "settings.json")

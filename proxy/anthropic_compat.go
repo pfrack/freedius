@@ -131,10 +131,23 @@ func (a *AnthropicCompatibleAdapter) Handle(
 	// Use a shared HTTP client — transport errors surface here.
 	resp, err := http.DefaultClient.Do(upstreamReq)
 	if err != nil {
-		// Transport error — write the Anthropic error envelope directly.
-		// This is pre-write, so it's fallback-eligible at the dispatcher level.
-		a.writeTransportError(w, r, err)
-		return nil
+		// Transport error — return an upstreamError so the dispatcher can
+		// fallback to the next provider. When the chain exhausts, the
+		// dispatcher writes the Anthropic-shaped error via writeAnthropicError.
+		a.logTransportError(r, err)
+		if isPermanentTransportError(err) {
+			return &upstreamError{
+				status:  502,
+				errType: "api_error",
+				message: "upstream not reachable",
+			}
+		}
+		return &upstreamError{
+			status:     529,
+			errType:    "overloaded_error",
+			message:    "upstream not reachable",
+			retryAfter: 15,
+		}
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -204,11 +217,10 @@ func (a *AnthropicCompatibleAdapter) Handle(
 	return nil
 }
 
-// writeTransportError writes the Anthropic error envelope for transport-level
-// errors. Mirrors freediusErrorHandler's logic but is a method on the adapter
-// so it can access the logger and verboseErrors flag.
-func (a *AnthropicCompatibleAdapter) writeTransportError(
-	w http.ResponseWriter,
+// logTransportError logs a transport-level error. The adapter returns the
+// error to the dispatcher (fallback-eligible); the Anthropic-shaped response
+// is written by the dispatcher when the fallback chain exhausts.
+func (a *AnthropicCompatibleAdapter) logTransportError(
 	r *http.Request,
 	err error,
 ) {
@@ -233,11 +245,6 @@ func (a *AnthropicCompatibleAdapter) writeTransportError(
 			"path", r.URL.Path,
 			"err", err.Error(),
 		)
-	}
-	if isPermanentTransportError(err) {
-		writeAnthropicError(w, 502, "api_error", "upstream not reachable", 0)
-	} else {
-		writeAnthropicError(w, 529, "overloaded_error", "upstream not reachable", 15)
 	}
 }
 

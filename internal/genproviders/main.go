@@ -59,19 +59,6 @@ type OpenAIOptions struct {
 	PreSendHook   string `yaml:"pre_send_hook,omitempty"`
 }
 
-func (p Provider) needsThinWrapper() bool {
-	if p.Manual {
-		return false
-	}
-	if p.Behavior != "openai" {
-		return false
-	}
-	if p.OpenAI == nil {
-		return false
-	}
-	return p.OpenAI.NoStreamUsage || p.OpenAI.PreSendHook != ""
-}
-
 // supportsCountTokens derives the runtime SupportsCountTokens flag from the
 // spec. The dispatcher consults this at /v1/messages/count_tokens to decide
 // between a local BPE estimate and a pass-through to the upstream.
@@ -111,18 +98,11 @@ type providerDefaultEntry struct {
 	AnthropicVersion    string
 	RequireBaseURL      bool
 	SupportsCountTokens bool
+	OpenAI              *OpenAIOptions
 }
 
 type proxyTmplData struct {
-	Adapters        []adapterEntry
 	RegistryEntries []registryEntry
-}
-
-type adapterEntry struct {
-	Name          string
-	TypeName      string
-	NoStreamUsage bool
-	PreSendHook   string
 }
 
 type registryEntry struct {
@@ -147,6 +127,7 @@ func GenerateConfig(spec Spec) ([]byte, error) {
 			DefaultAPIKeyEnv:    p.DefaultAPIKeyEnv,
 			RequireBaseURL:      p.RequireBaseURL,
 			SupportsCountTokens: supportsCountTokens(p),
+			OpenAI:              p.OpenAI,
 		})
 	}
 
@@ -155,30 +136,16 @@ func GenerateConfig(spec Spec) ([]byte, error) {
 
 // GenerateProxy returns the Go source for proxy/adapters_gen.go derived from
 // spec. The output is go/format-clean.
-func GenerateProxy(spec Spec) ([]byte, error) {
+func GenerateProxy() ([]byte, error) {
 	var data proxyTmplData
 
-	for name, p := range spec.Providers {
-		if !p.needsThinWrapper() {
-			continue
-		}
-		data.Adapters = append(data.Adapters, adapterEntry{
-			Name:          name,
-			TypeName:      providerTypeName(name),
-			NoStreamUsage: p.OpenAI.NoStreamUsage,
-			PreSendHook:   p.OpenAI.PreSendHook,
-		})
-	}
-
-	sort.Slice(data.Adapters, func(i, j int) bool {
-		return data.Adapters[i].Name < data.Adapters[j].Name
-	})
-
-	// Registry entries wire the runtime adapters by behavior class. Under
-	// the providers/mappings schema there are no alias rewrites at load
-	// time; all 4 behaviors are wired unconditionally.
+	// Registry entries wire the runtime adapters by behavior class. The 4
+	// behavior keys are stable and wired unconditionally here. Adding a new
+	// behavior class requires editing this list. nim collapses into the
+	// generic openai ctor — its NoStreamUsage + sanitizeNIMBody hook now come
+	// from the nim provider's OpenAI config at request time.
 	data.RegistryEntries = []registryEntry{
-		{Name: "nim", CtorCall: "NewNIMAdapter(logger, streamTimeout)"},
+		{Name: "nim", CtorCall: "NewOpenAICompatibleAdapterWithTimeout(logger, streamTimeout)"},
 		{Name: "openai", CtorCall: "NewOpenAICompatibleAdapterWithTimeout(logger, streamTimeout)"},
 		{Name: "anthropic", CtorCall: "NewAnthropicCompatibleAdapterWithTimeout(logger, verboseErrors, streamTimeout)"},
 		{Name: "mix", CtorCall: "NewMixAdapter(logger, verboseErrors, streamTimeout)"},
@@ -212,16 +179,6 @@ func sortedProviderNames(spec Spec) []string {
 	return names
 }
 
-func providerTypeName(name string) string {
-	if name == "nim" {
-		return "NIMAdapter"
-	}
-	if name == "" {
-		return ""
-	}
-	return strings.ToUpper(name[:1]) + name[1:] + "Adapter"
-}
-
 func addBuildTag(tag string, src []byte) []byte {
 	tagLine := "//go:build " + tag
 	return append([]byte(tagLine+"\n\n"), src...)
@@ -252,7 +209,7 @@ func main() {
 	case "config":
 		output, err = GenerateConfig(*spec)
 	case "proxy":
-		output, err = GenerateProxy(*spec)
+		output, err = GenerateProxy()
 	default:
 		log.Fatalf("unknown -pkg: %s", *pkg)
 	}
@@ -273,6 +230,9 @@ func main() {
 
 	outPath := *out
 	if outPath == "" {
+		// Defaults assume invocation from the package directory (as
+		// go:generate does). Running from repo root writes to the wrong path
+		// — pass -out explicitly in that case.
 		if *pkg == "config" {
 			outPath = "providers_gen.go"
 		} else {
@@ -322,6 +282,14 @@ var providerDefaults = map[string]Provider{
 <% if .DefaultAPIKeyEnv -%>
 		DefaultAPIKeyEnv:    "<% .DefaultAPIKeyEnv %>", // #nosec G101 -- env var name, not a credential
 <% end -%>
+<% if .OpenAI -%>
+		OpenAI: &OpenAIOptions{
+			NoStreamUsage: <% .OpenAI.NoStreamUsage %>,
+<% if .OpenAI.PreSendHook -%>
+			PreSendHook:   "<% .OpenAI.PreSendHook %>",
+<% end -%>
+		},
+<% end -%>
 		RequireBaseURL:      <% .RequireBaseURL %>,
 		SupportsCountTokens: <% .SupportsCountTokens %>,
 	},
@@ -335,42 +303,9 @@ package proxy
 
 import (
 	"log/slog"
-	"net/http"
 	"time"
-
-	"github.com/pfrack/freedius/config"
-	"github.com/pfrack/freedius/proxy/translate"
 )
 
-<% range .Adapters -%>
-// <% .TypeName %> wraps OpenAICompatibleAdapter with provider-specific
-// options (no_stream_usage and pre_send_hook).
-type <% .TypeName %> struct {
-	inner *OpenAICompatibleAdapter
-}
-
-// New<% .TypeName %> returns a "<% .Name %>" provider adapter.
-func New<% .TypeName %>(logger *slog.Logger, streamTimeout time.Duration) *<% .TypeName %> {
-	inner := NewOpenAICompatibleAdapterWithTimeout(logger, streamTimeout)
-	inner.translateOpts = translate.Opts{NoStreamUsage: <% .NoStreamUsage %>}
-<% if .PreSendHook -%>
-	inner.preSendHook = <% .PreSendHook %>
-<% end -%>
-	return &<% .TypeName %>{inner: inner}
-}
-
-// Handle delegates to the embedded OpenAICompatibleAdapter.
-func (a *<% .TypeName %>) Handle(
-	w http.ResponseWriter,
-	r *http.Request,
-	provider config.Provider,
-	mapping config.Mapping,
-	body []byte,
-) error {
-	return a.inner.Handle(w, r, provider, mapping, body)
-}
-
-<% end -%>
 // NewDefaultRegistry returns a Registry wired with the default adapter set.
 // streamTimeout and verboseErrors configure the underlying core adapters
 // (OpenAICompatible, AnthropicCompatible, Mix). overrides lets callers

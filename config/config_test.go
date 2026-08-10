@@ -207,6 +207,23 @@ mappings:
 			errSubstr: "unsafe \"model_string\" value",
 		},
 		{
+			// Colons are legal in header values and common in vendor model IDs.
+			name:    "mapping model_string with colon is allowed",
+			yaml:    "providers:\n  nous: { behavior: openai }\nmappings:\n  opus:\n    provider_name: nous\n    model_string: \"hy3:free\"\n",
+			wantErr: false,
+		},
+		{
+			name:      "fallback model_string with CRLF rejected",
+			yaml:      "providers:\n  nim: { behavior: openai }\n  nous: { behavior: openai }\nmappings:\n  opus:\n    provider_name: nim\n    model_string: a\n    fallback:\n      - provider_name: nous\n        model_string: \"b\\r\\nX-Injected: c\"\n",
+			wantErr:   true,
+			errSubstr: "unsafe \"model_string\" value",
+		},
+		{
+			name:    "fallback model_string with colon is allowed",
+			yaml:    "providers:\n  nim: { behavior: openai }\n  nous: { behavior: openai }\nmappings:\n  opus:\n    provider_name: nim\n    model_string: a\n    fallback:\n      - provider_name: nous\n        model_string: \"hy3:free\"\n",
+			wantErr: false,
+		},
+		{
 			name: "openai provider without default_base_url",
 			yaml: `providers:
   openai:
@@ -562,7 +579,7 @@ func TestProviderDefaults(t *testing.T) {
 	expected := []string{
 		"nim", "zen", "go", "custom", "openai", "anthropic", "mix",
 		"google", "mistral", "deepseek", "groq", "together", "fireworks", "cohere",
-		"ollama", "lmstudio",
+		"ollama", "lmstudio", "nous", "kilo",
 	}
 	if len(providerDefaults) != len(expected) {
 		t.Errorf("providerDefaults has %d entries, want %d", len(providerDefaults), len(expected))

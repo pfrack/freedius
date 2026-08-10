@@ -46,11 +46,21 @@ type Provider struct {
 	// expected suffix). When empty, the adapter falls back to URL path
 	// sniffing. Ignored for non-mix providers.
 	Protocol string `yaml:"protocol,omitempty"`
+	// OpenAI holds openai-behavior-specific adapter tweaks. It is populated from
+	// the YAML openai: block (user config or generated providerDefaults) and read
+	// per-request by OpenAICompatibleAdapter.Handle.
+	OpenAI *OpenAIOptions `yaml:"openai,omitempty"`
 	// RequireBaseURL and SupportsCountTokens are runtime-only flags populated
 	// by applyDefaults from the generated providerDefaults map. They do not
 	// round-trip through YAML.
 	RequireBaseURL      bool `yaml:"-"`
 	SupportsCountTokens bool `yaml:"-"`
+}
+
+// OpenAIOptions are openai-behavior-specific adapter tweaks.
+type OpenAIOptions struct {
+	NoStreamUsage bool   `yaml:"no_stream_usage,omitempty"`
+	PreSendHook   string `yaml:"pre_send_hook,omitempty"`
 }
 
 // Mapping binds a freedius-facing name to an upstream Provider plus the
@@ -305,9 +315,12 @@ func validateMapping(path, name string, m Mapping, providers map[string]Provider
 			name,
 		)
 	}
-	if strings.ContainsAny(m.ModelString, "\r\n:") {
+	// Only CR/LF are rejected: they enable header injection when the value is
+	// echoed into X-Freedius-Matched-Model. Colons are legal in header values
+	// and are common in vendor model IDs (e.g. "hy3:free", "llama3:8b").
+	if strings.ContainsAny(m.ModelString, "\r\n") {
 		return fmt.Errorf(
-			"config: config file at %s: mapping %q has unsafe \"model_string\" value (must not contain CR, LF, or colon)",
+			"config: config file at %s: mapping %q has unsafe \"model_string\" value (must not contain CR or LF)",
 			path,
 			name,
 		)
@@ -345,9 +358,9 @@ func validateMapping(path, name string, m Mapping, providers map[string]Provider
 				i,
 			)
 		}
-		if strings.ContainsAny(fb.ModelString, "\r\n:") {
+		if strings.ContainsAny(fb.ModelString, "\r\n") {
 			return fmt.Errorf(
-				"config: config file at %s: mapping %q fallback[%d] has unsafe \"model_string\" value (must not contain CR, LF, or colon)",
+				"config: config file at %s: mapping %q fallback[%d] has unsafe \"model_string\" value (must not contain CR or LF)",
 				path,
 				name,
 				i,

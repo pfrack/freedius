@@ -511,6 +511,55 @@ func TestStarterTemplate_ValidConfig(t *testing.T) {
 	}
 }
 
+// TestStarterTemplate_FallbackChainOrdering guards the ordering contract: every
+// tier is NIM-first, reaches nous, and terminates in kilo as the last resort.
+func TestStarterTemplate_FallbackChainOrdering(t *testing.T) {
+	cfg, err := config.LoadFromBytes([]byte(starterTemplate))
+	if err != nil {
+		t.Fatalf("starter template should be valid config: %v", err)
+	}
+
+	// `auto` is NOT redundant with `default`: ExtractFamily returns the first
+	// matching family and resolveMapping does a single lookup with no
+	// fallthrough, so an "auto"-named request 404s if this mapping is absent.
+	for _, name := range []string{"opus", "sonnet", "haiku", "default", "auto"} {
+		m, ok := cfg.Mappings[name]
+		if !ok {
+			t.Errorf("starter missing mapping %q", name)
+			continue
+		}
+		if m.ProviderName != "nim" {
+			t.Errorf("%s: primary provider = %q, want nim", name, m.ProviderName)
+		}
+		if len(m.Fallback) == 0 {
+			t.Errorf("%s: expected a fallback chain", name)
+			continue
+		}
+
+		nousAt, kiloAt := -1, -1
+		for i, fb := range m.Fallback {
+			switch fb.ProviderName {
+			case "nous":
+				nousAt = i
+			case "kilo":
+				kiloAt = i
+			}
+		}
+		if nousAt < 0 {
+			t.Errorf("%s: fallback chain has no nous entry", name)
+		}
+		if kiloAt < 0 {
+			t.Errorf("%s: fallback chain has no kilo entry", name)
+		}
+		if nousAt >= 0 && kiloAt >= 0 && nousAt > kiloAt {
+			t.Errorf("%s: nous at %d must precede kilo at %d", name, nousAt, kiloAt)
+		}
+		if last := m.Fallback[len(m.Fallback)-1]; last.ProviderName != "kilo" {
+			t.Errorf("%s: terminal fallback = %q, want kilo", name, last.ProviderName)
+		}
+	}
+}
+
 func TestRun_BindFailureSurfaces(t *testing.T) {
 	// Regression for F3: when the bind fails (e.g., port already in use),
 	// the error must be surfaced immediately. Use a port we hold from a side listener.

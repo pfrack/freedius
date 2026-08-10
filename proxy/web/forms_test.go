@@ -124,12 +124,23 @@ func TestValidateMappingFields_EmptyModel(t *testing.T) {
 	}
 }
 
-func TestValidateMappingFields_ModelWithColon(t *testing.T) {
+func TestValidateMappingFields_ModelWithColonAllowed(t *testing.T) {
+	// Colons are legal in HTTP header values and common in vendor model IDs
+	// (e.g. "hy3:free", "llama3:8b"), so they must not be rejected.
 	cfg := &config.Config{Providers: map[string]config.Provider{"nim": {}}}
-	m := config.Mapping{ProviderName: "nim", ModelString: "bad:model"}
-	ve := validateMappingFields("test", m, cfg)
-	if ve == nil {
-		t.Fatal("expected validation error for model with colon")
+	m := config.Mapping{ProviderName: "nim", ModelString: "hy3:free"}
+	if ve := validateMappingFields("test", m, cfg); ve != nil {
+		t.Fatalf("colon in model_string should be allowed, got %v", ve)
+	}
+}
+
+func TestValidateMappingFields_ModelWithCRLFRejected(t *testing.T) {
+	cfg := &config.Config{Providers: map[string]config.Provider{"nim": {}}}
+	for _, bad := range []string{"foo\r\nX-Injected: bar", "foo\rbar", "foo\nbar"} {
+		m := config.Mapping{ProviderName: "nim", ModelString: bad}
+		if ve := validateMappingFields("test", m, cfg); ve == nil {
+			t.Errorf("expected validation error for model %q", bad)
+		}
 	}
 }
 

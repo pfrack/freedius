@@ -3,7 +3,7 @@ project: freedius
 version: 2
 status: active
 created: 2026-06-16
-updated: 2026-08-09
+updated: 2026-08-10
 prd_version: 1
 ---
 
@@ -48,7 +48,11 @@ Freedius is **feature-complete for solo-dev use**. Everything in the original PR
 
 ## Active Work
 
-None. All changes archived. Clean slate.
+- **V-02l — logs-ui-live-tail**: Restore the `/logs` live SSE tail (htmx SSE
+  extension include is missing from `layout.html`, so `sse-connect` is dead)
+  and run a scoped UX pass over only the verified gaps (message search,
+  result count/total, live stream honoring the active filter, footer pin).
+  Framed 2026-08-09; not yet planned.
 
 ## What's Next (ideas, not committed)
 
@@ -68,6 +72,8 @@ Every archived change under its original v1 roadmap group. The base change carri
 group's id (e.g. `V-02`); related follow-ups are lettered (`V-02a`, `V-02b`, ...). Each
 archived `change.md` carries the same value in its `roadmap_id` frontmatter key.
 `bootstrap-verification` and the `auto-review` CI spike are intentionally unnumbered.
+
+- **V-02l: Logs UI live-tail fix (restore dead SSE) + scoped UX pass** — Archived 2026-08-10 → `context/archive/2026-08-09-logs-ui-live-tail/`. Lesson: —.
 
 ### Foundation — proxy skeleton, tooling & quality
 
@@ -174,6 +180,8 @@ archived `change.md` carries the same value in its `roadmap_id` frontmatter key.
 | V-02i | dashboard-redesign | Dashboard GUI Redesign — Operator-Friendly Monitoring | #38, #39 | 2026-07-31 |
 | V-02j | ui-design-polish | UI Design Polish — Anti-Slop Visual Quality Pass | #40 | 2026-08-01 |
 | V-02k | web-ui-polish | Web UI Polish — Remainder & Dead-Code Cleanup | | 2026-08-07 |
+| V-02l | logs-ui-live-tail | Logs UI live-tail fix (restore dead SSE) + scoped UX pass | — | 2026-08-09 |
+| V-02m | misleading-inactive-filter | Fix misleading "Inactive" status filter on mappings page | — | 2026-08-09 |
 
 ### V-03 — Distribution & launch
 
@@ -183,3 +191,5 @@ archived `change.md` carries the same value in its `roadmap_id` frontmatter key.
 | V-03a | solo-dev-positioning | Solo-dev positioning — install + narrative + scope coherence | — | 2026-07-21 |
 | V-03b | solo-dev-distribution | Solo-dev distribution — brew/npx/goreleaser packaging | #32 | 2026-07-22 |
 | V-03c | readme-ready-to-sell | README + supporting docs — ready to sell, ready to use | #35 | 2026-07-31 |
+| V-03d | nim-nous-kilo-defaults | Modernize default config: NIM tiers + Nous + Kilo fallbacks | — | 2026-08-09 |
+| V-03e | config-driven-adapter-opts | Config-driven OpenAI adapter options, eliminate dead wrappers | — | 2026-08-10 |

@@ -17,10 +17,10 @@ import (
 	"github.com/pfrack/freedius/config"
 )
 
-func newNIMAdapter(t *testing.T) *NIMAdapter {
+func newNIMAdapter(t *testing.T) *OpenAICompatibleAdapter {
 	t.Helper()
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	return NewNIMAdapter(logger, 5*time.Minute)
+	return NewOpenAICompatibleAdapterWithTimeout(logger, 5*time.Minute)
 }
 
 func TestNIMAdapter_DispatchesToOpenAI(t *testing.T) {
@@ -67,6 +67,7 @@ func TestNIMAdapter_DispatchesToOpenAI(t *testing.T) {
 			Behavior:         "openai",
 			DefaultBaseURL:   upstream.URL + "/v1/chat/completions",
 			DefaultAPIKeyEnv: "NVIDIA_NIM_API_KEY",
+			OpenAI:           &config.OpenAIOptions{NoStreamUsage: true, PreSendHook: "sanitizeNIMBody"},
 		},
 		config.Mapping{ProviderName: "nim", ModelString: "meta-llama"},
 		body,
@@ -127,6 +128,7 @@ func TestNIMAdapter_OmitsStreamOptionsAndStripsBooleanSchema(t *testing.T) {
 			Behavior:         "openai",
 			DefaultBaseURL:   upstream.URL + "/v1/chat/completions",
 			DefaultAPIKeyEnv: "NVIDIA_NIM_API_KEY",
+			OpenAI:           &config.OpenAIOptions{NoStreamUsage: true, PreSendHook: "sanitizeNIMBody"},
 		},
 		config.Mapping{ProviderName: "nim", ModelString: "meta-llama"},
 		body,
@@ -186,6 +188,7 @@ func TestNIMAdapter_Upstream401_ReturnsAnthropicFormat(t *testing.T) {
 			Behavior:         "openai",
 			DefaultBaseURL:   upstream.URL + "/v1/chat/completions",
 			DefaultAPIKeyEnv: "NVIDIA_NIM_API_KEY",
+			OpenAI:           &config.OpenAIOptions{NoStreamUsage: true, PreSendHook: "sanitizeNIMBody"},
 		},
 		config.Mapping{ProviderName: "nim", ModelString: "x"},
 		body,
@@ -231,6 +234,7 @@ func TestNIMAdapter_Upstream429_ReturnsAnthropicFormat(t *testing.T) {
 			Behavior:         "openai",
 			DefaultBaseURL:   upstream.URL + "/v1/chat/completions",
 			DefaultAPIKeyEnv: "NVIDIA_NIM_API_KEY",
+			OpenAI:           &config.OpenAIOptions{NoStreamUsage: true, PreSendHook: "sanitizeNIMBody"},
 		},
 		config.Mapping{ProviderName: "nim", ModelString: "x"},
 		body,
@@ -298,6 +302,7 @@ func TestNIMAdapter_StreamingToolUse_EmitsContentBlockStart(t *testing.T) {
 			Behavior:         "openai",
 			DefaultBaseURL:   upstream.URL + "/v1/chat/completions",
 			DefaultAPIKeyEnv: "NVIDIA_NIM_API_KEY",
+			OpenAI:           &config.OpenAIOptions{NoStreamUsage: true, PreSendHook: "sanitizeNIMBody"},
 		},
 		config.Mapping{ProviderName: "nim", ModelString: "meta-llama"},
 		body,
@@ -349,6 +354,7 @@ func TestNIMAdapter_ParallelToolCalls_EmitsMultipleIndices(t *testing.T) {
 			Behavior:         "openai",
 			DefaultBaseURL:   upstream.URL + "/v1/chat/completions",
 			DefaultAPIKeyEnv: "NVIDIA_NIM_API_KEY",
+			OpenAI:           &config.OpenAIOptions{NoStreamUsage: true, PreSendHook: "sanitizeNIMBody"},
 		},
 		config.Mapping{ProviderName: "nim", ModelString: "meta-llama"},
 		body,
@@ -392,6 +398,7 @@ func TestNIMAdapter_NonStreamingResponse_NoOutput(t *testing.T) {
 			Behavior:         "openai",
 			DefaultBaseURL:   upstream.URL + "/v1/chat/completions",
 			DefaultAPIKeyEnv: "NVIDIA_NIM_API_KEY",
+			OpenAI:           &config.OpenAIOptions{NoStreamUsage: true, PreSendHook: "sanitizeNIMBody"},
 		},
 		config.Mapping{ProviderName: "nim", ModelString: "x"},
 		body,
@@ -443,6 +450,7 @@ func TestNIMAdapter_ClientCancel_ReturnsError(t *testing.T) {
 			Behavior:         "openai",
 			DefaultBaseURL:   upstream.URL + "/v1/chat/completions",
 			DefaultAPIKeyEnv: "NVIDIA_NIM_API_KEY",
+			OpenAI:           &config.OpenAIOptions{NoStreamUsage: true, PreSendHook: "sanitizeNIMBody"},
 		},
 		config.Mapping{ProviderName: "nim", ModelString: "x"},
 		body,
@@ -464,6 +472,7 @@ func TestNIMAdapter_TransportError_Returns502(t *testing.T) {
 			Behavior:         "openai",
 			DefaultBaseURL:   "http://127.0.0.1:1/v1/chat/completions",
 			DefaultAPIKeyEnv: "NVIDIA_NIM_API_KEY",
+			OpenAI:           &config.OpenAIOptions{NoStreamUsage: true, PreSendHook: "sanitizeNIMBody"},
 		},
 		config.Mapping{ProviderName: "nim", ModelString: "x"},
 		body,

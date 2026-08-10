@@ -5,6 +5,12 @@
 // status badge must agree, and the badge must explain its cause via a tooltip.
 // The internal filter value stays "inactive", so filtering semantics are
 // unchanged — asserted by requesting ?status=inactive directly.
+//
+// Fixture dependency: the "test-chat" mapping asserted below is seeded by
+// e2e/fixtures/test-config.yaml, which playwright.config.ts loads via
+// `go run ../cmd/freedius --config ../e2e/fixtures/test-config.yaml`. It is the
+// only mapping in that fixture, so the "No API key" filter yields exactly one
+// row.
 import { test, expect } from '@playwright/test';
 
 test('status filter option reads "No API key"', async ({ page }) => {
@@ -26,5 +32,7 @@ test('filtering by "No API key" returns the same rows (semantics unchanged)', as
   // The internal value="inactive" still drives filtering.
   await expect(page.locator('select[name="status"]')).toHaveValue('inactive');
   // The unset-key mapping is still surfaced.
-  await expect(page.locator('.mappings-table tbody tr', { hasText: 'test-chat' })).toBeVisible();
+  const rows = page.locator('.mappings-table tbody tr');
+  await expect(rows).toHaveCount(1);
+  await expect(rows.first()).toContainText('test-chat');
 });
