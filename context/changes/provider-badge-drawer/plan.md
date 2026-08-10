@@ -449,7 +449,7 @@ link.
 
 #### Automated
 
-- [x] 3.1 `mage test` passes (logs filter parity covered)
+- [x] 3.1 `mage test` passes (logs filter parity covered) — 158ddb8
 
 #### Manual
 
@@ -459,10 +459,10 @@ link.
 
 #### Automated
 
-- [ ] 4.1 Provider detail handler table tests pass
-- [ ] 4.2 Logs filter parity test added
-- [ ] 4.3 Dashboard badge trigger assertion added
-- [ ] 4.4 Full `mage test` (race) + `mage lint` + `mage vet` + `mage build` clean
+- [x] 4.1 Provider detail handler table tests pass
+- [x] 4.2 Logs filter parity test added
+- [x] 4.3 Dashboard badge trigger assertion added
+- [x] 4.4 Full `mage test` (race) + `mage lint` + `mage vet` + `mage build` clean
 
 #### Manual
 

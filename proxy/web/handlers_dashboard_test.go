@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -368,4 +369,55 @@ func TestMappingDrawer(t *testing.T) {
 			t.Errorf("expected last activity to reflect recent traffic; body: %s", body)
 		}
 	})
+}
+
+// TestDashboard_ProviderBadgeDrawerTrigger verifies the dashboard provider
+// badge is an HTMX drawer trigger (no navigation to /logs): it carries
+// hx-get to the provider detail endpoint and hx-target #provider-drawer,
+// and no provider-badge element carries an href.
+func TestDashboard_ProviderBadgeDrawerTrigger(t *testing.T) {
+	cfg := &config.Config{
+		Providers: map[string]config.Provider{
+			"nim": {Behavior: "openai", Protocol: "openai"},
+		},
+		Mappings: map[string]config.Mapping{
+			"q": {ProviderName: "nim", ModelString: "m1"},
+		},
+	}
+	h := &eventstream.Handlers{
+		Bus:           proxy.NewEventBus(1),
+		LogSink:       proxy.NewLogSink(1),
+		Cfg:           cfg,
+		LastResponder: proxy.NewLastResponder(),
+	}
+	mux := SetupMux(h, slog.New(slog.NewTextHandler(sink{}, nil)))
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d; body: %s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+
+	if !strings.Contains(body, `hx-get="/v1/providers/`) {
+		t.Errorf("expected provider badge hx-get trigger; body: %s", body)
+	}
+	if !strings.Contains(body, `hx-target="#provider-drawer"`) {
+		t.Errorf("expected provider badge hx-target #provider-drawer; body: %s", body)
+	}
+	if !strings.Contains(body, `id="provider-drawer"`) {
+		t.Errorf("expected #provider-drawer aside in dashboard; body: %s", body)
+	}
+
+	// No provider-badge element may carry an href (it must not navigate).
+	// The activity feed also links to /logs, so scope the check to the
+	// provider-badge tag only.
+	tagRe := regexp.MustCompile(`<[^>]*class="provider-badge[^"]*"[^>]*>`)
+	for _, m := range tagRe.FindAllString(body, -1) {
+		if strings.Contains(m, "href") {
+			t.Errorf("provider-badge element must not navigate via href; tag: %s", m)
+		}
+	}
 }
