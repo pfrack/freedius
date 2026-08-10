@@ -16,8 +16,10 @@ import (
 
 const testConfigYAML = `providers:
   nim: {behavior: openai}
+  other: {behavior: openai}
 mappings:
   opus: {provider_name: nim, model_string: test}
+  default: {provider_name: other, model_string: catch-all}
 `
 
 func newWriteMux(t *testing.T) (http.Handler, *config.Config, string) {

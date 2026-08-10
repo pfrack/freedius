@@ -26,6 +26,7 @@ func newTestDispatcher(t *testing.T) *Dispatcher {
 			"claude-opus-4": {ProviderName: "nim", ModelString: "meta/llama-3.1-70b-instruct"},
 		},
 	}
+	cfg.BuildMatchers()
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	registry := NewRegistry(map[string]Provider{})
 	return NewDispatcher(cfg, registry, logger, false, 2, 5*time.Minute)
@@ -37,6 +38,7 @@ func newTestDispatcherWithAdapter(
 	providers map[string]Provider,
 ) *Dispatcher {
 	t.Helper()
+	cfg.BuildMatchers()
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	registry := NewRegistry(providers)
 	return NewDispatcher(cfg, registry, logger, false, 2, 5*time.Minute)
@@ -410,7 +412,8 @@ func TestServeHTTPFamilyDefaultCatchAll(t *testing.T) {
 }
 
 func TestServeHTTPFamilyPriorityIndependentOfYAMLOrder(t *testing.T) {
-	// Mappings list auto before opus — but opus has higher priority in knownFamilies
+	// Mappings list auto before opus — but the model contains "opus" not "auto",
+	// so the most-specific matcher for "opus" wins regardless of map order.
 	cfg := &config.Config{
 		Providers: map[string]config.Provider{
 			"nim": {Behavior: "openai", DefaultAPIKeyEnv: "NVIDIA_NIM_API_KEY"},
@@ -442,8 +445,8 @@ func TestServeHTTPFamilyPriorityIndependentOfYAMLOrder(t *testing.T) {
 }
 
 func TestServeHTTPFamilyMatchWinsOverUnrelatedExact(t *testing.T) {
-	// Exact match on a different family should not preempt family matching
-	// for the requested model.
+	// A most-specific key match should win over an unrelated exact key match
+	// elsewhere for the requested model.
 	cfg := &config.Config{
 		Providers: map[string]config.Provider{
 			"nim": {Behavior: "openai", DefaultAPIKeyEnv: "NVIDIA_NIM_API_KEY"},

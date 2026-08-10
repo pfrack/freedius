@@ -156,7 +156,6 @@ type mappingRow struct {
 	Fallbacks    []fallbackEntry
 	AddedAt      string
 	EnvPresent   bool
-	Family       string
 }
 
 // drawerData is the data for the mapping details drawer fragment, loaded

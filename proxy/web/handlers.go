@@ -736,10 +736,6 @@ func buildMappingRows(
 			proto = p.Protocol
 			url = p.DefaultBaseURL
 		}
-		family, _ := proxy.ExtractFamily(name)
-		if family == "default" {
-			family = ""
-		}
 		responder, hasResp := 0, false
 		if lastResponder != nil {
 			responder, hasResp = lastResponder.Lookup(name)
@@ -755,7 +751,6 @@ func buildMappingRows(
 			Fallbacks:    fallbacks,
 			AddedAt:      m.AddedAt,
 			EnvPresent:   envPresent,
-			Family:       family,
 		}
 		rows = append(rows, row)
 	}
