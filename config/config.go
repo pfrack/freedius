@@ -180,6 +180,9 @@ func (c *Config) RUnlock() { c.mu.RUnlock() }
 // (Load/LoadFromBytes), keeping hand-built test Configs free of an injected
 // default. No fallback chain is added.
 func (c *Config) ensureDefaultMapping() {
+	if c.Mappings == nil {
+		return
+	}
 	if _, ok := c.Mappings["default"]; ok {
 		return
 	}
