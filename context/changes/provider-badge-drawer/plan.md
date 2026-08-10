@@ -422,10 +422,10 @@ link.
 
 #### Automated
 
-- [x] 1.1 `providerDrawerData` struct added to types.go
-- [x] 1.2 `handleProviderDetail` renders fragment; 404 JSON for unknown provider
-- [x] 1.3 `GET /v1/providers/{name}/detail` route registered
-- [x] 1.4 `mage test ./proxy/web/...` passes
+- [x] 1.1 `providerDrawerData` struct added to types.go — b7de758
+- [x] 1.2 `handleProviderDetail` renders fragment; 404 JSON for unknown provider — b7de758
+- [x] 1.3 `GET /v1/providers/{name}/detail` route registered — b7de758
+- [x] 1.4 `mage test ./proxy/web/...` passes — b7de758
 
 #### Manual
 
@@ -435,11 +435,11 @@ link.
 
 #### Automated
 
-- [ ] 2.1 Dashboard badge is an hx-get trigger to `#provider-drawer`; logs `href` removed
-- [ ] 2.2 `provider-drawer.html` fragment renders status/protocol/base URL/env/edit link
-- [ ] 2.3 `#provider-drawer` aside added to index.html
-- [ ] 2.4 Drawer JS generalized for both container ids
-- [ ] 2.5 `mage test` + `mage lint` pass
+- [x] 2.1 Dashboard badge is an hx-get trigger to `#provider-drawer`; logs `href` removed
+- [x] 2.2 `provider-drawer.html` fragment renders status/protocol/base URL/env/edit link
+- [x] 2.3 `#provider-drawer` aside added to index.html
+- [x] 2.4 Drawer JS generalized for both container ids
+- [x] 2.5 `mage test` + `mage lint` pass
 
 #### Manual
 
