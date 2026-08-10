@@ -408,11 +408,11 @@ rewritten. `auto` removal only affects the starter template, not user configs.
 
 #### Automated
 
-- [x] 3.1 Remove `auto` from starter.yaml; fix comment — 
-- [x] 3.2 Update `TestStarterTemplate_FallbackChainOrdering` (drop `auto`, new comment) — 
-- [x] 3.3 Render protected badge + disable delete for `default` (table + drawer) — 
-- [x] 3.4 Test: `default` row flagged protected — 
-- [x] 3.5 `mage test` passes — 
+- [x] 3.1 Remove `auto` from starter.yaml; fix comment — b6533b2
+- [x] 3.2 Update `TestStarterTemplate_FallbackChainOrdering` (drop `auto`, new comment) — b6533b2
+- [x] 3.3 Render protected badge + disable delete for `default` (table + drawer) — b6533b2
+- [x] 3.4 Test: `default` row flagged protected — b6533b2
+- [x] 3.5 `mage test` passes — b6533b2
 
 #### Manual
 
