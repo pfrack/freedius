@@ -475,6 +475,97 @@ func TestServeHTTPFamilyMatchWinsOverUnrelatedExact(t *testing.T) {
 	}
 }
 
+func TestResolveMapping_MostSpecificWins(t *testing.T) {
+	cfg := &config.Config{
+		Providers: map[string]config.Provider{
+			"nim": {Behavior: "openai", DefaultAPIKeyEnv: "NVIDIA_NIM_API_KEY"},
+		},
+		Mappings: map[string]config.Mapping{
+			"gpt":   {ProviderName: "nim", ModelString: "from-gpt"},
+			"gpt-4": {ProviderName: "nim", ModelString: "from-gpt-4"},
+		},
+	}
+	d := newTestDispatcherWithAdapter(t, cfg, map[string]Provider{
+		"openai": &mockProvider{status: 200, body: `{}`},
+	})
+
+	// "gpt-4-x" contains both "gpt" and "gpt-4"; the longer key wins.
+	name, m, _, mapped, _ := d.resolveMapping("gpt-4-x")
+	if !mapped || name != "gpt-4" {
+		t.Fatalf("got name=%q mapped=%v, want gpt-4/true", name, mapped)
+	}
+	if m.ModelString != "from-gpt-4" {
+		t.Errorf("model = %q, want from-gpt-4", m.ModelString)
+	}
+}
+
+func TestResolveMapping_CaseInsensitive(t *testing.T) {
+	cfg := &config.Config{
+		Providers: map[string]config.Provider{
+			"nim": {Behavior: "openai", DefaultAPIKeyEnv: "NVIDIA_NIM_API_KEY"},
+		},
+		Mappings: map[string]config.Mapping{
+			"opus": {ProviderName: "nim", ModelString: "from-opus"},
+		},
+	}
+	d := newTestDispatcherWithAdapter(t, cfg, map[string]Provider{
+		"openai": &mockProvider{status: 200, body: `{}`},
+	})
+
+	name, _, _, mapped, _ := d.resolveMapping("CLAUDE-OPUS")
+	if !mapped || name != "opus" {
+		t.Fatalf("got name=%q mapped=%v, want opus/true", name, mapped)
+	}
+}
+
+func TestResolveMapping_ExactBeatsRegex(t *testing.T) {
+	cfg := &config.Config{
+		Providers: map[string]config.Provider{
+			"nim": {Behavior: "openai", DefaultAPIKeyEnv: "NVIDIA_NIM_API_KEY"},
+		},
+		Mappings: map[string]config.Mapping{
+			"opus":    {ProviderName: "nim", ModelString: "exact-opus"},
+			"my-opus": {ProviderName: "nim", ModelString: "regex-my-opus"},
+		},
+	}
+	d := newTestDispatcherWithAdapter(t, cfg, map[string]Provider{
+		"openai": &mockProvider{status: 200, body: `{}`},
+	})
+
+	// Exact key equality short-circuits before the compiled scan.
+	name, m, _, mapped, _ := d.resolveMapping("opus")
+	if !mapped || name != "opus" {
+		t.Fatalf("got name=%q mapped=%v, want opus/true", name, mapped)
+	}
+	if m.ModelString != "exact-opus" {
+		t.Errorf("model = %q, want exact-opus", m.ModelString)
+	}
+}
+
+func TestResolveMapping_DefaultLast(t *testing.T) {
+	cfg := &config.Config{
+		Providers: map[string]config.Provider{
+			"nim": {Behavior: "openai", DefaultAPIKeyEnv: "NVIDIA_NIM_API_KEY"},
+		},
+		Mappings: map[string]config.Mapping{
+			"opus":    {ProviderName: "nim", ModelString: "from-opus"},
+			"default": {ProviderName: "nim", ModelString: "from-default"},
+		},
+	}
+	d := newTestDispatcherWithAdapter(t, cfg, map[string]Provider{
+		"openai": &mockProvider{status: 200, body: `{}`},
+	})
+
+	// An unmatched model falls through to the default catch-all.
+	name, m, _, mapped, _ := d.resolveMapping("totally-unrelated-model")
+	if !mapped || name != "default" {
+		t.Fatalf("got name=%q mapped=%v, want default/true", name, mapped)
+	}
+	if m.ModelString != "from-default" {
+		t.Errorf("model = %q, want from-default", m.ModelString)
+	}
+}
+
 type mockProvider struct {
 	status int
 	body   string

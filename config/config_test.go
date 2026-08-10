@@ -899,6 +899,37 @@ mappings:
 	}
 }
 
+func TestLoad_InjectsDefaultMappingKeepsDiskUnchanged(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "freedius.yaml")
+	input := "providers:\n  nim: {behavior: openai}\nmappings:\n  opus:\n    provider_name: nim\n    model_string: m-opus\n"
+	if err := os.WriteFile(path, []byte(input), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	def, ok := cfg.Mappings["default"]
+	if !ok {
+		t.Fatal("default mapping was not injected")
+	}
+	if def.ProviderName != "nim" || def.ModelString != "m-opus" {
+		t.Errorf("injected default = %+v, want provider nim / model m-opus", def)
+	}
+
+	// The on-disk YAML must be left untouched; injection is in-memory only.
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), "default:") {
+		t.Errorf("Load mutated the on-disk YAML: %s", string(raw))
+	}
+}
+
 func TestConfig_ThemeRoundTrip(t *testing.T) {
 	input := `providers:
   test:

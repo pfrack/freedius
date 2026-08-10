@@ -422,10 +422,10 @@ rewritten. `auto` removal only affects the starter template, not user configs.
 
 #### Automated
 
-- [ ] 4.1 Add most-specific / case-insensitive / exact-beats-regex / default-last tests
-- [ ] 4.2 Add inject-on-load test (in-memory, disk unchanged)
-- [ ] 4.3 Update hand-built `Config` tests to call `buildMatchers()`
-- [ ] 4.4 `mage test`, `mage lint`, `mage govulncheck` pass
+- [x] 4.1 Add most-specific / case-insensitive / exact-beats-regex / default-last tests — 
+- [x] 4.2 Add inject-on-load test (in-memory, disk unchanged) — 
+- [x] 4.3 Update hand-built `Config` tests to call `buildMatchers()` — 
+- [x] 4.4 `mage test`, `mage lint`, `mage govulncheck` pass — 
 
 #### Manual
 
