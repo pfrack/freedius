@@ -19,6 +19,7 @@ jobs:
         with:
           openrouter_api_key: ${{ secrets.OPENROUTER_API_KEY }}
           kilocode_api_key: ${{ secrets.KILO_API_KEY }}
+          nousresearch_api_key: ${{ secrets.NOUSRESEARCH_API_KEY }}
           custom_api_url: ${{ secrets.CUSTOM_API_URL }}
           custom_model: ${{ secrets.CUSTOM_MODEL }}
           custom_api_key: ${{ secrets.CUSTOM_API_KEY }}
