@@ -1,77 +1,69 @@
-# freedius starter config — works out of the box with one free NVIDIA NIM key
+# freedius starter config — NousResearch (LongCat 2.5 preview) primary, Poolside Laguna fallback
 #
-# The default starter uses NIM as the primary provider for every tier. Set one
-# env var and start:
-#   export NVIDIA_NIM_API_KEY=nvapi-...   # build.nvidia.com → Generate API Key
+# Set these env vars and start:
+#   export POOLSIDE_API_KEY=sky-...         # poolside.ai → API Keys
+#   export NOUSRESEARCH_API_KEY=sk-nous-... # portal.nousresearch.com
 #   freedius
 #
-# NIM's free tier gives you 1000 credits on signup and 40 RPM, which is
-# plenty for solo-dev traffic. Sign up at https://build.nvidia.com if
-# you don't have a key yet.
-#
-# Resilience via fallback: each tier lists an ordered `fallback:` chain. Within
-# a tier, NIM failures first fall back to other current NIM models (descending
-# capability), then to Nous Research (NOUS_API_KEY), and finally to Kilo
-# (KILO_API_KEY) as the last resort. Only NVIDIA_NIM_API_KEY is required for
-# normal operation; missing Nous/Kilo keys only log a startup warning and are
-# only hit if NIM itself fails.
-#
-# Note: missing API keys now log a startup warning (warnMissingEnvVars in
-# cmd/freedius/main.go) instead of failing startup. A request to a provider
-# with a missing key fails at request time with authentication_error.
+# Note: missing API keys log a startup warning instead of failing startup.
 
 providers:
-  nim: { behavior: openai, default_api_key_env: NVIDIA_NIM_API_KEY }
-  nous: { behavior: openai, default_api_key_env: NOUS_API_KEY }
+  poolside: { behavior: openai, default_api_key_env: POOLSIDE_API_KEY }
+  nous: { behavior: openai, default_api_key_env: NOUSRESEARCH_API_KEY }
+  openrouter: { behavior: openai, default_api_key_env: OPENROUTER_API_KEY }
   kilo: { behavior: openai, default_api_key_env: KILO_API_KEY }
 
 mappings:
   # ─── Flagship reasoning ("opus" tier) ───────────────────────────────
   opus:
-    provider_name: nim
-    model_string: nvidia/nemotron-3-ultra-550b-a55b
+    provider_name: nous
+    model_string: meituan/longcat-2.5-preview:free
     fallback:
-      - provider_name: nim
-        model_string: nvidia/nemotron-3-super-120b-a12b
-      - provider_name: nim
-        model_string: nvidia/llama-3.3-nemotron-super-49b-v1
       - provider_name: nous
-        model_string: tencent/hy3:free
+        model_string: poolside/laguna-s-2.1:free
+      - provider_name: poolside
+        model_string: poolside/laguna-s-2.1
+      - provider_name: openrouter
+        model_string: thinkingmachines/inkling:free
       - provider_name: kilo
         model_string: kilo-auto/free
 
   # ─── Strong mid-tier ("sonnet" tier) ────────────────────────────────
   sonnet:
-    provider_name: nim
-    model_string: nvidia/llama-3.3-nemotron-super-49b-v1
+    provider_name: nous
+    model_string: meituan/longcat-2.5-preview:free
     fallback:
-      - provider_name: nim
-        model_string: nvidia/nemotron-3-nano-30b-a3b
       - provider_name: nous
-        model_string: tencent/hy3:free
+        model_string: poolside/laguna-s-2.1:free
+      - provider_name: poolside
+        model_string: poolside/laguna-s-2.1
+      - provider_name: openrouter
+        model_string: google/gemma-4-31b-it:free
       - provider_name: kilo
         model_string: kilo-auto/free
 
   # ─── Fast & cheap ("haiku" tier) ────────────────────────────────────
   haiku:
-    provider_name: nim
-    model_string: nvidia/nemotron-3-nano-30b-a3b
+    provider_name: nous
+    model_string: meituan/longcat-2.5-preview:free
     fallback:
-      - provider_name: nim
-        model_string: meta/llama-3.1-8b-instruct
       - provider_name: nous
-        model_string: tencent/hy3:free
+        model_string: poolside/laguna-s-2.1:free
+      - provider_name: poolside
+        model_string: poolside/laguna-s-2.1
+      - provider_name: openrouter
+        model_string: google/gemma-4-26b-a4b-it:free
       - provider_name: kilo
         model_string: kilo-auto/free
 
   # `default` is the always-present catch-all for any unmatched model.
   default:
-    provider_name: nim
-    model_string: nvidia/nemotron-3-nano-30b-a3b
+    provider_name: nous
+    model_string: meituan/longcat-2.5-preview:free
     fallback:
-      - provider_name: nim
-        model_string: meta/llama-3.1-8b-instruct
       - provider_name: nous
-        model_string: tencent/hy3:free
+        model_string: poolside/laguna-s-2.1:free
+      - provider_name: poolside
+        model_string: poolside/laguna-s-2.1
       - provider_name: kilo
         model_string: kilo-auto/free

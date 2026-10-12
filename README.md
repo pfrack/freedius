@@ -99,11 +99,11 @@ freedius reads a YAML config file. Resolution order:
 3. `~/.config/freedius/config.yaml` on Linux; `~/Library/Application Support/freedius/config.yaml` on macOS; `%AppData%\freedius\config.yaml` on Windows
 
 When no config file is found, freedius loads the embedded starter at
-`cmd/freedius/templates/starter.yaml` — NIM-primary for every tier, with a
-per-tier `fallback:` chain that steps down through cheaper NIM models, then
-Nous Research, then Kilo as the last resort. Only `NVIDIA_NIM_API_KEY` is
-required; `NOUS_API_KEY` and `KILO_API_KEY` are optional and only log a
-startup warning when unset. The `fallback:` lists under each mapping support
+`cmd/freedius/templates/starter.yaml` — NousResearch-primary for every tier, with a
+per-tier `fallback:` chain that steps down through Poolside Laguna, then
+OpenRouter free models, then Kilo as the last resort. `NOUSRESEARCH_API_KEY`,
+`POOLSIDE_API_KEY`, `OPENROUTER_API_KEY`, and `KILO_API_KEY` are optional and
+only log a startup warning when unset. The `fallback:` lists under each mapping support
 any provider in scope.
 
 ### Example config
@@ -133,13 +133,11 @@ freedius tries each fallback in order:
 ```yaml
 mappings:
   opus:
-    provider_name: nim
-    model_string: nvidia/nemotron-3-ultra-550b-a55b
+    provider_name: nous
+    model_string: meituan/longcat-2.5-preview:free
     fallback:
-      - provider_name: nim
-        model_string: nvidia/nemotron-3-super-120b-a12b
-      - provider_name: nous
-        model_string: tencent/hy3:free
+      - provider_name: poolside
+        model_string: poolside/laguna-s-2.1
       - provider_name: kilo
         model_string: kilo-auto/free
 ```
@@ -175,7 +173,7 @@ that file and running `go generate ./...`.
 | Together | openai | `TOGETHER_API_KEY` |
 | Fireworks | openai | `FIREWORKS_API_KEY` |
 | Cohere | openai | `COHERE_API_KEY` |
-| Nous Research | openai | `NOUS_API_KEY` |
+| Nous Research | openai | `NOUSRESEARCH_API_KEY` |
 | Kilo | openai | `KILO_API_KEY` |
 | Ollama (local) | openai | _(no key — local server)_ |
 | LM Studio (local) | openai | _(no key — local server)_ |

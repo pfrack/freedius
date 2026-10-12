@@ -589,6 +589,7 @@ func TestProviderDefaults(t *testing.T) {
 		"nim", "zen", "go", "custom", "openai", "anthropic", "mix",
 		"google", "mistral", "deepseek", "groq", "together", "fireworks", "cohere",
 		"ollama", "lmstudio", "nous", "kilo", "minimax", "xiaomi",
+		"poolside", "openrouter",
 	}
 	if len(providerDefaults) != len(expected) {
 		t.Errorf("providerDefaults has %d entries, want %d", len(providerDefaults), len(expected))
@@ -597,6 +598,22 @@ func TestProviderDefaults(t *testing.T) {
 		if _, ok := providerDefaults[e]; !ok {
 			t.Errorf("providerDefaults missing %q", e)
 		}
+	}
+}
+
+// TestProviderDefaults_PoolsideMaxTokensCap guards the Poolside 400 fix:
+// Claude Code sends max_tokens=64000 (sonnet sizing) and Poolside rejects
+// anything above 32768 with "Input should be less than or equal to 32768".
+func TestProviderDefaults_PoolsideMaxTokensCap(t *testing.T) {
+	p, ok := providerDefaults["poolside"]
+	if !ok {
+		t.Fatal("providerDefaults missing poolside")
+	}
+	if p.OpenAI == nil {
+		t.Fatal("poolside OpenAI options missing — max_tokens clamp not generated")
+	}
+	if p.OpenAI.MaxTokensCap != 32768 {
+		t.Errorf("poolside MaxTokensCap = %d, want 32768", p.OpenAI.MaxTokensCap)
 	}
 }
 

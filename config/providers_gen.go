@@ -124,7 +124,7 @@ var providerDefaults = map[string]Provider{
 	"nous": {
 		Behavior:            "openai",
 		DefaultBaseURL:      "https://inference-api.nousresearch.com/v1/chat/completions", // #nosec G101 -- URL, not a credential
-		DefaultAPIKeyEnv:    "NOUS_API_KEY",                                               // #nosec G101 -- env var name, not a credential
+		DefaultAPIKeyEnv:    "NOUSRESEARCH_API_KEY",                                       // #nosec G101 -- env var name, not a credential
 		RequireBaseURL:      false,
 		SupportsCountTokens: false,
 	},
@@ -140,6 +140,24 @@ var providerDefaults = map[string]Provider{
 	"openai": {
 		Behavior:            "openai",
 		RequireBaseURL:      true,
+		SupportsCountTokens: false,
+	},
+	"openrouter": {
+		Behavior:            "openai",
+		DefaultBaseURL:      "https://openrouter.ai/api/v1/chat/completions", // #nosec G101 -- URL, not a credential
+		DefaultAPIKeyEnv:    "OPENROUTER_API_KEY",                            // #nosec G101 -- env var name, not a credential
+		RequireBaseURL:      false,
+		SupportsCountTokens: false,
+	},
+	"poolside": {
+		Behavior:         "openai",
+		DefaultBaseURL:   "https://inference.poolside.ai/v1/chat/completions", // #nosec G101 -- URL, not a credential
+		DefaultAPIKeyEnv: "POOLSIDE_API_KEY",                                  // #nosec G101 -- env var name, not a credential
+		OpenAI: &OpenAIOptions{
+			NoStreamUsage: false,
+			MaxTokensCap:  32768,
+		},
+		RequireBaseURL:      false,
 		SupportsCountTokens: false,
 	},
 	"together": {

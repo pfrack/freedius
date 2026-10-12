@@ -512,7 +512,7 @@ func TestStarterTemplate_ValidConfig(t *testing.T) {
 }
 
 // TestStarterTemplate_FallbackChainOrdering guards the ordering contract: every
-// tier is NIM-first, reaches nous, and terminates in kilo as the last resort.
+// tier is nous-first, reaches nous in fallback, and terminates in kilo as the last resort.
 func TestStarterTemplate_FallbackChainOrdering(t *testing.T) {
 	cfg, err := config.LoadFromBytes([]byte(starterTemplate))
 	if err != nil {
@@ -528,8 +528,8 @@ func TestStarterTemplate_FallbackChainOrdering(t *testing.T) {
 			t.Errorf("starter missing mapping %q", name)
 			continue
 		}
-		if m.ProviderName != "nim" {
-			t.Errorf("%s: primary provider = %q, want nim", name, m.ProviderName)
+		if m.ProviderName != "nous" {
+			t.Errorf("%s: primary provider = %q, want nous", name, m.ProviderName)
 		}
 		if len(m.Fallback) == 0 {
 			t.Errorf("%s: expected a fallback chain", name)

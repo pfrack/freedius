@@ -19,6 +19,8 @@
 #     no_stream_usage:  suppress OpenAI stream_options.include_usage
 #     pre_send_hook:    name of a func([]byte)([]byte, error) in the proxy
 #                       package invoked before sending the request body
+#     max_tokens_cap:   clamp max_tokens to this value before sending
+#                       upstream (upstream-enforced limits, e.g. Poolside 32768)
 
 providers:
   nim:
@@ -127,7 +129,7 @@ providers:
   nous:
     behavior: openai
     default_base_url: https://inference-api.nousresearch.com/v1/chat/completions
-    default_api_key_env: NOUS_API_KEY
+    default_api_key_env: NOUSRESEARCH_API_KEY
     require_base_url: false
 
   kilo:
@@ -146,4 +148,18 @@ providers:
     behavior: openai
     default_base_url: https://token-plan-sgp.xiaomimimo.com/v1/chat/completions
     default_api_key_env: XIAOMI_API_KEY
+    require_base_url: false
+
+  poolside:
+    behavior: openai
+    default_base_url: https://inference.poolside.ai/v1/chat/completions
+    default_api_key_env: POOLSIDE_API_KEY
+    require_base_url: false
+    openai:
+      max_tokens_cap: 32768
+
+  openrouter:
+    behavior: openai
+    default_base_url: https://openrouter.ai/api/v1/chat/completions
+    default_api_key_env: OPENROUTER_API_KEY
     require_base_url: false
