@@ -293,6 +293,15 @@ func (c *Config) UsesProvider(name string) bool {
 	return false
 }
 
+// Validate reports whether the configuration satisfies all invariants. It is
+// the exported form of validate, for callers outside the package that need to
+// gate a write before it reaches disk — notably the dashboard writeback
+// handlers, which mutate the maps in place and must reject an edit that would
+// leave the config unloadable. path is used purely for error messages.
+func (c *Config) Validate(path string) error {
+	return c.validate(path)
+}
+
 func (c *Config) validate(path string) error {
 	for name, p := range c.Providers {
 		if err := validateProvider(path, name, p); err != nil {

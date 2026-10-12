@@ -1,6 +1,8 @@
 package web
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -156,5 +158,109 @@ func TestValidationError_JSON(t *testing.T) {
 	}
 	if !strings.Contains(s, "required") {
 		t.Error("JSON should contain field error")
+	}
+}
+
+// --- decodeProviderForm merge semantics ---
+
+func providerFormBody() *http.Request {
+	body := "name=zen&behavior=mix&default_base_url=https://opencode.ai/zen/v1/messages" +
+		"&default_api_key_env=OPENCODE_API_KEY&protocol=anthropic"
+	req := httptest.NewRequest(http.MethodPost, "/v1/providers", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	return req
+}
+
+// TestDecodeProviderForm_PreservesOpenAIOptions is the regression guard for the
+// data-loss bug: the form has no openai: inputs, so submitting it must not strip
+// the options carried on the base value.
+func TestDecodeProviderForm_PreservesOpenAIOptions(t *testing.T) {
+	base := config.Provider{
+		Behavior: "mix",
+		OpenAI: &config.OpenAIOptions{
+			NoStreamUsage: true,
+			PreSendHook:   "sanitizeNIMBody",
+			MaxTokensCap:  32768,
+		},
+	}
+
+	name, p, err := decodeProviderForm(providerFormBody(), base)
+	if err != nil {
+		t.Fatalf("decodeProviderForm: %v", err)
+	}
+	if name != "zen" {
+		t.Errorf("name = %q, want zen", name)
+	}
+	if p.OpenAI == nil {
+		t.Fatal("OpenAI options block was dropped")
+	}
+	if !p.OpenAI.NoStreamUsage {
+		t.Error("NoStreamUsage lost")
+	}
+	if p.OpenAI.PreSendHook != "sanitizeNIMBody" {
+		t.Errorf("PreSendHook = %q, want sanitizeNIMBody", p.OpenAI.PreSendHook)
+	}
+	if p.OpenAI.MaxTokensCap != 32768 {
+		t.Errorf("MaxTokensCap = %d, want 32768", p.OpenAI.MaxTokensCap)
+	}
+}
+
+// TestDecodeProviderForm_PreservesAnthropicVersion covers the other field the
+// form cannot express.
+func TestDecodeProviderForm_PreservesAnthropicVersion(t *testing.T) {
+	base := config.Provider{Behavior: "anthropic", AnthropicVersion: "2023-06-01"}
+
+	_, p, err := decodeProviderForm(providerFormBody(), base)
+	if err != nil {
+		t.Fatalf("decodeProviderForm: %v", err)
+	}
+	if p.AnthropicVersion != "2023-06-01" {
+		t.Errorf("AnthropicVersion = %q, want 2023-06-01", p.AnthropicVersion)
+	}
+}
+
+// TestDecodeProviderForm_OverlaysSubmittedFields confirms the merge still lets
+// the user change what the form does own.
+func TestDecodeProviderForm_OverlaysSubmittedFields(t *testing.T) {
+	base := config.Provider{
+		Behavior:         "anthropic",
+		DefaultBaseURL:   "https://old.example/v1/messages",
+		DefaultAPIKeyEnv: "OLD_KEY",
+		Protocol:         "",
+	}
+
+	_, p, err := decodeProviderForm(providerFormBody(), base)
+	if err != nil {
+		t.Fatalf("decodeProviderForm: %v", err)
+	}
+	if p.Behavior != "mix" {
+		t.Errorf("Behavior = %q, want mix", p.Behavior)
+	}
+	if p.DefaultBaseURL != "https://opencode.ai/zen/v1/messages" {
+		t.Errorf("DefaultBaseURL = %q, want the submitted value", p.DefaultBaseURL)
+	}
+	if p.DefaultAPIKeyEnv != "OPENCODE_API_KEY" {
+		t.Errorf("DefaultAPIKeyEnv = %q, want OPENCODE_API_KEY", p.DefaultAPIKeyEnv)
+	}
+	if p.Protocol != "anthropic" {
+		t.Errorf("Protocol = %q, want anthropic", p.Protocol)
+	}
+}
+
+// TestDecodeProviderForm_ZeroBaseIsCreateSemantics documents that a zero base
+// yields exactly the submitted fields — the create path.
+func TestDecodeProviderForm_ZeroBaseIsCreateSemantics(t *testing.T) {
+	_, p, err := decodeProviderForm(providerFormBody(), config.Provider{})
+	if err != nil {
+		t.Fatalf("decodeProviderForm: %v", err)
+	}
+	if p.OpenAI != nil {
+		t.Errorf("create path should not invent OpenAI options, got %+v", p.OpenAI)
+	}
+	if p.AnthropicVersion != "" {
+		t.Errorf("create path should not invent AnthropicVersion, got %q", p.AnthropicVersion)
+	}
+	if p.Behavior != "mix" || p.Protocol != "anthropic" {
+		t.Errorf("submitted fields not decoded: %+v", p)
 	}
 }

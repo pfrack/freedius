@@ -86,9 +86,15 @@ without touching anything, `--yes` to skip the prompt in scripts, and
 `--config-dir DIR` to target a directory other than `~/.claude`. The
 startup snippet remains the manual, shell-only alternative.
 
-freedius accepts Anthropic-format requests on `/v1/messages` and translates to
-the upstream provider's protocol (the `MixAdapter` detects from the base URL
-suffix). See `Development` for build-from-source instructions.
+freedius answers in the wire format the client speaks. Requests on
+`/v1/messages` are Anthropic Messages and get translated to the upstream
+provider's protocol (the `MixAdapter` detects that from the base URL suffix),
+and the reply is translated back — as an event stream for `stream:true`, or as
+one Message document otherwise. A client that already speaks OpenAI posts to
+`/v1/chat/completions`; that body is forwarded untranslated (so fields freedius
+does not model, like `max_completion_tokens` or `response_format`, survive) and
+the upstream reply is relayed as-is, with the model name echoed back. See
+`Development` for build-from-source instructions.
 
 ## Configuration
 

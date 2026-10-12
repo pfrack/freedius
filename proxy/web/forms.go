@@ -29,18 +29,26 @@ func (e *ValidationError) MarshalJSON() ([]byte, error) {
 	})
 }
 
-// decodeProviderForm decodes a provider form from the request body.
-func decodeProviderForm(r *http.Request) (string, config.Provider, error) {
+// decodeProviderForm decodes a provider form from the request body, overlaying
+// the submitted fields onto base. Only the five user-editable fields are read;
+// every other field of base — notably the generated OpenAI options block and
+// AnthropicVersion — is preserved verbatim, so a dashboard edit cannot silently
+// strip adapter options that the form has no way to express.
+//
+// base is the zero Provider when creating, and the provider's current value
+// when updating. Empty form values overwrite (they are real submissions), but
+// callers re-apply generated defaults afterwards so declared defaults are
+// backfilled rather than lost.
+func decodeProviderForm(r *http.Request, base config.Provider) (string, config.Provider, error) {
 	if err := r.ParseForm(); err != nil {
 		return "", config.Provider{}, fmt.Errorf("parse form: %w", err)
 	}
 	name := strings.TrimSpace(r.FormValue("name"))
-	p := config.Provider{
-		Behavior:         strings.TrimSpace(r.FormValue("behavior")),
-		DefaultBaseURL:   strings.TrimSpace(r.FormValue("default_base_url")),
-		DefaultAPIKeyEnv: strings.TrimSpace(r.FormValue("default_api_key_env")),
-		Protocol:         strings.TrimSpace(r.FormValue("protocol")),
-	}
+	p := base
+	p.Behavior = strings.TrimSpace(r.FormValue("behavior"))
+	p.DefaultBaseURL = strings.TrimSpace(r.FormValue("default_base_url"))
+	p.DefaultAPIKeyEnv = strings.TrimSpace(r.FormValue("default_api_key_env"))
+	p.Protocol = strings.TrimSpace(r.FormValue("protocol"))
 	return name, p, nil
 }
 

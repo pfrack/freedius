@@ -1155,3 +1155,131 @@ mappings:
 		t.Errorf("marshaled YAML should omit empty fallback field:\n%s", string(data))
 	}
 }
+
+// TestApplyDefaults_IdempotentAfterWrite guards the invariant the dashboard
+// writeback path depends on: ReapplyProviderDefaults (and therefore
+// applyDefaults) must be safe to run on an already-defaulted config, because
+// every provider edit calls it.
+func TestApplyDefaults_IdempotentAfterWrite(t *testing.T) {
+	cfg := &Config{
+		Providers: map[string]Provider{
+			// zen declares an openai: block in providers.yaml but no
+			// default_base_url — the shape most at risk from a dashboard edit.
+			"zen": {Behavior: "mix", DefaultBaseURL: "https://opencode.ai/zen/v1/messages"},
+		},
+		Mappings: map[string]Mapping{},
+	}
+	cfg.applyDefaults()
+
+	first := cfg.Providers["zen"]
+	if first.OpenAI == nil || !first.OpenAI.NoStreamUsage {
+		t.Fatalf("first applyDefaults should restore zen's openai block, got %+v", first.OpenAI)
+	}
+	before := *first.OpenAI
+
+	cfg.applyDefaults()
+
+	second := cfg.Providers["zen"]
+	if second.OpenAI == nil || !second.OpenAI.NoStreamUsage {
+		t.Fatalf("second applyDefaults dropped zen's openai block, got %+v", second.OpenAI)
+	}
+	if *second.OpenAI != before {
+		t.Errorf("applyDefaults not idempotent: %+v -> %+v", before, *second.OpenAI)
+	}
+	if second != first {
+		t.Errorf("provider value changed on second apply: %+v -> %+v", first, second)
+	}
+}
+
+// TestReapplyProviderDefaults_DoesNotInjectAbsentProviders is the critical
+// safety property: the write path must only enrich the named provider. If it
+// injected absent providers the way applyDefaults does, saving one dashboard
+// edit would persist every ready-to-use provider in providers.yaml into the
+// user's config file.
+func TestReapplyProviderDefaults_DoesNotInjectAbsentProviders(t *testing.T) {
+	cfg := &Config{
+		Providers: map[string]Provider{"zen": {Behavior: "mix"}},
+		Mappings:  map[string]Mapping{},
+	}
+	cfg.ReapplyProviderDefaults("zen")
+
+	if got := len(cfg.Providers); got != 1 {
+		t.Errorf("provider count = %d, want 1 (no injection); providers: %v", got, sortedProviderNames(cfg.Providers))
+	}
+}
+
+// TestReapplyProviderDefaults_RestoresGeneratedOptions asserts the core fix:
+// after a write-path mutation strips the fields the dashboard form cannot
+// express, re-applying restores them from the generated table.
+func TestReapplyProviderDefaults_RestoresGeneratedOptions(t *testing.T) {
+	cfg := &Config{
+		Providers: map[string]Provider{
+			// Simulates the post-decodeProviderForm state: form fields only.
+			"zen": {Behavior: "mix"},
+			"nim": {Behavior: "openai"},
+		},
+		Mappings: map[string]Mapping{},
+	}
+
+	cfg.ReapplyProviderDefaults("zen")
+	cfg.ReapplyProviderDefaults("nim")
+
+	zen := cfg.Providers["zen"]
+	if zen.OpenAI == nil || !zen.OpenAI.NoStreamUsage {
+		t.Errorf("zen lost no_stream_usage: %+v", zen.OpenAI)
+	}
+	if !zen.RequireBaseURL {
+		t.Error("zen lost RequireBaseURL")
+	}
+	if zen.DefaultAPIKeyEnv != "OPENCODE_API_KEY" {
+		t.Errorf("zen DefaultAPIKeyEnv = %q, want OPENCODE_API_KEY", zen.DefaultAPIKeyEnv)
+	}
+
+	nim := cfg.Providers["nim"]
+	if nim.OpenAI == nil || nim.OpenAI.PreSendHook != "sanitizeNIMBody" {
+		t.Errorf("nim lost pre_send_hook: %+v", nim.OpenAI)
+	}
+	if nim.DefaultBaseURL == "" {
+		t.Error("nim lost its generated default_base_url")
+	}
+}
+
+// TestReapplyProviderDefaults_UnknownProviderIsNoop guards user-defined
+// providers, which have no generated entry and must survive an edit with their
+// hand-written settings untouched.
+func TestReapplyProviderDefaults_UnknownProviderIsNoop(t *testing.T) {
+	custom := Provider{
+		Behavior:         "openai",
+		DefaultBaseURL:   "https://my.gateway/v1/chat/completions",
+		AnthropicVersion: "2023-06-01",
+		OpenAI:           &OpenAIOptions{MaxTokensCap: 4096},
+	}
+	cfg := &Config{
+		Providers: map[string]Provider{"mygateway": custom},
+		Mappings:  map[string]Mapping{},
+	}
+
+	cfg.ReapplyProviderDefaults("mygateway")
+
+	got := cfg.Providers["mygateway"]
+	if got != custom {
+		t.Errorf("unknown provider was modified: %+v, want %+v", got, custom)
+	}
+}
+
+// TestMergeProviderDefaults_PreservesUserOverrides ensures a user-supplied
+// value is never clobbered by the generated table.
+func TestMergeProviderDefaults_PreservesUserOverrides(t *testing.T) {
+	p := Provider{
+		Behavior:         "openai",
+		DefaultBaseURL:   "https://user-choice.example/v1/chat/completions",
+		DefaultAPIKeyEnv: "MY_OWN_KEY",
+	}
+	got := mergeProviderDefaults("nim", p)
+	if got.DefaultBaseURL != p.DefaultBaseURL {
+		t.Errorf("user base_url overridden: %q", got.DefaultBaseURL)
+	}
+	if got.DefaultAPIKeyEnv != p.DefaultAPIKeyEnv {
+		t.Errorf("user api_key_env overridden: %q", got.DefaultAPIKeyEnv)
+	}
+}
