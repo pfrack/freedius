@@ -1072,7 +1072,7 @@ func statusSlugToLabel(slug string) string {
 
 func handleCreateProvider(w http.ResponseWriter, r *http.Request, h *eventstream.Handlers, cfgPath string) {
 	cfg := h.Cfg
-	name, p, err := decodeProviderForm(r)
+	name, p, err := decodeProviderForm(r, config.Provider{})
 	if err != nil {
 		writeJSONError(w, http.StatusBadRequest, "invalid_form", err.Error())
 		return
@@ -1085,6 +1085,21 @@ func handleCreateProvider(w http.ResponseWriter, r *http.Request, h *eventstream
 	cfg.Lock()
 	old, hadOld := cfg.Providers[name]
 	cfg.Providers[name] = p
+	// Restore the generated openai: options block and runtime-only flags that
+	// the form cannot express, so creating a provider named after a known one
+	// keeps its upstream contract.
+	cfg.ReapplyProviderDefaults(name)
+
+	if verr := cfg.Validate(cfgPath); verr != nil {
+		if hadOld {
+			cfg.Providers[name] = old
+		} else {
+			delete(cfg.Providers, name)
+		}
+		cfg.Unlock()
+		writeJSONError(w, http.StatusBadRequest, "validation_failed", verr.Error())
+		return
+	}
 
 	data, mErr := cfg.Marshal()
 	if mErr != nil {
@@ -1126,7 +1141,18 @@ func handleUpdateProvider(w http.ResponseWriter, r *http.Request, h *eventstream
 		writeJSONError(w, http.StatusBadRequest, "bad_path", err.Error())
 		return
 	}
-	_, p, err := decodeProviderForm(r)
+
+	cfg.RLock()
+	existing, existed := cfg.Providers[name]
+	cfg.RUnlock()
+	if !existed {
+		writeJSONError(w, http.StatusNotFound, "not_found", "provider not found")
+		return
+	}
+
+	// Overlay onto the existing value so fields the form cannot express — the
+	// generated openai: options block and AnthropicVersion — survive the edit.
+	_, p, err := decodeProviderForm(r, existing)
 	if err != nil {
 		writeJSONError(w, http.StatusBadRequest, "invalid_form", err.Error())
 		return
@@ -1137,13 +1163,19 @@ func handleUpdateProvider(w http.ResponseWriter, r *http.Request, h *eventstream
 	}
 
 	cfg.Lock()
-	old, existed := cfg.Providers[name]
-	if !existed {
+	old := cfg.Providers[name]
+	cfg.Providers[name] = p
+	// Restore the generated openai: options block and runtime-only flags that
+	// the form cannot express, so a dashboard edit keeps the provider's
+	// upstream contract.
+	cfg.ReapplyProviderDefaults(name)
+
+	if verr := cfg.Validate(cfgPath); verr != nil {
+		cfg.Providers[name] = old
 		cfg.Unlock()
-		writeJSONError(w, http.StatusNotFound, "not_found", "provider not found")
+		writeJSONError(w, http.StatusBadRequest, "validation_failed", verr.Error())
 		return
 	}
-	cfg.Providers[name] = p
 
 	data, mErr := cfg.Marshal()
 	if mErr != nil {

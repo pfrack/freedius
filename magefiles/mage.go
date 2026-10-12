@@ -16,8 +16,8 @@ import (
 
 // Tool versions - single source of truth
 const (
-	toolVersionStaticcheck  = "v0.7.0"
-	toolVersionGolangciLint = "v2.12.2"
+	toolVersionStaticcheck  = "v0.8.2"
+	toolVersionGolangciLint = "v2.15.0"
 	toolVersionGovulncheck  = "v1.3.0"
 	toolVersionGoimports    = "v0.47.0"
 	toolVersionGolines      = "v0.12.2"
