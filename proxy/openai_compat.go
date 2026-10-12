@@ -94,6 +94,7 @@ func (a *OpenAICompatibleAdapter) Handle(
 	var hook func([]byte) ([]byte, error)
 	if provider.OpenAI != nil {
 		opts.NoStreamUsage = provider.OpenAI.NoStreamUsage
+		opts.MaxTokensCap = provider.OpenAI.MaxTokensCap
 		if provider.OpenAI.PreSendHook != "" {
 			h, ok := preSendHooks[provider.OpenAI.PreSendHook]
 			if !ok {
@@ -154,6 +155,7 @@ func (a *OpenAICompatibleAdapter) Handle(
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "text/event-stream")
+	req.Header.Set("User-Agent", resolveUserAgent(r))
 	if apiKey != "" {
 		req.Header.Set("Authorization", "Bearer "+apiKey)
 	}

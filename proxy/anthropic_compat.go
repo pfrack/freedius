@@ -127,6 +127,7 @@ func (a *AnthropicCompatibleAdapter) Handle(
 	upstreamReq.Header.Set("Content-Type", "application/json")
 	upstreamReq.Header.Set("x-api-key", apiKey)
 	upstreamReq.Header.Set("anthropic-version", apiVersion)
+	upstreamReq.Header.Set("User-Agent", resolveUserAgent(r))
 
 	// Use a shared HTTP client — transport errors surface here.
 	resp, err := http.DefaultClient.Do(upstreamReq)

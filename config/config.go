@@ -84,6 +84,11 @@ type Provider struct {
 type OpenAIOptions struct {
 	NoStreamUsage bool   `yaml:"no_stream_usage,omitempty"`
 	PreSendHook   string `yaml:"pre_send_hook,omitempty"`
+	// MaxTokensCap clamps max_tokens before it is sent upstream. Clients like
+	// Claude Code size max_tokens to the Anthropic model (e.g. 64000 for
+	// sonnet), but some upstreams reject values above their own limit
+	// (Poolside: 32768) with a 400. Zero means no clamping.
+	MaxTokensCap int `yaml:"max_tokens_cap,omitempty"`
 }
 
 // Mapping binds a freedius-facing name to an upstream Provider plus the

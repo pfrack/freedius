@@ -57,6 +57,11 @@ type Provider struct {
 type OpenAIOptions struct {
 	NoStreamUsage bool   `yaml:"no_stream_usage,omitempty"`
 	PreSendHook   string `yaml:"pre_send_hook,omitempty"`
+	// MaxTokensCap clamps the request's max_tokens before it is sent
+	// upstream. Clients like Claude Code size max_tokens to the Anthropic
+	// model (e.g. 64000 for sonnet), but some upstreams reject values above
+	// their own limit (Poolside: 32768) with a 400.
+	MaxTokensCap int `yaml:"max_tokens_cap,omitempty"`
 }
 
 // supportsCountTokens derives the runtime SupportsCountTokens flag from the
@@ -287,6 +292,9 @@ var providerDefaults = map[string]Provider{
 			NoStreamUsage: <% .OpenAI.NoStreamUsage %>,
 <% if .OpenAI.PreSendHook -%>
 			PreSendHook:   "<% .OpenAI.PreSendHook %>",
+<% end -%>
+<% if .OpenAI.MaxTokensCap -%>
+			MaxTokensCap:  <% .OpenAI.MaxTokensCap %>,
 <% end -%>
 		},
 <% end -%>

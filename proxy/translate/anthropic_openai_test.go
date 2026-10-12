@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"strings"
 	"testing"
@@ -1328,6 +1329,39 @@ func TestRequest_NoStreamUsageFalseIncludesStreamOptions(t *testing.T) {
 	}
 	if streamOpts["include_usage"] != true {
 		t.Errorf("include_usage: got %v, want true", streamOpts["include_usage"])
+	}
+}
+
+func TestRequest_MaxTokensCap(t *testing.T) {
+	tests := []struct {
+		name    string
+		cap     int
+		inMax   int
+		wantMax float64
+	}{
+		{"clamped to cap", 32768, 64000, 32768},
+		{"under cap untouched", 32768, 8192, 8192},
+		{"equal to cap untouched", 32768, 32768, 32768},
+		{"zero cap = no clamping", 0, 64000, 64000},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			in := []byte(fmt.Sprintf(
+				`{"model":"x","max_tokens":%d,"messages":[{"role":"user","content":"hi"}]}`,
+				tt.inMax,
+			))
+			out, err := Request(in, "x", Opts{MaxTokensCap: tt.cap})
+			if err != nil {
+				t.Fatal(err)
+			}
+			var got map[string]any
+			if err := json.Unmarshal(out, &got); err != nil {
+				t.Fatal(err)
+			}
+			if got["max_tokens"] != tt.wantMax {
+				t.Errorf("max_tokens: got %v, want %v", got["max_tokens"], tt.wantMax)
+			}
+		})
 	}
 }
 

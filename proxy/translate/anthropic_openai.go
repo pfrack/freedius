@@ -21,9 +21,13 @@ import (
 )
 
 // Opts tunes the request translation. Currently used to suppress the
-// OpenAI stream_options.include_usage field for providers that don't support it.
+// OpenAI stream_options.include_usage field for providers that don't support
+// it, and to clamp max_tokens to upstream-enforced limits.
 type Opts struct {
 	NoStreamUsage bool
+	// MaxTokensCap clamps the outgoing max_tokens to this value when the
+	// requested amount is larger. Zero means no clamping.
+	MaxTokensCap int
 }
 
 // Request converts an Anthropic-format request body into the
@@ -40,6 +44,9 @@ func Request(
 	}
 	if targetModel != "" {
 		req.Model = targetModel
+	}
+	if opts.MaxTokensCap > 0 && req.MaxTokens > opts.MaxTokensCap {
+		req.MaxTokens = opts.MaxTokensCap
 	}
 
 	out := openAIRequest{

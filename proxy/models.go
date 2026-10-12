@@ -129,6 +129,9 @@ func FetchModels(ctx context.Context, provider config.Provider) ([]ModelView, er
 	if err != nil {
 		return nil, fmt.Errorf("build request: %w", err)
 	}
+	// No incoming client here — use the fallback UA so Cloudflare-protected
+	// model catalogs (Nous) don't challenge the default Go UA.
+	req.Header.Set("User-Agent", fallbackUserAgent)
 
 	behavior := provider.Behavior
 	if behavior == "mix" {
