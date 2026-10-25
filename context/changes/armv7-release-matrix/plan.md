@@ -316,8 +316,8 @@ No `.goreleaser.yaml` change is needed here — the workflow reads the committed
 
 #### Automated
 
-- [x] 4.1 Release run succeeds
-- [x] 4.2 Release has 7 assets including the armv7 tarball
+- [x] 4.1 Release run succeeds — 072a1a4
+- [x] 4.2 Release has 7 assets including the armv7 tarball — 072a1a4
 
 #### Manual
 
