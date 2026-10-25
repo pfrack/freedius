@@ -24,6 +24,14 @@ builds:
     goarch:
       - amd64
       - arm64
+      - arm
+    goarm:
+      - "7,hardfloat"
+    ignore:
+      - goos: darwin
+        goarch: arm
+      - goos: windows
+        goarch: arm
 
 archives:
   - formats:
