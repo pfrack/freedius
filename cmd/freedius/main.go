@@ -95,6 +95,7 @@ func run(args []string) int {
 	flagNoExportHint := fs.Bool("no-export-hint", false, "suppress the env-export hint on startup")
 	flagUIPort := fs.Int("ui-port", 0, "web UI port (overrides FREEDIUS_UI_PORT; default 8083)")
 	flagUIHost := fs.String("ui-host", "", "web UI bind address (127.0.0.1 or 0.0.0.0; default 127.0.0.1)")
+	flagUIPath := fs.String("ui-path", "", "web UI URL path prefix (overrides FREEDIUS_UI_PATH; default empty)")
 	fs.Usage = func() { printUsage(os.Stderr) }
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -180,6 +181,7 @@ func run(args []string) int {
 
 	uiPort := resolveUIPort(*flagUIPort, setFlags["ui-port"])
 	uiHost := resolveUIHost(*flagUIHost)
+	uiPath := resolveUIPath(*flagUIPath)
 
 	mc := proxy.NewModelsCache()
 	h := &eventstream.Handlers{
@@ -189,6 +191,7 @@ func run(args []string) int {
 		Registry:    registry,
 		Host:        uiHost,
 		Port:        uiPort,
+		BasePath:    uiPath,
 		StartTime:   time.Now(),
 		AuthToken:   os.Getenv("FREEDIUS_UI_TOKEN"),
 		CfgPath:     cfgPath,
@@ -323,6 +326,7 @@ Flags:
 	fs.Bool("no-export-hint", false, "suppress the env-export hint on startup")
 	fs.Int("ui-port", 0, "web UI port (default 8083)")
 	fs.String("ui-host", "", "web UI bind address (default 127.0.0.1)")
+	fs.String("ui-path", "", "web UI URL path prefix (default empty)")
 	fs.PrintDefaults()
 }
 
@@ -474,6 +478,13 @@ func resolveUIHost(flagVal string) string {
 		return v
 	}
 	return defaultUIHost
+}
+
+func resolveUIPath(flagVal string) string {
+	if flagVal != "" {
+		return flagVal
+	}
+	return os.Getenv("FREEDIUS_UI_PATH")
 }
 
 func resolveConfigPath(explicit string) (string, error) {

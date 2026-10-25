@@ -32,12 +32,17 @@ func NewServer(
 ) *Server {
 	mux := SetupMux(h, logger)
 
-	// When AuthToken is set, gate every route (pages, writeback, eventstream)
-	// behind a single auth boundary so logs/SSE/CRUD can't leak upstream keys
-	// or mutate config.yaml unauthenticated. Critical Detail #2 from the plan.
+	// Wrap with StripPrefix when BasePath is set so the dashboard is served
+	// at a sub-path (e.g. /freedius/) behind a reverse proxy. StripPrefix
+	// rewrites r.URL.Path before the inner mux sees it, so Go 1.22 route
+	// patterns remain unchanged. The wrapper must sit OUTSIDE the auth
+	// boundary so auth applies to the prefixed path.
 	handler := http.Handler(mux)
+	if h.BasePath != "" {
+		handler = http.StripPrefix(h.BasePath, mux)
+	}
 	if h.AuthToken != "" {
-		handler = h.RequireAuth(mux)
+		handler = h.RequireAuth(handler)
 	}
 	// CSRF/origin guard wraps the whole mux so cross-origin mutating requests to
 	// the writeback API are rejected even when AuthToken is unset.

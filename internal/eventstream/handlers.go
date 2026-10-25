@@ -33,6 +33,7 @@ type Handlers struct {
 	ModelsCache   *proxy.ModelsCache
 	LastResponder *proxy.LastResponder
 	Stats         *proxy.StatsCollector
+	BasePath      string
 }
 
 // Register mounts the four event-stream routes (GET /v1/events, GET /v1/logs,

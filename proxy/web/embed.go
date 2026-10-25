@@ -19,6 +19,29 @@ import (
 //go:embed templates static
 var assets embed.FS
 
+// basePath is the URL prefix for the dashboard (e.g. "/freedius" when served
+// behind a reverse proxy). Set once at startup via SetBasePath; read by the
+// baseURL template function and inline JavaScript via the meta tag.
+var basePath string
+
+// SetBasePath configures the global base path prefix used by the baseURL
+// template function. Called once during server init.
+func SetBasePath(p string) { basePath = p }
+
+// baseURL prepends the global basePath prefix to a path. When basePath
+// is empty (default), it returns the path unchanged for backward
+// compatibility. No double-slash: baseURL("/mappings") with
+// basePath="/freedius" yields "/freedius/mappings".
+func baseURL(path string) string {
+	if basePath == "" {
+		return path
+	}
+	if path == "" {
+		return basePath
+	}
+	return strings.TrimRight(basePath, "/") + path
+}
+
 // templateFuncs is the shared FuncMap available to all templates. Functions
 // must be registered before ParseFS, so we define them once here.
 var templateFuncs = template.FuncMap{
@@ -37,6 +60,11 @@ var templateFuncs = template.FuncMap{
 	// html/template, so provider/mapping names containing '/', '..' or '?'
 	// would otherwise be interpreted as path traversal or query separation.
 	"urlPath": url.PathEscape,
+	// baseURL prepends the global basePath prefix to a path. When basePath
+	// is empty (default), it returns the path unchanged for backward
+	// compatibility. No double-slash: baseURL("/mappings") with
+	// basePath="/freedius" yields "/freedius/mappings".
+	"baseURL": baseURL,
 }
 
 // pageTemplates caches one *template.Template per page file. The layout

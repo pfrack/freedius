@@ -145,6 +145,7 @@ func defaultPort(scheme string) string {
 // SetupMux builds the HTTP mux for the web server: page handlers, static
 // assets, health check, eventstream routes, and writeback CRUD.
 func SetupMux(h *eventstream.Handlers, logger *slog.Logger) *http.ServeMux {
+	SetBasePath(h.BasePath)
 	mux := http.NewServeMux()
 
 	// Static assets.
@@ -319,7 +320,7 @@ func SetupMux(h *eventstream.Handlers, logger *slog.Logger) *http.ServeMux {
 				Latency:      formatLatency(ev.Latency),
 				Status:       ev.Status,
 				StatusLabel:  statusLabel,
-				LogsLink:     fmt.Sprintf("/logs?mapping=%s&provider=%s", ev.Model, ev.MatchedProvider),
+				LogsLink:     h.BasePath + fmt.Sprintf("/logs?mapping=%s&provider=%s", ev.Model, ev.MatchedProvider),
 			})
 		}
 
@@ -1038,7 +1039,7 @@ func handleProviderDetail(w http.ResponseWriter, r *http.Request, h *eventstream
 		BaseURL:     p.DefaultBaseURL,
 		EnvDeclared: envDeclared,
 		EnvPresent:  envPresent,
-		EditLink:    "/providers?provider=" + url.QueryEscape(name),
+		EditLink:    h.BasePath + "/providers?provider=" + url.QueryEscape(name),
 	}
 
 	tmpl, err := loadFragmentTemplate("provider-drawer.html")
