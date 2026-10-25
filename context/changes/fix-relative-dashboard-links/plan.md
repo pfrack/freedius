@@ -532,8 +532,8 @@ Add Playwright E2E tests that run the server behind a base path prefix.
 ### Phase 4: E2E Tests
 
 #### Automated
-- [x] 4.1 Add E2E config or webServer command with `--ui-path /freedius`
-- [x] 4.2 Add `base-path.spec.ts` E2E test
+- [x] 4.1 Add E2E config or webServer command with `--ui-path /freedius` — 661795b
+- [x] 4.2 Add `base-path.spec.ts` E2E test — 661795b
 
 #### Manual
 - [ ] 4.3 `mage e2e` passes with base path tests
