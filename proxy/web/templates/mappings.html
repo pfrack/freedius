@@ -16,7 +16,7 @@
   <dialog id="delete-confirm-dialog">
     <form
       id="delete-confirm-form"
-      hx-delete="/v1/mappings/__pending__"
+      hx-delete="{{baseURL "/v1/mappings/__pending__"}}"
       hx-target="#mappings-table-container"
       hx-swap="outerHTML"
       hx-on::after-request="if(event.detail.successful) this.closest('dialog').close()"
@@ -37,7 +37,7 @@
   <dialog id="mapping-dialog">
     <form
       id="mapping-form"
-      hx-post="/v1/mappings"
+      hx-post="{{baseURL "/v1/mappings"}}"
       hx-target="#mappings-table-container"
       hx-swap="outerHTML"
       hx-on::after-request="if(event.detail.successful) this.closest('dialog').close()"
@@ -61,7 +61,7 @@
           var sel = document.getElementById('mapping-form').elements.provider_name;
           var name = sel.value;
           if (!name) return;
-          htmx.ajax('POST', '/v1/providers/'+name+'/models/refresh', {target:'#model-suggestions', swap:'innerHTML'});
+          htmx.ajax('POST', window.FREEDIUS_BASE_PATH + '/v1/providers/'+name+'/models/refresh', {target:'#model-suggestions', swap:'innerHTML'});
         ">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
           Fetch models
@@ -94,7 +94,7 @@
       var f = document.getElementById('mapping-form');
       f.reset();
       f.removeAttribute('hx-put');
-      f.setAttribute('hx-post', '/v1/mappings');
+      f.setAttribute('hx-post', window.FREEDIUS_BASE_PATH + '/v1/mappings');
       f.elements.name.readOnly = false;
       document.getElementById('mapping-dialog-title').textContent = 'Add Mapping';
       document.getElementById('fallback-rows').innerHTML = '';
@@ -118,7 +118,7 @@
       var d = document.getElementById('mapping-dialog');
       var f = document.getElementById('mapping-form');
       f.removeAttribute('hx-post');
-      f.setAttribute('hx-put', '/v1/mappings/' + encodeURIComponent(ds.name));
+      f.setAttribute('hx-put', window.FREEDIUS_BASE_PATH + '/v1/mappings/' + encodeURIComponent(ds.name));
       f.elements.name.value = ds.name;
       f.elements.name.readOnly = true;
       f.elements.provider_name.value = ds.provider;
@@ -159,7 +159,7 @@
       }
       document.getElementById('delete-mapping-name').textContent = name;
       var form = document.getElementById('delete-confirm-form');
-      form.setAttribute('hx-delete', '/v1/mappings/' + encodeURIComponent(name));
+      form.setAttribute('hx-delete', window.FREEDIUS_BASE_PATH + '/v1/mappings/' + encodeURIComponent(name));
       // htmx re-reads hx-* attributes on the next request; the safest way
       // to ensure the new value is used is to drop and re-add the attribute.
       htmx.process(form);
@@ -227,7 +227,7 @@
       fetchBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>';
       fetchBtn.addEventListener('click', function() {
         var s = this.parentElement.querySelector('select');
-        if (s.value) htmx.ajax('POST', '/v1/providers/' + s.value + '/models/refresh', {target: '#' + suggestId, swap: 'innerHTML'});
+        if (s.value) htmx.ajax('POST', window.FREEDIUS_BASE_PATH + '/v1/providers/' + s.value + '/models/refresh', {target: '#' + suggestId, swap: 'innerHTML'});
       });
 
       var removeBtn = document.createElement('button');

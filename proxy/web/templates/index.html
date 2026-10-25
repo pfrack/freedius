@@ -47,7 +47,7 @@
     <ul class="attention-panel__list">
       {{range .Alerts}}
       <li class="attention-panel__item attention-panel__item--{{.Severity}}">
-        <a href="{{.Link}}" class="attention-panel__link">
+        <a href="{{baseURL .Link}}" class="attention-panel__link">
           {{.Message}}
         </a>
       </li>
@@ -64,7 +64,7 @@
     </div>
     {{if not .Rows}}
     <div class="empty-state">
-      <p>No mappings configured. <a href="/mappings">Add your first mapping</a>.</p>
+      <p>No mappings configured. <a href="{{baseURL "/mappings"}}">Add your first mapping</a>.</p>
     </div>
     {{else}}
     <div class="table-wrap">
@@ -83,7 +83,7 @@
       <tbody>
         {{range .Rows}}
         <tr tabindex="0" role="button" aria-label="View details for {{.Name}}"
-            hx-get="/v1/mappings/{{.Name | urlPath}}/detail" hx-target="#mapping-drawer" hx-swap="innerHTML">
+            hx-get="{{baseURL (printf "/v1/mappings/%s/detail" (.Name | urlPath))}}" hx-target="#mapping-drawer" hx-swap="innerHTML">
           <td><strong>{{.Name}}</strong></td>
           <td><span class="model-id" title="{{.Model}}">{{.ProviderName}} / {{.Model}}</span></td>
           <td>
@@ -120,7 +120,7 @@
     </div>
     <div class="providers-summary">
       {{range .ProviderHealth.Badges}}
-      <button type="button" class="provider-badge provider-badge--{{.Status}}" title="{{.Name}} — {{.Status}} — {{.MappingCount}} mapping(s) — last: {{.LastChecked}}" hx-get="/v1/providers/{{.Name | urlPath}}/detail" hx-target="#provider-drawer" hx-swap="innerHTML">
+      <button type="button" class="provider-badge provider-badge--{{.Status}}" title="{{.Name}} — {{.Status}} — {{.MappingCount}} mapping(s) — last: {{.LastChecked}}" hx-get="{{baseURL (printf "/v1/providers/%s/detail" (.Name | urlPath))}}" hx-target="#provider-drawer" hx-swap="innerHTML">
         <span class="provider-badge__icon" aria-hidden="true">
           {{if eq .Status "healthy"}}✓{{else if eq .Status "degraded"}}⚠{{else if eq .Status "error"}}✕{{else}}?{{end}}
         </span>
@@ -137,7 +137,7 @@
     <div class="section-header">
       <h2>Recent Activity</h2>
     </div>
-    <div id="activity-feed" class="activity-feed" hx-ext="sse" sse-connect="/v1/events?since={{.CurrentSeq}}" hx-trigger="sse:event">
+    <div id="activity-feed" class="activity-feed" hx-ext="sse" sse-connect="{{baseURL (printf "/v1/events?since=%d" .CurrentSeq)}}" hx-trigger="sse:event">
       {{if not .RecentActivity}}
       <p class="text-muted">Waiting for routing events…</p>
       {{else}}

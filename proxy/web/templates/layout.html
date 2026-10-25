@@ -14,7 +14,7 @@
     <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/geist@1/dist/fonts/geist-sans/style.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/geist@1/dist/fonts/geist-mono/style.css">
-    <link rel="stylesheet" href="/static/app.css">
+    <link rel="stylesheet" href="{{baseURL "/static/app.css"}}">
   </head>
   <body>
     <a href="#main-content" class="skip-link">Skip to content</a>
@@ -29,19 +29,19 @@
         freedius
       </div>
       <nav>
-        <a href="/" class="{{if eq .Active "index"}}active{{end}}">
+        <a href="{{baseURL "/"}}" class="{{if eq .Active "index"}}active{{end}}">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.5"/><path d="M12 12 18.4 5.6"/></svg>
           Dashboard
         </a>
-        <a href="/mappings" class="{{if eq .Active "mappings"}}active{{end}}">
+        <a href="{{baseURL "/mappings"}}" class="{{if eq .Active "mappings"}}active{{end}}">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="2.2"/><circle cx="19" cy="6" r="2.2"/><circle cx="19" cy="18" r="2.2"/><path d="M7.1 11.1 16.9 6.9"/><path d="M7.1 12.9 16.9 17.1"/></svg>
           Mappings
         </a>
-        <a href="/providers" class="{{if eq .Active "providers"}}active{{end}}">
+        <a href="{{baseURL "/providers"}}" class="{{if eq .Active "providers"}}active{{end}}">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20h18"/><path d="M5.25 20v-5"/><path d="M9.75 20v-11"/><path d="M14.25 20v-7"/><path d="M18.75 20v-14"/></svg>
           Providers
         </a>
-        <a href="/logs" class="{{if eq .Active "logs"}}active{{end}}">
+        <a href="{{baseURL "/logs"}}" class="{{if eq .Active "logs"}}active{{end}}">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M13.5 3H6a1.8 1.8 0 0 0-1.8 1.8v14.4A1.8 1.8 0 0 0 6 21h7"/><path d="M8 8.5h4.5"/><path d="M8 12.5h3"/><circle cx="18" cy="17" r="3"/></svg>
           Logs
         </a>
@@ -62,8 +62,10 @@
     <button type="button" class="back-to-top" aria-label="Back to top"><span aria-hidden="true">↑</span></button>
     <div id="toast-region" aria-live="polite" role="status"></div>
     {{block "scripts" .}}{{end}}
-    <script src="/static/htmx.min.js"></script>
-    <script src="/static/htmx-sse.min.js"></script>
-    <script src="/static/app.js"></script>
+    <script src="{{baseURL "/static/htmx.min.js"}}"></script>
+    <script src="{{baseURL "/static/htmx-sse.min.js"}}"></script>
+    <script src="{{baseURL "/static/app.js"}}"></script>
+    <meta name="base-path" content="{{baseURL ""}}">
+    <script>window.FREEDIUS_BASE_PATH = document.querySelector('meta[name="base-path"]').content;</script>
   </body>
 </html>{{end}}

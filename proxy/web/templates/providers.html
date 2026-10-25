@@ -12,7 +12,7 @@
   <dialog id="provider-dialog">
     <form
       id="provider-form"
-      hx-post="/v1/providers"
+      hx-post="{{baseURL "/v1/providers"}}"
       hx-target="#providers"
       hx-swap="outerHTML"
       hx-on::after-request="if(event.detail.successful) this.closest('dialog').close()"
@@ -74,7 +74,7 @@
       var f = document.getElementById('provider-form');
       f.reset();
       f.removeAttribute('hx-put');
-      f.setAttribute('hx-post', '/v1/providers');
+      f.setAttribute('hx-post', window.FREEDIUS_BASE_PATH + '/v1/providers');
       f.elements.name.readOnly = false;
       document.getElementById('provider-dialog-title').textContent = 'Add Provider';
       var err = document.getElementById('provider-form-error-dialog');
@@ -96,7 +96,7 @@
       var d = document.getElementById('provider-dialog');
       var f = document.getElementById('provider-form');
       f.removeAttribute('hx-post');
-      f.setAttribute('hx-put', '/v1/providers/' + name);
+      f.setAttribute('hx-put', window.FREEDIUS_BASE_PATH + '/v1/providers/' + name);
       f.elements.name.value = name;
       f.elements.name.readOnly = true;
       f.elements.behavior.value = behavior;

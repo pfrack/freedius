@@ -491,10 +491,10 @@ Add Playwright E2E tests that run the server behind a base path prefix.
 ### Phase 1: Configuration & Middleware Wiring
 
 #### Automated
-- [x] 1.1 Add `BasePath` to `Handlers` struct
-- [x] 1.2 Add `--ui-path` flag + `FREEDIUS_UI_PATH` env var in `main.go`
-- [x] 1.3 `NewServer` wraps mux with StripPrefix when BasePath is set
-- [x] 1.4 `SetupMux` calls `SetBasePath` for template function
+- [x] 1.1 Add `BasePath` to `Handlers` struct — 06074f5
+- [x] 1.2 Add `--ui-path` flag + `FREEDIUS_UI_PATH` env var in `main.go` — 06074f5
+- [x] 1.3 `NewServer` wraps mux with StripPrefix when BasePath is set — 06074f5
+- [x] 1.4 `SetupMux` calls `SetBasePath` for template function — 06074f5
 
 #### Manual
 - [ ] 1.5 `GET /test/health` returns 200, `GET /health` returns 404 with prefix
