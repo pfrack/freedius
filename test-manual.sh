@@ -559,3 +559,163 @@ if [[ $FAIL -eq 0 ]]; then
 else
 	echo "$FAIL error-code-collapse checks failed"
 fi
+
+# ---------------------------------------------------------------------------
+# Client wire format (openai-client-format)
+#
+# freedius answers in the wire format the client speaks. POST /v1/messages is
+# translated Anthropic<->OpenAI; POST /v1/chat/completions is already OpenAI
+# shaped and is forwarded untranslated, so the client gets chunks with a
+# top-level "id" instead of Anthropic events.
+# ---------------------------------------------------------------------------
+
+echo ""
+echo "=== Client wire format ==="
+
+# Upstream that answers with OpenAI chunks and records the request it received.
+UPSTREAM_PORT=18998
+stop_upstream
+python3 -c "
+import http.server
+class H(http.server.BaseHTTPRequestHandler):
+    def do_POST(self):
+        body = self.rfile.read(int(self.headers.get('Content-Length', 0)))
+        with open('$TMPHOME/upstream_body.json', 'wb') as fh:
+            fh.write(body)
+        payload = (
+            b'data: {\"id\":\"chatcmpl-m\",\"object\":\"chat.completion.chunk\",'
+            b'\"created\":1,\"model\":\"upstream-model\",\"choices\":'
+            b'[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"pong\"},'
+            b'\"finish_reason\":null}]}\n\n'
+            b'data: {\"id\":\"chatcmpl-m\",\"object\":\"chat.completion.chunk\",'
+            b'\"created\":1,\"model\":\"upstream-model\",\"choices\":'
+            b'[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":'
+            b'{\"prompt_tokens\":3,\"completion_tokens\":1,\"total_tokens\":4}}\n\n'
+            b'data: [DONE]\n\n'
+        )
+        self.send_response(200)
+        self.send_header('Content-Type', 'text/event-stream')
+        self.send_header('Content-Length', str(len(payload)))
+        self.end_headers()
+        self.wfile.write(payload)
+    def log_message(self, *a): pass
+http.server.HTTPServer(('127.0.0.1', $UPSTREAM_PORT), H).serve_forever()
+" &
+UPSTREAM_PID=$!
+sleep 0.3
+
+export TEST_API_KEY=test-dummy-key
+cat > "$CFG" <<YAML
+providers:
+  openai: { behavior: openai, default_base_url: http://127.0.0.1:$UPSTREAM_PORT/v1/chat/completions, default_api_key_env: TEST_API_KEY }
+mappings:
+  default: { provider_name: openai, model_string: upstream-model }
+YAML
+
+if ! start_server; then
+	echo "  server failed to start (6.x)"
+	exit 1
+fi
+
+# ---- 6.1: OpenAI client, streaming → OpenAI chunks, not Anthropic events ----
+STREAM=$(curl -sS -N -X POST "$BASE_URL"/v1/chat/completions \
+	-H 'content-type: application/json' \
+	-H 'authorization: Bearer test' \
+	-d '{"model":"kimi-k3","stream":true,"messages":[{"role":"user","content":"ping"}]}')
+FIRST=$(printf '%s\n' "$STREAM" | grep -m1 '^data: {' | sed 's/^data: //')
+
+if printf '%s' "$STREAM" | grep -q 'event: message_start'; then
+	fail "6.1 OpenAI client received Anthropic events"
+else
+	pass "6.1 OpenAI client receives no Anthropic event framing"
+fi
+if printf '%s' "$FIRST" | jq -e '.id != null and .object == "chat.completion.chunk"' >/dev/null 2>&1; then
+	pass "6.1 first data line is an OpenAI chunk with a top-level id"
+else
+	fail "6.1 first data line is not an OpenAI chunk: $FIRST"
+fi
+if printf '%s' "$STREAM" | grep -q 'data: \[DONE\]'; then
+	pass "6.1 [DONE] sentinel forwarded"
+else
+	fail "6.1 [DONE] sentinel missing"
+fi
+if printf '%s' "$FIRST" | jq -e '.model == "kimi-k3"' >/dev/null 2>&1; then
+	pass "6.1 response echoes the model the client asked for"
+else
+	fail "6.1 echoed model wrong: $FIRST"
+fi
+if jq -e '.model == "upstream-model"' "$TMPHOME/upstream_body.json" >/dev/null 2>&1; then
+	pass "6.1 upstream received the remapped model"
+else
+	fail "6.1 upstream model not remapped: $(cat "$TMPHOME/upstream_body.json")"
+fi
+
+# ---- 6.2: OpenAI client fields freedius does not model must survive ----
+curl -sS -N -o /dev/null -X POST "$BASE_URL"/v1/chat/completions \
+	-H 'content-type: application/json' \
+	-d '{"model":"kimi-k3","stream":true,"max_completion_tokens":4096,"reasoning_effort":"high","messages":[{"role":"user","content":"ping"}]}'
+if jq -e '.max_completion_tokens == 4096 and .reasoning_effort == "high"' \
+	"$TMPHOME/upstream_body.json" >/dev/null 2>&1; then
+	pass "6.2 provider-specific request fields forwarded untouched"
+else
+	fail "6.2 fields dropped: $(cat "$TMPHOME/upstream_body.json")"
+fi
+
+# ---- 6.3: OpenAI client, non-streaming → JSON completion ----
+JSON=$(curl -sS -X POST "$BASE_URL"/v1/chat/completions \
+	-H 'content-type: application/json' \
+	-d '{"model":"kimi-k3","stream":false,"messages":[{"role":"user","content":"ping"}]}')
+if printf '%s' "$JSON" | jq -e '.object == "chat.completion" and .id != null' >/dev/null 2>&1; then
+	pass "6.3 OpenAI non-streaming reply is a chat.completion"
+else
+	fail "6.3 OpenAI non-streaming reply wrong: $JSON"
+fi
+
+# ---- 6.4: Anthropic client, non-streaming → one Message document ----
+MSG=$(curl -sS -X POST "$BASE_URL"/v1/messages \
+	-H 'content-type: application/json' \
+	-d '{"model":"claude-sonnet-4-5-20250929","max_tokens":32,"stream":false,"messages":[{"role":"user","content":"ping"}]}')
+if printf '%s' "$MSG" | grep -q 'event:'; then
+	fail "6.4 non-streaming reply leaked SSE framing: $MSG"
+else
+	pass "6.4 non-streaming reply carries no SSE framing"
+fi
+if printf '%s' "$MSG" | jq -e '.type == "message" and .role == "assistant" and (.id | startswith("msg_"))' >/dev/null 2>&1; then
+	pass "6.4 non-streaming reply is an Anthropic Message"
+else
+	fail "6.4 non-streaming reply is not a Message: $MSG"
+fi
+if printf '%s' "$MSG" | jq -e '.content[0].text == "pong"' >/dev/null 2>&1; then
+	pass "6.4 non-streaming reply carries the upstream content"
+else
+	fail "6.4 non-streaming reply lost the content: $MSG"
+fi
+
+# ---- 6.5: Anthropic client, streaming → unchanged event stream ----
+SSE=$(curl -sS -N -X POST "$BASE_URL"/v1/messages \
+	-H 'content-type: application/json' \
+	-d '{"model":"claude-sonnet-4-5-20250929","max_tokens":32,"stream":true,"messages":[{"role":"user","content":"ping"}]}')
+if printf '%s' "$SSE" | grep -q 'event: message_start' &&
+	printf '%s' "$SSE" | grep -q 'event: message_stop'; then
+	pass "6.5 Anthropic streaming reply still emits message_start/message_stop"
+else
+	fail "6.5 Anthropic streaming reply wrong: $SSE"
+fi
+if printf '%s' "$SSE" | grep -q '"model":"claude-sonnet-4-5-20250929"'; then
+	pass "6.5 Anthropic stream echoes the client model"
+else
+	fail "6.5 Anthropic stream model echo missing: $SSE"
+fi
+
+# ---- Cleanup ----
+unset TEST_API_KEY
+stop_upstream
+rm -f "$TMPHOME/upstream_body.json"
+kill -TERM "$SERVER_PID" 2>/dev/null; wait "$SERVER_PID" 2>/dev/null; SERVER_PID=""
+
+echo ""
+if [[ $FAIL -eq 0 ]]; then
+	echo "All client wire format manual checks passed"
+else
+	echo "$FAIL client wire format checks failed"
+fi

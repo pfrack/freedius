@@ -404,8 +404,19 @@ func stringifyContent(c any) string {
 // is non-empty, the emitted message_start event uses it instead of the upstream
 // model. Returns a non-nil error if the stream ended abnormally.
 func Stream(upstream io.Reader, downstream io.Writer, flush func() error, modelOverride string) error {
+	return streamInto(newAnthropicEmitter(modelOverride), upstream, downstream, flush)
+}
+
+// streamInto is Stream with a caller-supplied emitter, so a caller that needs
+// to observe the translated events (Message folding them into one document)
+// can attach an accumulator before the stream is consumed.
+func streamInto(
+	em *emitter,
+	upstream io.Reader,
+	downstream io.Writer,
+	flush func() error,
+) error {
 	br := bufio.NewReaderSize(upstream, 64*1024)
-	em := newAnthropicEmitter(modelOverride)
 	for {
 		chunk, err := readSSEEvent(br)
 		if err != nil {
@@ -488,6 +499,10 @@ type emitter struct {
 	roleSent      bool
 	finished      bool
 	pendingFinish string
+	// acc, when set, mirrors the translated events into a single Message
+	// instead of relying on the downstream SSE bytes. Set by Message for
+	// clients that asked for a non-streaming reply.
+	acc *messageAccumulator
 }
 
 func newAnthropicEmitter(modelOverride string) *emitter {
@@ -522,6 +537,9 @@ func (e *emitter) consume(payload []byte) ([][]byte, error) {
 		e.outputTokens = chunk.Usage.CompletionTokens
 		e.inputTokens = chunk.Usage.PromptTokens
 		e.sawUsage = true
+		if e.acc != nil {
+			e.acc.setUsage(e.inputTokens, e.outputTokens)
+		}
 	}
 
 	if len(chunk.Choices) == 0 {
@@ -596,6 +614,9 @@ func (e *emitter) emitMessageStart() ([][]byte, error) {
 	if e.modelOverride != "" {
 		modelToEmit = e.modelOverride
 	}
+	if e.acc != nil {
+		e.acc.model = modelToEmit
+	}
 	payload := map[string]any{
 		"type": "message_start",
 		"message": map[string]any{
@@ -616,6 +637,9 @@ func (e *emitter) emitMessageStart() ([][]byte, error) {
 }
 
 func (e *emitter) emitText(text string) ([][]byte, error) {
+	if e.acc != nil {
+		e.acc.addText(text)
+	}
 	var events [][]byte
 	if e.openBlock != "text" {
 		if e.openBlock != "" {
@@ -658,6 +682,9 @@ func (e *emitter) emitText(text string) ([][]byte, error) {
 }
 
 func (e *emitter) emitThinkingDelta(thinking string) ([][]byte, error) {
+	if e.acc != nil {
+		e.acc.addThinking(thinking)
+	}
 	var events [][]byte
 	if e.openBlock != "thinking" {
 		if e.openBlock != "" {
@@ -700,6 +727,9 @@ func (e *emitter) emitThinkingDelta(thinking string) ([][]byte, error) {
 }
 
 func (e *emitter) emitToolCall(tc openAIToolCall) ([][]byte, error) {
+	if e.acc != nil {
+		e.acc.addToolArgs(tc.Index, tc.ID, tc.Function.Name, tc.Function.Arguments)
+	}
 	if _, ok := e.toolToBlock[tc.Index]; !ok {
 		var events [][]byte
 		if e.openBlock != "" {
@@ -776,6 +806,10 @@ func (e *emitter) emitFinish(reason string) ([][]byte, error) {
 		events = append(events, ev...)
 	}
 	stopReason := mapFinishReason(reason)
+	if e.acc != nil {
+		e.acc.stopReason = stopReason
+		e.acc.setUsage(e.inputTokens, e.outputTokens)
+	}
 	md := map[string]any{
 		"type": "message_delta",
 		"delta": map[string]any{

@@ -183,7 +183,7 @@ func (a *AnthropicCompatibleAdapter) Handle(
 				return nil
 			}
 
-			rewritten := rewriteAnthropicModelField(responseBody, originalModel)
+			rewritten := rewriteTopLevelModel(responseBody, originalModel)
 			for k, vv := range resp.Header {
 				if strings.EqualFold(k, "Content-Length") {
 					continue
@@ -251,28 +251,6 @@ func (a *AnthropicCompatibleAdapter) logTransportError(
 			"err", err.Error(),
 		)
 	}
-}
-
-// rewriteAnthropicModelField rewrites the top-level "model" field in a JSON
-// response body. Used for non-streaming application/json responses.
-func rewriteAnthropicModelField(body []byte, newModel string) []byte {
-	var data map[string]any
-	if err := json.Unmarshal(body, &data); err != nil {
-		// Malformed JSON; return unchanged.
-		return body
-	}
-	if _, ok := data["model"]; !ok {
-		// No model field; return unchanged.
-		return body
-	}
-	// Rewrite model field.
-	data["model"] = newModel
-	rewritten, err := json.Marshal(data)
-	if err != nil {
-		// Marshalling error; return original.
-		return body
-	}
-	return rewritten
 }
 
 // forwardSSEWithModelRewrite reads an SSE stream from br and writes it to w,

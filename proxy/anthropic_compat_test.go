@@ -328,9 +328,9 @@ func TestForwardSSEWithModelRewrite_MultilineAndPassthrough(t *testing.T) {
 	}
 }
 
-func TestRewriteAnthropicModelField_MalformedJSONPassthrough(t *testing.T) {
+func TestRewriteTopLevelModel_MalformedJSONPassthrough(t *testing.T) {
 	body := []byte(`{"model":"upstream",`)
-	got := rewriteAnthropicModelField(body, "claude-opus-4")
+	got := rewriteTopLevelModel(body, "claude-opus-4")
 	if !bytes.Equal(got, body) {
 		t.Errorf("malformed JSON changed: got %q, want %q", got, body)
 	}
