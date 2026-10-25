@@ -22,7 +22,7 @@ contributor guide, see [AGENTS.md](AGENTS.md).
 
 ## Installation
 
-Pre-built static binaries for Linux, macOS, and Windows (amd64/arm64) are
+Pre-built static binaries for Linux, macOS, and Windows (amd64/arm64/armv7) are
 published on every `v*` tag. Grab the latest archive from the
 [Releases](https://github.com/pfrack/freedius/releases) page, or install via:
 
@@ -281,7 +281,7 @@ emergency, use `git push --no-verify`.
 
 Push a `v*` tag to trigger the release workflow (`@goreleaser.yaml`).
 GoReleaser publishes static binaries for Linux, macOS, and Windows
-(amd64/arm64) to the Releases page.
+(amd64/arm64/armv7) to the Releases page.
 
 For the full contributor guide — commit conventions, hook details, and
 release process — see [AGENTS.md](AGENTS.md).

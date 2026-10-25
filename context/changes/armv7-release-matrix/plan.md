@@ -280,10 +280,10 @@ No `.goreleaser.yaml` change is needed here — the workflow reads the committed
 
 #### Automated
 
-- [x] 1.1 `goreleaser check` exits 0
-- [x] 1.2 Snapshot build produces 7 binaries including a 32-bit ARM one
-- [x] 1.3 The armv7 binary is a static 32-bit ARM ELF
-- [x] 1.4 `go build ./...` still succeeds
+- [x] 1.1 `goreleaser check` exits 0 — 7faa4f5
+- [x] 1.2 Snapshot build produces 7 binaries including a 32-bit ARM one — 7faa4f5
+- [x] 1.3 The armv7 binary is a static 32-bit ARM ELF — 7faa4f5
+- [x] 1.4 `go build ./...` still succeeds — 7faa4f5
 
 #### Manual
 
@@ -294,7 +294,7 @@ No `.goreleaser.yaml` change is needed here — the workflow reads the committed
 
 #### Automated
 
-- [ ] 2.1 Docs mention armv7
+- [x] 2.1 Docs mention armv7
 
 #### Manual
 

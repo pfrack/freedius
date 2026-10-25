@@ -52,4 +52,4 @@ freedius is a local HTTP proxy built with Go's standard library (`net/http`, `ht
 ## Release
 
 - Tags matching `v*` trigger `@.github/workflows/release.yml`, which runs GoReleaser to publish static binaries.
-- `@goreleaser.yaml` defines the build matrix (Linux/macOS/Windows, amd64/arm64).
+- `@goreleaser.yaml` defines the build matrix (Linux/macOS/Windows, amd64/arm64/armv7).
