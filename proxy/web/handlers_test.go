@@ -30,17 +30,20 @@ func newTestMux() http.Handler {
 	return SetupMux(h, logger)
 }
 
-// newTestMuxBase creates a mux wrapped with http.StripPrefix for the given
-// base path, mirroring how NewServer wires StripPrefix in production.
+// newTestMuxBase creates a mux wrapped with csrfGuard + http.StripPrefix,
+// mirroring the middleware layering in NewServer (minus Auth, which requires
+// an AuthToken). StripPrefix sits inside csrfGuard so the CSRF guard sees
+// the stripped path and its "/v1/" prefix check works behind a base path.
 func newTestMuxBase(basePath string) http.Handler {
 	logger := slog.New(slog.NewTextHandler(sink{}, nil))
 	h := newTestHandlers()
 	h.BasePath = basePath
 	mux := SetupMux(h, logger)
+	handler := csrfGuard(http.Handler(mux))
 	if basePath != "" {
-		return http.StripPrefix(basePath, mux)
+		handler = http.StripPrefix(basePath, handler)
 	}
-	return mux
+	return handler
 }
 
 // sink discards log output in tests.
@@ -281,5 +284,45 @@ func TestNoBasePathBackwardCompat(t *testing.T) {
 	}
 	if !strings.Contains(body, `<meta name="base-path" content="">`) {
 		t.Error("response should contain meta base-path tag with empty content")
+	}
+}
+
+// TestCSRFGuardWorksWithBasePath verifies that csrfGuard still blocks
+// cross-origin mutations when the server is behind a base-path prefix.
+// This is a regression test: StripPrefix must sit INSIDE csrfGuard so the
+// path-stripping happens before the prefix-aware "/v1/" check.
+func TestCSRFGuardWorksWithBasePath(t *testing.T) {
+	mux := newTestMuxBase("/freedius")
+
+	tests := []struct {
+		name        string
+		method      string
+		path        string
+		secFetch    string
+		wantBlocked bool
+	}{
+		{"cross-site POST blocked", http.MethodPost, "/freedius/v1/providers", "cross-site", true},
+		{"cross-site DELETE blocked", http.MethodDelete, "/freedius/v1/mappings/x", "cross-site", true},
+		{"same-origin POST allowed", http.MethodPost, "/freedius/v1/providers", "same-origin", false},
+		{"GET allowed (read-only)", http.MethodGet, "/freedius/v1/stats", "cross-site", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(tt.method, tt.path, nil)
+			req.Host = "localhost:8083"
+			if tt.secFetch != "" {
+				req.Header.Set("Sec-Fetch-Site", tt.secFetch)
+			}
+			rec := httptest.NewRecorder()
+			mux.ServeHTTP(rec, req)
+
+			if tt.wantBlocked && rec.Code != http.StatusForbidden {
+				t.Errorf("expected 403 for %s %s, got %d", tt.method, tt.path, rec.Code)
+			}
+			if !tt.wantBlocked && rec.Code == http.StatusForbidden {
+				t.Errorf("expected non-403 for %s %s, got 403", tt.method, tt.path)
+			}
+		})
 	}
 }

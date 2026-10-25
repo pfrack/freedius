@@ -310,6 +310,22 @@ may only need a comment.
 **Contract**: If no URLs are constructed in app.js, no change needed. Verify
 by grep — no root-relative paths exist in app.js currently.
 
+#### Addendum (review, 2026-10-25): `proxy/web/templates/404.html`
+
+The branded 404 page also contains root-relative links (`/`, `/mappings`,
+`/providers`, `/logs`). It was prefixed with `{{baseURL ...}}` during Phase 2
+but was not enumerated in the original "Changes Required". This is an
+intentional, necessary addition — without it the 404 page would render broken
+links behind a base-path prefix.
+
+#### Addendum (review, 2026-10-25): `proxy/web/templates/index.html` alert links
+
+The attention-panel alert links (`{{.Link}}`, line 50) were wrapped as
+`{{baseURL .Link}}` during Phase 2. The original contract enumerated only
+lines 67, 86, 123, and 140. This is an intentional, necessary addition —
+alert links need the prefix too — and counts as implicit coverage of the
+"prefix all template links" intent.
+
 ## Phase 3: Go-side Link Generation + Tests
 
 ### Overview

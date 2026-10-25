@@ -32,21 +32,25 @@ func NewServer(
 ) *Server {
 	mux := SetupMux(h, logger)
 
-	// Wrap with StripPrefix when BasePath is set so the dashboard is served
-	// at a sub-path (e.g. /freedius/) behind a reverse proxy. StripPrefix
-	// rewrites r.URL.Path before the inner mux sees it, so Go 1.22 route
-	// patterns remain unchanged. The wrapper must sit OUTSIDE the auth
-	// boundary so auth applies to the prefixed path.
-	handler := http.Handler(mux)
+	// Middleware layering (outer → inner):
+	//   Auth → StripPrefix → csrfGuard → mux
+	//
+	// - csrfGuard MUST see the stripped path so its `strings.HasPrefix(r.URL.Path,
+	//   "/v1/")` check works when a base-path prefix is set. If csrfGuard sat
+	//   outside StripPrefix, prefixed mutation requests like
+	//   /freedius/v1/providers/x/test would bypass CSRF entirely.
+	// - Auth sits outermost so it applies to the prefixed path (path-agnostic
+	//   in practice — it checks the Authorization header — but kept outside for
+	//   conceptual clarity).
+	// - StripPrefix rewrites r.URL.Path before the inner handlers see it, so
+	//   Go 1.22 route patterns remain unchanged.
+	handler := csrfGuard(http.Handler(mux))
 	if h.BasePath != "" {
-		handler = http.StripPrefix(h.BasePath, mux)
+		handler = http.StripPrefix(h.BasePath, handler)
 	}
 	if h.AuthToken != "" {
 		handler = h.RequireAuth(handler)
 	}
-	// CSRF/origin guard wraps the whole mux so cross-origin mutating requests to
-	// the writeback API are rejected even when AuthToken is unset.
-	handler = csrfGuard(handler)
 
 	return &Server{
 		host: host,
