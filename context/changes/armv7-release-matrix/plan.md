@@ -294,7 +294,7 @@ No `.goreleaser.yaml` change is needed here — the workflow reads the committed
 
 #### Automated
 
-- [x] 2.1 Docs mention armv7
+- [x] 2.1 Docs mention armv7 — a4f1523
 
 #### Manual
 
@@ -304,9 +304,9 @@ No `.goreleaser.yaml` change is needed here — the workflow reads the committed
 
 #### Automated
 
-- [ ] 3.1 `mage goreleaserCheck` exits 0
-- [ ] 3.2 `mage ci` runs the new step
-- [ ] 3.3 magefiles still compile and the target is listed
+- [x] 3.1 `mage goreleaserCheck` exits 0
+- [x] 3.2 `mage ci` runs the new step
+- [x] 3.3 magefiles still compile and the target is listed
 
 #### Manual
 

@@ -82,6 +82,7 @@ func Help() {
 	fmt.Println("  dockerRun       - Run Docker container")
 	fmt.Println("  dockerPush      - Push Docker image to registry")
 	fmt.Println("  goreleaser      - Run GoReleaser (use ARGS env for flags)")
+	fmt.Println("  goreleaserCheck - Validate .goreleaser.yaml config")
 	fmt.Println()
 
 	fmt.Println("Git Hooks & CI:")
@@ -388,7 +389,8 @@ func FormatCheck() error {
 	return sh.RunV("golangci-lint", "fmt", "--diff")
 }
 
-// CI runs the full CI pipeline: vet + generate-check + mod-verify + tidy-check + format-check + test + lint + build + govulncheck.
+// CI runs the full CI pipeline: vet + mod-verify + tidy-check + generate-check
+// + format-check + go-releaser-check + test + lint + build + govulncheck.
 func CI() error {
 	steps := []struct {
 		name string
@@ -399,6 +401,7 @@ func CI() error {
 		{"Tidy Check", TidyCheck},
 		{"Generate Check", GenerateCheck},
 		{"Format Check", FormatCheck},
+		{"GoReleaser Check", GoreleaserCheck},
 		{"Test", Test},
 		{"Lint", Lint},
 		{"Build", Build},
@@ -614,6 +617,17 @@ func Goreleaser() error {
 		args = append(args, strings.Fields(extra)...)
 	}
 	return sh.RunV("goreleaser", args...)
+}
+
+// GoreleaserCheck validates the .goreleaser.yaml configuration without building
+// binaries. It installs GoReleaser if missing, mirroring Goreleaser().
+func GoreleaserCheck() error {
+	if _, err := sh.Output("which", "goreleaser"); err != nil {
+		if err := sh.RunV("go", "install", "github.com/goreleaser/goreleaser/v2@"+toolVersionGoreleaser); err != nil {
+			return err
+		}
+	}
+	return sh.RunV("goreleaser", "check")
 }
 
 // Help2 displays detailed help information with sections and tool versions.
