@@ -519,12 +519,12 @@ Add Playwright E2E tests that run the server behind a base path prefix.
 ### Phase 3: Go-side Link Generation + Tests
 
 #### Automated
-- [x] 3.1 Prefix `LogsLink` in `handlers.go:322`
-- [x] 3.2 Prefix `EditLink` in `handlers.go:1041`
-- [x] 3.3 Add `newTestMuxBase` helper
-- [x] 3.4 Add `TestBasePathPrefixedRouting` unit test
-- [x] 3.5 Add `TestBaseURLTemplateFunc` unit test
-- [x] 3.6 Add `TestGoSideLinkGeneration` unit test
+- [x] 3.1 Prefix `LogsLink` in `handlers.go:322` — 06074f5
+- [x] 3.2 Prefix `EditLink` in `handlers.go:1041` — 06074f5
+- [x] 3.3 Add `newTestMuxBase` helper — ff2d2bd
+- [x] 3.4 Add `TestBasePathPrefixedRouting` unit test — ff2d2bd
+- [x] 3.5 Add `TestBaseURLTemplateFunc` unit test — ff2d2bd
+- [x] 3.6 Add `TestGoSideLinkGeneration` unit test — ff2d2bd
 
 #### Manual
 - [ ] 3.7 `mage test` passes with `-race`

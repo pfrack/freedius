@@ -6,6 +6,7 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   reporter: [['list']],
+  testIgnore: ['base-path.spec.ts'],
   use: {
     baseURL: 'http://localhost:8083',
     trace: 'on-first-retry',

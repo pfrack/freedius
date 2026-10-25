@@ -7,6 +7,7 @@
   },
   "scripts": {
     "test": "playwright test",
-    "test:headed": "playwright test --headed"
+    "test:headed": "playwright test --headed",
+    "test:base-path": "playwright test -c playwright.config.base-path.ts"
   }
 }
