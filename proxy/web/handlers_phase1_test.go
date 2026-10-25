@@ -355,16 +355,16 @@ func TestStaleHxPutAfterEditCancel_StaticContract(t *testing.T) {
 	if !strings.Contains(body, "f.removeAttribute('hx-put')") {
 		t.Errorf("resetMappingForm must remove hx-put; got: %s", body)
 	}
-	if !strings.Contains(body, "f.setAttribute('hx-post', '/v1/mappings')") {
-		t.Errorf("resetMappingForm must restore hx-post=/v1/mappings; got: %s", body)
+	if !strings.Contains(body, "f.setAttribute('hx-post', window.FREEDIUS_BASE_PATH + '/v1/mappings')") {
+		t.Errorf("resetMappingForm must restore hx-post with base path prefix; got: %s", body)
 	}
 	if !strings.Contains(body, "openAddMapping()") || !strings.Contains(body, "resetMappingForm()") {
 		t.Errorf("openAddMapping must invoke resetMappingForm first")
 	}
 
 	// Edit handler must set hx-put so a subsequent Add is what triggers the reset.
-	if !strings.Contains(body, "f.setAttribute('hx-put', '/v1/mappings/'") {
-		t.Errorf("editMapping must set hx-put so the reset path is exercised; got: %s", body)
+	if !strings.Contains(body, "f.setAttribute('hx-put', window.FREEDIUS_BASE_PATH + '/v1/mappings/'") {
+		t.Errorf("editMapping must set hx-put with base path prefix; got: %s", body)
 	}
 }
 

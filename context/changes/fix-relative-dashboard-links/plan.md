@@ -502,16 +502,16 @@ Add Playwright E2E tests that run the server behind a base path prefix.
 ### Phase 2: Template Function + Link Prefixing
 
 #### Automated
-- [x] 2.1 Add `basePath` var + `SetBasePath` + `baseURL` template func in `embed.go`
-- [x] 2.2 Prefix `layout.html` (assets, nav, meta tag)
-- [x] 2.3 Prefix `index.html` (links, HTMX targets, SSE)
-- [x] 2.4 Prefix `logs.html` (HTMX, SSE)
-- [x] 2.5 Prefix `mappings.html` (form actions, inline JS)
-- [x] 2.6 Prefix `providers.html` (form actions, inline JS)
-- [x] 2.7 Prefix `mappings-routing-table.html` (filter hx-get)
-- [x] 2.8 Prefix `providers-table.html` (actions, links)
-- [x] 2.9 Prefix `mapping-drawer.html` (edit link)
-- [x] 2.10 Add `window.FREEDIUS_BASE_PATH` inline script in layout
+- [x] 2.1 Add `basePath` var + `SetBasePath` + `baseURL` template func in `embed.go` — bdc9915
+- [x] 2.2 Prefix `layout.html` (assets, nav, meta tag) — bdc9915
+- [x] 2.3 Prefix `index.html` (links, HTMX targets, SSE) — bdc9915
+- [x] 2.4 Prefix `logs.html` (HTMX, SSE) — bdc9915
+- [x] 2.5 Prefix `mappings.html` (form actions, inline JS) — bdc9915
+- [x] 2.6 Prefix `providers.html` (form actions, inline JS) — bdc9915
+- [x] 2.7 Prefix `mappings-routing-table.html` (filter hx-get) — bdc9915
+- [x] 2.8 Prefix `providers-table.html` (actions, links) — bdc9915
+- [x] 2.9 Prefix `mapping-drawer.html` (edit link) — bdc9915
+- [x] 2.10 Add `window.FREEDIUS_BASE_PATH` inline script in layout — bdc9915
 
 #### Manual
 - [ ] 2.11 Verify all links are prefixed in browser with dev tools open
