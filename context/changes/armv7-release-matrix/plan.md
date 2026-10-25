@@ -304,9 +304,9 @@ No `.goreleaser.yaml` change is needed here — the workflow reads the committed
 
 #### Automated
 
-- [x] 3.1 `mage goreleaserCheck` exits 0
-- [x] 3.2 `mage ci` runs the new step
-- [x] 3.3 magefiles still compile and the target is listed
+- [x] 3.1 `mage goreleaserCheck` exits 0 — 30258dd
+- [x] 3.2 `mage ci` runs the new step — 30258dd
+- [x] 3.3 magefiles still compile and the target is listed — 30258dd
 
 #### Manual
 
@@ -316,8 +316,8 @@ No `.goreleaser.yaml` change is needed here — the workflow reads the committed
 
 #### Automated
 
-- [ ] 4.1 Release run succeeds
-- [ ] 4.2 Release has 7 assets including the armv7 tarball
+- [x] 4.1 Release run succeeds
+- [x] 4.2 Release has 7 assets including the armv7 tarball
 
 #### Manual
 
